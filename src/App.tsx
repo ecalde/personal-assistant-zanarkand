@@ -1,8 +1,9 @@
-// This is my app's main component, it provides UI for saving, exporting, and importing app data
-
 import { useMemo, useRef, useState } from "react";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
+import type { Priority, Skill, Weekday } from "./core/model";
+import { defaultWeeklySchedule, defaultPayload, weekdayLabel } from "./core/state";
+import { parseDurationToMinutes } from "./core/duration";
 
 function formatLocal(tsIso: string) {
   try {
@@ -12,26 +13,51 @@ function formatLocal(tsIso: string) {
   }
 }
 
+function id() {
+  return crypto.randomUUID();
+}
+
+function priorityEmoji(p?: Priority) {
+  if (!p) return "⚪";
+  if (p === 1) return "🔴";
+  if (p === 2) return "🟡";
+  if (p === 3) return "🟢";
+  return "🔵";
+}
+
+type Page = "dashboard" | "skills";
+
+const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
 export default function App() {
-  // App loads saved data on start, react keeps it in memory, ui updates when data changes
-  const [data, setData] = useState<AppData>(() => loadAppData());
+  const [app, setApp] = useState<AppData>(() => {
+    const loaded = loadAppData();
+    // Safety: if payload missing for any reason
+    if (!loaded.payload) return { ...loaded, payload: defaultPayload() };
+    return loaded;
+  });
+
+  const [page, setPage] = useState<Page>("dashboard");
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const lastSavedLabel = useMemo(() => formatLocal(data.updatedAtIso), [data.updatedAtIso]);
+  const lastSavedLabel = useMemo(() => formatLocal(app.updatedAtIso), [app.updatedAtIso]);
 
-  // Button logic to update timestamp, saves to localStorage, updates ui
-  function onSaveNow() {
-    setError(null);
-    setData(prev => saveAppData(prev));
+  function commit(next: AppData) {
+    // single place to persist + update state
+    const saved = saveAppData(next);
+    setApp(saved);
   }
 
-  // Button logic to export current data as JSON file, and ensure data is current
+  function onSaveNow() {
+    setError(null);
+    commit(app);
+  }
+
   function onExport() {
     setError(null);
-    // Makes sure we export the latest saved version
-    const saved = saveAppData(data);
-    setData(saved);
+    const saved = saveAppData(app);
+    setApp(saved);
     exportBackup(saved);
   }
 
@@ -42,49 +68,410 @@ export default function App() {
 
     try {
       const imported = await importBackup(f);
-      // Persist immediately
-      const saved = saveAppData(imported);
-      setData(saved);
+      commit(imported);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed.");
     } finally {
-      // allow re-selecting the same file later
       e.target.value = "";
     }
   }
 
+  // ---------- SKILLS CRUD ----------
+  function addSkill(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const now = new Date().toISOString();
+    const newSkill: Skill = {
+      id: id(),
+      name: trimmed,
+      schedule: defaultWeeklySchedule(),
+      createdAtIso: now,
+      updatedAtIso: now,
+      dailyGoalMinutes: 30,
+      weeklyGoalMinutes: 180,
+      priority: 2,
+    };
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        skills: [newSkill, ...app.payload.skills],
+      },
+    });
+  }
+
+  function updateSkill(skillId: string, patch: Partial<Skill>) {
+    const now = new Date().toISOString();
+    const skills = app.payload.skills.map((s) =>
+      s.id === skillId ? { ...s, ...patch, updatedAtIso: now } : s
+    );
+    commit({ ...app, payload: { ...app.payload, skills } });
+  }
+
+  function deleteSkill(skillId: string) {
+    const skills = app.payload.skills.filter((s) => s.id !== skillId);
+    commit({ ...app, payload: { ...app.payload, skills } });
+  }
+
+  // ---------- UI ----------
   return (
-    <div style={{ padding: "2rem", maxWidth: 800, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" }}>
-      <h1 style={{ marginBottom: 4 }}>Personal Assistant</h1>
-      <div style={{ opacity: 0.8, marginBottom: 20 }}>Last saved: <b>{lastSavedLabel}</b></div>
+    <div style={styles.shell}>
+      <header style={styles.header}>
+        <div>
+          <div style={styles.title}>Personal Assistant</div>
+          <div style={styles.sub}>Last saved: <b>{lastSavedLabel}</b></div>
+        </div>
+
+        <div style={styles.actions}>
+          <button onClick={onSaveNow}>Save Now</button>
+          <button onClick={onExport}>Export Backup</button>
+          <button onClick={() => fileRef.current?.click()}>Import Backup</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json"
+            style={{ display: "none" }}
+            onChange={onPickImportFile}
+          />
+        </div>
+      </header>
 
       {error && (
-        <div style={{ background: "#ffe6e6", padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={styles.errorBox}>
           <b>Error:</b> {error}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-        <button onClick={onSaveNow}>Save Now</button>
-        <button onClick={onExport}>Export Backup</button>
-        <button onClick={() => fileRef.current?.click()}>Import Backup</button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json"
-          style={{ display: "none" }}
-          onChange={onPickImportFile}
-        />
+      <nav style={styles.nav}>
+        <NavButton active={page === "dashboard"} onClick={() => setPage("dashboard")}>
+          Dashboard
+        </NavButton>
+        <NavButton active={page === "skills"} onClick={() => setPage("skills")}>
+          Skills
+        </NavButton>
+      </nav>
+
+      <main style={styles.main}>
+        {page === "dashboard" && (
+          <Dashboard skills={app.payload.skills} />
+        )}
+
+        {page === "skills" && (
+          <SkillsPage
+            skills={app.payload.skills}
+            onAdd={addSkill}
+            onUpdate={updateSkill}
+            onDelete={deleteSkill}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function NavButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...styles.navBtn,
+        ...(active ? styles.navBtnActive : {}),
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Dashboard({ skills }: { skills: Skill[] }) {
+  return (
+    <div style={styles.card}>
+      <div style={styles.cardTitle}>Dashboard (Phase 1)</div>
+      <div style={{ opacity: 0.85, marginBottom: 12 }}>
+        Next we’ll add: daily timeline, reminders, session logging, completion rules, and XP.
       </div>
 
-      <div style={{ background: "#f6f6f6", padding: 16, borderRadius: 12 }}>
-        <div style={{ marginBottom: 8 }}><b>Debug view (payload)</b></div>
-        <pre style={{ margin: 0, overflowX: "auto" }}>{JSON.stringify(data.payload, null, 2)}</pre>
-      </div>
-
-      <div style={{ marginTop: 18, opacity: 0.8 }}>
-        Next: we’ll replace <code>payload</code> with real structures (skills, schedules, overrides, sessions) while keeping this same storage system.
+      <div style={{ display: "grid", gap: 10 }}>
+        {skills.length === 0 ? (
+          <div style={{ opacity: 0.8 }}>No skills yet. Go to Skills and add “Learn SQL”, “Blender”, etc.</div>
+        ) : (
+          skills.map((s) => (
+            <div key={s.id} style={styles.listRow}>
+              <div style={{ fontSize: 18 }}>{priorityEmoji(s.priority)} <b>{s.name}</b></div>
+              <div style={{ opacity: 0.8 }}>
+                Daily goal: {s.dailyGoalMinutes ?? "—"}m · Weekly goal: {s.weeklyGoalMinutes ?? "—"}m
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
+
+function SkillsPage({
+  skills,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  skills: Skill[];
+  onAdd: (name: string) => void;
+  onUpdate: (skillId: string, patch: Partial<Skill>) => void;
+  onDelete: (skillId: string) => void;
+}) {
+  const [newName, setNewName] = useState("");
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div style={styles.card}>
+        <div style={styles.cardTitle}>Skills</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder='e.g., "Learn SQL"'
+            style={styles.input}
+          />
+          <button
+            onClick={() => {
+              onAdd(newName);
+              setNewName("");
+            }}
+          >
+            Add Skill
+          </button>
+        </div>
+      </div>
+
+      {skills.length === 0 ? (
+        <div style={styles.card}>Add your first skill above.</div>
+      ) : (
+        skills.map((s) => (
+          <SkillEditor
+            key={s.id}
+            skill={s}
+            onUpdate={(patch) => onUpdate(s.id, patch)}
+            onDelete={() => onDelete(s.id)}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function SkillEditor({
+  skill,
+  onUpdate,
+  onDelete,
+}: {
+  skill: Skill;
+  onUpdate: (patch: Partial<Skill>) => void;
+  onDelete: () => void;
+}) {
+  const [durationError, setDurationError] = useState<string | null>(null);
+
+  function setDailyGoal(input: string) {
+    const res = parseDurationToMinutes(input);
+    if (!res.ok) return setDurationError(res.message);
+    setDurationError(null);
+    onUpdate({ dailyGoalMinutes: res.minutes });
+  }
+
+  function setWeeklyGoal(input: string) {
+    const res = parseDurationToMinutes(input);
+    if (!res.ok) return setDurationError(res.message);
+    setDurationError(null);
+    onUpdate({ weeklyGoalMinutes: res.minutes });
+  }
+
+  function addBlock(day: Weekday) {
+    const blocks = skill.schedule[day] ?? [];
+    const next = [
+      ...blocks,
+      { id: crypto.randomUUID(), startTime: "06:00", minutes: 30 },
+    ];
+    onUpdate({ schedule: { ...skill.schedule, [day]: next } });
+  }
+
+  function updateBlock(day: Weekday, blockId: string, patch: Partial<{ startTime: string; minutes: number }>) {
+    const blocks = skill.schedule[day] ?? [];
+    const next = blocks.map(b => (b.id === blockId ? { ...b, ...patch } : b));
+    onUpdate({ schedule: { ...skill.schedule, [day]: next } });
+  }
+
+  function deleteBlock(day: Weekday, blockId: string) {
+    const blocks = skill.schedule[day] ?? [];
+    const next = blocks.filter(b => b.id !== blockId);
+    onUpdate({ schedule: { ...skill.schedule, [day]: next } });
+  }
+
+  return (
+    <div style={styles.card}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 18 }}>
+            <b>{skill.name}</b> <span style={{ opacity: 0.8 }}>{priorityEmoji(skill.priority)} {skill.priority ?? "—"}</span>
+          </div>
+          <div style={{ opacity: 0.7, fontSize: 13 }}>
+            Updated: {formatLocal(skill.updatedAtIso)}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label style={styles.label}>
+            Priority
+            <select
+              value={skill.priority ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                onUpdate({ priority: v === "" ? undefined : (Number(v) as Priority) });
+              }}
+              style={styles.select}
+            >
+              <option value="">None</option>
+              <option value="1">1 🔴</option>
+              <option value="2">2 🟡</option>
+              <option value="3">3 🟢</option>
+              <option value="4">4 🔵</option>
+            </select>
+          </label>
+
+          <button onClick={onDelete} style={{ background: "#ffe6e6" }}>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <hr style={{ margin: "14px 0", opacity: 0.2 }} />
+
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <GoalInput
+          label="Daily goal"
+          defaultValue={`${skill.dailyGoalMinutes ?? ""}`}
+          hint='Examples: 30, 30min, 1hr, 0.5hr'
+          onCommit={setDailyGoal}
+        />
+        <GoalInput
+          label="Weekly goal"
+          defaultValue={`${skill.weeklyGoalMinutes ?? ""}`}
+          hint='Examples: 180, 3hr, 5hrs'
+          onCommit={setWeeklyGoal}
+        />
+      </div>
+
+      {durationError && (
+        <div style={styles.errorInline}>{durationError}</div>
+      )}
+
+      <div style={{ marginTop: 14, fontWeight: 600 }}>Weekly schedule template</div>
+      <div style={{ opacity: 0.8, marginBottom: 10 }}>
+        Add planned blocks (we’ll later support exceptions + multiple blocks/day on the dashboard timeline).
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {weekdays.map((day) => {
+          const blocks = skill.schedule[day] ?? [];
+          return (
+            <div key={day} style={styles.dayRow}>
+              <div style={{ width: 48, fontWeight: 600 }}>{weekdayLabel(day)}</div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", flex: 1 }}>
+                {blocks.length === 0 ? (
+                  <span style={{ opacity: 0.7 }}>No blocks</span>
+                ) : (
+                  blocks.map((b) => (
+                    <div key={b.id} style={styles.blockChip}>
+                      <input
+                        value={b.startTime}
+                        onChange={(e) => updateBlock(day, b.id, { startTime: e.target.value })}
+                        style={styles.timeInput}
+                      />
+                      <input
+                        value={String(b.minutes)}
+                        onChange={(e) => {
+                          const raw = e.target.value.trim();
+                          if (!/^\d*$/.test(raw)) return;
+                          const n = raw === "" ? 0 : parseInt(raw, 10);
+                          updateBlock(day, b.id, { minutes: n });
+                        }}
+                        style={styles.minInput}
+                      />
+                      <span style={{ opacity: 0.8 }}>min</span>
+                      <button onClick={() => deleteBlock(day, b.id)} style={styles.smallBtn}>✕</button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <button onClick={() => addBlock(day)}>+ Block</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GoalInput({
+  label,
+  defaultValue,
+  hint,
+  onCommit,
+}: {
+  label: string;
+  defaultValue: string;
+  hint: string;
+  onCommit: (value: string) => void;
+}) {
+  const [val, setVal] = useState(defaultValue);
+
+  return (
+    <label style={styles.label}>
+      {label}
+      <input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => val.trim() && onCommit(val)}
+        placeholder={hint}
+        style={styles.input}
+      />
+      <div style={{ fontSize: 12, opacity: 0.7 }}>{hint}</div>
+    </label>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  shell: { padding: "1.5rem", maxWidth: 980, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" },
+  header: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 },
+  title: { fontSize: 28, fontWeight: 800 },
+  sub: { opacity: 0.8 },
+  actions: { display: "flex", gap: 8, flexWrap: "wrap" },
+  nav: { display: "flex", gap: 8, margin: "14px 0" },
+  navBtn: { padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", background: "white" },
+  navBtnActive: { border: "1px solid #999", fontWeight: 700 },
+  main: { display: "grid", gap: 14 },
+  card: { background: "#f6f6f6", padding: 16, borderRadius: 14 },
+  cardTitle: { fontSize: 18, fontWeight: 800, marginBottom: 10 },
+  errorBox: { background: "#ffe6e6", padding: 12, borderRadius: 12, marginBottom: 10 },
+  errorInline: { marginTop: 10, background: "#ffe6e6", padding: 10, borderRadius: 12 },
+  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", minWidth: 280 },
+  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid #ddd" },
+  label: { display: "grid", gap: 6 },
+  listRow: { background: "white", padding: 12, borderRadius: 12, border: "1px solid #e5e5e5" },
+  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "white", padding: 10, borderRadius: 12, border: "1px solid #e5e5e5" },
+  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid #ddd", background: "#fafafa" },
+  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd" },
+  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd", textAlign: "right" },
+  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid #ddd", background: "white" },
+};
