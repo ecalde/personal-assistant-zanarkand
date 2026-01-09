@@ -1,3 +1,5 @@
+// This is my app's memory system, it is responsible for loading, saving, exporting, and importing app data
+
 export type AppData = {
   version: 1;
   updatedAtIso: string; // last saved time
@@ -12,6 +14,7 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
+// Load app data from localStorage, or return default if none exists
 export function loadAppData(): AppData {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -29,12 +32,14 @@ export function loadAppData(): AppData {
   }
 }
 
+// Save current app data to localStorage, updating the timestamp
 export function saveAppData(data: AppData): AppData {
   const toSave: AppData = { ...data, updatedAtIso: nowIso() };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   return toSave;
 }
 
+// Export app data as a downloadable JSON file
 export function exportBackup(data: AppData) {
   const filename = `personal-assistant-backup-${formatForFilename(new Date())}.json`;
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -50,6 +55,7 @@ export function exportBackup(data: AppData) {
   URL.revokeObjectURL(url);
 }
 
+// Import app data from a JSON file
 export async function importBackup(file: File): Promise<AppData> {
   const text = await file.text();
   const parsed = JSON.parse(text) as AppData;

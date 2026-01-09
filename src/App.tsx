@@ -1,3 +1,5 @@
+// This is my app's main component, it provides UI for saving, exporting, and importing app data
+
 import { useMemo, useRef, useState } from "react";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
@@ -11,20 +13,23 @@ function formatLocal(tsIso: string) {
 }
 
 export default function App() {
+  // App loads saved data on start, react keeps it in memory, ui updates when data changes
   const [data, setData] = useState<AppData>(() => loadAppData());
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const lastSavedLabel = useMemo(() => formatLocal(data.updatedAtIso), [data.updatedAtIso]);
 
+  // Button logic to update timestamp, saves to localStorage, updates ui
   function onSaveNow() {
     setError(null);
     setData(prev => saveAppData(prev));
   }
 
+  // Button logic to export current data as JSON file, and ensure data is current
   function onExport() {
     setError(null);
-    // Make sure we export the latest saved version (optional but nice)
+    // Makes sure we export the latest saved version
     const saved = saveAppData(data);
     setData(saved);
     exportBackup(saved);
