@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
-import type { Priority, Skill, Weekday } from "./core/model";
+import type { Priority, Skill, Weekday, Session } from "./core/model";
 import { defaultWeeklySchedule, defaultPayload, weekdayLabel } from "./core/state";
 import { parseDurationToMinutes } from "./core/duration";
 
@@ -115,6 +115,28 @@ export default function App() {
     commit({ ...app, payload: { ...app.payload, skills } });
   }
 
+  // ---------- SESSIONS ----------
+  function addSession(skillId: string, minutes: number) {
+    if (!Number.isInteger(minutes) || minutes <= 0) return;
+
+    const now = new Date().toISOString();
+    const session: Session = {
+      id: id(),
+      skillId,
+      minutes,
+      startedAtIso: now,
+      createdAtIso: now,
+    };
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        sessions: [session, ...(app.payload.sessions ?? [])],
+      },
+    });
+  }
+
   // ---------- UI ----------
   return (
     <div style={styles.shell}>
@@ -161,9 +183,11 @@ export default function App() {
         {page === "skills" && (
           <SkillsPage
             skills={app.payload.skills}
+            sessions={app.payload.sessions}
             onAdd={addSkill}
             onUpdate={updateSkill}
             onDelete={deleteSkill}
+            onAddSession={addSession}
           />
         )}
       </main>
@@ -221,14 +245,18 @@ function Dashboard({ skills }: { skills: Skill[] }) {
 
 function SkillsPage({
   skills,
+  sessions,
   onAdd,
   onUpdate,
   onDelete,
+  onAddSession,
 }: {
   skills: Skill[];
+  sessions: Session[];
   onAdd: (name: string) => void;
   onUpdate: (skillId: string, patch: Partial<Skill>) => void;
   onDelete: (skillId: string) => void;
+  onAddSession: (skillId: string, minutes: number) => void;
 }) {
   const [newName, setNewName] = useState("");
 
@@ -261,6 +289,8 @@ function SkillsPage({
           <SkillEditor
             key={s.id}
             skill={s}
+            sessions={sessions}
+            onAddSession={(minutes) => onAddSession(s.id, minutes)}
             onUpdate={(patch) => onUpdate(s.id, patch)}
             onDelete={() => onDelete(s.id)}
           />
@@ -272,14 +302,29 @@ function SkillsPage({
 
 function SkillEditor({
   skill,
+  sessions,
+  onAddSession,
   onUpdate,
   onDelete,
 }: {
   skill: Skill;
+  sessions: Session[];
+  onAddSession: (minutes: number) => void;
   onUpdate: (patch: Partial<Skill>) => void;
   onDelete: () => void;
 }) {
   const [durationError, setDurationError] = useState<string | null>(null);
+  const [logMinutes, setLogMinutes] = useState("");
+
+  const todayMinutes = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startIso = startOfToday.toISOString();
+
+    return sessions
+      .filter((ss) => ss.skillId === skill.id && ss.startedAtIso >= startIso)
+      .reduce((sum, ss) => sum + (Number.isInteger(ss.minutes) ? ss.minutes : 0), 0);
+  }, [sessions, skill.id]);
 
   function setDailyGoal(input: string) {
     const res = parseDurationToMinutes(input);
@@ -354,6 +399,40 @@ function SkillEditor({
       </div>
 
       <hr style={{ margin: "14px 0", opacity: 0.2 }} />
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ opacity: 0.85 }}>
+          <div style={{ fontWeight: 700 }}>Today</div>
+          <div>{todayMinutes} min</div>
+        </div>
+
+        <label style={styles.label}>
+          Log minutes
+          <input
+            value={logMinutes}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              if (!/^\d*$/.test(raw)) return; // no decimals, digits only
+              setLogMinutes(raw);
+            }}
+            placeholder="e.g., 20"
+            style={{ ...styles.input, minWidth: 140 }}
+          />
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Whole minutes only</div>
+        </label>
+
+        <button
+          onClick={() => {
+            const raw = logMinutes.trim();
+            if (!raw) return;
+            const n = parseInt(raw, 10);
+            if (!Number.isInteger(n) || n <= 0) return;
+            onAddSession(n);
+            setLogMinutes("");
+          }}
+        >
+          Add session
+        </button>
+      </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <GoalInput

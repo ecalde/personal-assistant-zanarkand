@@ -38,9 +38,21 @@ export type Skill = {
   updatedAtIso: string;
 };
 
+export type Session = {
+  id: string;
+  skillId: string;
+
+  // minutes completed (integer, no decimals)
+  minutes: number;
+
+  // for now: when you logged it (later we’ll add optional true start time)
+  startedAtIso: string;
+
+  createdAtIso: string;
+};
+
 export type AppPayload = {
   skills: Skill[];
-  // TODO: add these soon (sessions, overrides, etc.)
-  sessions: Array<unknown>;
+  sessions: Session[];
   overrides: Array<unknown>;
 };
