@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
-import type { Priority, Skill, Weekday, Session } from "./core/model";
+import type { Priority, Skill, Weekday, Session, ScheduleBlock } from "./core/model";
 import { defaultWeeklySchedule, defaultPayload, weekdayLabel } from "./core/state";
 import { parseDurationToMinutes } from "./core/duration";
 
@@ -31,6 +31,36 @@ function priorityEmoji(p?: Priority) {
   if (p === 2) return "🟡";
   if (p === 3) return "🟢";
   return "🔵";
+}
+
+type CompletionStatus = "idle" | "onTrack" | "overdue";
+
+function weekdayFromDate(d: Date): Weekday {
+  // JS getDay(): 0=Sun, 1=Mon, ... 6=Sat
+  const map: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[d.getDay()];
+}
+
+function parseHHMMToMinutes(hhmm: string): number {
+  // expects "HH:MM"
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  if (!m) return 0;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
+  return hh * 60 + mm;
+}
+
+function minutesSinceMidnight(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function expectedMinutesByNow(blocks: ScheduleBlock[], now: Date): number {
+  const nowMin = minutesSinceMidnight(now);
+
+  return blocks
+    .filter((b) => parseHHMMToMinutes(b.startTime) <= nowMin)
+    .reduce((sum, b) => sum + (Number.isInteger(b.minutes) ? b.minutes : 0), 0);
 }
 
 type Page = "dashboard" | "skills";
@@ -355,6 +385,26 @@ function SkillEditor({
     return todaySessions.reduce((sum, ss) => sum + ss.minutes, 0);
   }, [todaySessions]);
 
+  const completion = useMemo(() => {
+    const now = new Date();
+    const dayKey = weekdayFromDate(now);
+    const blocks = skill.schedule[dayKey] ?? [];
+
+    const expectedByNow = expectedMinutesByNow(blocks, now);
+
+    const status: CompletionStatus =
+      expectedByNow === 0
+        ? "idle"
+        : todayMinutes >= expectedByNow
+          ? "onTrack"
+          : "overdue";
+
+    return {
+      status,
+      expectedByNow,
+    };
+  }, [skill.schedule, todayMinutes]);
+
   function setDailyGoal(input: string) {
     const res = parseDurationToMinutes(input);
     if (!res.ok) return setDurationError(res.message);
@@ -430,8 +480,33 @@ function SkillEditor({
       <hr style={{ margin: "14px 0", opacity: 0.2 }} />
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ opacity: 0.85 }}>
-          <div style={{ fontWeight: 700 }}>Today</div>
-          <div>{todayMinutes} min</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>Today</div>
+              <div>{todayMinutes} min</div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>
+                Expected by now: {completion.expectedByNow} min
+              </div>
+            </div>
+
+            <span
+              style={{
+                ...styles.statusPill,
+                ...(completion.status === "onTrack"
+                  ? styles.statusOnTrack
+                  : completion.status === "overdue"
+                    ? styles.statusOverdue
+                    : styles.statusIdle),
+              }}
+              title="Based on your schedule blocks up to the current time"
+            >
+              {completion.status === "onTrack"
+                ? "🟢 On track"
+                : completion.status === "overdue"
+                  ? "🔴 Overdue"
+                  : "⚪ Idle"}
+            </span>
+          </div>
         </div>
 
         <label style={styles.label}>
@@ -620,4 +695,25 @@ const styles: Record<string, React.CSSProperties> = {
   timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd" },
   minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd", textAlign: "right" },
   smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid #ddd", background: "white" },
+  statusPill: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid #ddd",
+    background: "white",
+    fontSize: 12,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+  statusOnTrack: {
+    border: "1px solid #b9e6c7",
+    background: "#ecfff1",
+  },
+  statusOverdue: {
+    border: "1px solid #f2b8b8",
+    background: "#ffecec",
+  },
+  statusIdle: {
+    border: "1px solid #ddd",
+    background: "#f8f8f8",
+  },
 };
