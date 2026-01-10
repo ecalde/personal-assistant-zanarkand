@@ -13,6 +13,14 @@ function formatLocal(tsIso: string) {
   }
 }
 
+function formatTimeOnly(tsIso: string) {
+  try {
+    return new Date(tsIso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return tsIso;
+  }
+}
+
 function id() {
   return crypto.randomUUID();
 }
@@ -137,6 +145,17 @@ export default function App() {
     });
   }
 
+  function deleteSession(sessionId: string) {
+    const nextSessions = (app.payload.sessions ?? []).filter((s) => s.id !== sessionId);
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        sessions: nextSessions,
+      },
+    });
+  }
+
   // ---------- UI ----------
   return (
     <div style={styles.shell}>
@@ -188,6 +207,7 @@ export default function App() {
             onUpdate={updateSkill}
             onDelete={deleteSkill}
             onAddSession={addSession}
+            onDeleteSession={deleteSession}
           />
         )}
       </main>
@@ -250,6 +270,7 @@ function SkillsPage({
   onUpdate,
   onDelete,
   onAddSession,
+  onDeleteSession,
 }: {
   skills: Skill[];
   sessions: Session[];
@@ -257,6 +278,7 @@ function SkillsPage({
   onUpdate: (skillId: string, patch: Partial<Skill>) => void;
   onDelete: (skillId: string) => void;
   onAddSession: (skillId: string, minutes: number) => void;
+  onDeleteSession: (sessionId: string) => void;
 }) {
   const [newName, setNewName] = useState("");
 
@@ -291,6 +313,7 @@ function SkillsPage({
             skill={s}
             sessions={sessions}
             onAddSession={(minutes) => onAddSession(s.id, minutes)}
+            onDeleteSession={onDeleteSession}
             onUpdate={(patch) => onUpdate(s.id, patch)}
             onDelete={() => onDelete(s.id)}
           />
@@ -304,27 +327,33 @@ function SkillEditor({
   skill,
   sessions,
   onAddSession,
+  onDeleteSession,
   onUpdate,
   onDelete,
 }: {
   skill: Skill;
   sessions: Session[];
   onAddSession: (minutes: number) => void;
+  onDeleteSession: (sessionId: string) => void;
   onUpdate: (patch: Partial<Skill>) => void;
   onDelete: () => void;
 }) {
   const [durationError, setDurationError] = useState<string | null>(null);
   const [logMinutes, setLogMinutes] = useState("");
 
-  const todayMinutes = useMemo(() => {
+  const todaySessions = useMemo(() => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const startIso = startOfToday.toISOString();
 
     return sessions
       .filter((ss) => ss.skillId === skill.id && ss.startedAtIso >= startIso)
-      .reduce((sum, ss) => sum + (Number.isInteger(ss.minutes) ? ss.minutes : 0), 0);
+      .sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso)); // newest first
   }, [sessions, skill.id]);
+
+  const todayMinutes = useMemo(() => {
+    return todaySessions.reduce((sum, ss) => sum + ss.minutes, 0);
+  }, [todaySessions]);
 
   function setDailyGoal(input: string) {
     const res = parseDurationToMinutes(input);
@@ -432,6 +461,44 @@ function SkillEditor({
         >
           Add session
         </button>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Today’s sessions</div>
+
+        {todaySessions.length === 0 ? (
+          <div style={{ opacity: 0.75 }}>No sessions logged today.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 6 }}>
+            {todaySessions.map((ss) => (
+              <div
+                key={ss.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "white",
+                  border: "1px solid #e5e5e5",
+                  padding: "8px 10px",
+                  borderRadius: 12,
+                }}
+              >
+                <div>
+                  <b>{ss.minutes} min</b>{" "}
+                  <span style={{ opacity: 0.75 }}>· {formatTimeOnly(ss.startedAtIso)}</span>
+                </div>
+
+                <button
+                  onClick={() => onDeleteSession(ss.id)}
+                  style={styles.smallBtn}
+                  title="Delete session"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
