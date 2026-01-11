@@ -226,7 +226,7 @@ export default function App() {
 
       <main style={styles.main}>
         {page === "dashboard" && (
-          <Dashboard skills={app.payload.skills} />
+          <Dashboard skills={app.payload.skills} sessions={app.payload.sessions ?? []} />
         )}
 
         {page === "skills" && (
@@ -267,28 +267,139 @@ function NavButton({
   );
 }
 
-function Dashboard({ skills }: { skills: Skill[] }) {
+function Dashboard({ skills, sessions }: { skills: Skill[]; sessions: Session[] }) {
+  const rows = useMemo(() => {
+    const now = new Date();
+    const dayKey = weekdayFromDate(now);
+
+    // start of today ISO
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startIso = startOfToday.toISOString();
+
+    return skills.map((skill) => {
+      const todaySessions = sessions.filter(
+        (ss) => ss.skillId === skill.id && ss.startedAtIso >= startIso
+      );
+
+      const todayMinutes = todaySessions.reduce((sum, ss) => sum + ss.minutes, 0);
+
+      const blocks = skill.schedule[dayKey] ?? [];
+      const expectedByNow = expectedMinutesByNow(blocks, now);
+
+      const status: CompletionStatus =
+        expectedByNow === 0
+          ? "idle"
+          : todayMinutes >= expectedByNow
+            ? "onTrack"
+            : "overdue";
+
+      return {
+        skill,
+        todayMinutes,
+        expectedByNow,
+        status,
+      };
+    });
+  }, [skills, sessions]);
+
+  const overdue = useMemo(
+    () => rows.filter((r) => r.status === "overdue"),
+    [rows]
+  );
+
+  const sortedRows = useMemo(() => {
+    // Sort: priority 1->4, then name
+    const pr = (p?: Priority) => (p ?? 999);
+    return [...rows].sort((a, b) => {
+      const ap = pr(a.skill.priority);
+      const bp = pr(b.skill.priority);
+      if (ap !== bp) return ap - bp;
+      return a.skill.name.localeCompare(b.skill.name);
+    });
+  }, [rows]);
   return (
     <div style={styles.card}>
       <div style={styles.cardTitle}>Dashboard (Phase 1)</div>
       <div style={{ opacity: 0.85, marginBottom: 12 }}>
-        Next we’ll add: daily timeline, reminders, session logging, completion rules, and XP.
+        Next we’ll add: daily timeline, reminders, completion rules, and XP.
       </div>
 
-      <div style={{ display: "grid", gap: 10 }}>
-        {skills.length === 0 ? (
-          <div style={{ opacity: 0.8 }}>No skills yet. Go to Skills and add “Learn SQL”, “Blender”, etc.</div>
-        ) : (
-          skills.map((s) => (
-            <div key={s.id} style={styles.listRow}>
-              <div style={{ fontSize: 18 }}>{priorityEmoji(s.priority)} <b>{s.name}</b></div>
-              <div style={{ opacity: 0.8 }}>
-                Daily goal: {s.dailyGoalMinutes ?? "—"}m · Weekly goal: {s.weeklyGoalMinutes ?? "—"}m
+      {skills.length === 0 ? (
+        <div style={{ opacity: 0.8 }}>
+          No skills yet. Go to Skills and add “Learn SQL”, “Blender”, etc.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {/* Overdue section */}
+          <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Overdue right now</div>
+
+            {overdue.length === 0 ? (
+              <div style={{ opacity: 0.8 }}>Nothing overdue 🎉</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {overdue.map((r) => (
+                  <div key={r.skill.id} style={styles.listRow}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 16 }}>
+                        {priorityEmoji(r.skill.priority)} <b>{r.skill.name}</b>
+                      </div>
+
+                      <span style={{ ...styles.statusPill, ...styles.statusOverdue }}>
+                        🔴 Overdue
+                      </span>
+                    </div>
+
+                    <div style={{ opacity: 0.8, marginTop: 4 }}>
+                      Today: <b>{r.todayMinutes}m</b> · Expected by now: <b>{r.expectedByNow}m</b>
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+
+          {/* All skills section */}
+          <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>All skills today</div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              {sortedRows.map((r) => (
+                <div key={r.skill.id} style={styles.listRow}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 16 }}>
+                      {priorityEmoji(r.skill.priority)} <b>{r.skill.name}</b>
+                    </div>
+
+                    <span
+                      style={{
+                        ...styles.statusPill,
+                        ...(r.status === "onTrack"
+                          ? styles.statusOnTrack
+                          : r.status === "overdue"
+                            ? styles.statusOverdue
+                            : styles.statusIdle),
+                      }}
+                    >
+                      {r.status === "onTrack"
+                        ? "🟢 On track"
+                        : r.status === "overdue"
+                          ? "🔴 Overdue"
+                          : "⚪ Idle"}
+                    </span>
+                  </div>
+
+                  <div style={{ opacity: 0.8, marginTop: 4 }}>
+                    Today: <b>{r.todayMinutes}m</b> · Expected by now: <b>{r.expectedByNow}m</b> · Goal:{" "}
+                    <b>{r.skill.dailyGoalMinutes ?? "—"}m</b>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
