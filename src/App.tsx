@@ -34,11 +34,24 @@ function priorityEmoji(p?: Priority) {
 }
 
 type CompletionStatus = "idle" | "onTrack" | "overdue";
+type BlockStatus = "upcoming" | "inProgress" | "done" | "behind";
 
 function weekdayFromDate(d: Date): Weekday {
   // JS getDay(): 0=Sun, 1=Mon, ... 6=Sat
   const map: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   return map[d.getDay()];
+}
+
+function addMinutesToHHMM(hhmm: string, add: number): string {
+  const start = parseHHMMToMinutes(hhmm);
+  const end = Math.max(0, start + add);
+  const hh = Math.floor(end / 60) % 24;
+  const mm = end % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
 }
 
 function parseHHMMToMinutes(hhmm: string): number {
@@ -57,10 +70,26 @@ function minutesSinceMidnight(d: Date): number {
 
 function expectedMinutesByNow(blocks: ScheduleBlock[], now: Date): number {
   const nowMin = minutesSinceMidnight(now);
+  let total = 0;
 
-  return blocks
-    .filter((b) => parseHHMMToMinutes(b.startTime) <= nowMin)
-    .reduce((sum, b) => sum + (Number.isInteger(b.minutes) ? b.minutes : 0), 0);
+  for (const b of blocks) {
+    const start = parseHHMMToMinutes(b.startTime);
+    const end = start + (Number.isInteger(b.minutes) ? b.minutes : 0);
+
+    // Block hasn't started
+    if (nowMin < start) continue;
+
+    // Block fully completed time window
+    if (nowMin >= end) {
+      total += b.minutes;
+      continue;
+    }
+
+    // Block is in progress → do NOT count yet
+    break;
+  }
+
+  return total;
 }
 
 type Page = "dashboard" | "skills";
@@ -334,6 +363,93 @@ function Dashboard({
     [rows]
   );
 
+  const timelineItems = useMemo(() => {
+    const now = new Date();
+    const dayKey = weekdayFromDate(now);
+
+    // start of today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startIso = startOfToday.toISOString();
+
+    const currentMinute = minutesSinceMidnight(now);
+    const nowIsoValue = now.toISOString();
+
+    // Precompute "minutes logged today so far" per skill
+    const loggedBySkill: Record<string, number> = {};
+    for (const s of sessions) {
+      if (s.startedAtIso < startIso) continue;
+      if (s.startedAtIso > nowIsoValue) continue; // logged in the future shouldn't count
+
+      loggedBySkill[s.skillId] = (loggedBySkill[s.skillId] ?? 0) + s.minutes;
+    }
+
+    // For each skill, get blocks for today and calculate cumulative planned minutes
+    const items: Array<{
+      skill: Skill;
+      block: ScheduleBlock;
+      startTime: string;
+      endTime: string;
+      startMin: number;
+      endMin: number;
+      plannedUpToStart: number;
+      plannedUpToEnd: number;
+      loggedSoFar: number;
+      status: BlockStatus;
+    }> = [];
+
+    for (const skill of skills) {
+      const blocks = skill.schedule[dayKey] ?? [];
+      const sortedBlocks = [...blocks].sort(
+        (a, b) => parseHHMMToMinutes(a.startTime) - parseHHMMToMinutes(b.startTime)
+      );
+
+      let cumulative = 0;
+      const loggedSoFar = loggedBySkill[skill.id] ?? 0;
+
+      for (const block of sortedBlocks) {
+        const startMin = parseHHMMToMinutes(block.startTime);
+        const endMin = startMin + (Number.isInteger(block.minutes) ? block.minutes : 0);
+
+        const plannedUpToStart = cumulative;
+        const plannedUpToEnd = cumulative + (Number.isInteger(block.minutes) ? block.minutes : 0);
+
+        // Determine per-block status
+        let status: BlockStatus = "upcoming";
+
+        if (currentMinute < startMin) {
+          status = "upcoming";
+        } else if (currentMinute >= startMin && currentMinute < endMin) {
+          // block currently happening
+          status = loggedSoFar >= plannedUpToStart ? "inProgress" : "behind";
+        } else {
+          // block ended
+          status = loggedSoFar >= plannedUpToEnd ? "done" : "behind";
+        }
+
+        items.push({
+          skill,
+          block,
+          startTime: block.startTime,
+          endTime: addMinutesToHHMM(block.startTime, block.minutes),
+          startMin,
+          endMin,
+          plannedUpToStart,
+          plannedUpToEnd,
+          loggedSoFar,
+          status,
+        });
+
+        cumulative = plannedUpToEnd;
+      }
+    }
+
+    // Sort across ALL skills by time
+    items.sort((a, b) => a.startMin - b.startMin);
+
+    return items;
+  }, [skills, sessions]);
+
   const sortedRows = useMemo(() => {
     // Sort: priority 1->4, then name
     const pr = (p?: Priority) => (p ?? 999);
@@ -415,6 +531,76 @@ function Dashboard({
           {/* All skills section */}
           <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
             <div style={{ fontWeight: 800, marginBottom: 6 }}>All skills today</div>
+
+            {/* Timeline section */}
+            <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Today’s timeline</div>
+              <div style={{ opacity: 0.8, marginBottom: 10 }}>
+                Your scheduled blocks for today, sorted by time (based on your weekly template).
+              </div>
+
+              {timelineItems.length === 0 ? (
+                <div style={{ opacity: 0.8 }}>No schedule blocks for today.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {timelineItems.map((it) => (
+                    <div
+                      key={`${it.skill.id}:${it.block.id}`}
+                      style={{
+                        background: "white",
+                        border: "1px solid #e5e5e5",
+                        padding: 10,
+                        borderRadius: 12,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800 }}>
+                          {it.startTime}–{it.endTime} · {priorityEmoji(it.skill.priority)} {it.skill.name}
+                        </div>
+                        <div style={{ opacity: 0.8, fontSize: 13 }}>
+                          Block: <b>{it.block.minutes}m</b> · Logged so far: <b>{it.loggedSoFar}m</b>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            ...styles.statusPill,
+                            ...(it.status === "done"
+                              ? styles.statusOnTrack
+                              : it.status === "behind"
+                                ? styles.statusOverdue
+                                : it.status === "inProgress"
+                                  ? styles.statusOnTrack
+                                  : styles.statusIdle),
+                          }}
+                        >
+                          {it.status === "done"
+                            ? "✅ Done"
+                            : it.status === "behind"
+                              ? "🔴 Behind"
+                              : it.status === "inProgress"
+                                ? "🟢 In progress"
+                                : "⏳ Upcoming"}
+                        </span>
+
+                        <button onClick={() => commitLog(it.skill.id, 15)} style={styles.smallBtn}>
+                          +15
+                        </button>
+                        <button onClick={() => commitLog(it.skill.id, 30)} style={styles.smallBtn}>
+                          +30
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div style={{ display: "grid", gap: 8 }}>
               {sortedRows.map((r) => (
