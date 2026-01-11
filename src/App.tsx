@@ -226,7 +226,11 @@ export default function App() {
 
       <main style={styles.main}>
         {page === "dashboard" && (
-          <Dashboard skills={app.payload.skills} sessions={app.payload.sessions ?? []} />
+          <Dashboard
+            skills={app.payload.skills}
+            sessions={app.payload.sessions ?? []}
+            onAddSession={addSession}
+          />
         )}
 
         {page === "skills" && (
@@ -267,7 +271,29 @@ function NavButton({
   );
 }
 
-function Dashboard({ skills, sessions }: { skills: Skill[]; sessions: Session[] }) {
+function Dashboard({
+  skills,
+  sessions,
+  onAddSession,
+}: {
+  skills: Skill[];
+  sessions: Session[];
+  onAddSession: (skillId: string, minutes: number) => void;
+}) {
+  const [logBySkill, setLogBySkill] = useState<Record<string, string>>({});
+
+  function setLogValue(skillId: string, value: string) {
+    // digits only (no decimals)
+    if (!/^\d*$/.test(value)) return;
+    setLogBySkill((prev) => ({ ...prev, [skillId]: value }));
+  }
+
+  function commitLog(skillId: string, minutes: number) {
+    if (!Number.isInteger(minutes) || minutes <= 0) return;
+    onAddSession(skillId, minutes);
+    setLogBySkill((prev) => ({ ...prev, [skillId]: "" }));
+  }
+
   const rows = useMemo(() => {
     const now = new Date();
     const dayKey = weekdayFromDate(now);
@@ -353,6 +379,32 @@ function Dashboard({ skills, sessions }: { skills: Skill[]; sessions: Session[] 
 
                     <div style={{ opacity: 0.8, marginTop: 4 }}>
                       Today: <b>{r.todayMinutes}m</b> · Expected by now: <b>{r.expectedByNow}m</b>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+                      <input
+                        value={logBySkill[r.skill.id] ?? ""}
+                        onChange={(e) => setLogValue(r.skill.id, e.target.value.trim())}
+                        placeholder="minutes"
+                        style={{ ...styles.input, minWidth: 120, width: 120 }}
+                      />
+
+                      <button
+                        onClick={() => {
+                          const raw = (logBySkill[r.skill.id] ?? "").trim();
+                          if (!raw) return;
+                          const n = parseInt(raw, 10);
+                          commitLog(r.skill.id, n);
+                        }}
+                      >
+                        Log
+                      </button>
+
+                      <button onClick={() => commitLog(r.skill.id, 15)} style={styles.smallBtn}>
+                        +15
+                      </button>
+                      <button onClick={() => commitLog(r.skill.id, 30)} style={styles.smallBtn}>
+                        +30
+                      </button>
                     </div>
                   </div>
                 ))}
