@@ -1021,6 +1021,7 @@ function GoalInput({
   );
 }
 
+// ---------- STYLES ----------
 const styles: Record<string, React.CSSProperties> = {
   shell: { padding: "1.5rem", maxWidth: 980, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" },
   header: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 },
