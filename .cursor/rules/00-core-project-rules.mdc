@@ -1,0 +1,28 @@
+# 00-core-project-rules.mdc
+
+## Purpose
+This repository must stay secure, maintainable, readable, and cohesive.
+Prefer small, well-scoped changes over broad rewrites.
+
+## General behavior
+- Before making changes, inspect the surrounding patterns and follow the existing architecture.
+- Prefer modifying existing abstractions over creating parallel patterns.
+- Do not introduce new libraries unless clearly justified.
+- Keep changes minimal, explicit, and easy to review.
+- If a task is ambiguous, prefer the least risky implementation that aligns with current project conventions.
+
+## Project consistency
+- Follow existing naming, folder, and component patterns.
+- Reuse shared utilities, components, and helpers before creating new ones.
+- Keep code style consistent with the repository, not personal preference.
+- Do not duplicate logic that can be extracted into a shared utility.
+
+## Change discipline
+- Do not change unrelated files.
+- Do not silently remove functionality to make code compile.
+- Preserve backward compatibility unless the task explicitly allows breaking changes.
+- If making a breaking change, update all affected references and documentation.
+
+## Validation
+- After meaningful code changes, run the relevant formatter, linter, type checker, and tests.
+- Prefer the smallest relevant test scope first, then broader validation if needed.

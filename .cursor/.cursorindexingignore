@@ -1,0 +1,40 @@
+# Dependencies (huge + useless for context)
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+
+# Coverage / test artifacts
+coverage/
+*.lcov
+
+# Logs
+*.log
+logs/
+
+# OS / editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Generated assets / uploads
+public/uploads/
+public/generated/
+
+# Large media (optional)
+*.mp4
+*.mov
+*.zip
+*.tar
+*.gz
+
+# Cache folders
+.cache/
+.tmp/
+temp/
+
+# Sanity build output (if applicable)
+.sanity/

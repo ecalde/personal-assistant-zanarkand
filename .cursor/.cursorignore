@@ -1,0 +1,33 @@
+# Secrets (NEVER expose to Cursor)
+.env
+.env.*
+secrets/
+keys/
+certs/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+
+# Large files (optional)
+*.zip
+*.tar
+*.gz
+*.mp4
+*.sqlite

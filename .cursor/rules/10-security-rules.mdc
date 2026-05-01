@@ -1,0 +1,39 @@
+# 10-security-rules.mdc
+
+## Secrets
+- Never hardcode secrets, API keys, tokens, passwords, connection strings, private keys, or certificates.
+- Never place secrets in source code, tests, examples, seed data, screenshots, comments, or documentation.
+- Use environment variables only as references to externally managed secrets.
+- When a secret is needed, use `.env.example` placeholders only, never real values.
+- Never expose server-only environment variables to client-side code.
+- Never print secrets to logs, terminal output, error messages, analytics, or telemetry.
+
+## Input and output handling
+- Treat all external input as untrusted: request bodies, query params, headers, cookies, local files, third-party APIs, and database content.
+- Validate inputs on the server, not only on the client.
+- Enforce allowlists, schema validation, type validation, size limits, and format checks.
+- Sanitize or contextually encode untrusted output before rendering or interpolating it.
+
+## Auth and access control
+- Prefer framework-provided authentication/session/security controls over custom implementations.
+- Enforce authorization on every sensitive request.
+- Default to deny-by-default access patterns.
+- Do not trust client-side role checks as security boundaries.
+- Use least privilege for app roles, service accounts, database users, and API tokens.
+
+## Data protection
+- Minimize collection and storage of sensitive data.
+- Do not store sensitive data unless required.
+- Avoid logging personal data, tokens, session identifiers, secrets, and raw request bodies.
+- Use secure cookies and secure transport for authenticated flows.
+
+## Dependency and supply chain safety
+- Prefer mature, maintained dependencies.
+- Avoid adding dependencies for trivial tasks.
+- Pin versions where appropriate and preserve lockfiles.
+- Flag packages with unclear maintenance, suspicious install scripts, or unnecessary postinstall behavior.
+
+## Safe coding behavior
+- Do not disable security features to make local development easier unless explicitly instructed.
+- Do not bypass CSRF, CORS, auth, validation, or rate-limiting protections without documenting why.
+- Never add development shortcuts that could ship to production.

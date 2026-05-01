@@ -1,0 +1,21 @@
+# 40-testing-rules.mdc
+
+## Testing expectations
+- Add or update tests for behavior changes, bug fixes, and critical paths.
+- Prefer fast, deterministic tests.
+- Test public behavior and contracts, not internal implementation details unless necessary.
+
+## Test mix
+- Prefer many unit tests, fewer integration tests, and only a small number of end-to-end tests.
+- Use integration tests for boundaries between modules or services.
+- Use end-to-end tests only for critical user journeys.
+
+## Test quality
+- Avoid brittle tests tied to incidental markup, exact timing, or unstable network behavior.
+- Mock at clear boundaries, not everywhere.
+- Keep fixtures realistic but minimal.
+- Each failing test should tell a clear story about what broke.
+
+## Validation workflow
+- Run the smallest relevant tests first while iterating.
+- Before finalizing, run the repo’s standard validation commands.

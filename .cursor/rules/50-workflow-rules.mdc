@@ -1,0 +1,18 @@
+# 50-workflow-rules.mdc
+
+## Planning
+- For non-trivial tasks, inspect the relevant files first and propose a concise plan before large edits.
+- Prefer incremental changes that can be validated step by step.
+
+## Commands
+- Use the repository’s canonical commands for install, dev, test, lint, format, typecheck, and build.
+- If multiple options exist, prefer the fastest command that validates the changed scope.
+
+## Documentation
+- If setup, architecture, environment variables, or deployment behavior changes, update the relevant documentation.
+- Keep README and setup docs usable by a new developer.
+
+## PR readiness
+- Keep diffs reviewable.
+- Avoid mixing refactors with feature work unless necessary.
+- Summarize what changed, risks, and how it was validated.

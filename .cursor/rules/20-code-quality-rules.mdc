@@ -1,0 +1,39 @@
+# 20-code-quality-rules.mdc
+
+## Readability and maintainability
+- Write code that is obvious to the next developer.
+- Prefer clear names over clever implementations.
+- Prefer explicit control flow over overly compact expressions.
+- Functions should do one thing and have clear inputs/outputs.
+- Avoid deep nesting when early returns improve readability.
+
+## Reuse and abstraction
+- Extract shared logic only after repetition is real, not speculative.
+- Prefer composition over inheritance unless the codebase already uses inheritance heavily.
+- Keep abstractions lightweight and justified by repeated use.
+
+## Dependency discipline
+- Do not add new dependencies unless clearly necessary.
+- If a dependency is proposed, explain why it is necessary before adding it.
+- Prefer existing libraries or native platform features before introducing new packages.
+- Avoid adding dependencies for simple or trivial functionality.
+- Prefer well-maintained, widely used libraries when dependencies are required.
+- Avoid redundant libraries that duplicate existing functionality in the codebase.
+- Justify any new dependency with a clear reason.
+- When unsure, default to not adding a dependency.
+
+## Types and contracts
+- Use strong typing where the stack supports it.
+- Avoid `any`/loosely typed escape hatches unless unavoidable and documented.
+- Validate boundaries between systems: API inputs, database records, external service payloads, and file parsing.
+
+## Error handling
+- Fail loudly in development and predictably in production.
+- Do not swallow errors.
+- Return actionable error messages internally, but do not leak sensitive details externally.
+- Handle retries intentionally; never add blind retries around unsafe operations.
+
+## Comments and docs
+- Comment the “why,” not the obvious “what.”
+- Update related docs when behavior, setup, or architecture changes.
+- Remove dead code instead of leaving large commented blocks.

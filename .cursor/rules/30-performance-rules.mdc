@@ -1,0 +1,32 @@
+# 30-performance-rules.mdc
+
+## General performance
+- Avoid premature micro-optimizations, but do not ignore obvious inefficiencies.
+- Prefer algorithms and data access patterns that scale with expected usage.
+- Avoid unnecessary re-renders, repeated queries, repeated parsing, and repeated network requests.
+- Cache only where it provides clear value and does not risk stale or incorrect data.
+- Actively choose more efficient approaches when they do not significantly increase complexity.
+
+## Frontend performance
+- Minimize large client bundles and unnecessary dependencies.
+- Avoid shipping server-only logic to the client.
+- Lazy load heavy or non-critical features when appropriate.
+- Optimize images, fonts, and third-party scripts.
+- Reduce total external requests and avoid unnecessary runtime work on initial load.
+- Avoid unnecessary state updates and re-renders; ensure components only update when needed.
+
+## Backend performance
+- Avoid N+1 queries and repeated expensive calls inside loops.
+- Select only needed fields from databases and APIs.
+- Use pagination, limits, and streaming when datasets can grow.
+- Be intentional about concurrency, timeouts, and backpressure.
+- Avoid performing expensive operations repeatedly when results can be reused or cached safely.
+
+## Measurement
+- Prefer measured improvements over assumptions.
+- Preserve or improve performance when modifying core paths.
+- Respect project performance budgets and avoid adding heavy libraries without justification.
+
+## Enforcement
+- If a more efficient approach exists without significantly increasing complexity, prefer it.
+- Do not over-optimize prematurely, but do not ignore obvious inefficiencies.
