@@ -50,10 +50,6 @@ function addMinutesToHHMM(hhmm: string, add: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
 function parseHHMMToMinutes(hhmm: string): number {
   // expects "HH:MM"
   const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
