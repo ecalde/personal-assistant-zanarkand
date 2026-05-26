@@ -92,7 +92,11 @@ type Page = "dashboard" | "skills";
 
 const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-export default function App() {
+export type AppProps = {
+  onSignOut?: () => void;
+};
+
+export default function App({ onSignOut }: AppProps) {
   const [app, setApp] = useState<AppData>(() => {
     const loaded = loadAppData();
     // Safety: if payload missing for any reason
@@ -221,6 +225,11 @@ export default function App() {
         </div>
 
         <div style={styles.actions}>
+          {onSignOut && (
+            <button type="button" onClick={onSignOut}>
+              Sign out
+            </button>
+          )}
           <button onClick={onSaveNow}>Save Now</button>
           <button onClick={onExport}>Export Backup</button>
           <button onClick={() => fileRef.current?.click()}>Import Backup</button>
