@@ -64,6 +64,8 @@ export type LifeEvent = {
   title: string;
   date: string;
   type: EventType;
+  startTime?: string;
+  endTime?: string;
   personName?: string;
   notes?: string;
   reminder: boolean;

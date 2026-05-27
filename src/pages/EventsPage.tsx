@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { partitionEventsByToday } from "../core/events";
+import { parseHHMMToMinutes } from "../core/schedule";
 import type { EventType, LifeEvent } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -31,6 +33,8 @@ type EventFormState = {
   title: string;
   date: string;
   type: EventType;
+  startTime: string;
+  endTime: string;
   personName: string;
   notes: string;
   reminder: boolean;
@@ -47,6 +51,8 @@ function emptyFormState(): EventFormState {
     title: "",
     date: todayIsoDate(),
     type: "other",
+    startTime: "",
+    endTime: "",
     personName: "",
     notes: "",
     reminder: false,
@@ -58,6 +64,8 @@ function formFromEvent(event: LifeEvent): EventFormState {
     title: event.title,
     date: event.date,
     type: event.type,
+    startTime: event.startTime ?? "",
+    endTime: event.endTime ?? "",
     personName: event.personName ?? "",
     notes: event.notes ?? "",
     reminder: event.reminder,
@@ -73,6 +81,13 @@ function formatEventDate(date: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatEventSchedule(event: LifeEvent): string {
+  const dateLabel = formatEventDate(event.date);
+  if (!event.startTime) return dateLabel;
+  if (event.endTime) return `${dateLabel} · ${event.startTime}–${event.endTime}`;
+  return `${dateLabel} · ${event.startTime}`;
 }
 
 function EventRow({
@@ -93,7 +108,7 @@ function EventRow({
             <strong>{event.title}</strong>
             {event.reminder && <span style={styles.streakPill}>Reminder</span>}
           </div>
-          <div style={{ opacity: 0.85 }}>{formatEventDate(event.date)}</div>
+          <div style={{ opacity: 0.85 }}>{formatEventSchedule(event)}</div>
           {event.personName && <div>With {event.personName}</div>}
           {event.notes && <div style={{ opacity: 0.85 }}>{event.notes}</div>}
         </div>
@@ -119,13 +134,10 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
 
   const today = todayIsoDate();
 
-  const { upcoming, past } = useMemo(() => {
-    const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
-    return {
-      upcoming: sorted.filter((event) => event.date >= today),
-      past: sorted.filter((event) => event.date < today).reverse(),
-    };
-  }, [events, today]);
+  const { upcoming, past } = useMemo(
+    () => partitionEventsByToday(events, today),
+    [events, today]
+  );
 
   function resetForm() {
     setForm(emptyFormState());
@@ -163,10 +175,24 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
       return;
     }
 
+    const startTime = form.startTime.trim() || undefined;
+    const endTime = form.endTime.trim() || undefined;
+
+    if (endTime && !startTime) {
+      setFormError("Start time is required when end time is set.");
+      return;
+    }
+    if (startTime && endTime && parseHHMMToMinutes(endTime) < parseHHMMToMinutes(startTime)) {
+      setFormError("End time must be after start time.");
+      return;
+    }
+
     const payload = {
       title,
       date: form.date,
       type: form.type,
+      startTime,
+      endTime,
       personName: form.personName.trim() || undefined,
       notes: form.notes.trim() || undefined,
       reminder: form.reminder,
@@ -253,6 +279,32 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
                     </option>
                   ))}
                 </select>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <label style={styles.label}>
+                Start time (optional)
+                <input
+                  type="time"
+                  value={form.startTime}
+                  onChange={(e) =>
+                    setForm((current) => ({ ...current, startTime: e.target.value }))
+                  }
+                  style={styles.timeInput}
+                />
+              </label>
+
+              <label style={styles.label}>
+                End time (optional)
+                <input
+                  type="time"
+                  value={form.endTime}
+                  onChange={(e) =>
+                    setForm((current) => ({ ...current, endTime: e.target.value }))
+                  }
+                  style={styles.timeInput}
+                />
               </label>
             </div>
 

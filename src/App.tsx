@@ -274,6 +274,12 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (input.notes?.trim()) {
       newEvent.notes = input.notes.trim();
     }
+    if (input.startTime) {
+      newEvent.startTime = input.startTime;
+    }
+    if (input.endTime) {
+      newEvent.endTime = input.endTime;
+    }
 
     commit({
       ...app,
@@ -307,6 +313,18 @@ export default function App({ userId, onSignOut }: AppProps) {
       nextEvent.notes = updated.notes.trim();
     } else {
       delete nextEvent.notes;
+    }
+
+    if (updated.startTime) {
+      nextEvent.startTime = updated.startTime;
+    } else {
+      delete nextEvent.startTime;
+    }
+
+    if (updated.endTime) {
+      nextEvent.endTime = updated.endTime;
+    } else {
+      delete nextEvent.endTime;
     }
 
     const events = (app.payload.events ?? []).map((event) =>

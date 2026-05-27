@@ -5,6 +5,7 @@ import {
   MapperError,
   eventFromRow,
   eventToRow,
+  isHhMm,
   isIsoDate,
   isIsoTimestamp,
   isPositiveInteger,
@@ -94,6 +95,13 @@ describe("validation helpers", () => {
     expect(isIsoDate(EVENT_DATE)).toBe(true);
     expect(isIsoDate("2026-13-01")).toBe(false);
     expect(isIsoDate("not-a-date")).toBe(false);
+  });
+
+  it("accepts HH:MM times", () => {
+    expect(isHhMm("09:00")).toBe(true);
+    expect(isHhMm("23:59")).toBe(true);
+    expect(isHhMm("6:00")).toBe(false);
+    expect(isHhMm("24:00")).toBe(false);
   });
 });
 
@@ -185,6 +193,14 @@ describe("event mappers", () => {
     expect(eventFromRow(row)).toEqual(event);
   });
 
+  it("round-trips event with start and end times", () => {
+    const event = sampleEvent({ startTime: "14:00", endTime: "16:00" });
+    const row = eventToRow(event, USER_ID);
+    expect(row.start_time).toBe("14:00");
+    expect(row.end_time).toBe("16:00");
+    expect(eventFromRow(row)).toEqual(event);
+  });
+
   it("maps optional fields to null", () => {
     const row = eventToRow(
       sampleEvent({ personName: undefined, notes: undefined, reminder: false }),
@@ -206,6 +222,24 @@ describe("event mappers", () => {
     expect(() => eventToRow(sampleEvent({ date: "2026-99-99" }), USER_ID)).toThrow(
       MapperError
     );
+  });
+
+  it("rejects endTime without startTime", () => {
+    expect(() => eventToRow(sampleEvent({ endTime: "16:00" }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+
+  it("rejects invalid startTime", () => {
+    expect(() => eventToRow(sampleEvent({ startTime: "6:00" }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+
+  it("rejects endTime before startTime", () => {
+    expect(() =>
+      eventToRow(sampleEvent({ startTime: "16:00", endTime: "14:00" }), USER_ID)
+    ).toThrow(MapperError);
   });
 });
 

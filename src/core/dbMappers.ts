@@ -1,6 +1,7 @@
 // Pure domain ↔ Postgres row mappers (no Supabase client).
 
 import { defaultWeeklySchedule } from "./state";
+import { parseHHMMToMinutes } from "./schedule";
 import type {
   AppPayload,
   EventType,
@@ -66,6 +67,8 @@ export type EventRow = {
   title: string;
   date: string;
   type: string;
+  start_time: string | null;
+  end_time: string | null;
   person_name: string | null;
   notes: string | null;
   reminder: boolean;
@@ -119,6 +122,14 @@ export function isIsoDate(value: string): boolean {
 
 export function isEventType(value: string): value is EventType {
   return (EVENT_TYPES as string[]).includes(value);
+}
+
+export function isHhMm(value: string): boolean {
+  const match = HHMM_RE.exec(value);
+  if (!match) return false;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
 }
 
 function assertUuid(value: string, field: string): void {
@@ -252,6 +263,22 @@ function assertValidEvent(event: LifeEvent): void {
   if (event.notes !== undefined && typeof event.notes !== "string") {
     throw new MapperError("Invalid event.notes", "event.notes");
   }
+  if (event.startTime !== undefined) {
+    if (typeof event.startTime !== "string" || !isHhMm(event.startTime)) {
+      throw new MapperError("Invalid event.startTime", "event.startTime");
+    }
+  }
+  if (event.endTime !== undefined) {
+    if (typeof event.endTime !== "string" || !isHhMm(event.endTime)) {
+      throw new MapperError("Invalid event.endTime", "event.endTime");
+    }
+    if (event.startTime === undefined) {
+      throw new MapperError("event.endTime requires event.startTime", "event.endTime");
+    }
+    if (parseHHMMToMinutes(event.endTime) < parseHHMMToMinutes(event.startTime)) {
+      throw new MapperError("event.endTime must be >= event.startTime", "event.endTime");
+    }
+  }
 }
 
 export function skillToRow(skill: Skill, userId: string): SkillRow {
@@ -364,6 +391,8 @@ export function eventToRow(event: LifeEvent, userId: string): EventRow {
     title: event.title.trim(),
     date: event.date,
     type: event.type,
+    start_time: event.startTime ?? null,
+    end_time: event.endTime ?? null,
     person_name: event.personName?.trim() || null,
     notes: event.notes?.trim() || null,
     reminder: event.reminder,
@@ -402,6 +431,12 @@ export function eventFromRow(row: EventRow): LifeEvent {
   }
   if (row.notes !== null && row.notes.trim().length > 0) {
     event.notes = row.notes.trim();
+  }
+  if (row.start_time !== null && isHhMm(row.start_time)) {
+    event.startTime = row.start_time;
+  }
+  if (row.end_time !== null && isHhMm(row.end_time)) {
+    event.endTime = row.end_time;
   }
 
   return event;
