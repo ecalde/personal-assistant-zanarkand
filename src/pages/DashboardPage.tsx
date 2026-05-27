@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { buildSkillDayRows, buildTimelineItems } from "../core/dashboardStats";
+import {
+  buildSkillDayRows,
+  buildTimelineItems,
+  totalMinutesToday,
+} from "../core/dashboardStats";
+import { TodayHero } from "../components/dashboard/TodayHero";
 import type { Priority, Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 import { priorityEmoji } from "../ui/format";
@@ -34,6 +39,11 @@ export default function DashboardPage({
     [skills, sessions]
   );
 
+  const todayTotalMinutes = useMemo(
+    () => totalMinutesToday(sessions),
+    [sessions]
+  );
+
   const overdue = useMemo(
     () => rows.filter((r) => r.status === "overdue"),
     [rows]
@@ -61,6 +71,8 @@ export default function DashboardPage({
       <div style={{ opacity: 0.85, marginBottom: 12 }}>
         Next we’ll add: daily timeline, reminders, completion rules, and XP.
       </div>
+
+      <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
 
       {skills.length === 0 ? (
         <div style={{ opacity: 0.8 }}>
