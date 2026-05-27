@@ -40,10 +40,7 @@ export default function DashboardPage({
 
   return (
     <div style={styles.card}>
-      <div style={styles.cardTitle}>Dashboard (Phase 1)</div>
-      <div style={{ opacity: 0.85, marginBottom: 12 }}>
-        Next we’ll add: daily timeline, reminders, completion rules, and XP.
-      </div>
+      <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
 
       <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
 
