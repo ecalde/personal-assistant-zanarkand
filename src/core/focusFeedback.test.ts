@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import type { FocusItem } from "./focus";
 import type { FocusFeedback } from "./model";
 import {
+  buildHiddenFocusFeedbackItems,
   cleanupExpiredFeedback,
   dismissUntilEndOfDay,
   buildFocusSourceSnapshot,
   filterSuppressedFocusItems,
+  formatFocusFeedbackActionLabel,
+  formatFocusFeedbackExpiryLabel,
   isFocusItemSuppressed,
+  resolveHiddenFocusDisplayLabel,
+  restoreFocusFeedbackItem,
+  restoreFocusItemByFocusId,
   snoozeFocusItem,
   snoozeFocusItemUntilTomorrow,
 } from "./focusFeedback";
@@ -223,6 +229,164 @@ describe("focusFeedback", () => {
       expect(
         snoozeFocusItemUntilTomorrow("skill:test", NOW_MORNING).sourceSnapshot
       ).toBeUndefined();
+    });
+  });
+
+  describe("buildHiddenFocusFeedbackItems", () => {
+    it("returns newest active feedback once per focusItemId", () => {
+      const item = sampleFocusItem();
+      const olderDismiss = dismissedEntry(
+        item.id,
+        addHoursIso(NOW_MORNING, -2),
+        addHoursIso(NOW_MORNING, -2)
+      );
+      const newerSnooze = {
+        ...snoozedEntry(
+          item.id,
+          addHoursIso(NOW_MORNING, 5),
+          NOW_MORNING,
+          addHoursIso(NOW_MORNING, 1)
+        ),
+        id: "33333333-3333-4333-8333-333333333333",
+      };
+      const feedback = [olderDismiss, newerSnooze];
+
+      const result = buildHiddenFocusFeedbackItems(feedback, [item], NOW_MORNING);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.feedback.id).toBe(newerSnooze.id);
+      expect(result[0]?.focusItemId).toBe(item.id);
+    });
+
+    it("excludes expired entries", () => {
+      const activeItem = sampleFocusItem({ id: "skill:active" });
+      const expiredItem = sampleFocusItem({ id: "skill:expired" });
+      const feedback = [
+        dismissUntilEndOfDay(activeItem.id, NOW_MORNING),
+        snoozedEntry(
+          expiredItem.id,
+          addHoursIso(NOW_MORNING, 1),
+          addHoursIso(NOW_MORNING, -3)
+        ),
+      ];
+      const now = addHoursIso(NOW_MORNING, 2);
+
+      const result = buildHiddenFocusFeedbackItems(
+        feedback,
+        [activeItem, expiredItem],
+        now
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.focusItemId).toBe(activeItem.id);
+    });
+
+    it("precomputes actionLabel and expiryLabel on each DTO", () => {
+      const item = sampleFocusItem();
+      const feedback = [snoozeFocusItem(item.id, NOW_MORNING, 3, "Log ML time")];
+
+      const result = buildHiddenFocusFeedbackItems(feedback, [item], NOW_MORNING);
+
+      expect(result[0]?.actionLabel).toBe("Snoozed");
+      expect(result[0]?.expiryLabel).toMatch(/^Snoozed until /);
+      expect(result[0]?.displayLabel).toBe("Log ML time");
+    });
+  });
+
+  describe("resolveHiddenFocusDisplayLabel", () => {
+    it("falls back to Hidden recommendation when sourceSnapshot is missing", () => {
+      const entry = dismissedEntry("skill:test-skill", NOW_MORNING);
+      expect(resolveHiddenFocusDisplayLabel(entry)).toBe("Hidden recommendation");
+    });
+
+    it("uses sourceSnapshot when present", () => {
+      const entry = {
+        ...dismissUntilEndOfDay("skill:test", NOW_MORNING, "Log ML time"),
+      };
+      expect(resolveHiddenFocusDisplayLabel(entry)).toBe("Log ML time");
+    });
+  });
+
+  describe("restoreFocusFeedbackItem", () => {
+    it("removes entry by feedback id", () => {
+      const keep = dismissedEntry("skill:a", NOW_MORNING);
+      const remove = {
+        ...dismissedEntry("skill:b", NOW_MORNING),
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      };
+      const feedback = [keep, remove];
+
+      const result = restoreFocusFeedbackItem(feedback, remove.id);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe(keep.id);
+    });
+  });
+
+  describe("restoreFocusItemByFocusId", () => {
+    it("removes only the newest active entry for focusItemId", () => {
+      const item = sampleFocusItem();
+      const olderDismiss = dismissedEntry(
+        item.id,
+        addHoursIso(NOW_MORNING, -2),
+        addHoursIso(NOW_MORNING, -2)
+      );
+      const newerSnooze = {
+        ...snoozedEntry(
+          item.id,
+          addHoursIso(NOW_MORNING, 5),
+          NOW_MORNING,
+          addHoursIso(NOW_MORNING, 1)
+        ),
+        id: "33333333-3333-4333-8333-333333333333",
+      };
+      const feedback = [olderDismiss, newerSnooze];
+
+      const result = restoreFocusItemByFocusId(feedback, item.id, NOW_MORNING);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe(olderDismiss.id);
+    });
+
+    it("no-ops when no active entry exists for focusItemId", () => {
+      const item = sampleFocusItem();
+      const feedback = [
+        snoozedEntry(item.id, addHoursIso(NOW_MORNING, 1), NOW_MORNING),
+      ];
+      const now = addHoursIso(NOW_MORNING, 2);
+
+      const result = restoreFocusItemByFocusId(feedback, item.id, now);
+
+      expect(result).toEqual(feedback);
+    });
+  });
+
+  describe("formatFocusFeedbackActionLabel", () => {
+    it("labels dismissed and snoozed actions", () => {
+      expect(formatFocusFeedbackActionLabel("dismissed")).toBe("Dismissed");
+      expect(formatFocusFeedbackActionLabel("snoozed")).toBe("Snoozed");
+    });
+  });
+
+  describe("formatFocusFeedbackExpiryLabel", () => {
+    it("labels dismiss expiry as today", () => {
+      const entry = dismissUntilEndOfDay("skill:test", NOW_MORNING);
+      expect(formatFocusFeedbackExpiryLabel(entry, NOW_MORNING)).toBe("Dismissed today");
+    });
+
+    it("labels 3h snooze with local time", () => {
+      const entry = snoozeFocusItem("skill:test", NOW_MORNING, 3);
+      const label = formatFocusFeedbackExpiryLabel(entry, NOW_MORNING);
+      const expectedTime = new Date(entry.untilIso!).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      expect(label).toBe(`Snoozed until ${expectedTime}`);
+    });
+
+    it("labels snooze until tomorrow", () => {
+      const entry = snoozeFocusItemUntilTomorrow("skill:test", NOW_MORNING);
+      expect(formatFocusFeedbackExpiryLabel(entry, NOW_MORNING)).toBe("Snoozed until tomorrow");
     });
   });
 });

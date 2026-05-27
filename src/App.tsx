@@ -14,6 +14,8 @@ import type {
 import {
   cleanupExpiredFeedback,
   dismissUntilEndOfDay,
+  restoreFocusFeedbackItem,
+  restoreFocusItemByFocusId as removeFocusFeedbackByFocusId,
   snoozeFocusItem as buildSnoozeFocusFeedback,
   snoozeFocusItemUntilTomorrow as buildSnoozeUntilTomorrowFeedback,
 } from "./core/focusFeedback";
@@ -31,6 +33,7 @@ import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
 import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
 import FitnessPage from "./pages/FitnessPage";
+import ReviewPage from "./pages/ReviewPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
 import type { Page } from "./pages/types";
@@ -913,6 +916,22 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, focusFeedback: [] } });
   }
 
+  function restoreFocusFeedbackEntry(feedbackId: string) {
+    if (!app) return;
+    const next = restoreFocusFeedbackItem(app.payload.focusFeedback ?? [], feedbackId);
+    commit({ ...app, payload: { ...app.payload, focusFeedback: next } });
+  }
+
+  function restoreFocusItemByFocusId(focusItemId: string) {
+    if (!app) return;
+    const next = removeFocusFeedbackByFocusId(
+      app.payload.focusFeedback ?? [],
+      focusItemId,
+      nowIso()
+    );
+    commit({ ...app, payload: { ...app.payload, focusFeedback: next } });
+  }
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -969,11 +988,26 @@ export default function App({ userId, onSignOut }: AppProps) {
           onSnoozeFocusItem={snoozeFocusItem}
           onSnoozeFocusItemUntilTomorrow={snoozeFocusItemUntilTomorrow}
           onRestoreAllFocusItems={restoreAllFocusItems}
+          onRestoreFocusFeedbackEntry={restoreFocusFeedbackEntry}
+          onRestoreFocusItemByFocusId={restoreFocusItemByFocusId}
           onOpenSkills={() => setPage("skills")}
           onOpenEvents={() => setPage("events")}
           onOpenPeople={() => setPage("people")}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={() => setPage("fitness")}
+          onOpenReview={() => setPage("review")}
+        />
+      )}
+
+      {page === "review" && (
+        <ReviewPage
+          skills={app.payload.skills}
+          sessions={app.payload.sessions ?? []}
+          events={app.payload.events ?? []}
+          people={app.payload.people ?? []}
+          jobApplications={app.payload.jobApplications ?? []}
+          workoutSessions={app.payload.workoutSessions ?? []}
+          focusFeedback={app.payload.focusFeedback ?? []}
         />
       )}
 

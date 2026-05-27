@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import type {
   DailyFocusSummary,
   FocusActionType,
@@ -11,18 +11,20 @@ import {
   formatFocusContextLine,
   formatFocusExpirationHint,
 } from "../../core/focus";
-import { buildFocusSourceSnapshot } from "../../core/focusFeedback";
+import { buildFocusSourceSnapshot, type HiddenFocusFeedbackItem } from "../../core/focusFeedback";
 import { styles } from "../../ui/appStyles";
-import { formatMinutes } from "../../ui/format";
+import { formatLocal, formatMinutes } from "../../ui/format";
 import { QuickLogControls } from "./QuickLogControls";
 
 export type DailyFocusSectionProps = {
   summary: DailyFocusSummary;
   hiddenCount?: number;
+  hiddenFocusItems?: HiddenFocusFeedbackItem[];
   onDismissFocusItem?: (focusItemId: string, sourceSnapshot?: string) => void;
   onSnoozeFocusItem?: (focusItemId: string, hours: number, sourceSnapshot?: string) => void;
   onSnoozeFocusItemUntilTomorrow?: (focusItemId: string, sourceSnapshot?: string) => void;
   onRestoreAll?: () => void;
+  onRestoreFocusFeedbackEntry?: (feedbackId: string) => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
@@ -213,13 +215,70 @@ function FocusItemRow({
   );
 }
 
+function HiddenFocusFeedbackRow({
+  item,
+  onRestore,
+}: {
+  item: HiddenFocusFeedbackItem;
+  onRestore: (feedbackId: string) => void;
+}) {
+  const [titleLine, ...descriptionLines] = item.displayLabel.split("\n");
+  const descriptionLine = descriptionLines.join("\n").trim();
+  const restoreLabel = descriptionLine || titleLine;
+
+  return (
+    <div
+      style={{
+        ...styles.listRow,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+        alignItems: "flex-start",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{titleLine}</div>
+        {descriptionLine && (
+          <p style={{ margin: "4px 0 0 0", opacity: 0.8, fontSize: 13 }}>{descriptionLine}</p>
+        )}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: 6,
+            fontSize: 12,
+            opacity: 0.75,
+          }}
+        >
+          <span>
+            {item.actionLabel} · {item.expiryLabel}
+          </span>
+          <span>Hidden {formatLocal(item.feedback.createdAtIso)}</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        style={{ ...SECONDARY_BUTTON_STYLE, marginTop: 4, alignSelf: "flex-start" }}
+        onClick={() => onRestore(item.feedback.id)}
+        aria-label={`Restore ${restoreLabel}`}
+      >
+        Restore
+      </button>
+    </div>
+  );
+}
+
 export function DailyFocusSection({
   summary,
   hiddenCount = 0,
+  hiddenFocusItems = [],
   onDismissFocusItem,
   onSnoozeFocusItem,
   onSnoozeFocusItemUntilTomorrow,
   onRestoreAll,
+  onRestoreFocusFeedbackEntry,
   onOpenSkills,
   onOpenEvents,
   onOpenPeople,
@@ -227,14 +286,24 @@ export function DailyFocusSection({
   onOpenFitness,
   onAddSession,
 }: DailyFocusSectionProps) {
+  const drawerId = useId();
+  const [drawerOpenAtCount, setDrawerOpenAtCount] = useState<number | null>(null);
   const contextLine = formatFocusContextLine(summary.context);
+  const showHiddenFooter = hiddenCount > 0 && (onRestoreAll || onRestoreFocusFeedbackEntry);
+  const drawerOpen =
+    drawerOpenAtCount !== null &&
+    drawerOpenAtCount === hiddenFocusItems.length &&
+    hiddenFocusItems.length > 0;
+
   const sectionProps: DailyFocusSectionProps = {
     summary,
     hiddenCount,
+    hiddenFocusItems,
     onDismissFocusItem,
     onSnoozeFocusItem,
     onSnoozeFocusItemUntilTomorrow,
     onRestoreAll,
+    onRestoreFocusFeedbackEntry,
     onOpenSkills,
     onOpenEvents,
     onOpenPeople,
@@ -280,7 +349,7 @@ export function DailyFocusSection({
         </div>
       )}
 
-      {hiddenCount > 0 && onRestoreAll && (
+      {showHiddenFooter && (
         <div
           style={{
             display: "flex",
@@ -295,9 +364,50 @@ export function DailyFocusSection({
           <span>
             {hiddenCount} focus item{hiddenCount === 1 ? "" : "s"} hidden
           </span>
-          <button type="button" style={SECONDARY_BUTTON_STYLE} onClick={onRestoreAll}>
-            Restore all
-          </button>
+          {onRestoreFocusFeedbackEntry && hiddenFocusItems.length > 0 && (
+            <button
+              type="button"
+              style={SECONDARY_BUTTON_STYLE}
+              onClick={() =>
+                setDrawerOpenAtCount((prev) =>
+                  prev === hiddenFocusItems.length ? null : hiddenFocusItems.length
+                )
+              }
+              aria-expanded={drawerOpen}
+              aria-controls={drawerId}
+            >
+              Review hidden
+            </button>
+          )}
+          {onRestoreAll && (
+            <button type="button" style={SECONDARY_BUTTON_STYLE} onClick={onRestoreAll}>
+              Restore all
+            </button>
+          )}
+        </div>
+      )}
+
+      {drawerOpen && onRestoreFocusFeedbackEntry && (
+        <div
+          id={drawerId}
+          style={{
+            marginTop: 10,
+            padding: 10,
+            borderRadius: 12,
+            border: "1px solid #e5e5e5",
+            background: "#fafafa",
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <h3 style={{ fontWeight: 700, margin: 0, fontSize: 14 }}>Hidden focus items</h3>
+          {hiddenFocusItems.map((item) => (
+            <HiddenFocusFeedbackRow
+              key={item.feedback.id}
+              item={item}
+              onRestore={onRestoreFocusFeedbackEntry}
+            />
+          ))}
         </div>
       )}
 

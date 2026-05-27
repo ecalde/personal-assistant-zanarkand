@@ -8,6 +8,7 @@ import {
   type FocusItem,
 } from "../core/focus";
 import {
+  buildHiddenFocusFeedbackItems,
   countSuppressedFocusItems,
   filterSuppressedFocusItems,
 } from "../core/focusFeedback";
@@ -17,6 +18,7 @@ import {
   totalMinutesToday,
 } from "../core/dashboardStats";
 import { buildGlobalProgression, buildSkillProgressions } from "../core/progression";
+import { buildWeeklyReview } from "../core/review";
 import { buildUpcomingEventItems } from "../core/events";
 import {
   buildPeopleNeedingFollowUp,
@@ -43,6 +45,7 @@ import {
 } from "../components/dashboard/UnifiedTimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
+import { WeeklyReviewSection } from "../components/dashboard/WeeklyReviewSection";
 import type {
   CareerTarget,
   FocusFeedback,
@@ -80,11 +83,14 @@ export type DashboardPageProps = {
   onSnoozeFocusItem: (focusItemId: string, hours: number, sourceSnapshot?: string) => void;
   onSnoozeFocusItemUntilTomorrow: (focusItemId: string, sourceSnapshot?: string) => void;
   onRestoreAllFocusItems: () => void;
+  onRestoreFocusFeedbackEntry: (feedbackId: string) => void;
+  onRestoreFocusItemByFocusId: (focusItemId: string) => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: () => void;
+  onOpenReview?: () => void;
 };
 
 export default function DashboardPage({
@@ -102,11 +108,13 @@ export default function DashboardPage({
   onSnoozeFocusItem,
   onSnoozeFocusItemUntilTomorrow,
   onRestoreAllFocusItems,
+  onRestoreFocusFeedbackEntry,
   onOpenSkills,
   onOpenEvents,
   onOpenPeople,
   onOpenCareer,
   onOpenFitness,
+  onOpenReview,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
 
@@ -209,12 +217,17 @@ export default function DashboardPage({
     ]
   );
 
+  const allRankedFocusItems = useMemo(
+    () =>
+      rankFocusItems(
+        (Object.values(dailyFocusSummary.byCategory) as FocusItem[][]).flat()
+      ),
+    [dailyFocusSummary]
+  );
+
   const visibleFocusSummary = useMemo(() => {
-    const allRanked = rankFocusItems(
-      (Object.values(dailyFocusSummary.byCategory) as FocusItem[][]).flat()
-    );
     const visible = filterSuppressedFocusItems(
-      allRanked,
+      allRankedFocusItems,
       focusFeedback,
       dailyFocusSummary.generatedAtIso
     ).slice(0, FOCUS_DASHBOARD_MAX_ITEMS);
@@ -224,18 +237,27 @@ export default function DashboardPage({
       items: visible,
       headline: buildHeadline(visible),
     };
-  }, [dailyFocusSummary, focusFeedback]);
+  }, [dailyFocusSummary, focusFeedback, allRankedFocusItems]);
 
-  const hiddenFocusCount = useMemo(() => {
-    const allRanked = rankFocusItems(
-      (Object.values(dailyFocusSummary.byCategory) as FocusItem[][]).flat()
-    );
-    return countSuppressedFocusItems(
-      allRanked,
-      focusFeedback,
-      dailyFocusSummary.generatedAtIso
-    );
-  }, [dailyFocusSummary, focusFeedback]);
+  const hiddenFocusCount = useMemo(
+    () =>
+      countSuppressedFocusItems(
+        allRankedFocusItems,
+        focusFeedback,
+        dailyFocusSummary.generatedAtIso
+      ),
+    [allRankedFocusItems, focusFeedback, dailyFocusSummary.generatedAtIso]
+  );
+
+  const hiddenFocusItems = useMemo(
+    () =>
+      buildHiddenFocusFeedbackItems(
+        focusFeedback,
+        allRankedFocusItems,
+        dailyFocusSummary.generatedAtIso
+      ),
+    [focusFeedback, allRankedFocusItems, dailyFocusSummary.generatedAtIso]
+  );
 
   const dailyBriefing = useMemo(
     () =>
@@ -267,6 +289,30 @@ export default function DashboardPage({
     ]
   );
 
+  const weeklyReview = useMemo(
+    () =>
+      buildWeeklyReview({
+        skills,
+        sessions,
+        events,
+        people,
+        jobApplications,
+        workoutSessions,
+        focusFeedback,
+        todayKey: today,
+      }),
+    [
+      skills,
+      sessions,
+      events,
+      people,
+      jobApplications,
+      workoutSessions,
+      focusFeedback,
+      today,
+    ]
+  );
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
@@ -280,13 +326,19 @@ export default function DashboardPage({
       </div>
 
       <div style={{ marginTop: 12 }}>
+        <WeeklyReviewSection review={weeklyReview} onOpenReview={onOpenReview} />
+      </div>
+
+      <div style={{ marginTop: 12 }}>
         <DailyFocusSection
           summary={visibleFocusSummary}
           hiddenCount={hiddenFocusCount}
+          hiddenFocusItems={hiddenFocusItems}
           onDismissFocusItem={onDismissFocusItem}
           onSnoozeFocusItem={onSnoozeFocusItem}
           onSnoozeFocusItemUntilTomorrow={onSnoozeFocusItemUntilTomorrow}
           onRestoreAll={onRestoreAllFocusItems}
+          onRestoreFocusFeedbackEntry={onRestoreFocusFeedbackEntry}
           onOpenSkills={onOpenSkills}
           onOpenEvents={onOpenEvents}
           onOpenPeople={onOpenPeople}

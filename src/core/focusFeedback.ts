@@ -1,7 +1,15 @@
-import type { FocusFeedback } from "./model";
+import type { FocusFeedback, FocusFeedbackAction } from "./model";
 import type { FocusItem } from "./focus";
 import { addHoursIso, startOfNextLocalDayIso } from "./focus";
 import { formatLocalDateKey } from "./timeline";
+
+function formatFeedbackTimeOnly(untilIso: string): string {
+  try {
+    return new Date(untilIso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return untilIso;
+  }
+}
 
 function localDateKeyFromIso(iso: string): string {
   return formatLocalDateKey(new Date(iso));
@@ -62,6 +70,86 @@ export function countSuppressedFocusItems(
   nowIso: string
 ): number {
   return items.filter((item) => isFocusItemSuppressed(item, feedback, nowIso)).length;
+}
+
+export type HiddenFocusFeedbackItem = {
+  feedback: FocusFeedback;
+  focusItemId: string;
+  displayLabel: string;
+  actionLabel: string;
+  expiryLabel: string;
+};
+
+export function buildHiddenFocusFeedbackItems(
+  feedback: FocusFeedback[],
+  rankedFocusItems: FocusItem[],
+  nowIso: string
+): HiddenFocusFeedbackItem[] {
+  const hidden: HiddenFocusFeedbackItem[] = [];
+
+  for (const item of rankedFocusItems) {
+    const latest = getLatestFeedbackForItem(feedback, item.id);
+    if (latest && isFeedbackActive(latest, nowIso)) {
+      hidden.push({
+        feedback: latest,
+        focusItemId: latest.focusItemId,
+        displayLabel: resolveHiddenFocusDisplayLabel(latest),
+        actionLabel: formatFocusFeedbackActionLabel(latest.action),
+        expiryLabel: formatFocusFeedbackExpiryLabel(latest, nowIso),
+      });
+    }
+  }
+
+  return hidden.sort((a, b) =>
+    b.feedback.createdAtIso.localeCompare(a.feedback.createdAtIso)
+  );
+}
+
+export function formatFocusFeedbackActionLabel(action: FocusFeedbackAction): string {
+  return action === "dismissed" ? "Dismissed" : "Snoozed";
+}
+
+export function formatFocusFeedbackExpiryLabel(
+  entry: FocusFeedback,
+  nowIso: string
+): string {
+  if (entry.action === "dismissed") {
+    return "Dismissed today";
+  }
+
+  if (entry.action === "snoozed" && entry.untilIso !== undefined) {
+    const todayKey = localDateKeyFromIso(nowIso);
+    const tomorrowStart = startOfNextLocalDayIso(todayKey);
+    if (entry.untilIso === tomorrowStart) {
+      return "Snoozed until tomorrow";
+    }
+    return `Snoozed until ${formatFeedbackTimeOnly(entry.untilIso)}`;
+  }
+
+  return "Snoozed";
+}
+
+export function resolveHiddenFocusDisplayLabel(entry: FocusFeedback): string {
+  const trimmed = entry.sourceSnapshot?.trim();
+  if (trimmed && trimmed.length > 0) return trimmed;
+  return "Hidden recommendation";
+}
+
+export function restoreFocusFeedbackItem(
+  feedback: FocusFeedback[],
+  feedbackId: string
+): FocusFeedback[] {
+  return feedback.filter((entry) => entry.id !== feedbackId);
+}
+
+export function restoreFocusItemByFocusId(
+  feedback: FocusFeedback[],
+  focusItemId: string,
+  nowIso: string
+): FocusFeedback[] {
+  const latest = getLatestFeedbackForItem(feedback, focusItemId);
+  if (!latest || !isFeedbackActive(latest, nowIso)) return feedback;
+  return feedback.filter((entry) => entry.id !== latest.id);
 }
 
 function newFeedbackId(): string {
