@@ -33,6 +33,7 @@ src/
   auth/                 # Auth gate and sign-in screen
   core/                 # Domain model, storage, sync, mappers, pure helpers
     dashboardStats.ts   # Pure dashboard derivations (today/week/timeline)
+    progression.ts      # Derived XP, levels, streaks (from sessions; not persisted)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Skills)
     DashboardPage.tsx   # Composes dashboard sections from props
@@ -75,7 +76,7 @@ src/
 - Presentational: receive slices of `app.payload` and callbacks
 - Must not call `saveAppData`, `initialSync`, or `replaceRemotePayload` directly
 - Examples: [`DashboardPage.tsx`](../src/pages/DashboardPage.tsx), `SkillsPage`
-- [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats`, then composes visual sections; it does not persist or call sync APIs.
+- [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats` and `core/progression`, then composes visual sections; it does not persist or call sync APIs.
 
 ### Components (`src/components`)
 
@@ -92,18 +93,20 @@ src/
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
 - Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), duration parsing, sessions utilities
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
+- Progression ([`progression.ts`](../src/core/progression.ts)): lifetime XP (1 XP = 1 logged minute), linear level bands (`XP_PER_LEVEL_BAND`), per-skill and global streaks — tested in [`progression.test.ts`](../src/core/progression.test.ts). **Not stored** in Postgres or `AppPayload`; recomputed from `sessions` on each render. Streak rule: meet `dailyGoalMinutes` when set, else any minutes > 0; global streak counts a day if **any** skill qualifies.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
-[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), and renders sections top to bottom:
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts) and [`progression.ts`](../src/core/progression.ts), and renders sections top to bottom:
 
-1. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
-2. **OverdueBehindSection** — skills behind schedule with quick log
-3. **TimelineSection** — today’s scheduled blocks across skills
-4. **SkillProgressSection** — per-skill today progress and goals
-5. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+1. **ProgressionHero** — account level, lifetime XP, global streak, level progress bar (hidden when no skills)
+2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
+3. **OverdueBehindSection** — skills behind schedule with quick log
+4. **TimelineSection** — today’s scheduled blocks across skills
+5. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
+6. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
 
-Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
+Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
 
 ## Data flow
 
@@ -152,5 +155,5 @@ Never commit real values. Use `.env.local` locally and Vercel project settings i
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `dashboardStats.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes

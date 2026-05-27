@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import type { SkillDayRow } from "../../core/dashboardStats";
+import type { SkillProgression } from "../../core/progression";
 import type { Priority } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { SkillProgressRow } from "./SkillProgressRow";
 
 export type SkillProgressSectionProps = {
   rows: SkillDayRow[];
+  progressionsBySkillId?: Record<string, SkillProgression>;
 };
 
 function sortRows(rows: SkillDayRow[]): SkillDayRow[] {
@@ -18,7 +20,7 @@ function sortRows(rows: SkillDayRow[]): SkillDayRow[] {
   });
 }
 
-export function SkillProgressSection({ rows }: SkillProgressSectionProps) {
+export function SkillProgressSection({ rows, progressionsBySkillId }: SkillProgressSectionProps) {
   const sortedRows = useMemo(() => sortRows(rows), [rows]);
 
   return (
@@ -30,7 +32,11 @@ export function SkillProgressSection({ rows }: SkillProgressSectionProps) {
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {sortedRows.map((row) => (
-            <SkillProgressRow key={row.skill.id} row={row} />
+            <SkillProgressRow
+              key={row.skill.id}
+              row={row}
+              progression={progressionsBySkillId?.[row.skill.id]}
+            />
           ))}
         </div>
       )}

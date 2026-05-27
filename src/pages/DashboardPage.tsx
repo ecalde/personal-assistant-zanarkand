@@ -4,7 +4,9 @@ import {
   buildTimelineItems,
   totalMinutesToday,
 } from "../core/dashboardStats";
+import { buildGlobalProgression, buildSkillProgressions } from "../core/progression";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
+import { ProgressionHero } from "../components/dashboard/ProgressionHero";
 import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
 import { TimelineSection } from "../components/dashboard/TimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
@@ -38,9 +40,21 @@ export default function DashboardPage({
     [skills, sessions]
   );
 
+  const globalProgression = useMemo(
+    () => buildGlobalProgression(skills, sessions),
+    [skills, sessions]
+  );
+
+  const progressionsBySkillId = useMemo(() => {
+    const progressions = buildSkillProgressions(skills, sessions);
+    return Object.fromEntries(progressions.map((p) => [p.skill.id, p]));
+  }, [skills, sessions]);
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
+
+      {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
 
       <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
 
@@ -54,7 +68,7 @@ export default function DashboardPage({
 
           <TimelineSection timelineItems={timelineItems} onAddSession={onAddSession} />
 
-          <SkillProgressSection rows={rows} />
+          <SkillProgressSection rows={rows} progressionsBySkillId={progressionsBySkillId} />
 
           <WeeklyPreviewSection rows={rows} sessions={sessions} />
         </div>

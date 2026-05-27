@@ -38,3 +38,19 @@ export function formatMinutes(minutes: number): string {
   if (remainder === 0) return `${hours}h`;
   return `${hours}h ${remainder}m`;
 }
+
+/** Display label for 1-based skill/account level. */
+export function formatLevel(level: number): string {
+  if (!Number.isInteger(level) || level < 1) {
+    throw new RangeError("formatLevel expects a positive integer");
+  }
+  return `Lv ${level}`;
+}
+
+/** Formats lifetime XP (1 XP = 1 minute logged). */
+export function formatXp(xp: number): string {
+  if (!Number.isInteger(xp) || xp < 0) {
+    throw new RangeError("formatXp expects a non-negative integer");
+  }
+  return `${xp.toLocaleString()} XP`;
+}
