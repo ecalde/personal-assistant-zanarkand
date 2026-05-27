@@ -1,4 +1,66 @@
 import type { LifeEvent } from "./model";
+import { formatLocalDateKey } from "./timeline";
+
+export type UpcomingEventUrgencyLabel = "Today" | "Tomorrow" | `In ${number} days`;
+
+export type UpcomingEventItem = {
+  event: LifeEvent;
+  urgencyLabel: UpcomingEventUrgencyLabel;
+  daysUntil: number;
+};
+
+function parseDateKey(dateKey: string): Date | null {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+export function addDaysToDateKey(dateKey: string, days: number): string | null {
+  const date = parseDateKey(dateKey);
+  if (!date) return null;
+  date.setDate(date.getDate() + days);
+  return formatLocalDateKey(date);
+}
+
+export function daysBetweenDateKeys(fromKey: string, toKey: string): number | null {
+  const from = parseDateKey(fromKey);
+  const to = parseDateKey(toKey);
+  if (!from || !to) return null;
+  const diffMs = to.getTime() - from.getTime();
+  return Math.round(diffMs / (24 * 60 * 60 * 1000));
+}
+
+export function formatUpcomingEventUrgencyLabel(daysUntil: number): UpcomingEventUrgencyLabel {
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "Tomorrow";
+  return `In ${daysUntil} days`;
+}
+
+export function buildUpcomingEventItems(
+  events: LifeEvent[],
+  todayKey: string,
+  windowDays = 14,
+  maxItems = 10
+): UpcomingEventItem[] {
+  const endKey = addDaysToDateKey(todayKey, windowDays);
+  if (!endKey) return [];
+
+  const inWindow = events.filter((event) => {
+    if (event.date < todayKey || event.date > endKey) return false;
+    return daysBetweenDateKeys(todayKey, event.date) !== null;
+  });
+
+  return sortUpcomingEvents(inWindow)
+    .slice(0, maxItems)
+    .map((event) => {
+      const daysUntil = daysBetweenDateKeys(todayKey, event.date)!;
+      return {
+        event,
+        daysUntil,
+        urgencyLabel: formatUpcomingEventUrgencyLabel(daysUntil),
+      };
+    });
+}
 
 export function compareLifeEventsWithinDay(a: LifeEvent, b: LifeEvent): number {
   const aHasTime = a.startTime !== undefined;

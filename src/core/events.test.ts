@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { LifeEvent } from "./model";
 import {
   compareLifeEventsWithinDay,
+  buildUpcomingEventItems,
+  formatUpcomingEventUrgencyLabel,
   partitionEventsByToday,
   sortPastEvents,
   sortUpcomingEvents,
@@ -93,3 +95,103 @@ describe("partitionEventsByToday", () => {
     expect(past.map((item) => item.id)).toEqual(["2"]);
   });
 });
+
+describe("formatUpcomingEventUrgencyLabel", () => {
+  it("returns Today, Tomorrow, or In X days", () => {
+    expect(formatUpcomingEventUrgencyLabel(0)).toBe("Today");
+    expect(formatUpcomingEventUrgencyLabel(1)).toBe("Tomorrow");
+    expect(formatUpcomingEventUrgencyLabel(5)).toBe("In 5 days");
+  });
+});
+
+describe("buildUpcomingEventItems", () => {
+  it("includes events from today through today+windowDays inclusive", () => {
+    const items = buildUpcomingEventItems(
+      [
+        event("past", "2026-05-26", "Past"),
+        event("today", TODAY, "Today"),
+        event("end", "2026-06-10", "Day 14"),
+        event("beyond", "2026-06-11", "Day 15"),
+      ],
+      TODAY,
+      14,
+      10
+    );
+
+    expect(items.map((item) => item.event.id)).toEqual(["today", "end"]);
+  });
+
+  it("assigns urgency labels based on days until event", () => {
+    const items = buildUpcomingEventItems(
+      [
+        event("today", TODAY, "Today"),
+        event("tomorrow", "2026-05-28", "Tomorrow"),
+        event("later", "2026-05-30", "Later"),
+      ],
+      TODAY,
+      14,
+      10
+    );
+
+    expect(items.map((item) => item.urgencyLabel)).toEqual([
+      "Today",
+      "Tomorrow",
+      "In 3 days",
+    ]);
+  });
+
+  it("sorts using upcoming rules and caps at maxItems", () => {
+    const many = Array.from({ length: 12 }, (_, index) =>
+      event(String(index), addDays(TODAY, index), `Event ${index}`)
+    );
+
+    const items = buildUpcomingEventItems(many, TODAY, 14, 10);
+
+    expect(items).toHaveLength(10);
+    expect(items.map((item) => item.event.id)).toEqual([
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+    ]);
+  });
+
+  it("sorts timed events before untimed on the same day", () => {
+    const items = buildUpcomingEventItems(
+      [
+        event("untimed", TODAY, "All day"),
+        event("timed", TODAY, "Morning", "09:00"),
+      ],
+      TODAY,
+      14,
+      10
+    );
+
+    expect(items.map((item) => item.event.id)).toEqual(["timed", "untimed"]);
+  });
+
+  it("skips events with unparseable dates", () => {
+    const items = buildUpcomingEventItems(
+      [event("bad", "not-a-date", "Bad date"), event("ok", TODAY, "Ok")],
+      TODAY,
+      14,
+      10
+    );
+
+    expect(items.map((item) => item.event.id)).toEqual(["ok"]);
+  });
+});
+
+function addDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

@@ -5,11 +5,13 @@ import {
   totalMinutesToday,
 } from "../core/dashboardStats";
 import { buildGlobalProgression, buildSkillProgressions } from "../core/progression";
+import { buildUpcomingEventItems } from "../core/events";
 import {
   buildUnifiedTimelineRange,
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
+import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
 import { ProgressionHero } from "../components/dashboard/ProgressionHero";
 import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
@@ -25,6 +27,9 @@ import { styles } from "../ui/appStyles";
 
 /** Toggle legacy schedule-only timeline during rollout. */
 const USE_UNIFIED_TIMELINE = true;
+
+const UPCOMING_EVENTS_WINDOW_DAYS = 14;
+const UPCOMING_EVENTS_MAX_ITEMS = 10;
 
 export type DashboardPageProps = {
   skills: Skill[];
@@ -87,6 +92,17 @@ export default function DashboardPage({
     return Object.fromEntries(progressions.map((p) => [p.skill.id, p]));
   }, [skills, sessions]);
 
+  const upcomingEventItems = useMemo(
+    () =>
+      buildUpcomingEventItems(
+        events,
+        today,
+        UPCOMING_EVENTS_WINDOW_DAYS,
+        UPCOMING_EVENTS_MAX_ITEMS
+      ),
+    [events, today]
+  );
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
@@ -94,6 +110,13 @@ export default function DashboardPage({
       {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
 
       <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
+
+      <div style={{ marginTop: 12 }}>
+        <UpcomingEventsSection
+          items={upcomingEventItems}
+          windowDays={UPCOMING_EVENTS_WINDOW_DAYS}
+        />
+      </div>
 
       {USE_UNIFIED_TIMELINE && (
         <div style={{ marginTop: 12 }}>
