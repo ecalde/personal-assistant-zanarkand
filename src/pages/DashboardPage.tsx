@@ -1,14 +1,6 @@
 import { useMemo, useState } from "react";
-import type { Priority, ScheduleBlock, Session, Skill } from "../core/model";
-import {
-  addMinutesToHHMM,
-  expectedMinutesByNow,
-  minutesSinceMidnight,
-  parseHHMMToMinutes,
-  weekdayFromDate,
-  type BlockStatus,
-  type CompletionStatus,
-} from "../core/schedule";
+import { buildSkillDayRows, buildTimelineItems } from "../core/dashboardStats";
+import type { Priority, Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 import { priorityEmoji } from "../ui/format";
 
@@ -37,132 +29,20 @@ export default function DashboardPage({
     setLogBySkill((prev) => ({ ...prev, [skillId]: "" }));
   }
 
-  const rows = useMemo(() => {
-    const now = new Date();
-    const dayKey = weekdayFromDate(now);
-
-    // start of today ISO
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const startIso = startOfToday.toISOString();
-
-    return skills.map((skill) => {
-      const todaySessions = sessions.filter(
-        (ss) => ss.skillId === skill.id && ss.startedAtIso >= startIso
-      );
-
-      const todayMinutes = todaySessions.reduce((sum, ss) => sum + ss.minutes, 0);
-
-      const blocks = skill.schedule[dayKey] ?? [];
-      const expectedByNow = expectedMinutesByNow(blocks, now);
-
-      const status: CompletionStatus =
-        expectedByNow === 0
-          ? "idle"
-          : todayMinutes >= expectedByNow
-            ? "onTrack"
-            : "overdue";
-
-      return {
-        skill,
-        todayMinutes,
-        expectedByNow,
-        status,
-      };
-    });
-  }, [skills, sessions]);
+  const rows = useMemo(
+    () => buildSkillDayRows(skills, sessions),
+    [skills, sessions]
+  );
 
   const overdue = useMemo(
     () => rows.filter((r) => r.status === "overdue"),
     [rows]
   );
 
-  const timelineItems = useMemo(() => {
-    const now = new Date();
-    const dayKey = weekdayFromDate(now);
-
-    // start of today
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const startIso = startOfToday.toISOString();
-
-    const currentMinute = minutesSinceMidnight(now);
-    const nowIsoValue = now.toISOString();
-
-    // Precompute "minutes logged today so far" per skill
-    const loggedBySkill: Record<string, number> = {};
-    for (const s of sessions) {
-      if (s.startedAtIso < startIso) continue;
-      if (s.startedAtIso > nowIsoValue) continue; // logged in the future shouldn't count
-
-      loggedBySkill[s.skillId] = (loggedBySkill[s.skillId] ?? 0) + s.minutes;
-    }
-
-    // For each skill, get blocks for today and calculate cumulative planned minutes
-    const items: Array<{
-      skill: Skill;
-      block: ScheduleBlock;
-      startTime: string;
-      endTime: string;
-      startMin: number;
-      endMin: number;
-      plannedUpToStart: number;
-      plannedUpToEnd: number;
-      loggedSoFar: number;
-      status: BlockStatus;
-    }> = [];
-
-    for (const skill of skills) {
-      const blocks = skill.schedule[dayKey] ?? [];
-      const sortedBlocks = [...blocks].sort(
-        (a, b) => parseHHMMToMinutes(a.startTime) - parseHHMMToMinutes(b.startTime)
-      );
-
-      let cumulative = 0;
-      const loggedSoFar = loggedBySkill[skill.id] ?? 0;
-
-      for (const block of sortedBlocks) {
-        const startMin = parseHHMMToMinutes(block.startTime);
-        const endMin = startMin + (Number.isInteger(block.minutes) ? block.minutes : 0);
-
-        const plannedUpToStart = cumulative;
-        const plannedUpToEnd = cumulative + (Number.isInteger(block.minutes) ? block.minutes : 0);
-
-        // Determine per-block status
-        let status: BlockStatus = "upcoming";
-
-        if (currentMinute < startMin) {
-          status = "upcoming";
-        } else if (currentMinute >= startMin && currentMinute < endMin) {
-          // block currently happening
-          status = loggedSoFar >= plannedUpToStart ? "inProgress" : "behind";
-        } else {
-          // block ended
-          status = loggedSoFar >= plannedUpToEnd ? "done" : "behind";
-        }
-
-        items.push({
-          skill,
-          block,
-          startTime: block.startTime,
-          endTime: addMinutesToHHMM(block.startTime, block.minutes),
-          startMin,
-          endMin,
-          plannedUpToStart,
-          plannedUpToEnd,
-          loggedSoFar,
-          status,
-        });
-
-        cumulative = plannedUpToEnd;
-      }
-    }
-
-    // Sort across ALL skills by time
-    items.sort((a, b) => a.startMin - b.startMin);
-
-    return items;
-  }, [skills, sessions]);
+  const timelineItems = useMemo(
+    () => buildTimelineItems(skills, sessions),
+    [skills, sessions]
+  );
 
   const sortedRows = useMemo(() => {
     // Sort: priority 1->4, then name
