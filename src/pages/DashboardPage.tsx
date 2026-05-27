@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   buildSkillDayRows,
   buildTimelineItems,
   totalMinutesToday,
 } from "../core/dashboardStats";
+import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
 import type { Priority, Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
@@ -20,18 +21,9 @@ export default function DashboardPage({
   sessions,
   onAddSession,
 }: DashboardPageProps) {
-  const [logBySkill, setLogBySkill] = useState<Record<string, string>>({});
-
-  function setLogValue(skillId: string, value: string) {
-    // digits only (no decimals)
-    if (!/^\d*$/.test(value)) return;
-    setLogBySkill((prev) => ({ ...prev, [skillId]: value }));
-  }
-
   function commitLog(skillId: string, minutes: number) {
     if (!Number.isInteger(minutes) || minutes <= 0) return;
     onAddSession(skillId, minutes);
-    setLogBySkill((prev) => ({ ...prev, [skillId]: "" }));
   }
 
   const rows = useMemo(
@@ -42,11 +34,6 @@ export default function DashboardPage({
   const todayTotalMinutes = useMemo(
     () => totalMinutesToday(sessions),
     [sessions]
-  );
-
-  const overdue = useMemo(
-    () => rows.filter((r) => r.status === "overdue"),
-    [rows]
   );
 
   const timelineItems = useMemo(
@@ -80,60 +67,7 @@ export default function DashboardPage({
         </div>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
-          {/* Overdue section */}
-          <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>Overdue right now</div>
-
-            {overdue.length === 0 ? (
-              <div style={{ opacity: 0.8 }}>Nothing overdue 🎉</div>
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {overdue.map((r) => (
-                  <div key={r.skill.id} style={styles.listRow}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                      <div style={{ fontSize: 16 }}>
-                        {priorityEmoji(r.skill.priority)} <b>{r.skill.name}</b>
-                      </div>
-
-                      <span style={{ ...styles.statusPill, ...styles.statusOverdue }}>
-                        🔴 Overdue
-                      </span>
-                    </div>
-
-                    <div style={{ opacity: 0.8, marginTop: 4 }}>
-                      Today: <b>{r.todayMinutes}m</b> · Expected by now: <b>{r.expectedByNow}m</b>
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
-                      <input
-                        value={logBySkill[r.skill.id] ?? ""}
-                        onChange={(e) => setLogValue(r.skill.id, e.target.value.trim())}
-                        placeholder="minutes"
-                        style={{ ...styles.input, minWidth: 120, width: 120 }}
-                      />
-
-                      <button
-                        onClick={() => {
-                          const raw = (logBySkill[r.skill.id] ?? "").trim();
-                          if (!raw) return;
-                          const n = parseInt(raw, 10);
-                          commitLog(r.skill.id, n);
-                        }}
-                      >
-                        Log
-                      </button>
-
-                      <button onClick={() => commitLog(r.skill.id, 15)} style={styles.smallBtn}>
-                        +15
-                      </button>
-                      <button onClick={() => commitLog(r.skill.id, 30)} style={styles.smallBtn}>
-                        +30
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <OverdueBehindSection rows={rows} onAddSession={onAddSession} />
 
           {/* All skills section */}
           <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
