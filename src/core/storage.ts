@@ -40,6 +40,7 @@ function normalizePayload(payload: unknown): AppPayload {
         sessions: Array.isArray(p.sessions) ? p.sessions : [],
         overrides: Array.isArray(p.overrides) ? p.overrides : [],
         events: Array.isArray(p.events) ? p.events : [],
+        people: Array.isArray(p.people) ? p.people : [],
     };
 }
 

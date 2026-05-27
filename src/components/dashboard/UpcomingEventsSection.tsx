@@ -1,10 +1,12 @@
-import type { EventType } from "../../core/model";
+import type { EventType, Person } from "../../core/model";
 import type { UpcomingEventItem } from "../../core/events";
+import { buildPeopleById, resolveEventPersonLabel } from "../../core/people";
 import { styles } from "../../ui/appStyles";
 
 export type UpcomingEventsSectionProps = {
   items: UpcomingEventItem[];
   windowDays: number;
+  people?: Person[];
 };
 
 const EVENT_TYPE_LABELS: Record<EventType, string> = {
@@ -32,10 +34,17 @@ function formatEventTime(event: UpcomingEventItem["event"]): string | null {
   return event.startTime;
 }
 
-function UpcomingEventRow({ item }: { item: UpcomingEventItem }) {
+function UpcomingEventRow({
+  item,
+  peopleById,
+}: {
+  item: UpcomingEventItem;
+  peopleById: Map<string, Person>;
+}) {
   const { event, urgencyLabel } = item;
   const dateLabel = formatEventDate(event.date);
   const timeLabel = formatEventTime(event);
+  const personLabel = resolveEventPersonLabel(event, peopleById);
 
   return (
     <div style={styles.listRow}>
@@ -70,13 +79,19 @@ function UpcomingEventRow({ item }: { item: UpcomingEventItem }) {
           {event.reminder && <span style={styles.streakPill}>Reminder</span>}
         </div>
 
-        {event.personName && <div style={{ fontSize: 13 }}>With {event.personName}</div>}
+        {personLabel && <div style={{ fontSize: 13 }}>With {personLabel}</div>}
       </div>
     </div>
   );
 }
 
-export function UpcomingEventsSection({ items, windowDays }: UpcomingEventsSectionProps) {
+export function UpcomingEventsSection({
+  items,
+  windowDays,
+  people = [],
+}: UpcomingEventsSectionProps) {
+  const peopleById = buildPeopleById(people);
+
   return (
     <section style={styles.dashboardSection} aria-label="Upcoming events">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Upcoming events</h2>
@@ -87,7 +102,7 @@ export function UpcomingEventsSection({ items, windowDays }: UpcomingEventsSecti
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {items.map((item) => (
-            <UpcomingEventRow key={item.event.id} item={item} />
+            <UpcomingEventRow key={item.event.id} item={item} peopleById={peopleById} />
           ))}
         </div>
       )}

@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { partitionEventsByToday } from "../core/events";
+import { buildPeopleById, resolveEventPersonLabel } from "../core/people";
 import { parseHHMMToMinutes } from "../core/schedule";
-import type { EventType, LifeEvent } from "../core/model";
+import type { EventType, LifeEvent, Person } from "../core/model";
 import { styles } from "../ui/appStyles";
 
 export type EventsPageProps = {
   events: LifeEvent[];
+  people: Person[];
   onAdd: (input: Omit<LifeEvent, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdate: (event: LifeEvent) => void;
   onDelete: (eventId: string) => void;
@@ -35,7 +37,9 @@ type EventFormState = {
   type: EventType;
   startTime: string;
   endTime: string;
+  personId: string;
   personName: string;
+  useCustomPersonName: boolean;
   notes: string;
   reminder: boolean;
 };
@@ -53,7 +57,9 @@ function emptyFormState(): EventFormState {
     type: "other",
     startTime: "",
     endTime: "",
+    personId: "",
     personName: "",
+    useCustomPersonName: false,
     notes: "",
     reminder: false,
   };
@@ -66,7 +72,9 @@ function formFromEvent(event: LifeEvent): EventFormState {
     type: event.type,
     startTime: event.startTime ?? "",
     endTime: event.endTime ?? "",
+    personId: event.personId ?? "",
     personName: event.personName ?? "",
+    useCustomPersonName: !event.personId && Boolean(event.personName),
     notes: event.notes ?? "",
     reminder: event.reminder,
   };
@@ -92,10 +100,12 @@ function formatEventSchedule(event: LifeEvent): string {
 
 function EventRow({
   event,
+  personLabel,
   onEdit,
   onDelete,
 }: {
   event: LifeEvent;
+  personLabel?: string;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -109,7 +119,7 @@ function EventRow({
             {event.reminder && <span style={styles.streakPill}>Reminder</span>}
           </div>
           <div style={{ opacity: 0.85 }}>{formatEventSchedule(event)}</div>
-          {event.personName && <div>With {event.personName}</div>}
+          {personLabel && <div>With {personLabel}</div>}
           {event.notes && <div style={{ opacity: 0.85 }}>{event.notes}</div>}
         </div>
 
@@ -126,13 +136,18 @@ function EventRow({
   );
 }
 
-export default function EventsPage({ events, onAdd, onUpdate, onDelete }: EventsPageProps) {
+export default function EventsPage({ events, people, onAdd, onUpdate, onDelete }: EventsPageProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EventFormState>(emptyFormState);
   const [formError, setFormError] = useState<string | null>(null);
 
   const today = todayIsoDate();
+  const peopleById = useMemo(() => buildPeopleById(people), [people]);
+  const sortedPeople = useMemo(
+    () => [...people].sort((a, b) => a.name.localeCompare(b.name)),
+    [people]
+  );
 
   const { upcoming, past } = useMemo(
     () => partitionEventsByToday(events, today),
@@ -193,7 +208,11 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
       type: form.type,
       startTime,
       endTime,
-      personName: form.personName.trim() || undefined,
+      personId: !form.useCustomPersonName && form.personId ? form.personId : undefined,
+      personName:
+        form.useCustomPersonName && form.personName.trim()
+          ? form.personName.trim()
+          : undefined,
       notes: form.notes.trim() || undefined,
       reminder: form.reminder,
     };
@@ -309,16 +328,51 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
             </div>
 
             <label style={styles.label}>
-              Person / friend (optional)
-              <input
-                value={form.personName}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, personName: e.target.value }))
-                }
-                placeholder='e.g., "Alex"'
-                style={styles.input}
-              />
+              Person (optional)
+              <select
+                value={form.useCustomPersonName ? "__custom__" : form.personId || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "__custom__") {
+                    setForm((current) => ({
+                      ...current,
+                      useCustomPersonName: true,
+                      personId: "",
+                    }));
+                  } else {
+                    setForm((current) => ({
+                      ...current,
+                      useCustomPersonName: false,
+                      personId: value,
+                      personName: "",
+                    }));
+                  }
+                }}
+                style={styles.select}
+              >
+                <option value="">None</option>
+                {sortedPeople.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+                <option value="__custom__">Custom name…</option>
+              </select>
             </label>
+
+            {form.useCustomPersonName && (
+              <label style={styles.label}>
+                Custom name
+                <input
+                  value={form.personName}
+                  onChange={(e) =>
+                    setForm((current) => ({ ...current, personName: e.target.value }))
+                  }
+                  placeholder='e.g., "Alex"'
+                  style={styles.input}
+                />
+              </label>
+            )}
 
             <label style={styles.label}>
               Notes (optional)
@@ -369,6 +423,7 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
                   <EventRow
                     key={event.id}
                     event={event}
+                    personLabel={resolveEventPersonLabel(event, peopleById)}
                     onEdit={() => openEditForm(event)}
                     onDelete={() => onDelete(event.id)}
                   />
@@ -385,6 +440,7 @@ export default function EventsPage({ events, onAdd, onUpdate, onDelete }: Events
                   <EventRow
                     key={event.id}
                     event={event}
+                    personLabel={resolveEventPersonLabel(event, peopleById)}
                     onEdit={() => openEditForm(event)}
                     onDelete={() => onDelete(event.id)}
                   />

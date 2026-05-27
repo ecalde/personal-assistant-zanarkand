@@ -67,8 +67,25 @@ export type LifeEvent = {
   startTime?: string;
   endTime?: string;
   personName?: string;
+  personId?: string;
   notes?: string;
   reminder: boolean;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type Person = {
+  id: string;
+  name: string;
+  nickname?: string;
+  birthdayMonthDay?: string;
+  relationship?: string;
+  likes?: string;
+  dislikes?: string;
+  giftIdeas?: string;
+  notes?: string;
+  lastContactDate?: string;
+  contactCadenceDays?: number;
   createdAtIso: string;
   updatedAtIso: string;
 };
@@ -78,4 +95,5 @@ export type AppPayload = {
   sessions: Session[];
   overrides: Array<unknown>;
   events: LifeEvent[];
+  people: Person[];
 };

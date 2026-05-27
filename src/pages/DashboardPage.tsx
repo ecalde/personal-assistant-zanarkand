@@ -7,11 +7,16 @@ import {
 import { buildGlobalProgression, buildSkillProgressions } from "../core/progression";
 import { buildUpcomingEventItems } from "../core/events";
 import {
+  buildPeopleNeedingFollowUp,
+  buildUpcomingBirthdayItems,
+} from "../core/people";
+import {
   buildUnifiedTimelineRange,
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
+import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
 import { ProgressionHero } from "../components/dashboard/ProgressionHero";
 import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
@@ -22,7 +27,7 @@ import {
 } from "../components/dashboard/UnifiedTimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
-import type { LifeEvent, Session, Skill } from "../core/model";
+import type { LifeEvent, Person, Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 
 /** Toggle legacy schedule-only timeline during rollout. */
@@ -30,11 +35,15 @@ const USE_UNIFIED_TIMELINE = true;
 
 const UPCOMING_EVENTS_WINDOW_DAYS = 14;
 const UPCOMING_EVENTS_MAX_ITEMS = 10;
+const PEOPLE_BIRTHDAY_WINDOW_DAYS = 30;
+const PEOPLE_BIRTHDAY_MAX_ITEMS = 5;
+const PEOPLE_FOLLOW_UP_MAX_ITEMS = 5;
 
 export type DashboardPageProps = {
   skills: Skill[];
   sessions: Session[];
   events: LifeEvent[];
+  people: Person[];
   onAddSession: (skillId: string, minutes: number) => void;
 };
 
@@ -42,6 +51,7 @@ export default function DashboardPage({
   skills,
   sessions,
   events,
+  people,
   onAddSession,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
@@ -62,9 +72,9 @@ export default function DashboardPage({
   );
 
   const unifiedToday = useMemo(() => {
-    const days = buildUnifiedTimelineRange(skills, events, today, today);
+    const days = buildUnifiedTimelineRange(skills, events, today, today, { people });
     return days[0] ?? { date: today, items: [], conflicts: [] };
-  }, [skills, events, today]);
+  }, [skills, events, people, today]);
 
   const todayWorkload = useMemo(
     () => computeDailyWorkloadForDay(unifiedToday),
@@ -103,6 +113,22 @@ export default function DashboardPage({
     [events, today]
   );
 
+  const upcomingBirthdays = useMemo(
+    () =>
+      buildUpcomingBirthdayItems(
+        people,
+        today,
+        PEOPLE_BIRTHDAY_WINDOW_DAYS,
+        PEOPLE_BIRTHDAY_MAX_ITEMS
+      ),
+    [people, today]
+  );
+
+  const peopleNeedingFollowUp = useMemo(
+    () => buildPeopleNeedingFollowUp(people, today, PEOPLE_FOLLOW_UP_MAX_ITEMS),
+    [people, today]
+  );
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
@@ -115,6 +141,15 @@ export default function DashboardPage({
         <UpcomingEventsSection
           items={upcomingEventItems}
           windowDays={UPCOMING_EVENTS_WINDOW_DAYS}
+          people={people}
+        />
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <PeopleRemindersSection
+          birthdays={upcomingBirthdays}
+          followUps={peopleNeedingFollowUp}
+          birthdayWindowDays={PEOPLE_BIRTHDAY_WINDOW_DAYS}
         />
       </div>
 

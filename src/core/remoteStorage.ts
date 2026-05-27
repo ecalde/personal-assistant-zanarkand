@@ -10,16 +10,18 @@ import {
   isUuid,
   overrideToRow,
   payloadFromRows,
+  personToRow,
   sessionToRow,
   skillToRow,
   validatePayloadForUpload,
   type EventRow,
   type OverrideRow,
+  type PersonRow,
   type SessionRow,
   type SkillRow,
 } from "./dbMappers";
 
-type AppTable = "skills" | "sessions" | "overrides" | "events";
+type AppTable = "skills" | "sessions" | "overrides" | "events" | "people";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -86,7 +88,7 @@ function buildInList(ids: string[]): string {
 
 async function upsertRows(
   table: AppTable,
-  rows: SkillRow[] | SessionRow[] | OverrideRow[] | EventRow[]
+  rows: SkillRow[] | SessionRow[] | OverrideRow[] | EventRow[] | PersonRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -108,24 +110,28 @@ async function deleteRowsNotIn(table: AppTable, userId: string, keepIds: string[
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult] = await Promise.all([
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult] =
+    await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
     supabase.from("overrides").select("*").eq("user_id", userId),
     supabase.from("events").select("*").eq("user_id", userId),
+    supabase.from("people").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
   throwOnSupabaseError(sessionsResult.error, "sessions");
   throwOnSupabaseError(overridesResult.error, "overrides");
   throwOnSupabaseError(eventsResult.error, "events");
+  throwOnSupabaseError(peopleResult.error, "people");
 
   try {
     return payloadFromRows(
       asRows<SkillRow>(skillsResult.data),
       asRows<SessionRow>(sessionsResult.data),
       asRows<OverrideRow>(overridesResult.data),
-      asRows<EventRow>(eventsResult.data)
+      asRows<EventRow>(eventsResult.data),
+      asRows<PersonRow>(peopleResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -144,22 +150,26 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const skillRows = payload.skills.map((skill) => skillToRow(skill, userId));
   const sessionRows = payload.sessions.map((session) => sessionToRow(session, userId));
   const overrideRows = payload.overrides.map((item) => overrideToRow(item, userId));
+  const peopleRows = payload.people.map((person) => personToRow(person, userId));
   const eventRows = payload.events.map((event) => eventToRow(event, userId));
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
   await upsertRows("overrides", overrideRows);
+  await upsertRows("people", peopleRows);
   await upsertRows("events", eventRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
   const skillIds = payload.skills.map((s) => s.id);
   const overrideIds = overrideRows.map((r) => r.id);
   const eventIds = payload.events.map((e) => e.id);
+  const peopleIds = payload.people.map((p) => p.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
   await deleteRowsNotIn("skills", userId, skillIds);
   await deleteRowsNotIn("overrides", userId, overrideIds);
   await deleteRowsNotIn("events", userId, eventIds);
+  await deleteRowsNotIn("people", userId, peopleIds);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -167,7 +177,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.skills.length > 0 ||
     payload.sessions.length > 0 ||
     payload.overrides.length > 0 ||
-    payload.events.length > 0
+    payload.events.length > 0 ||
+    payload.people.length > 0
   );
 }
 

@@ -7,7 +7,7 @@ Personal Assistant is a client-side React app with optional cloud sync:
 - **Vite + React + TypeScript** — SPA build and dev server
 - **Vercel** — production hosting (static build output)
 - **Supabase Auth** — email/password sign-in; session gate before the app shell
-- **Supabase Postgres** — per-user rows for skills, sessions, and overrides (RLS-scoped)
+- **Supabase Postgres** — per-user rows for skills, sessions, overrides, events, and people (RLS-scoped)
 - **localStorage** — user-scoped cache (`pa.appData.v1.<userId>`) plus legacy key migration
 - **Cloud sync** — `initialSync` on load; debounced `replaceRemotePayload` on mutations when remote sync is enabled
 
@@ -33,10 +33,15 @@ src/
   auth/                 # Auth gate and sign-in screen
   core/                 # Domain model, storage, sync, mappers, pure helpers
     dashboardStats.ts   # Pure dashboard derivations (today/week/timeline)
+    events.ts           # Event sorting, upcoming window helpers
+    people.ts           # People birthdays, follow-ups, event label resolution
     progression.ts      # Derived XP, levels, streaks (from sessions; not persisted)
+    timeline.ts         # Unified schedule + events timeline
   lib/                  # Supabase client (VITE_* env only)
-  pages/                # Route-like screens (Dashboard, Skills)
+  pages/                # Route-like screens (Dashboard, Skills, Events, People)
     DashboardPage.tsx   # Composes dashboard sections from props
+    EventsPage.tsx      # Life events CRUD
+    PeoplePage.tsx      # Friends/contacts CRUD
   components/
     layout/             # AppShell, NavButton
     dashboard/          # Dashboard sections and shared widgets
@@ -65,7 +70,7 @@ src/
 
 ### App (`src/App.tsx`)
 
-- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `skills`)
+- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `skills` \| `events` \| `people`)
 - Runs `initialSync` on mount; guards mutations with `syncReadyRef`
 - All writes go through `commit` → `saveAppData(userId)` → debounced remote persist
 - Defines CRUD handlers passed to pages as callbacks
@@ -75,7 +80,7 @@ src/
 
 - Presentational: receive slices of `app.payload` and callbacks
 - Must not call `saveAppData`, `initialSync`, or `replaceRemotePayload` directly
-- Examples: [`DashboardPage.tsx`](../src/pages/DashboardPage.tsx), `SkillsPage`
+- Examples: [`DashboardPage.tsx`](../src/pages/DashboardPage.tsx), [`SkillsPage`](../src/pages/SkillsPage.tsx), [`EventsPage`](../src/pages/EventsPage.tsx), [`PeoplePage`](../src/pages/PeoplePage.tsx)
 - [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats` and `core/progression`, then composes visual sections; it does not persist or call sync APIs.
 
 ### Components (`src/components`)
@@ -91,22 +96,31 @@ src/
 - Persistence and backup ([`storage.ts`](../src/core/storage.ts))
 - Remote sync policy ([`remoteStorage.ts`](../src/core/remoteStorage.ts), [`syncErrors.ts`](../src/core/syncErrors.ts))
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
-- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), duration parsing, sessions utilities
+- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts))
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
 - Progression ([`progression.ts`](../src/core/progression.ts)): lifetime XP (1 XP = 1 logged minute), linear level bands (`XP_PER_LEVEL_BAND`), per-skill and global streaks — tested in [`progression.test.ts`](../src/core/progression.test.ts). **Not stored** in Postgres or `AppPayload`; recomputed from `sessions` on each render. Streak rule: meet `dailyGoalMinutes` when set, else any minutes > 0; global streak counts a day if **any** skill qualifies.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
-[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts) and [`progression.ts`](../src/core/progression.ts), and renders sections top to bottom:
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`events.ts`](../src/core/events.ts), and [`people.ts`](../src/core/people.ts), then composes visual sections top to bottom:
 
 1. **ProgressionHero** — account level, lifetime XP, global streak, level progress bar (hidden when no skills)
 2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
-3. **OverdueBehindSection** — skills behind schedule with quick log
-4. **TimelineSection** — today’s scheduled blocks across skills
-5. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
-6. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+3. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
+4. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
+5. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
+6. **OverdueBehindSection** — skills behind schedule with quick log
+7. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
+8. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
 
-Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
+Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `UnifiedTimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
+
+### People domain
+
+- **`Person`** records store name, optional birthday (`birthdayMonthDay`), preferences (likes/dislikes), gift ideas, notes, and relationship maintenance fields (`lastContactDate`, `contactCadenceDays`).
+- **`LifeEvent.personId`** optionally links events to a person; legacy **`personName`** strings remain supported for older events and backup readability.
+- Display uses `resolveEventPersonLabel` in [`people.ts`](../src/core/people.ts): linked person name wins, then `personName`.
+- Future AI extension points (not implemented): `PersonContext` bundle for prompts, message drafting, gift suggestions, proactive nudges, CSV/vCard import — see header comment in `people.ts`.
 
 ## Data flow
 

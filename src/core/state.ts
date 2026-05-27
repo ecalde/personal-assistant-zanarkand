@@ -23,6 +23,7 @@ export function defaultPayload(): AppPayload {
     sessions: [],
     overrides: [],
     events: [],
+    people: [],
   };
 }
 

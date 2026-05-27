@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppPayload, LifeEvent, Skill, Session } from "./core/model";
+import type { AppPayload, LifeEvent, Person, Skill, Session } from "./core/model";
 import {
   initialSync,
   isRemoteSyncEnabled,
@@ -12,6 +12,7 @@ import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
 import DashboardPage from "./pages/DashboardPage";
 import EventsPage from "./pages/EventsPage";
+import PeoplePage from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
@@ -21,6 +22,28 @@ const REMOTE_DEBOUNCE_MS = 400;
 
 function id() {
   return crypto.randomUUID();
+}
+
+function applyEventPersonFields(
+  event: LifeEvent,
+  input: { personId?: string; personName?: string },
+  people: Person[]
+): void {
+  if (input.personId) {
+    event.personId = input.personId;
+    const person = people.find((p) => p.id === input.personId);
+    if (person) {
+      event.personName = person.name;
+    }
+    return;
+  }
+
+  delete event.personId;
+  if (input.personName?.trim()) {
+    event.personName = input.personName.trim();
+  } else {
+    delete event.personName;
+  }
 }
 
 export type AppProps = {
@@ -268,7 +291,9 @@ export default function App({ userId, onSignOut }: AppProps) {
       updatedAtIso: now,
     };
 
-    if (input.personName?.trim()) {
+    if (input.personId) {
+      applyEventPersonFields(newEvent, input, app.payload.people ?? []);
+    } else if (input.personName?.trim()) {
       newEvent.personName = input.personName.trim();
     }
     if (input.notes?.trim()) {
@@ -303,10 +328,15 @@ export default function App({ userId, onSignOut }: AppProps) {
       updatedAtIso: now,
     };
 
-    if (updated.personName?.trim()) {
-      nextEvent.personName = updated.personName.trim();
+    if (updated.personId) {
+      applyEventPersonFields(nextEvent, updated, app.payload.people ?? []);
     } else {
-      delete nextEvent.personName;
+      delete nextEvent.personId;
+      if (updated.personName?.trim()) {
+        nextEvent.personName = updated.personName.trim();
+      } else {
+        delete nextEvent.personName;
+      }
     }
 
     if (updated.notes?.trim()) {
@@ -339,6 +369,129 @@ export default function App({ userId, onSignOut }: AppProps) {
 
     const events = (app.payload.events ?? []).filter((event) => event.id !== eventId);
     commit({ ...app, payload: { ...app.payload, events } });
+  }
+
+  // ---------- PEOPLE ----------
+  function addPerson(
+    input: Omit<Person, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+
+    const trimmedName = input.name.trim();
+    if (!trimmedName) return;
+
+    const now = new Date().toISOString();
+    const newPerson: Person = {
+      id: id(),
+      name: trimmedName,
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.nickname?.trim()) newPerson.nickname = input.nickname.trim();
+    if (input.birthdayMonthDay) newPerson.birthdayMonthDay = input.birthdayMonthDay;
+    if (input.relationship?.trim()) newPerson.relationship = input.relationship.trim();
+    if (input.likes?.trim()) newPerson.likes = input.likes.trim();
+    if (input.dislikes?.trim()) newPerson.dislikes = input.dislikes.trim();
+    if (input.giftIdeas?.trim()) newPerson.giftIdeas = input.giftIdeas.trim();
+    if (input.notes?.trim()) newPerson.notes = input.notes.trim();
+    if (input.lastContactDate) newPerson.lastContactDate = input.lastContactDate;
+    if (input.contactCadenceDays !== undefined && input.contactCadenceDays > 0) {
+      newPerson.contactCadenceDays = input.contactCadenceDays;
+    }
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        people: [...(app.payload.people ?? []), newPerson],
+      },
+    });
+  }
+
+  function updatePerson(updated: Person) {
+    if (!app) return;
+
+    const trimmedName = updated.name.trim();
+    if (!trimmedName) return;
+
+    const now = new Date().toISOString();
+    const nextPerson: Person = {
+      ...updated,
+      name: trimmedName,
+      updatedAtIso: now,
+    };
+
+    if (updated.nickname?.trim()) {
+      nextPerson.nickname = updated.nickname.trim();
+    } else {
+      delete nextPerson.nickname;
+    }
+    if (updated.birthdayMonthDay) {
+      nextPerson.birthdayMonthDay = updated.birthdayMonthDay;
+    } else {
+      delete nextPerson.birthdayMonthDay;
+    }
+    if (updated.relationship?.trim()) {
+      nextPerson.relationship = updated.relationship.trim();
+    } else {
+      delete nextPerson.relationship;
+    }
+    if (updated.likes?.trim()) {
+      nextPerson.likes = updated.likes.trim();
+    } else {
+      delete nextPerson.likes;
+    }
+    if (updated.dislikes?.trim()) {
+      nextPerson.dislikes = updated.dislikes.trim();
+    } else {
+      delete nextPerson.dislikes;
+    }
+    if (updated.giftIdeas?.trim()) {
+      nextPerson.giftIdeas = updated.giftIdeas.trim();
+    } else {
+      delete nextPerson.giftIdeas;
+    }
+    if (updated.notes?.trim()) {
+      nextPerson.notes = updated.notes.trim();
+    } else {
+      delete nextPerson.notes;
+    }
+    if (updated.lastContactDate) {
+      nextPerson.lastContactDate = updated.lastContactDate;
+    } else {
+      delete nextPerson.lastContactDate;
+    }
+    if (updated.contactCadenceDays !== undefined && updated.contactCadenceDays > 0) {
+      nextPerson.contactCadenceDays = updated.contactCadenceDays;
+    } else {
+      delete nextPerson.contactCadenceDays;
+    }
+
+    const people = (app.payload.people ?? []).map((person) =>
+      person.id === updated.id ? nextPerson : person
+    );
+
+    const events = (app.payload.events ?? []).map((event) => {
+      if (event.personId !== updated.id) return event;
+      return { ...event, personName: trimmedName };
+    });
+
+    commit({ ...app, payload: { ...app.payload, people, events } });
+  }
+
+  function deletePerson(personId: string) {
+    if (!app) return;
+
+    const people = (app.payload.people ?? []).filter((person) => person.id !== personId);
+    const events = (app.payload.events ?? []).map((event) => {
+      if (event.personId !== personId) return event;
+      const next = { ...event };
+      delete next.personId;
+      return next;
+    });
+
+    commit({ ...app, payload: { ...app.payload, people, events } });
   }
 
   // ---------- UI ----------
@@ -386,6 +539,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           skills={app.payload.skills}
           sessions={app.payload.sessions ?? []}
           events={app.payload.events ?? []}
+          people={app.payload.people ?? []}
           onAddSession={addSession}
         />
       )}
@@ -405,9 +559,20 @@ export default function App({ userId, onSignOut }: AppProps) {
       {page === "events" && (
         <EventsPage
           events={app.payload.events ?? []}
+          people={app.payload.people ?? []}
           onAdd={addEvent}
           onUpdate={updateEvent}
           onDelete={deleteEvent}
+        />
+      )}
+
+      {page === "people" && (
+        <PeoplePage
+          people={app.payload.people ?? []}
+          events={app.payload.events ?? []}
+          onAdd={addPerson}
+          onUpdate={updatePerson}
+          onDelete={deletePerson}
         />
       )}
     </AppShell>

@@ -6,6 +6,7 @@ import type {
   AppPayload,
   EventType,
   LifeEvent,
+  Person,
   Priority,
   ScheduleBlock,
   Session,
@@ -20,6 +21,8 @@ const UUID_RE =
 const HHMM_RE = /^(\d{2}):(\d{2})$/;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const BIRTHDAY_MONTH_DAY_RE = /^((0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01]))$/;
 
 const EVENT_TYPES: EventType[] = [
   "birthday",
@@ -70,8 +73,26 @@ export type EventRow = {
   start_time: string | null;
   end_time: string | null;
   person_name: string | null;
+  person_id: string | null;
   notes: string | null;
   reminder: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersonRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  nickname: string | null;
+  birthday_month_day: string | null;
+  relationship: string | null;
+  likes: string | null;
+  dislikes: string | null;
+  gift_ideas: string | null;
+  notes: string | null;
+  last_contact_date: string | null;
+  contact_cadence_days: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -104,6 +125,10 @@ export function isPositiveInteger(value: number): boolean {
 
 export function isNonNegativeInteger(value: number): boolean {
   return Number.isInteger(value) && value >= 0;
+}
+
+export function isBirthdayMonthDay(value: string): boolean {
+  return BIRTHDAY_MONTH_DAY_RE.test(value);
 }
 
 export function isIsoDate(value: string): boolean {
@@ -260,6 +285,9 @@ function assertValidEvent(event: LifeEvent): void {
   if (event.personName !== undefined && typeof event.personName !== "string") {
     throw new MapperError("Invalid event.personName", "event.personName");
   }
+  if (event.personId !== undefined) {
+    assertUuid(event.personId, "event.personId");
+  }
   if (event.notes !== undefined && typeof event.notes !== "string") {
     throw new MapperError("Invalid event.notes", "event.notes");
   }
@@ -278,6 +306,49 @@ function assertValidEvent(event: LifeEvent): void {
     if (parseHHMMToMinutes(event.endTime) < parseHHMMToMinutes(event.startTime)) {
       throw new MapperError("event.endTime must be >= event.startTime", "event.endTime");
     }
+  }
+}
+
+export function assertValidPerson(person: Person): void {
+  assertUuid(person.id, "person.id");
+  assertNonEmptyName(person.name, "person.name");
+  assertIsoTimestamp(person.createdAtIso, "person.createdAtIso");
+  assertIsoTimestamp(person.updatedAtIso, "person.updatedAtIso");
+
+  if (person.nickname !== undefined && typeof person.nickname !== "string") {
+    throw new MapperError("Invalid person.nickname", "person.nickname");
+  }
+  if (person.birthdayMonthDay !== undefined) {
+    if (
+      typeof person.birthdayMonthDay !== "string" ||
+      !isBirthdayMonthDay(person.birthdayMonthDay)
+    ) {
+      throw new MapperError("Invalid person.birthdayMonthDay", "person.birthdayMonthDay");
+    }
+  }
+  if (person.relationship !== undefined && typeof person.relationship !== "string") {
+    throw new MapperError("Invalid person.relationship", "person.relationship");
+  }
+  if (person.likes !== undefined && typeof person.likes !== "string") {
+    throw new MapperError("Invalid person.likes", "person.likes");
+  }
+  if (person.dislikes !== undefined && typeof person.dislikes !== "string") {
+    throw new MapperError("Invalid person.dislikes", "person.dislikes");
+  }
+  if (person.giftIdeas !== undefined && typeof person.giftIdeas !== "string") {
+    throw new MapperError("Invalid person.giftIdeas", "person.giftIdeas");
+  }
+  if (person.notes !== undefined && typeof person.notes !== "string") {
+    throw new MapperError("Invalid person.notes", "person.notes");
+  }
+  if (person.lastContactDate !== undefined) {
+    assertIsoDate(person.lastContactDate, "person.lastContactDate");
+  }
+  if (
+    person.contactCadenceDays !== undefined &&
+    !isPositiveInteger(person.contactCadenceDays)
+  ) {
+    throw new MapperError("Invalid person.contactCadenceDays", "person.contactCadenceDays");
   }
 }
 
@@ -394,6 +465,7 @@ export function eventToRow(event: LifeEvent, userId: string): EventRow {
     start_time: event.startTime ?? null,
     end_time: event.endTime ?? null,
     person_name: event.personName?.trim() || null,
+    person_id: event.personId ?? null,
     notes: event.notes?.trim() || null,
     reminder: event.reminder,
     created_at: event.createdAtIso,
@@ -429,6 +501,10 @@ export function eventFromRow(row: EventRow): LifeEvent {
   if (row.person_name !== null && row.person_name.trim().length > 0) {
     event.personName = row.person_name.trim();
   }
+  if (row.person_id !== null) {
+    assertUuid(row.person_id, "events.person_id");
+    event.personId = row.person_id;
+  }
   if (row.notes !== null && row.notes.trim().length > 0) {
     event.notes = row.notes.trim();
   }
@@ -440,6 +516,92 @@ export function eventFromRow(row: EventRow): LifeEvent {
   }
 
   return event;
+}
+
+export function personToRow(person: Person, userId: string): PersonRow {
+  assertUuid(userId, "userId");
+  assertValidPerson(person);
+
+  return {
+    id: person.id,
+    user_id: userId,
+    name: person.name.trim(),
+    nickname: person.nickname?.trim() || null,
+    birthday_month_day: person.birthdayMonthDay ?? null,
+    relationship: person.relationship?.trim() || null,
+    likes: person.likes?.trim() || null,
+    dislikes: person.dislikes?.trim() || null,
+    gift_ideas: person.giftIdeas?.trim() || null,
+    notes: person.notes?.trim() || null,
+    last_contact_date: person.lastContactDate ?? null,
+    contact_cadence_days: person.contactCadenceDays ?? null,
+    created_at: person.createdAtIso,
+    updated_at: person.updatedAtIso,
+  };
+}
+
+export function personFromRow(row: PersonRow): Person {
+  assertUuid(row.id, "people.id");
+  assertUuid(row.user_id, "people.user_id");
+  assertNonEmptyName(row.name, "people.name");
+  assertIsoTimestamp(row.created_at, "people.created_at");
+  assertIsoTimestamp(row.updated_at, "people.updated_at");
+
+  if (
+    row.birthday_month_day !== null &&
+    !isBirthdayMonthDay(row.birthday_month_day)
+  ) {
+    throw new MapperError("Invalid people.birthday_month_day", "people.birthday_month_day");
+  }
+  if (row.last_contact_date !== null) {
+    assertIsoDate(row.last_contact_date, "people.last_contact_date");
+  }
+  if (
+    row.contact_cadence_days !== null &&
+    !isPositiveInteger(row.contact_cadence_days)
+  ) {
+    throw new MapperError(
+      "Invalid people.contact_cadence_days",
+      "people.contact_cadence_days"
+    );
+  }
+
+  const person: Person = {
+    id: row.id,
+    name: row.name.trim(),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.nickname !== null && row.nickname.trim().length > 0) {
+    person.nickname = row.nickname.trim();
+  }
+  if (row.birthday_month_day !== null) {
+    person.birthdayMonthDay = row.birthday_month_day;
+  }
+  if (row.relationship !== null && row.relationship.trim().length > 0) {
+    person.relationship = row.relationship.trim();
+  }
+  if (row.likes !== null && row.likes.trim().length > 0) {
+    person.likes = row.likes.trim();
+  }
+  if (row.dislikes !== null && row.dislikes.trim().length > 0) {
+    person.dislikes = row.dislikes.trim();
+  }
+  if (row.gift_ideas !== null && row.gift_ideas.trim().length > 0) {
+    person.giftIdeas = row.gift_ideas.trim();
+  }
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    person.notes = row.notes.trim();
+  }
+  if (row.last_contact_date !== null) {
+    person.lastContactDate = row.last_contact_date;
+  }
+  if (row.contact_cadence_days !== null) {
+    person.contactCadenceDays = row.contact_cadence_days;
+  }
+
+  return person;
 }
 
 function readOverrideId(item: unknown): string | undefined {
@@ -532,14 +694,16 @@ export function payloadFromRows(
   skillRows: SkillRow[],
   sessionRows: SessionRow[],
   overrideRows: OverrideRow[],
-  eventRows: EventRow[] = []
+  eventRows: EventRow[] = [],
+  peopleRows: PersonRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
   const overrides = overrideRows.map((row) => overrideFromRow(row));
   const events = eventRows.map((row) => eventFromRow(row));
+  const people = peopleRows.map((row) => personFromRow(row));
 
-  const payload: AppPayload = { skills, sessions, overrides, events };
+  const payload: AppPayload = { skills, sessions, overrides, events, people };
   validatePayloadForUpload(payload);
   return payload;
 }
@@ -584,5 +748,23 @@ export function validatePayloadForUpload(payload: AppPayload): void {
       throw new MapperError(`Duplicate event id: ${event.id}`, "events.id");
     }
     eventIds.add(event.id);
+  }
+
+  const personIds = new Set<string>();
+  for (const person of payload.people) {
+    assertValidPerson(person);
+    if (personIds.has(person.id)) {
+      throw new MapperError(`Duplicate person id: ${person.id}`, "people.id");
+    }
+    personIds.add(person.id);
+  }
+
+  for (const event of payload.events) {
+    if (event.personId !== undefined && !personIds.has(event.personId)) {
+      throw new MapperError(
+        `Event references unknown person: ${event.personId}`,
+        "events.personId"
+      );
+    }
   }
 }

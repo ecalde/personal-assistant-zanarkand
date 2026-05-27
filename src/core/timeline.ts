@@ -1,4 +1,5 @@
-import type { EventType, LifeEvent, Skill, Weekday } from "./model";
+import type { EventType, LifeEvent, Person, Skill, Weekday } from "./model";
+import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import {
   addMinutesToHHMM,
   parseHHMMToMinutes,
@@ -85,6 +86,7 @@ export type WeekWorkloadSummary = {
 export type BuildUnifiedTimelineOptions = {
   includeUntimedEvents?: boolean;
   includeScheduleBlocks?: boolean;
+  people?: Person[];
 };
 
 type TimedInterval = {
@@ -227,7 +229,10 @@ function scheduleBlockToItem(
   };
 }
 
-function lifeEventToItem(event: LifeEvent): LifeEventTimelineItem {
+function lifeEventToItem(
+  event: LifeEvent,
+  peopleById: Map<string, Person>
+): LifeEventTimelineItem {
   const item: LifeEventTimelineItem = {
     kind: "lifeEvent",
     date: event.date,
@@ -235,8 +240,12 @@ function lifeEventToItem(event: LifeEvent): LifeEventTimelineItem {
     eventId: event.id,
     eventType: event.type,
     reminder: event.reminder,
-    personName: event.personName,
   };
+
+  const personLabel = resolveEventPersonLabel(event, peopleById);
+  if (personLabel) {
+    item.personName = personLabel;
+  }
 
   if (event.startTime) {
     item.startTime = event.startTime;
@@ -278,13 +287,14 @@ function generateEventItems(
   events: LifeEvent[],
   startDate: string,
   endDate: string,
-  includeUntimedEvents: boolean
+  includeUntimedEvents: boolean,
+  peopleById: Map<string, Person>
 ): LifeEventTimelineItem[] {
   const items: LifeEventTimelineItem[] = [];
 
   for (const event of events) {
     if (event.date < startDate || event.date > endDate) continue;
-    const item = lifeEventToItem(event);
+    const item = lifeEventToItem(event, peopleById);
     if (!includeUntimedEvents && timeSortTier(item) === 2) continue;
     items.push(item);
   }
@@ -397,6 +407,7 @@ export function buildUnifiedTimelineRange(
 ): UnifiedTimelineDay[] {
   const includeUntimedEvents = opts.includeUntimedEvents ?? true;
   const includeScheduleBlocks = opts.includeScheduleBlocks ?? true;
+  const peopleById = buildPeopleById(opts.people ?? []);
 
   const dates = iterateDateRange(startDate, endDate);
   const items: UnifiedTimelineItem[] = [];
@@ -406,7 +417,13 @@ export function buildUnifiedTimelineRange(
   }
 
   items.push(
-    ...generateEventItems(events, startDate, endDate, includeUntimedEvents)
+    ...generateEventItems(
+      events,
+      startDate,
+      endDate,
+      includeUntimedEvents,
+      peopleById
+    )
   );
 
   const sorted = sortUnifiedTimelineItems(items);
