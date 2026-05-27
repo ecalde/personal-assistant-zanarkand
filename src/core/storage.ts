@@ -48,6 +48,8 @@ function normalizePayload(payload: unknown): AppPayload {
             !Array.isArray(p.careerTarget)
                 ? (p.careerTarget as AppPayload["careerTarget"])
                 : undefined,
+        workoutPlans: Array.isArray(p.workoutPlans) ? p.workoutPlans : [],
+        workoutSessions: Array.isArray(p.workoutSessions) ? p.workoutSessions : [],
     };
 }
 

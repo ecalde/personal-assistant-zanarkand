@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CareerTarget, JobApplication, LifeEvent, Person, Session, Skill } from "./model";
+import type { CareerTarget, ExerciseEntry, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   careerTargetFromRow,
@@ -14,10 +14,12 @@ import {
   isPositiveInteger,
   isPriority,
   isUuid,
+  isWorkoutFocus,
   jobApplicationFromRow,
   jobApplicationToRow,
   overrideFromRow,
   overrideToRow,
+  parseExerciseEntries,
   parseWeeklySchedule,
   payloadFromRows,
   personFromRow,
@@ -27,6 +29,10 @@ import {
   skillFromRow,
   skillToRow,
   validatePayloadForUpload,
+  workoutPlanFromRow,
+  workoutPlanToRow,
+  workoutSessionFromRow,
+  workoutSessionToRow,
 } from "./dbMappers";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -38,6 +44,9 @@ const EVENT_ID = "77777777-7777-4777-8777-777777777777";
 const PERSON_ID = "88888888-8888-4888-8888-888888888888";
 const APP_ID = "99999999-9999-4999-8999-999999999999";
 const TARGET_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const PLAN_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const WORKOUT_SESSION_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const EXERCISE_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 
 const NOW = "2026-05-26T12:00:00.000Z";
 const EVENT_DATE = "2026-06-15";
@@ -436,6 +445,90 @@ describe("career target mappers", () => {
   });
 });
 
+function sampleExercise(overrides: Partial<ExerciseEntry> = {}): ExerciseEntry {
+  return {
+    id: EXERCISE_ID,
+    name: "Bench press",
+    sets: 3,
+    reps: 10,
+    weight: 135,
+    ...overrides,
+  };
+}
+
+function sampleWorkoutPlan(overrides: Partial<WorkoutPlan> = {}): WorkoutPlan {
+  return {
+    id: PLAN_ID,
+    name: "Push A",
+    focus: "push",
+    exercises: [sampleExercise()],
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
+function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
+  return {
+    id: WORKOUT_SESSION_ID,
+    date: EVENT_DATE,
+    focus: "push",
+    planId: PLAN_ID,
+    exercises: [sampleExercise({ name: "Incline press" })],
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
+describe("workout mappers", () => {
+  it("round-trips workout plan", () => {
+    const plan = sampleWorkoutPlan();
+    const row = workoutPlanToRow(plan, USER_ID);
+    expect(workoutPlanFromRow(row)).toEqual(plan);
+  });
+
+  it("round-trips workout session", () => {
+    const session = sampleWorkoutSession();
+    const row = workoutSessionToRow(session, USER_ID);
+    expect(workoutSessionFromRow(row)).toEqual(session);
+  });
+
+  it("parses exercise entries", () => {
+    const entries = parseExerciseEntries(
+      [{ id: EXERCISE_ID, name: "Squat", sets: 5, reps: 5, weight: 225 }],
+      "exercises"
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.name).toBe("Squat");
+  });
+
+  it("rejects invalid focus", () => {
+    expect(isWorkoutFocus("invalid")).toBe(false);
+  });
+
+  it("rejects empty exercise list", () => {
+    expect(() => workoutPlanToRow(sampleWorkoutPlan({ exercises: [] }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+
+  it("rejects orphan plan id on session upload validation", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [sampleWorkoutSession({ planId: PLAN_ID })],
+      })
+    ).toThrow(MapperError);
+  });
+});
+
 describe("validatePayloadForUpload", () => {
   it("rejects duplicate skill ids", () => {
     const skill = sampleSkill();
@@ -447,6 +540,8 @@ describe("validatePayloadForUpload", () => {
         events: [],
         people: [],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -460,6 +555,8 @@ describe("validatePayloadForUpload", () => {
         events: [],
         people: [],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -474,6 +571,8 @@ describe("validatePayloadForUpload", () => {
         events: [event, event],
         people: [],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -487,6 +586,8 @@ describe("validatePayloadForUpload", () => {
         events: [sampleEvent({ personId: PERSON_ID })],
         people: [],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -501,6 +602,8 @@ describe("validatePayloadForUpload", () => {
         events: [],
         people: [person, person],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -514,6 +617,8 @@ describe("validatePayloadForUpload", () => {
         events: [],
         people: [],
         jobApplications: [sampleJobApplication()],
+        workoutPlans: [],
+        workoutSessions: [],
       })
     ).toThrow(MapperError);
   });
@@ -527,6 +632,8 @@ describe("validatePayloadForUpload", () => {
         events: [],
         people: [],
         jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
         careerTarget: sampleCareerTarget(),
       })
     ).toThrow(MapperError);

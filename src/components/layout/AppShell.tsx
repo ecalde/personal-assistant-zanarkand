@@ -102,6 +102,9 @@ export function AppShell({
         <NavButton active={page === "career"} onClick={() => onPageChange("career")}>
           Career
         </NavButton>
+        <NavButton active={page === "fitness"} onClick={() => onPageChange("fitness")}>
+          Fitness
+        </NavButton>
       </nav>
 
       <main style={styles.main}>{children}</main>

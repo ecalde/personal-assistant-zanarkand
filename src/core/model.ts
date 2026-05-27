@@ -130,6 +130,44 @@ export type CareerTarget = {
   updatedAtIso: string;
 };
 
+export type WorkoutFocus =
+  | "push"
+  | "pull"
+  | "legs"
+  | "full_body"
+  | "cardio"
+  | "mobility";
+
+export type ExerciseEntry = {
+  id: string;
+  name: string;
+  sets?: number;
+  reps?: number;
+  weight?: number;
+  notes?: string;
+};
+
+export type WorkoutPlan = {
+  id: string;
+  name: string;
+  focus?: WorkoutFocus;
+  exercises: ExerciseEntry[];
+  notes?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type WorkoutSession = {
+  id: string;
+  date: string;
+  focus?: WorkoutFocus;
+  planId?: string;
+  exercises: ExerciseEntry[];
+  notes?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type AppPayload = {
   skills: Skill[];
   sessions: Session[];
@@ -138,4 +176,6 @@ export type AppPayload = {
   people: Person[];
   jobApplications: JobApplication[];
   careerTarget?: CareerTarget;
+  workoutPlans: WorkoutPlan[];
+  workoutSessions: WorkoutSession[];
 };

@@ -7,6 +7,7 @@ import type {
   ApplicationStatus,
   CareerTarget,
   EventType,
+  ExerciseEntry,
   JobApplication,
   LifeEvent,
   Person,
@@ -17,6 +18,9 @@ import type {
   Skill,
   Weekday,
   WeeklySchedule,
+  WorkoutFocus,
+  WorkoutPlan,
+  WorkoutSession,
 } from "./model";
 
 const UUID_RE =
@@ -51,6 +55,15 @@ const APPLICATION_STATUSES: ApplicationStatus[] = [
 ];
 
 const REMOTE_POLICIES: RemotePolicy[] = ["remote", "hybrid", "onsite", "unknown"];
+
+const WORKOUT_FOCUSES: WorkoutFocus[] = [
+  "push",
+  "pull",
+  "legs",
+  "full_body",
+  "cardio",
+  "mobility",
+];
 
 export type SkillRow = {
   id: string;
@@ -141,6 +154,29 @@ export type CareerTargetRow = {
   notes: string | null;
   required_skill_ids: unknown;
   required_skills_text: string | null;
+  updated_at: string;
+};
+
+export type WorkoutPlanRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  focus: string | null;
+  exercises: unknown;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkoutSessionRow = {
+  id: string;
+  user_id: string;
+  workout_date: string;
+  focus: string | null;
+  plan_id: string | null;
+  exercises: unknown;
+  notes: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -522,6 +558,154 @@ export function assertValidCareerTarget(target: CareerTarget): void {
       "Invalid careerTarget.requiredSkillsText",
       "careerTarget.requiredSkillsText"
     );
+  }
+}
+
+export function isWorkoutFocus(value: string): value is WorkoutFocus {
+  return WORKOUT_FOCUSES.includes(value as WorkoutFocus);
+}
+
+function isNonNegativeNumber(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
+}
+
+export function parseExerciseEntries(value: unknown, field: string): ExerciseEntry[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const entries: ExerciseEntry[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of value) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const obj = item as Record<string, unknown>;
+    const entryId = obj.id;
+    if (typeof entryId !== "string" || !isUuid(entryId)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(entryId)) {
+      throw new MapperError(`Invalid ${field}: duplicate exercise id`, field);
+    }
+    seenIds.add(entryId);
+
+    const name = obj.name;
+    if (typeof name !== "string" || name.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: exercise name required`, field);
+    }
+
+    const entry: ExerciseEntry = {
+      id: entryId,
+      name: name.trim(),
+    };
+
+    if (obj.sets !== undefined && obj.sets !== null) {
+      if (typeof obj.sets !== "number" || !isPositiveInteger(obj.sets)) {
+        throw new MapperError(`Invalid ${field}: sets must be positive integer`, field);
+      }
+      entry.sets = obj.sets;
+    }
+
+    if (obj.reps !== undefined && obj.reps !== null) {
+      if (typeof obj.reps !== "number" || !isPositiveInteger(obj.reps)) {
+        throw new MapperError(`Invalid ${field}: reps must be positive integer`, field);
+      }
+      entry.reps = obj.reps;
+    }
+
+    if (obj.weight !== undefined && obj.weight !== null) {
+      if (typeof obj.weight !== "number" || !isNonNegativeNumber(obj.weight)) {
+        throw new MapperError(`Invalid ${field}: weight must be non-negative number`, field);
+      }
+      entry.weight = obj.weight;
+    }
+
+    if (obj.notes !== undefined && obj.notes !== null) {
+      if (typeof obj.notes !== "string") {
+        throw new MapperError(`Invalid ${field}: notes must be string`, field);
+      }
+      const trimmedNotes = obj.notes.trim();
+      if (trimmedNotes.length > 0) {
+        entry.notes = trimmedNotes;
+      }
+    }
+
+    entries.push(entry);
+  }
+
+  return entries;
+}
+
+export function assertValidExerciseEntry(entry: ExerciseEntry): void {
+  assertUuid(entry.id, "exerciseEntry.id");
+  assertNonEmptyName(entry.name, "exerciseEntry.name");
+
+  if (entry.sets !== undefined && !isPositiveInteger(entry.sets)) {
+    throw new MapperError("Invalid exerciseEntry.sets", "exerciseEntry.sets");
+  }
+  if (entry.reps !== undefined && !isPositiveInteger(entry.reps)) {
+    throw new MapperError("Invalid exerciseEntry.reps", "exerciseEntry.reps");
+  }
+  if (entry.weight !== undefined && !isNonNegativeNumber(entry.weight)) {
+    throw new MapperError("Invalid exerciseEntry.weight", "exerciseEntry.weight");
+  }
+  if (entry.notes !== undefined && typeof entry.notes !== "string") {
+    throw new MapperError("Invalid exerciseEntry.notes", "exerciseEntry.notes");
+  }
+}
+
+export function assertValidWorkoutPlan(plan: WorkoutPlan): void {
+  assertUuid(plan.id, "workoutPlan.id");
+  assertNonEmptyName(plan.name, "workoutPlan.name");
+  assertIsoTimestamp(plan.createdAtIso, "workoutPlan.createdAtIso");
+  assertIsoTimestamp(plan.updatedAtIso, "workoutPlan.updatedAtIso");
+
+  if (plan.focus !== undefined && !isWorkoutFocus(plan.focus)) {
+    throw new MapperError("Invalid workoutPlan.focus", "workoutPlan.focus");
+  }
+  if (!Array.isArray(plan.exercises)) {
+    throw new MapperError("Invalid workoutPlan.exercises", "workoutPlan.exercises");
+  }
+  if (plan.exercises.length === 0) {
+    throw new MapperError("workoutPlan.exercises must not be empty", "workoutPlan.exercises");
+  }
+  for (const entry of plan.exercises) {
+    assertValidExerciseEntry(entry);
+  }
+  if (plan.notes !== undefined && typeof plan.notes !== "string") {
+    throw new MapperError("Invalid workoutPlan.notes", "workoutPlan.notes");
+  }
+}
+
+export function assertValidWorkoutSession(session: WorkoutSession): void {
+  assertUuid(session.id, "workoutSession.id");
+  assertIsoDate(session.date, "workoutSession.date");
+  assertIsoTimestamp(session.createdAtIso, "workoutSession.createdAtIso");
+  assertIsoTimestamp(session.updatedAtIso, "workoutSession.updatedAtIso");
+
+  if (session.focus !== undefined && !isWorkoutFocus(session.focus)) {
+    throw new MapperError("Invalid workoutSession.focus", "workoutSession.focus");
+  }
+  if (session.planId !== undefined) {
+    assertUuid(session.planId, "workoutSession.planId");
+  }
+  if (!Array.isArray(session.exercises)) {
+    throw new MapperError("Invalid workoutSession.exercises", "workoutSession.exercises");
+  }
+  if (session.exercises.length === 0) {
+    throw new MapperError(
+      "workoutSession.exercises must not be empty",
+      "workoutSession.exercises"
+    );
+  }
+  for (const entry of session.exercises) {
+    assertValidExerciseEntry(entry);
+  }
+  if (session.notes !== undefined && typeof session.notes !== "string") {
+    throw new MapperError("Invalid workoutSession.notes", "workoutSession.notes");
   }
 }
 
@@ -919,6 +1103,113 @@ export function careerTargetFromRow(row: CareerTargetRow): CareerTarget {
   return target;
 }
 
+export function workoutPlanToRow(plan: WorkoutPlan, userId: string): WorkoutPlanRow {
+  assertUuid(userId, "userId");
+  assertValidWorkoutPlan(plan);
+
+  return {
+    id: plan.id,
+    user_id: userId,
+    name: plan.name.trim(),
+    focus: plan.focus ?? null,
+    exercises: plan.exercises,
+    notes: plan.notes?.trim() || null,
+    created_at: plan.createdAtIso,
+    updated_at: plan.updatedAtIso,
+  };
+}
+
+export function workoutPlanFromRow(row: WorkoutPlanRow): WorkoutPlan {
+  assertUuid(row.id, "workout_plans.id");
+  assertUuid(row.user_id, "workout_plans.user_id");
+  assertNonEmptyName(row.name, "workout_plans.name");
+  assertIsoTimestamp(row.created_at, "workout_plans.created_at");
+  assertIsoTimestamp(row.updated_at, "workout_plans.updated_at");
+
+  if (row.focus !== null && !isWorkoutFocus(row.focus)) {
+    throw new MapperError("Invalid workout_plans.focus", "workout_plans.focus");
+  }
+
+  const exercises = parseExerciseEntries(row.exercises, "workout_plans.exercises");
+  if (exercises.length === 0) {
+    throw new MapperError(
+      "workout_plans.exercises must not be empty",
+      "workout_plans.exercises"
+    );
+  }
+
+  const plan: WorkoutPlan = {
+    id: row.id,
+    name: row.name.trim(),
+    exercises,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.focus !== null) plan.focus = row.focus;
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    plan.notes = row.notes.trim();
+  }
+
+  return plan;
+}
+
+export function workoutSessionToRow(session: WorkoutSession, userId: string): WorkoutSessionRow {
+  assertUuid(userId, "userId");
+  assertValidWorkoutSession(session);
+
+  return {
+    id: session.id,
+    user_id: userId,
+    workout_date: session.date,
+    focus: session.focus ?? null,
+    plan_id: session.planId ?? null,
+    exercises: session.exercises,
+    notes: session.notes?.trim() || null,
+    created_at: session.createdAtIso,
+    updated_at: session.updatedAtIso,
+  };
+}
+
+export function workoutSessionFromRow(row: WorkoutSessionRow): WorkoutSession {
+  assertUuid(row.id, "workout_sessions.id");
+  assertUuid(row.user_id, "workout_sessions.user_id");
+  assertIsoDate(row.workout_date, "workout_sessions.workout_date");
+  assertIsoTimestamp(row.created_at, "workout_sessions.created_at");
+  assertIsoTimestamp(row.updated_at, "workout_sessions.updated_at");
+
+  if (row.focus !== null && !isWorkoutFocus(row.focus)) {
+    throw new MapperError("Invalid workout_sessions.focus", "workout_sessions.focus");
+  }
+  if (row.plan_id !== null) {
+    assertUuid(row.plan_id, "workout_sessions.plan_id");
+  }
+
+  const exercises = parseExerciseEntries(row.exercises, "workout_sessions.exercises");
+  if (exercises.length === 0) {
+    throw new MapperError(
+      "workout_sessions.exercises must not be empty",
+      "workout_sessions.exercises"
+    );
+  }
+
+  const session: WorkoutSession = {
+    id: row.id,
+    date: row.workout_date,
+    exercises,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.focus !== null) session.focus = row.focus;
+  if (row.plan_id !== null) session.planId = row.plan_id;
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    session.notes = row.notes.trim();
+  }
+
+  return session;
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -1012,7 +1303,9 @@ export function payloadFromRows(
   eventRows: EventRow[] = [],
   peopleRows: PersonRow[] = [],
   jobApplicationRows: JobApplicationRow[] = [],
-  careerTargetRows: CareerTargetRow[] = []
+  careerTargetRows: CareerTargetRow[] = [],
+  workoutPlanRows: WorkoutPlanRow[] = [],
+  workoutSessionRows: WorkoutSessionRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -1020,6 +1313,8 @@ export function payloadFromRows(
   const events = eventRows.map((row) => eventFromRow(row));
   const people = peopleRows.map((row) => personFromRow(row));
   const jobApplications = jobApplicationRows.map((row) => jobApplicationFromRow(row));
+  const workoutPlans = workoutPlanRows.map((row) => workoutPlanFromRow(row));
+  const workoutSessions = workoutSessionRows.map((row) => workoutSessionFromRow(row));
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -1037,6 +1332,8 @@ export function payloadFromRows(
     people,
     jobApplications,
     careerTarget,
+    workoutPlans,
+    workoutSessions,
   };
   validatePayloadForUpload(payload);
   return payload;
@@ -1128,6 +1425,36 @@ export function validatePayloadForUpload(payload: AppPayload): void {
           "careerTarget.requiredSkillIds"
         );
       }
+    }
+  }
+
+  const planIds = new Set<string>();
+  for (const plan of payload.workoutPlans) {
+    assertValidWorkoutPlan(plan);
+    if (planIds.has(plan.id)) {
+      throw new MapperError(`Duplicate workout plan id: ${plan.id}`, "workoutPlans.id");
+    }
+    planIds.add(plan.id);
+  }
+
+  const workoutSessionIds = new Set<string>();
+  for (const workoutSession of payload.workoutSessions) {
+    assertValidWorkoutSession(workoutSession);
+    if (workoutSessionIds.has(workoutSession.id)) {
+      throw new MapperError(
+        `Duplicate workout session id: ${workoutSession.id}`,
+        "workoutSessions.id"
+      );
+    }
+    workoutSessionIds.add(workoutSession.id);
+    if (
+      workoutSession.planId !== undefined &&
+      !planIds.has(workoutSession.planId)
+    ) {
+      throw new MapperError(
+        `Workout session references unknown plan: ${workoutSession.planId}`,
+        "workoutSessions.planId"
+      );
     }
   }
 }

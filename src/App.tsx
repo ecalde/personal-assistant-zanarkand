@@ -7,6 +7,8 @@ import type {
   Person,
   Skill,
   Session,
+  WorkoutPlan,
+  WorkoutSession,
 } from "./core/model";
 import {
   initialSync,
@@ -21,6 +23,7 @@ import { AppShell } from "./components/layout/AppShell";
 import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
 import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
+import FitnessPage from "./pages/FitnessPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
 import type { Page } from "./pages/types";
@@ -698,6 +701,155 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: nextPayload });
   }
 
+  // ---------- FITNESS ----------
+  function addWorkoutPlan(
+    input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+
+    const trimmedName = input.name.trim();
+    if (!trimmedName || input.exercises.length === 0) return;
+
+    const now = new Date().toISOString();
+    const newPlan: WorkoutPlan = {
+      id: id(),
+      name: trimmedName,
+      exercises: input.exercises.map((entry) => ({ ...entry })),
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.focus) newPlan.focus = input.focus;
+    if (input.notes?.trim()) newPlan.notes = input.notes.trim();
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        workoutPlans: [...(app.payload.workoutPlans ?? []), newPlan],
+      },
+    });
+  }
+
+  function updateWorkoutPlan(updated: WorkoutPlan) {
+    if (!app) return;
+
+    const trimmedName = updated.name.trim();
+    if (!trimmedName || updated.exercises.length === 0) return;
+
+    const now = new Date().toISOString();
+    const nextPlan: WorkoutPlan = {
+      ...updated,
+      name: trimmedName,
+      exercises: updated.exercises.map((entry) => ({ ...entry })),
+      updatedAtIso: now,
+    };
+
+    if (updated.focus) {
+      nextPlan.focus = updated.focus;
+    } else {
+      delete nextPlan.focus;
+    }
+    if (updated.notes?.trim()) {
+      nextPlan.notes = updated.notes.trim();
+    } else {
+      delete nextPlan.notes;
+    }
+
+    const workoutPlans = (app.payload.workoutPlans ?? []).map((plan) =>
+      plan.id === updated.id ? nextPlan : plan
+    );
+
+    commit({ ...app, payload: { ...app.payload, workoutPlans } });
+  }
+
+  function deleteWorkoutPlan(planId: string) {
+    if (!app) return;
+
+    const workoutPlans = (app.payload.workoutPlans ?? []).filter((plan) => plan.id !== planId);
+    const workoutSessions = (app.payload.workoutSessions ?? []).map((session) => {
+      if (session.planId !== planId) return session;
+      const next = { ...session };
+      delete next.planId;
+      return next;
+    });
+
+    commit({ ...app, payload: { ...app.payload, workoutPlans, workoutSessions } });
+  }
+
+  function addWorkoutSession(
+    input: Omit<WorkoutSession, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+
+    if (!input.date || input.exercises.length === 0) return;
+
+    const now = new Date().toISOString();
+    const newSession: WorkoutSession = {
+      id: id(),
+      date: input.date,
+      exercises: input.exercises.map((entry) => ({ ...entry })),
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.focus) newSession.focus = input.focus;
+    if (input.planId) newSession.planId = input.planId;
+    if (input.notes?.trim()) newSession.notes = input.notes.trim();
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        workoutSessions: [...(app.payload.workoutSessions ?? []), newSession],
+      },
+    });
+  }
+
+  function updateWorkoutSession(updated: WorkoutSession) {
+    if (!app) return;
+
+    if (!updated.date || updated.exercises.length === 0) return;
+
+    const now = new Date().toISOString();
+    const nextSession: WorkoutSession = {
+      ...updated,
+      exercises: updated.exercises.map((entry) => ({ ...entry })),
+      updatedAtIso: now,
+    };
+
+    if (updated.focus) {
+      nextSession.focus = updated.focus;
+    } else {
+      delete nextSession.focus;
+    }
+    if (updated.planId) {
+      nextSession.planId = updated.planId;
+    } else {
+      delete nextSession.planId;
+    }
+    if (updated.notes?.trim()) {
+      nextSession.notes = updated.notes.trim();
+    } else {
+      delete nextSession.notes;
+    }
+
+    const workoutSessions = (app.payload.workoutSessions ?? []).map((session) =>
+      session.id === updated.id ? nextSession : session
+    );
+
+    commit({ ...app, payload: { ...app.payload, workoutSessions } });
+  }
+
+  function deleteWorkoutSession(sessionId: string) {
+    if (!app) return;
+
+    const workoutSessions = (app.payload.workoutSessions ?? []).filter(
+      (session) => session.id !== sessionId
+    );
+    commit({ ...app, payload: { ...app.payload, workoutSessions } });
+  }
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -745,8 +897,11 @@ export default function App({ userId, onSignOut }: AppProps) {
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
           jobApplications={app.payload.jobApplications ?? []}
+          workoutPlans={app.payload.workoutPlans ?? []}
+          workoutSessions={app.payload.workoutSessions ?? []}
           onAddSession={addSession}
           onOpenCareer={() => setPage("career")}
+          onOpenFitness={() => setPage("fitness")}
         />
       )}
 
@@ -796,6 +951,19 @@ export default function App({ userId, onSignOut }: AppProps) {
           onDeleteApplication={deleteJobApplication}
           onSetCareerTarget={setCareerTarget}
           onClearCareerTarget={clearCareerTarget}
+        />
+      )}
+
+      {page === "fitness" && (
+        <FitnessPage
+          workoutPlans={app.payload.workoutPlans ?? []}
+          workoutSessions={app.payload.workoutSessions ?? []}
+          onAddPlan={addWorkoutPlan}
+          onUpdatePlan={updateWorkoutPlan}
+          onDeletePlan={deleteWorkoutPlan}
+          onAddSession={addWorkoutSession}
+          onUpdateSession={updateWorkoutSession}
+          onDeleteSession={deleteWorkoutSession}
         />
       )}
     </AppShell>

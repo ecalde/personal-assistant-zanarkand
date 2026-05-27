@@ -25,6 +25,8 @@ export function defaultPayload(): AppPayload {
     events: [],
     people: [],
     jobApplications: [],
+    workoutPlans: [],
+    workoutSessions: [],
   };
 }
 

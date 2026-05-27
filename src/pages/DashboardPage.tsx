@@ -16,6 +16,7 @@ import {
   formatLocalDateKey,
 } from "../core/timeline";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
+import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
@@ -28,7 +29,15 @@ import {
 } from "../components/dashboard/UnifiedTimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
-import type { JobApplication, LifeEvent, Person, Session, Skill } from "../core/model";
+import type {
+  JobApplication,
+  LifeEvent,
+  Person,
+  Session,
+  Skill,
+  WorkoutPlan,
+  WorkoutSession,
+} from "../core/model";
 import { styles } from "../ui/appStyles";
 
 /** Toggle legacy schedule-only timeline during rollout. */
@@ -46,8 +55,11 @@ export type DashboardPageProps = {
   events: LifeEvent[];
   people: Person[];
   jobApplications: JobApplication[];
+  workoutPlans: WorkoutPlan[];
+  workoutSessions: WorkoutSession[];
   onAddSession: (skillId: string, minutes: number) => void;
   onOpenCareer?: () => void;
+  onOpenFitness?: () => void;
 };
 
 export default function DashboardPage({
@@ -56,8 +68,11 @@ export default function DashboardPage({
   events,
   people,
   jobApplications,
+  workoutPlans,
+  workoutSessions,
   onAddSession,
   onOpenCareer,
+  onOpenFitness,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
 
@@ -163,6 +178,15 @@ export default function DashboardPage({
           jobApplications={jobApplications}
           todayKey={today}
           onOpenCareer={onOpenCareer}
+        />
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <FitnessSummarySection
+          workoutPlans={workoutPlans}
+          workoutSessions={workoutSessions}
+          todayKey={today}
+          onOpenFitness={onOpenFitness}
         />
       </div>
 

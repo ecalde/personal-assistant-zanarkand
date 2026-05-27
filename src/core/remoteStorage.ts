@@ -15,6 +15,8 @@ import {
   personToRow,
   sessionToRow,
   skillToRow,
+  workoutPlanToRow,
+  workoutSessionToRow,
   validatePayloadForUpload,
   type CareerTargetRow,
   type EventRow,
@@ -23,6 +25,8 @@ import {
   type PersonRow,
   type SessionRow,
   type SkillRow,
+  type WorkoutPlanRow,
+  type WorkoutSessionRow,
 } from "./dbMappers";
 
 type AppTable =
@@ -32,7 +36,9 @@ type AppTable =
   | "events"
   | "people"
   | "job_applications"
-  | "career_targets";
+  | "career_targets"
+  | "workout_plans"
+  | "workout_sessions";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -107,6 +113,8 @@ async function upsertRows(
     | PersonRow[]
     | JobApplicationRow[]
     | CareerTargetRow[]
+    | WorkoutPlanRow[]
+    | WorkoutSessionRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -128,7 +136,7 @@ async function deleteRowsNotIn(table: AppTable, userId: string, keepIds: string[
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -137,6 +145,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("people").select("*").eq("user_id", userId),
     supabase.from("job_applications").select("*").eq("user_id", userId),
     supabase.from("career_targets").select("*").eq("user_id", userId),
+    supabase.from("workout_plans").select("*").eq("user_id", userId),
+    supabase.from("workout_sessions").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -146,6 +156,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(peopleResult.error, "people");
   throwOnSupabaseError(jobApplicationsResult.error, "job_applications");
   throwOnSupabaseError(careerTargetsResult.error, "career_targets");
+  throwOnSupabaseError(workoutPlansResult.error, "workout_plans");
+  throwOnSupabaseError(workoutSessionsResult.error, "workout_sessions");
 
   try {
     return payloadFromRows(
@@ -155,7 +167,9 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<EventRow>(eventsResult.data),
       asRows<PersonRow>(peopleResult.data),
       asRows<JobApplicationRow>(jobApplicationsResult.data),
-      asRows<CareerTargetRow>(careerTargetsResult.data)
+      asRows<CareerTargetRow>(careerTargetsResult.data),
+      asRows<WorkoutPlanRow>(workoutPlansResult.data),
+      asRows<WorkoutSessionRow>(workoutSessionsResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -182,6 +196,12 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const careerTargetRows = payload.careerTarget
     ? [careerTargetToRow(payload.careerTarget, userId)]
     : [];
+  const workoutPlanRows = payload.workoutPlans.map((plan) =>
+    workoutPlanToRow(plan, userId)
+  );
+  const workoutSessionRows = payload.workoutSessions.map((session) =>
+    workoutSessionToRow(session, userId)
+  );
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
@@ -190,6 +210,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("events", eventRows);
   await upsertRows("job_applications", jobApplicationRows);
   await upsertRows("career_targets", careerTargetRows);
+  await upsertRows("workout_plans", workoutPlanRows);
+  await upsertRows("workout_sessions", workoutSessionRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
   const skillIds = payload.skills.map((s) => s.id);
@@ -198,6 +220,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const peopleIds = payload.people.map((p) => p.id);
   const jobApplicationIds = payload.jobApplications.map((a) => a.id);
   const careerTargetIds = payload.careerTarget ? [payload.careerTarget.id] : [];
+  const workoutPlanIds = payload.workoutPlans.map((p) => p.id);
+  const workoutSessionIds = payload.workoutSessions.map((s) => s.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
   await deleteRowsNotIn("skills", userId, skillIds);
@@ -206,6 +230,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("people", userId, peopleIds);
   await deleteRowsNotIn("job_applications", userId, jobApplicationIds);
   await deleteRowsNotIn("career_targets", userId, careerTargetIds);
+  await deleteRowsNotIn("workout_plans", userId, workoutPlanIds);
+  await deleteRowsNotIn("workout_sessions", userId, workoutSessionIds);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -216,7 +242,9 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.events.length > 0 ||
     payload.people.length > 0 ||
     payload.jobApplications.length > 0 ||
-    payload.careerTarget !== undefined
+    payload.careerTarget !== undefined ||
+    payload.workoutPlans.length > 0 ||
+    payload.workoutSessions.length > 0
   );
 }
 
