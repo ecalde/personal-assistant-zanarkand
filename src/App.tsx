@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapperError } from "./core/dbMappers";
 import type { AppPayload, Priority, Skill, Weekday, Session, ScheduleBlock } from "./core/model";
 import {
   initialSync,
   isRemoteSyncEnabled,
   replaceRemotePayload,
-  RemoteStorageError,
 } from "./core/remoteStorage";
+import {
+  addMinutesToHHMM,
+  expectedMinutesByNow,
+  minutesSinceMidnight,
+  parseHHMMToMinutes,
+  weekdayFromDate,
+  type BlockStatus,
+  type CompletionStatus,
+} from "./core/schedule";
+import { cloudSafeMessage, loadDataErrorMessage } from "./core/syncErrors";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule, weekdayLabel } from "./core/state";
 import { parseDurationToMinutes } from "./core/duration";
+import { formatLocal, formatTimeOnly, priorityEmoji } from "./ui/format";
 
 const REMOTE_DEBOUNCE_MS = 400;
 
@@ -22,99 +31,8 @@ const fullViewportCenter: React.CSSProperties = {
   color: "#333",
 };
 
-function cloudSafeMessage(err: unknown): string {
-  if (err instanceof RemoteStorageError) return err.message;
-  if (err instanceof MapperError) return err.message;
-  return "Could not save to cloud. Your changes are saved locally.";
-}
-
-function loadDataErrorMessage(err: unknown): string {
-  if (err instanceof RemoteStorageError) return err.message;
-  if (err instanceof MapperError) return err.message;
-  return "Could not load your data. Please try again.";
-}
-
-function formatLocal(tsIso: string) {
-  try {
-    return new Date(tsIso).toLocaleString();
-  } catch {
-    return tsIso;
-  }
-}
-
-function formatTimeOnly(tsIso: string) {
-  try {
-    return new Date(tsIso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch {
-    return tsIso;
-  }
-}
-
 function id() {
   return crypto.randomUUID();
-}
-
-function priorityEmoji(p?: Priority) {
-  if (!p) return "⚪";
-  if (p === 1) return "🔴";
-  if (p === 2) return "🟡";
-  if (p === 3) return "🟢";
-  return "🔵";
-}
-
-type CompletionStatus = "idle" | "onTrack" | "overdue";
-type BlockStatus = "upcoming" | "inProgress" | "done" | "behind";
-
-function weekdayFromDate(d: Date): Weekday {
-  // JS getDay(): 0=Sun, 1=Mon, ... 6=Sat
-  const map: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  return map[d.getDay()];
-}
-
-function addMinutesToHHMM(hhmm: string, add: number): string {
-  const start = parseHHMMToMinutes(hhmm);
-  const end = Math.max(0, start + add);
-  const hh = Math.floor(end / 60) % 24;
-  const mm = end % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-function parseHHMMToMinutes(hhmm: string): number {
-  // expects "HH:MM"
-  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
-  if (!m) return 0;
-  const hh = Number(m[1]);
-  const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
-  return hh * 60 + mm;
-}
-
-function minutesSinceMidnight(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-function expectedMinutesByNow(blocks: ScheduleBlock[], now: Date): number {
-  const nowMin = minutesSinceMidnight(now);
-  let total = 0;
-
-  for (const b of blocks) {
-    const start = parseHHMMToMinutes(b.startTime);
-    const end = start + (Number.isInteger(b.minutes) ? b.minutes : 0);
-
-    // Block hasn't started
-    if (nowMin < start) continue;
-
-    // Block fully completed time window
-    if (nowMin >= end) {
-      total += b.minutes;
-      continue;
-    }
-
-    // Block is in progress → do NOT count yet
-    break;
-  }
-
-  return total;
 }
 
 type Page = "dashboard" | "skills";
