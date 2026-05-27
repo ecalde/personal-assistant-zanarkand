@@ -52,4 +52,72 @@ export const styles: Record<string, CSSProperties> = {
     border: "1px solid #ddd",
     background: "#f8f8f8",
   },
+  dashboardSection: {
+    background: "white",
+    border: "1px solid #e5e5e5",
+    padding: 12,
+    borderRadius: 12,
+  },
+  dashboardGrid: {
+    display: "grid",
+    gap: 10,
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  },
+  statCard: {
+    background: "#fafafa",
+    border: "1px solid #e5e5e5",
+    borderRadius: 12,
+    padding: "12px 14px",
+    display: "grid",
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: 800,
+    lineHeight: 1.2,
+  },
+  statLabel: {
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  progressTrack: {
+    width: "100%",
+    height: 10,
+    borderRadius: 999,
+    background: "#ececec",
+    border: "1px solid #e0e0e0",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#6fcf97",
+    minWidth: 0,
+    transition: "width 0.2s ease",
+  },
+  timelineRow: {
+    background: "white",
+    border: "1px solid #e5e5e5",
+    padding: 10,
+    borderRadius: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftStyle: "solid",
+  },
+  timelineAccentDone: {
+    borderLeftColor: "#6fcf97",
+  },
+  timelineAccentBehind: {
+    borderLeftColor: "#e57373",
+  },
+  timelineAccentInProgress: {
+    borderLeftColor: "#81c784",
+  },
+  timelineAccentUpcoming: {
+    borderLeftColor: "#bdbdbd",
+  },
 };

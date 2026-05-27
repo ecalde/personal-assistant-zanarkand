@@ -23,3 +23,18 @@ export function priorityEmoji(p?: Priority) {
   if (p === 3) return "🟢";
   return "🔵";
 }
+
+/** Formats non-negative integer minutes for dashboard labels (e.g. 90 → "1h 30m"). */
+export function formatMinutes(minutes: number): string {
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    throw new RangeError("formatMinutes expects a non-negative integer");
+  }
+  if (minutes === 0) return "0m";
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h`;
+  return `${hours}h ${remainder}m`;
+}
