@@ -1,9 +1,38 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MapperError } from "./core/dbMappers";
+import type { AppPayload, Priority, Skill, Weekday, Session, ScheduleBlock } from "./core/model";
+import {
+  initialSync,
+  isRemoteSyncEnabled,
+  replaceRemotePayload,
+  RemoteStorageError,
+} from "./core/remoteStorage";
 import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
-import type { Priority, Skill, Weekday, Session, ScheduleBlock } from "./core/model";
-import { defaultWeeklySchedule, defaultPayload, weekdayLabel } from "./core/state";
+import { defaultWeeklySchedule, weekdayLabel } from "./core/state";
 import { parseDurationToMinutes } from "./core/duration";
+
+const REMOTE_DEBOUNCE_MS = 400;
+
+const fullViewportCenter: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
+  color: "#333",
+};
+
+function cloudSafeMessage(err: unknown): string {
+  if (err instanceof RemoteStorageError) return err.message;
+  if (err instanceof MapperError) return err.message;
+  return "Could not save to cloud. Your changes are saved locally.";
+}
+
+function loadDataErrorMessage(err: unknown): string {
+  if (err instanceof RemoteStorageError) return err.message;
+  if (err instanceof MapperError) return err.message;
+  return "Could not load your data. Please try again.";
+}
 
 function formatLocal(tsIso: string) {
   try {
@@ -98,39 +127,124 @@ export type AppProps = {
 };
 
 export default function App({ userId, onSignOut }: AppProps) {
-  void userId;
-  const [app, setApp] = useState<AppData>(() => {
-    const loaded = loadAppData();
-    // Safety: if payload missing for any reason
-    if (!loaded.payload) return { ...loaded, payload: defaultPayload() };
-    return loaded;
-  });
+  const [app, setApp] = useState<AppData | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncPending, setSyncPending] = useState(false);
 
   const [page, setPage] = useState<Page>("dashboard");
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const lastSavedLabel = useMemo(() => formatLocal(app.updatedAtIso), [app.updatedAtIso]);
+  const syncReadyRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const lastSavedLabel = useMemo(
+    () => (app ? formatLocal(app.updatedAtIso) : ""),
+    [app?.updatedAtIso]
+  );
+
+  const clearDebounce = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  const persistRemote = useCallback(
+    async (payload: AppPayload) => {
+      if (!isRemoteSyncEnabled()) return;
+
+      setSyncPending(true);
+      try {
+        await replaceRemotePayload(userId, payload);
+        setSyncError(null);
+      } catch (err) {
+        setSyncError(cloudSafeMessage(err));
+      } finally {
+        setSyncPending(false);
+      }
+    },
+    [userId]
+  );
+
+  const scheduleRemotePersist = useCallback(
+    (payload: AppPayload) => {
+      if (!syncReadyRef.current || !isRemoteSyncEnabled()) return;
+
+      clearDebounce();
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        void persistRemote(payload);
+      }, REMOTE_DEBOUNCE_MS);
+    },
+    [clearDebounce, persistRemote]
+  );
+
+  const runInitialSync = useCallback(async () => {
+    setDataLoading(true);
+    setDataError(null);
+    syncReadyRef.current = false;
+    clearDebounce();
+
+    try {
+      const data = await initialSync(userId, () => loadAppData(userId));
+      setApp(data);
+      setSyncError(null);
+      syncReadyRef.current = true;
+    } catch (err) {
+      setDataError(loadDataErrorMessage(err));
+      setApp(null);
+      syncReadyRef.current = false;
+    } finally {
+      setDataLoading(false);
+    }
+  }, [userId, clearDebounce]);
+
+  useEffect(() => {
+    void runInitialSync();
+    return () => {
+      syncReadyRef.current = false;
+      clearDebounce();
+    };
+  }, [runInitialSync, clearDebounce]);
 
   function commit(next: AppData) {
-    // single place to persist + update state
-    const saved = saveAppData(next);
+    if (!syncReadyRef.current) return;
+
+    const saved = saveAppData(next, userId);
     setApp(saved);
+    setSyncError(null);
+    scheduleRemotePersist(saved.payload);
   }
 
-  function onSaveNow() {
+  async function onSaveNow() {
+    if (!app || !syncReadyRef.current) return;
+
     setError(null);
-    commit(app);
+    const saved = saveAppData(app, userId);
+    setApp(saved);
+    setSyncError(null);
+    clearDebounce();
+
+    if (isRemoteSyncEnabled()) {
+      await persistRemote(saved.payload);
+    }
   }
 
   function onExport() {
+    if (!app) return;
+
     setError(null);
-    const saved = saveAppData(app);
+    const saved = saveAppData(app, userId);
     setApp(saved);
     exportBackup(saved);
   }
 
   async function onPickImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!syncReadyRef.current) return;
+
     setError(null);
     const f = e.target.files?.[0];
     if (!f) return;
@@ -145,8 +259,15 @@ export default function App({ userId, onSignOut }: AppProps) {
     }
   }
 
+  async function onRetryCloudSave() {
+    if (!app) return;
+    await persistRemote(app.payload);
+  }
+
   // ---------- SKILLS CRUD ----------
   function addSkill(name: string) {
+    if (!app) return;
+
     const trimmed = name.trim();
     if (!trimmed) return;
 
@@ -172,6 +293,8 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   function updateSkill(skillId: string, patch: Partial<Skill>) {
+    if (!app) return;
+
     const now = new Date().toISOString();
     const skills = app.payload.skills.map((s) =>
       s.id === skillId ? { ...s, ...patch, updatedAtIso: now } : s
@@ -180,12 +303,15 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   function deleteSkill(skillId: string) {
+    if (!app) return;
+
     const skills = app.payload.skills.filter((s) => s.id !== skillId);
     commit({ ...app, payload: { ...app.payload, skills } });
   }
 
   // ---------- SESSIONS ----------
   function addSession(skillId: string, minutes: number) {
+    if (!app) return;
     if (!Number.isInteger(minutes) || minutes <= 0) return;
 
     const now = new Date().toISOString();
@@ -207,6 +333,8 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   function deleteSession(sessionId: string) {
+    if (!app) return;
+
     const nextSessions = (app.payload.sessions ?? []).filter((s) => s.id !== sessionId);
     commit({
       ...app,
@@ -218,12 +346,43 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   // ---------- UI ----------
+  if (dataLoading) {
+    return (
+      <div style={fullViewportCenter}>
+        Loading your data…
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div style={{ ...fullViewportCenter, padding: "1.5rem", textAlign: "center" }}>
+        <p style={{ marginBottom: 12 }}>{dataError}</p>
+        <button type="button" onClick={() => void runInitialSync()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!app) {
+    return null;
+  }
+
   return (
     <div style={styles.shell}>
       <header style={styles.header}>
         <div>
           <div style={styles.title}>Personal Assistant</div>
-          <div style={styles.sub}>Last saved: <b>{lastSavedLabel}</b></div>
+          <div style={styles.sub}>
+            Last saved: <b>{lastSavedLabel}</b>
+            {syncPending && (
+              <>
+                {" "}
+                · <span>Saving to cloud…</span>
+              </>
+            )}
+          </div>
         </div>
 
         <div style={styles.actions}>
@@ -248,6 +407,15 @@ export default function App({ userId, onSignOut }: AppProps) {
       {error && (
         <div style={styles.errorBox}>
           <b>Error:</b> {error}
+        </div>
+      )}
+
+      {syncError && (
+        <div style={styles.errorBox}>
+          <b>Cloud save failed:</b> {syncError}{" "}
+          <button type="button" onClick={() => void onRetryCloudSave()}>
+            Retry cloud save
+          </button>
         </div>
       )}
 
