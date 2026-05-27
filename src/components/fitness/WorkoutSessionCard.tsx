@@ -1,4 +1,4 @@
-import { formatExerciseSummary, resolvePlanName } from "../../core/fitness";
+import { formatExerciseSummary, formatSessionDurationLabel, resolvePlanName } from "../../core/fitness";
 import type { WorkoutPlan, WorkoutSession } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { WorkoutFocusBadge } from "./WorkoutFocusBadge";
@@ -31,6 +31,7 @@ export function WorkoutSessionCard({
   onDelete,
 }: WorkoutSessionCardProps) {
   const planName = resolvePlanName(session.planId, plans);
+  const durationLabel = formatSessionDurationLabel(session);
 
   return (
     <div style={{ ...styles.listRow, minWidth: 0 }}>
@@ -42,6 +43,7 @@ export function WorkoutSessionCard({
 
         <div style={{ opacity: 0.85, fontSize: 13 }}>
           {session.exercises.length} exercise{session.exercises.length === 1 ? "" : "s"}
+          {durationLabel ? ` · ${durationLabel}` : ""}
           {planName ? ` · from ${planName}` : ""}
         </div>
 
@@ -62,6 +64,11 @@ export function WorkoutSessionCard({
             {session.notes && (
               <div style={{ fontSize: 13, opacity: 0.85, whiteSpace: "pre-wrap" }}>
                 {session.notes}
+              </div>
+            )}
+            {session.completedAtIso && (
+              <div style={{ fontSize: 13, opacity: 0.75 }}>
+                Logged {new Date(session.completedAtIso).toLocaleString()}
               </div>
             )}
           </div>

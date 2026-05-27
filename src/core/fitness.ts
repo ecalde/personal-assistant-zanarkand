@@ -28,6 +28,8 @@ export type WorkoutFocusFilter = WorkoutFocus | "all";
 export type WorkoutWeekSummary = {
   count: number;
   byFocus: Partial<Record<WorkoutFocus, number>>;
+  totalDurationMinutes: number;
+  sessionsWithDuration: number;
 };
 
 const WORKOUT_FOCUSES: WorkoutFocus[] = [
@@ -97,6 +99,19 @@ export function formatSessionHeadline(session: WorkoutSession): string {
     return `${focusLabel} · ${exercisePart} +${session.exercises.length - 1} more`;
   }
   return `${focusLabel} · ${exercisePart}`;
+}
+
+export function sumSessionDurationMinutes(sessions: WorkoutSession[]): number {
+  return sessions.reduce((sum, session) => sum + (session.durationMinutes ?? 0), 0);
+}
+
+export function countSessionsWithDuration(sessions: WorkoutSession[]): number {
+  return sessions.filter((session) => session.durationMinutes !== undefined).length;
+}
+
+export function formatSessionDurationLabel(session: WorkoutSession): string | undefined {
+  if (session.durationMinutes === undefined) return undefined;
+  return `${session.durationMinutes} min`;
 }
 
 function normalizeQuery(query: string): string {
@@ -239,6 +254,8 @@ export function buildWorkoutWeekSummary(
   return {
     count: inWeek.length,
     byFocus,
+    totalDurationMinutes: sumSessionDurationMinutes(inWeek),
+    sessionsWithDuration: countSessionsWithDuration(inWeek),
   };
 }
 

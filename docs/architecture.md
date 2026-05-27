@@ -146,9 +146,9 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 ### Fitness domain
 
 - **`WorkoutPlan`** records store a reusable template: name, optional focus (`push`, `pull`, `legs`, `full_body`, `cardio`, `mobility`), notes, and embedded **`ExerciseEntry[]`** (name, sets, reps, weight, notes).
-- **`WorkoutSession`** records store a completed workout: date (`YYYY-MM-DD`), optional focus, optional `planId` link, notes, and embedded exercise entries (copied from a plan or entered manually).
+- **`WorkoutSession`** records store a completed workout: date (`YYYY-MM-DD`), optional focus, optional `planId` link, optional `durationMinutes` (positive integer), optional `completedAtIso` (set automatically when logging a new session), notes, and embedded exercise entries (copied from a plan or entered manually).
 - Exercises are embedded in plans/sessions as jsonb arrays (no separate exercise catalog table in v1).
-- Pure helpers in [`fitness.ts`](../src/core/fitness.ts): focus labels, search/sort, week summary, plan→session copy (`createSessionDraftFromPlan`), recent exercise name collection for form autocomplete.
+- Pure helpers in [`fitness.ts`](../src/core/fitness.ts): focus labels, search/sort, week summary (including optional duration totals), plan→session copy (`createSessionDraftFromPlan`), recent exercise name collection for form autocomplete.
 - Deleting a plan clears `planId` on linked sessions in the same `commit` (mirrors person unlink on events).
 - Future phases (not implemented): calorie tracker, supplement tracker, plan scheduling, PR analytics — see Phase 13 plan deferred items.
 

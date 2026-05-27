@@ -494,6 +494,27 @@ describe("workout mappers", () => {
     expect(workoutSessionFromRow(row)).toEqual(session);
   });
 
+  it("round-trips workout session with metadata", () => {
+    const session = sampleWorkoutSession({
+      durationMinutes: 45,
+      completedAtIso: NOW,
+    });
+    const row = workoutSessionToRow(session, USER_ID);
+    expect(workoutSessionFromRow(row)).toEqual(session);
+  });
+
+  it("rejects invalid session duration", () => {
+    expect(() =>
+      workoutSessionToRow(sampleWorkoutSession({ durationMinutes: 0 }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects invalid completedAtIso", () => {
+    expect(() =>
+      workoutSessionToRow(sampleWorkoutSession({ completedAtIso: "not-a-date" }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
   it("parses exercise entries", () => {
     const entries = parseExerciseEntries(
       [{ id: EXERCISE_ID, name: "Squat", sets: 5, reps: 5, weight: 225 }],

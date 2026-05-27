@@ -176,6 +176,8 @@ export type WorkoutSessionRow = {
   plan_id: string | null;
   exercises: unknown;
   notes: string | null;
+  duration_minutes: number | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -707,6 +709,15 @@ export function assertValidWorkoutSession(session: WorkoutSession): void {
   if (session.notes !== undefined && typeof session.notes !== "string") {
     throw new MapperError("Invalid workoutSession.notes", "workoutSession.notes");
   }
+  if (session.durationMinutes !== undefined && !isPositiveInteger(session.durationMinutes)) {
+    throw new MapperError(
+      "Invalid workoutSession.durationMinutes",
+      "workoutSession.durationMinutes"
+    );
+  }
+  if (session.completedAtIso !== undefined) {
+    assertIsoTimestamp(session.completedAtIso, "workoutSession.completedAtIso");
+  }
 }
 
 export function skillToRow(skill: Skill, userId: string): SkillRow {
@@ -1166,6 +1177,8 @@ export function workoutSessionToRow(session: WorkoutSession, userId: string): Wo
     plan_id: session.planId ?? null,
     exercises: session.exercises,
     notes: session.notes?.trim() || null,
+    duration_minutes: session.durationMinutes ?? null,
+    completed_at: session.completedAtIso ?? null,
     created_at: session.createdAtIso,
     updated_at: session.updatedAtIso,
   };
@@ -1205,6 +1218,19 @@ export function workoutSessionFromRow(row: WorkoutSessionRow): WorkoutSession {
   if (row.plan_id !== null) session.planId = row.plan_id;
   if (row.notes !== null && row.notes.trim().length > 0) {
     session.notes = row.notes.trim();
+  }
+  if (row.duration_minutes !== null) {
+    if (!isPositiveInteger(row.duration_minutes)) {
+      throw new MapperError(
+        "Invalid workout_sessions.duration_minutes",
+        "workout_sessions.duration_minutes"
+      );
+    }
+    session.durationMinutes = row.duration_minutes;
+  }
+  if (row.completed_at !== null) {
+    assertIsoTimestamp(row.completed_at, "workout_sessions.completed_at");
+    session.completedAtIso = row.completed_at;
   }
 
   return session;

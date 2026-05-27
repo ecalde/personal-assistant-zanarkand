@@ -157,6 +157,7 @@ export default function FitnessPage({
       date: draft.date,
       focus: draft.focus ?? "",
       planId: draft.planId ?? "",
+      durationMinutes: "",
       notes: draft.notes ?? "",
       exercises: draft.exercises.map((entry) => ({
         id: entry.id,

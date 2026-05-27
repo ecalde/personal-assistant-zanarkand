@@ -164,6 +164,8 @@ export type WorkoutSession = {
   planId?: string;
   exercises: ExerciseEntry[];
   notes?: string;
+  durationMinutes?: number;
+  completedAtIso?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };

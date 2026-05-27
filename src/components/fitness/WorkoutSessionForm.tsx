@@ -79,6 +79,16 @@ export function WorkoutSessionForm({
         )}
 
         <label style={styles.label}>
+          Duration in minutes (optional)
+          <input
+            value={form.durationMinutes}
+            onChange={(e) => onChange({ ...form, durationMinutes: e.target.value })}
+            placeholder="45"
+            style={styles.input}
+          />
+        </label>
+
+        <label style={styles.label}>
           Notes (optional)
           <textarea
             value={form.notes}

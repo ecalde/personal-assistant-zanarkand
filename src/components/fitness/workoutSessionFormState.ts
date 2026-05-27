@@ -9,6 +9,7 @@ export type WorkoutSessionFormState = {
   date: string;
   focus: WorkoutFocus | "";
   planId: string;
+  durationMinutes: string;
   notes: string;
   exercises: ExerciseEntryFormRow[];
 };
@@ -18,6 +19,7 @@ export function emptyWorkoutSessionFormState(dateKey: string): WorkoutSessionFor
     date: dateKey,
     focus: "",
     planId: "",
+    durationMinutes: "",
     notes: "",
     exercises: [emptyExerciseEntryFormRow()],
   };
@@ -39,6 +41,8 @@ export function workoutSessionFormFromSession(session: WorkoutSession): WorkoutS
     date: session.date,
     focus: session.focus ?? "",
     planId: session.planId ?? "",
+    durationMinutes:
+      session.durationMinutes !== undefined ? String(session.durationMinutes) : "",
     notes: session.notes ?? "",
     exercises: session.exercises.map(exerciseFormFromEntry),
   };
@@ -96,6 +100,9 @@ export function validateWorkoutSessionForm(form: WorkoutSessionFormState): strin
     return "Invalid workout focus.";
   }
 
+  const durationMinutes = parsePositiveIntField(form.durationMinutes, "Duration");
+  if (typeof durationMinutes === "string") return durationMinutes;
+
   const validRows = form.exercises.filter((row) => row.name.trim());
   if (validRows.length === 0) {
     return "Add at least one exercise with a name.";
@@ -125,6 +132,12 @@ export function workoutSessionPayloadFromForm(
   if (form.focus) payload.focus = form.focus;
   if (form.planId) payload.planId = form.planId;
   if (form.notes.trim()) payload.notes = form.notes.trim();
+  if (form.durationMinutes.trim()) {
+    const durationMinutes = parsePositiveIntField(form.durationMinutes, "Duration");
+    if (typeof durationMinutes === "number") {
+      payload.durationMinutes = durationMinutes;
+    }
+  }
 
   return payload;
 }

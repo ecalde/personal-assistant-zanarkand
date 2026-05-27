@@ -1,6 +1,7 @@
 import {
   buildRecentSessions,
   buildWorkoutWeekSummary,
+  formatSessionDurationLabel,
   formatSessionHeadline,
   formatWorkoutFocus,
   getLastSession,
@@ -60,6 +61,9 @@ export function FitnessSummarySection({
 
       <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
         {weekSummary.count} session{weekSummary.count === 1 ? "" : "s"} logged this week
+        {weekSummary.totalDurationMinutes > 0
+          ? ` · ${weekSummary.totalDurationMinutes} min total`
+          : ""}
         {workoutPlans.length > 0
           ? ` · ${workoutPlans.length} saved plan${workoutPlans.length === 1 ? "" : "s"}`
           : ""}
@@ -70,6 +74,10 @@ export function FitnessSummarySection({
         <p style={{ margin: "0 0 12px 0", opacity: 0.9 }}>
           Last workout: {formatWorkoutDate(lastSession.date)}
           {lastSession.focus ? ` · ${formatWorkoutFocus(lastSession.focus)}` : ""}
+          {(() => {
+            const duration = formatSessionDurationLabel(lastSession);
+            return duration ? ` · ${duration}` : "";
+          })()}
           {" · "}
           {formatSessionHeadline(lastSession)}
         </p>

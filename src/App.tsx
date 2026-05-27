@@ -789,6 +789,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       id: id(),
       date: input.date,
       exercises: input.exercises.map((entry) => ({ ...entry })),
+      completedAtIso: now,
       createdAtIso: now,
       updatedAtIso: now,
     };
@@ -796,6 +797,9 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (input.focus) newSession.focus = input.focus;
     if (input.planId) newSession.planId = input.planId;
     if (input.notes?.trim()) newSession.notes = input.notes.trim();
+    if (input.durationMinutes !== undefined) {
+      newSession.durationMinutes = input.durationMinutes;
+    }
 
     commit({
       ...app,
@@ -832,6 +836,16 @@ export default function App({ userId, onSignOut }: AppProps) {
       nextSession.notes = updated.notes.trim();
     } else {
       delete nextSession.notes;
+    }
+    if (updated.durationMinutes !== undefined) {
+      nextSession.durationMinutes = updated.durationMinutes;
+    } else {
+      delete nextSession.durationMinutes;
+    }
+    if (updated.completedAtIso) {
+      nextSession.completedAtIso = updated.completedAtIso;
+    } else {
+      delete nextSession.completedAtIso;
     }
 
     const workoutSessions = (app.payload.workoutSessions ?? []).map((session) =>

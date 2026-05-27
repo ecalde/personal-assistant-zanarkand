@@ -8,10 +8,12 @@ import {
   filterAndSortPlans,
   filterAndSortSessions,
   formatExerciseSummary,
+  formatSessionDurationLabel,
   formatSessionHeadline,
   formatWorkoutFocus,
   planMatchesQuery,
   sessionMatchesQuery,
+  sumSessionDurationMinutes,
 } from "./fitness";
 
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
@@ -142,6 +144,19 @@ describe("buildWorkoutWeekSummary", () => {
     expect(summary.count).toBe(2);
     expect(summary.byFocus.push).toBe(1);
     expect(summary.byFocus.legs).toBe(1);
+    expect(summary.totalDurationMinutes).toBe(0);
+    expect(summary.sessionsWithDuration).toBe(0);
+  });
+
+  it("sums duration minutes for sessions in the current week", () => {
+    const sessions = [
+      sampleWorkoutSession({ id: "1", date: "2026-05-26", durationMinutes: 45 }),
+      sampleWorkoutSession({ id: "2", date: "2026-05-25", durationMinutes: 30 }),
+      sampleWorkoutSession({ id: "3", date: "2026-05-18", durationMinutes: 60 }),
+    ];
+    const summary = buildWorkoutWeekSummary(sessions, "2026-05-26");
+    expect(summary.totalDurationMinutes).toBe(75);
+    expect(summary.sessionsWithDuration).toBe(2);
   });
 });
 
@@ -169,5 +184,23 @@ describe("buildRecentSessions", () => {
     ];
     const recent = buildRecentSessions(sessions, 1);
     expect(recent[0]?.date).toBe("2026-05-26");
+  });
+});
+
+describe("session duration helpers", () => {
+  it("sums session duration minutes", () => {
+    const sessions = [
+      sampleWorkoutSession({ id: "1", durationMinutes: 45 }),
+      sampleWorkoutSession({ id: "2" }),
+      sampleWorkoutSession({ id: "3", durationMinutes: 30 }),
+    ];
+    expect(sumSessionDurationMinutes(sessions)).toBe(75);
+  });
+
+  it("formats session duration label", () => {
+    expect(formatSessionDurationLabel(sampleWorkoutSession({ durationMinutes: 45 }))).toBe(
+      "45 min"
+    );
+    expect(formatSessionDurationLabel(sampleWorkoutSession())).toBeUndefined();
   });
 });
