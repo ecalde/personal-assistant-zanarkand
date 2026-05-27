@@ -19,6 +19,8 @@ import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule, weekdayLabel } from "./core/state";
 import { parseDurationToMinutes } from "./core/duration";
+import { AppShell } from "./components/layout/AppShell";
+import type { Page } from "./pages/types";
 import { fullViewportCenter, styles } from "./ui/appStyles";
 import { formatLocal, formatTimeOnly, priorityEmoji } from "./ui/format";
 
@@ -27,8 +29,6 @@ const REMOTE_DEBOUNCE_MS = 400;
 function id() {
   return crypto.randomUUID();
 }
-
-type Page = "dashboard" | "skills";
 
 const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -281,108 +281,41 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   return (
-    <div style={styles.shell}>
-      <header style={styles.header}>
-        <div>
-          <div style={styles.title}>Personal Assistant</div>
-          <div style={styles.sub}>
-            Last saved: <b>{lastSavedLabel}</b>
-            {syncPending && (
-              <>
-                {" "}
-                · <span>Saving to cloud…</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div style={styles.actions}>
-          {onSignOut && (
-            <button type="button" onClick={onSignOut}>
-              Sign out
-            </button>
-          )}
-          <button onClick={onSaveNow}>Save Now</button>
-          <button onClick={onExport}>Export Backup</button>
-          <button onClick={() => fileRef.current?.click()}>Import Backup</button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json"
-            style={{ display: "none" }}
-            onChange={onPickImportFile}
-          />
-        </div>
-      </header>
-
-      {error && (
-        <div style={styles.errorBox}>
-          <b>Error:</b> {error}
-        </div>
-      )}
-
-      {syncError && (
-        <div style={styles.errorBox}>
-          <b>Cloud save failed:</b> {syncError}{" "}
-          <button type="button" onClick={() => void onRetryCloudSave()}>
-            Retry cloud save
-          </button>
-        </div>
-      )}
-
-      <nav style={styles.nav}>
-        <NavButton active={page === "dashboard"} onClick={() => setPage("dashboard")}>
-          Dashboard
-        </NavButton>
-        <NavButton active={page === "skills"} onClick={() => setPage("skills")}>
-          Skills
-        </NavButton>
-      </nav>
-
-      <main style={styles.main}>
-        {page === "dashboard" && (
-          <Dashboard
-            skills={app.payload.skills}
-            sessions={app.payload.sessions ?? []}
-            onAddSession={addSession}
-          />
-        )}
-
-        {page === "skills" && (
-          <SkillsPage
-            skills={app.payload.skills}
-            sessions={app.payload.sessions}
-            onAdd={addSkill}
-            onUpdate={updateSkill}
-            onDelete={deleteSkill}
-            onAddSession={addSession}
-            onDeleteSession={deleteSession}
-          />
-        )}
-      </main>
-    </div>
-  );
-}
-
-function NavButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...styles.navBtn,
-        ...(active ? styles.navBtnActive : {}),
-      }}
+    <AppShell
+      lastSavedLabel={lastSavedLabel}
+      syncPending={syncPending}
+      onSignOut={onSignOut}
+      onSaveNow={onSaveNow}
+      onExport={onExport}
+      onImportClick={() => fileRef.current?.click()}
+      fileInputRef={fileRef}
+      onPickImportFile={onPickImportFile}
+      error={error}
+      syncError={syncError}
+      onRetryCloudSave={onRetryCloudSave}
+      page={page}
+      onPageChange={setPage}
     >
-      {children}
-    </button>
+      {page === "dashboard" && (
+        <Dashboard
+          skills={app.payload.skills}
+          sessions={app.payload.sessions ?? []}
+          onAddSession={addSession}
+        />
+      )}
+
+      {page === "skills" && (
+        <SkillsPage
+          skills={app.payload.skills}
+          sessions={app.payload.sessions}
+          onAdd={addSkill}
+          onUpdate={updateSkill}
+          onDelete={deleteSkill}
+          onAddSession={addSession}
+          onDeleteSession={deleteSession}
+        />
+      )}
+    </AppShell>
   );
 }
 
