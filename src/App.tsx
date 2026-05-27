@@ -11,8 +11,8 @@ import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/sto
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
 import DashboardPage from "./pages/DashboardPage";
-import EventsPage from "./pages/EventsPage";
-import PeoplePage from "./pages/PeoplePage";
+import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
+import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
@@ -59,6 +59,8 @@ export default function App({ userId, onSignOut }: AppProps) {
   const [syncPending, setSyncPending] = useState(false);
 
   const [page, setPage] = useState<Page>("dashboard");
+  const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
+  const [eventDraftKey, setEventDraftKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -494,6 +496,22 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, people, events } });
   }
 
+  function openLinkedEventDraft(personId: string, preset: LinkedEventPreset) {
+    setEventDraft({
+      personId,
+      type: preset.type,
+      title: preset.title,
+      date: preset.date,
+      useCustomPersonName: false,
+    });
+    setEventDraftKey((current) => current + 1);
+    setPage("events");
+  }
+
+  const handleEventDraftConsumed = useCallback(() => {
+    setEventDraft(null);
+  }, []);
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -558,8 +576,11 @@ export default function App({ userId, onSignOut }: AppProps) {
 
       {page === "events" && (
         <EventsPage
+          key={eventDraft ? `draft-${eventDraftKey}` : "events"}
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
+          initialDraft={eventDraft}
+          onDraftConsumed={handleEventDraftConsumed}
           onAdd={addEvent}
           onUpdate={updateEvent}
           onDelete={deleteEvent}
@@ -573,6 +594,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onAdd={addPerson}
           onUpdate={updatePerson}
           onDelete={deletePerson}
+          onCreateLinkedEvent={openLinkedEventDraft}
         />
       )}
     </AppShell>

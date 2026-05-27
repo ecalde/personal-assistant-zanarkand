@@ -180,3 +180,141 @@ export function sortPeopleByUpcomingBirthday(
     return a.name.localeCompare(b.name);
   });
 }
+
+export type PersonBirthdayStatus = {
+  nextDateKey: string;
+  daysUntil: number;
+  urgencyLabel: UpcomingEventUrgencyLabel;
+} | null;
+
+export type PersonFollowUpStatus = {
+  daysSinceContact: number;
+  cadenceDays: number;
+  daysOverdue: number;
+  needsFollowUp: boolean;
+} | null;
+
+export type PeopleSortMode = "name" | "birthday" | "followUp" | "recentContact";
+
+const SEARCHABLE_FIELDS: (keyof Person)[] = [
+  "name",
+  "nickname",
+  "relationship",
+  "likes",
+  "dislikes",
+  "giftIdeas",
+  "notes",
+];
+
+export function personMatchesQuery(person: Person, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+
+  return SEARCHABLE_FIELDS.some((field) => {
+    const value = person[field];
+    return typeof value === "string" && value.toLowerCase().includes(normalized);
+  });
+}
+
+export function filterPeopleByQuery(people: Person[], query: string): Person[] {
+  const normalized = query.trim();
+  if (!normalized) return [...people];
+  return people.filter((person) => personMatchesQuery(person, normalized));
+}
+
+export function getPersonBirthdayStatus(
+  person: Person,
+  todayKey: string
+): PersonBirthdayStatus {
+  const nextDateKey = getNextBirthdayDateKey(person, todayKey);
+  if (!nextDateKey) return null;
+
+  const daysUntil = daysBetweenDateKeys(todayKey, nextDateKey);
+  if (daysUntil === null || daysUntil < 0) return null;
+
+  return {
+    nextDateKey,
+    daysUntil,
+    urgencyLabel: formatUpcomingEventUrgencyLabel(daysUntil),
+  };
+}
+
+export function getPersonFollowUpStatus(
+  person: Person,
+  todayKey: string
+): PersonFollowUpStatus {
+  if (!person.lastContactDate || !person.contactCadenceDays) return null;
+
+  const daysSinceContact = daysBetweenDateKeys(person.lastContactDate, todayKey);
+  if (daysSinceContact === null) return null;
+
+  const daysOverdue = Math.max(0, daysSinceContact - person.contactCadenceDays);
+
+  return {
+    daysSinceContact,
+    cadenceDays: person.contactCadenceDays,
+    daysOverdue,
+    needsFollowUp: daysSinceContact >= person.contactCadenceDays,
+  };
+}
+
+function followUpSortKey(person: Person, todayKey: string): [number, number, string] {
+  const status = getPersonFollowUpStatus(person, todayKey);
+  if (!status) return [2, Number.MAX_SAFE_INTEGER, person.name];
+
+  if (status.needsFollowUp) {
+    return [0, -status.daysOverdue, person.name];
+  }
+
+  const daysUntilDue = status.cadenceDays - status.daysSinceContact;
+  return [1, daysUntilDue, person.name];
+}
+
+export function sortPeopleByFollowUpPriority(
+  people: Person[],
+  todayKey: string
+): Person[] {
+  return [...people].sort((a, b) => {
+    const keyA = followUpSortKey(a, todayKey);
+    const keyB = followUpSortKey(b, todayKey);
+    if (keyA[0] !== keyB[0]) return keyA[0] - keyB[0];
+    if (keyA[1] !== keyB[1]) return keyA[1] - keyB[1];
+    return keyA[2].localeCompare(keyB[2]);
+  });
+}
+
+export function sortPeopleByRecentContact(people: Person[]): Person[] {
+  return [...people].sort((a, b) => {
+    const aDate = a.lastContactDate;
+    const bDate = b.lastContactDate;
+    if (aDate && bDate) {
+      const byDate = bDate.localeCompare(aDate);
+      if (byDate !== 0) return byDate;
+    }
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+export function sortPeople(people: Person[], sortMode: PeopleSortMode, todayKey: string): Person[] {
+  switch (sortMode) {
+    case "birthday":
+      return sortPeopleByUpcomingBirthday(people, todayKey);
+    case "followUp":
+      return sortPeopleByFollowUpPriority(people, todayKey);
+    case "recentContact":
+      return sortPeopleByRecentContact(people);
+    case "name":
+    default:
+      return sortPeopleByName(people);
+  }
+}
+
+export function filterAndSortPeople(
+  people: Person[],
+  opts: { query?: string; sortMode: PeopleSortMode; todayKey: string }
+): Person[] {
+  const filtered = filterPeopleByQuery(people, opts.query ?? "");
+  return sortPeople(filtered, opts.sortMode, opts.todayKey);
+}

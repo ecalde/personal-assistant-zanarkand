@@ -5,8 +5,15 @@ import {
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
   eventsForPerson,
+  filterAndSortPeople,
+  filterPeopleByQuery,
   getNextBirthdayDateKey,
+  getPersonBirthdayStatus,
+  getPersonFollowUpStatus,
+  personMatchesQuery,
   resolveEventPersonLabel,
+  sortPeopleByFollowUpPriority,
+  sortPeopleByRecentContact,
   sortPeopleByUpcomingBirthday,
 } from "./people";
 
@@ -176,5 +183,118 @@ describe("sortPeopleByUpcomingBirthday", () => {
       "2026-05-26"
     );
     expect(sorted[0]?.name).toBe("Alex");
+  });
+});
+
+describe("personMatchesQuery and filterPeopleByQuery", () => {
+  it("matches searchable fields case-insensitively", () => {
+    const person = samplePerson({ notes: "Met at work conference" });
+    expect(personMatchesQuery(person, "WORK")).toBe(true);
+    expect(personMatchesQuery(person, "family")).toBe(false);
+  });
+
+  it("returns all people for empty query", () => {
+    const people = [samplePerson(), samplePerson({ id: "b", name: "Blake" })];
+    expect(filterPeopleByQuery(people, "")).toHaveLength(2);
+    expect(filterPeopleByQuery(people, "   ")).toHaveLength(2);
+  });
+});
+
+describe("sortPeopleByFollowUpPriority", () => {
+  it("orders overdue before not-due before no-metadata", () => {
+    const people = [
+      samplePerson({
+        id: "c",
+        name: "Casey",
+        lastContactDate: undefined,
+        contactCadenceDays: undefined,
+      }),
+      samplePerson({
+        id: "b",
+        name: "Blake",
+        lastContactDate: "2026-05-20",
+        contactCadenceDays: 14,
+      }),
+      samplePerson({
+        id: "a",
+        name: "Alex",
+        lastContactDate: "2026-05-01",
+        contactCadenceDays: 14,
+      }),
+    ];
+
+    const sorted = sortPeopleByFollowUpPriority(people, "2026-05-26");
+    expect(sorted.map((p) => p.name)).toEqual(["Alex", "Blake", "Casey"]);
+  });
+});
+
+describe("sortPeopleByRecentContact", () => {
+  it("orders by lastContactDate desc with missing dates last", () => {
+    const people = [
+      samplePerson({ id: "c", name: "Casey", lastContactDate: undefined }),
+      samplePerson({ id: "a", name: "Alex", lastContactDate: "2026-05-01" }),
+      samplePerson({ id: "b", name: "Blake", lastContactDate: "2026-05-20" }),
+    ];
+
+    const sorted = sortPeopleByRecentContact(people);
+    expect(sorted.map((p) => p.name)).toEqual(["Blake", "Alex", "Casey"]);
+  });
+});
+
+describe("getPersonBirthdayStatus", () => {
+  it("returns urgency for upcoming birthday", () => {
+    const status = getPersonBirthdayStatus(samplePerson(), "2026-05-26");
+    expect(status?.nextDateKey).toBe("2026-06-15");
+    expect(status?.urgencyLabel).toBe("In 20 days");
+  });
+
+  it("returns null when no birthday", () => {
+    expect(getPersonBirthdayStatus(samplePerson({ birthdayMonthDay: undefined }), "2026-05-26")).toBe(
+      null
+    );
+  });
+});
+
+describe("getPersonFollowUpStatus", () => {
+  it("marks overdue contacts", () => {
+    const status = getPersonFollowUpStatus(samplePerson(), "2026-05-26");
+    expect(status?.needsFollowUp).toBe(true);
+    expect(status?.daysOverdue).toBe(11);
+  });
+
+  it("returns not overdue exactly on cadence day", () => {
+    const status = getPersonFollowUpStatus(
+      samplePerson({ lastContactDate: "2026-05-12", contactCadenceDays: 14 }),
+      "2026-05-26"
+    );
+    expect(status?.needsFollowUp).toBe(true);
+    expect(status?.daysOverdue).toBe(0);
+  });
+
+  it("returns null without tracking fields", () => {
+    expect(
+      getPersonFollowUpStatus(
+        samplePerson({ lastContactDate: undefined, contactCadenceDays: undefined }),
+        "2026-05-26"
+      )
+    ).toBe(null);
+  });
+});
+
+describe("filterAndSortPeople", () => {
+  it("filters then sorts", () => {
+    const people = [
+      samplePerson({ id: "a", name: "Alex", likes: "Coffee" }),
+      samplePerson({ id: "b", name: "Blake", likes: "Tea" }),
+    ];
+
+    const result = filterAndSortPeople(people, {
+      query: "tea",
+      sortMode: "name",
+      todayKey: "2026-05-26",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe("Blake");
   });
 });

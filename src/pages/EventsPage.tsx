@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { partitionEventsByToday } from "../core/events";
 import { buildPeopleById, resolveEventPersonLabel } from "../core/people";
 import { parseHHMMToMinutes } from "../core/schedule";
@@ -8,9 +8,24 @@ import { styles } from "../ui/appStyles";
 export type EventsPageProps = {
   events: LifeEvent[];
   people: Person[];
+  initialDraft?: EventFormDraft | null;
+  onDraftConsumed?: () => void;
   onAdd: (input: Omit<LifeEvent, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdate: (event: LifeEvent) => void;
   onDelete: (eventId: string) => void;
+};
+
+export type EventFormDraft = {
+  title?: string;
+  date?: string;
+  type?: EventType;
+  personId?: string;
+  personName?: string;
+  useCustomPersonName?: boolean;
+  notes?: string;
+  reminder?: boolean;
+  startTime?: string;
+  endTime?: string;
 };
 
 const EVENT_TYPES: EventType[] = [
@@ -62,6 +77,23 @@ function emptyFormState(): EventFormState {
     useCustomPersonName: false,
     notes: "",
     reminder: false,
+  };
+}
+
+function formFromDraft(draft: EventFormDraft): EventFormState {
+  return {
+    ...emptyFormState(),
+    ...draft,
+    startTime: draft.startTime ?? "",
+    endTime: draft.endTime ?? "",
+    personId: draft.personId ?? "",
+    personName: draft.personName ?? "",
+    useCustomPersonName: draft.useCustomPersonName ?? false,
+    notes: draft.notes ?? "",
+    reminder: draft.reminder ?? false,
+    date: draft.date ?? todayIsoDate(),
+    type: draft.type ?? "other",
+    title: draft.title ?? "",
   };
 }
 
@@ -136,10 +168,20 @@ function EventRow({
   );
 }
 
-export default function EventsPage({ events, people, onAdd, onUpdate, onDelete }: EventsPageProps) {
-  const [showForm, setShowForm] = useState(false);
+export default function EventsPage({
+  events,
+  people,
+  initialDraft = null,
+  onDraftConsumed,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: EventsPageProps) {
+  const [showForm, setShowForm] = useState(() => Boolean(initialDraft));
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<EventFormState>(emptyFormState);
+  const [form, setForm] = useState<EventFormState>(() =>
+    initialDraft ? formFromDraft(initialDraft) : emptyFormState()
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
   const today = todayIsoDate();
@@ -148,6 +190,11 @@ export default function EventsPage({ events, people, onAdd, onUpdate, onDelete }
     () => [...people].sort((a, b) => a.name.localeCompare(b.name)),
     [people]
   );
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    onDraftConsumed?.();
+  }, [initialDraft, onDraftConsumed]);
 
   const { upcoming, past } = useMemo(
     () => partitionEventsByToday(events, today),
