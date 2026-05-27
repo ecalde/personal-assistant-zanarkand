@@ -2,6 +2,8 @@
 
 import { supabase } from "../lib/supabaseClient";
 import type { AppPayload } from "./model";
+import { defaultPayload } from "./state";
+import { nowIso, saveAppData, type AppData } from "./storage";
 import {
   MapperError,
   isUuid,
@@ -146,4 +148,46 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("sessions", userId, sessionIds);
   await deleteRowsNotIn("skills", userId, skillIds);
   await deleteRowsNotIn("overrides", userId, overrideIds);
+}
+
+export function payloadHasData(payload: AppPayload): boolean {
+  return (
+    payload.skills.length > 0 ||
+    payload.sessions.length > 0 ||
+    payload.overrides.length > 0
+  );
+}
+
+/**
+ * Initial sync: remote wins when populated; otherwise upload local if non-empty;
+ * otherwise empty default. Always persists to user-scoped localStorage.
+ */
+export async function initialSync(
+  userId: string,
+  localLoader: () => AppData
+): Promise<AppData> {
+  assertUserId(userId);
+
+  if (!isRemoteSyncEnabled()) {
+    return saveAppData(localLoader(), userId);
+  }
+
+  const remote = await fetchRemotePayload(userId);
+  if (payloadHasData(remote)) {
+    return saveAppData(
+      { version: 1, updatedAtIso: nowIso(), payload: remote },
+      userId
+    );
+  }
+
+  const local = localLoader();
+  if (payloadHasData(local.payload)) {
+    await replaceRemotePayload(userId, local.payload);
+    return saveAppData(local, userId);
+  }
+
+  return saveAppData(
+    { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() },
+    userId
+  );
 }
