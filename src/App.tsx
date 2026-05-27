@@ -41,9 +41,10 @@ export default function App({ userId, onSignOut }: AppProps) {
   const syncReadyRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const updatedAtIso = app?.updatedAtIso;
   const lastSavedLabel = useMemo(
-    () => (app ? formatLocal(app.updatedAtIso) : ""),
-    [app?.updatedAtIso]
+    () => (updatedAtIso ? formatLocal(updatedAtIso) : ""),
+    [updatedAtIso]
   );
 
   const clearDebounce = useCallback(() => {
