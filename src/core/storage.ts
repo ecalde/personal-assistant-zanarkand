@@ -9,10 +9,21 @@ export type AppData = {
     payload: AppPayload;
 };
 
-const STORAGE_KEY = "pa.appData.v1";
+const LEGACY_STORAGE_KEY = "pa.appData.v1";
 
 export function nowIso() {
     return new Date().toISOString();
+}
+
+function storageKey(userId?: string): string {
+    if (!userId) {
+        return LEGACY_STORAGE_KEY;
+    }
+    return `${LEGACY_STORAGE_KEY}.${userId}`;
+}
+
+function defaultAppData(): AppData {
+    return { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() };
 }
 
 function normalizePayload(payload: unknown): AppPayload {
@@ -20,7 +31,7 @@ function normalizePayload(payload: unknown): AppPayload {
 
     if (!payload || typeof payload !== "object") return base;
 
-    const p = payload as any;
+    const p = payload as Record<string, unknown>;
 
     return {
         ...base,
@@ -31,44 +42,66 @@ function normalizePayload(payload: unknown): AppPayload {
     };
 }
 
-// Load app data from localStorage, or return default if none exists
-export function loadAppData(): AppData {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-        return { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() };
-    }
-
+function parseStoredAppData(raw: string): AppData | null {
     try {
         const parsed = JSON.parse(raw) as Partial<AppData>;
 
         const isValid =
-        parsed &&
-        parsed.version === 1 &&
-        typeof parsed.updatedAtIso === "string";
+            parsed &&
+            parsed.version === 1 &&
+            typeof parsed.updatedAtIso === "string";
 
         if (!isValid) {
-        return { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() };
+            return null;
         }
 
         return {
             version: 1,
-            updatedAtIso: (typeof parsed.updatedAtIso === "string" ? parsed.updatedAtIso : nowIso()),
+            updatedAtIso:
+                typeof parsed.updatedAtIso === "string" ? parsed.updatedAtIso : nowIso(),
             payload: normalizePayload(parsed.payload),
         };
     } catch {
-        return { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() };
+        return null;
     }
 }
 
+function readAppDataFromKey(key: string): AppData | null {
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+        return null;
+    }
+    return parseStoredAppData(raw);
+}
+
+// Load app data from localStorage, or return default if none exists
+export function loadAppData(userId?: string): AppData {
+    if (userId) {
+        const namespaced = readAppDataFromKey(storageKey(userId));
+        if (namespaced) {
+            return namespaced;
+        }
+
+        const legacy = readAppDataFromKey(LEGACY_STORAGE_KEY);
+        if (legacy) {
+            return legacy;
+        }
+
+        return defaultAppData();
+    }
+
+    return readAppDataFromKey(LEGACY_STORAGE_KEY) ?? defaultAppData();
+}
+
 // Save current app data to localStorage, updating the timestamp
-export function saveAppData(data: AppData): AppData {
+export function saveAppData(data: AppData, userId?: string): AppData {
     const toSave: AppData = {
         version: 1,
         updatedAtIso: nowIso(),
         payload: normalizePayload(data.payload),
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    localStorage.setItem(storageKey(userId), JSON.stringify(toSave));
     return toSave;
 }
 
