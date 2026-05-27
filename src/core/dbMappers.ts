@@ -4,10 +4,14 @@ import { defaultWeeklySchedule } from "./state";
 import { parseHHMMToMinutes } from "./schedule";
 import type {
   AppPayload,
+  ApplicationStatus,
+  CareerTarget,
   EventType,
+  JobApplication,
   LifeEvent,
   Person,
   Priority,
+  RemotePolicy,
   ScheduleBlock,
   Session,
   Skill,
@@ -34,6 +38,19 @@ const EVENT_TYPES: EventType[] = [
 ];
 
 const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+const APPLICATION_STATUSES: ApplicationStatus[] = [
+  "saved",
+  "applied",
+  "screening",
+  "technical",
+  "onsite",
+  "offer",
+  "rejected",
+  "withdrawn",
+];
+
+const REMOTE_POLICIES: RemotePolicy[] = ["remote", "hybrid", "onsite", "unknown"];
 
 export type SkillRow = {
   id: string;
@@ -97,6 +114,36 @@ export type PersonRow = {
   updated_at: string;
 };
 
+export type JobApplicationRow = {
+  id: string;
+  user_id: string;
+  company: string;
+  role_title: string;
+  status: string;
+  salary_min: number | null;
+  salary_max: number | null;
+  location: string | null;
+  remote_policy: string | null;
+  applied_date: string | null;
+  url: string | null;
+  notes: string | null;
+  required_skill_ids: unknown;
+  required_skills_text: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CareerTargetRow = {
+  id: string;
+  user_id: string;
+  role_title: string;
+  company: string | null;
+  notes: string | null;
+  required_skill_ids: unknown;
+  required_skills_text: string | null;
+  updated_at: string;
+};
+
 export class MapperError extends Error {
   readonly field?: string;
 
@@ -147,6 +194,14 @@ export function isIsoDate(value: string): boolean {
 
 export function isEventType(value: string): value is EventType {
   return (EVENT_TYPES as string[]).includes(value);
+}
+
+export function isApplicationStatus(value: string): value is ApplicationStatus {
+  return (APPLICATION_STATUSES as string[]).includes(value);
+}
+
+export function isRemotePolicy(value: string): value is RemotePolicy {
+  return (REMOTE_POLICIES as string[]).includes(value);
 }
 
 export function isHhMm(value: string): boolean {
@@ -349,6 +404,124 @@ export function assertValidPerson(person: Person): void {
     !isPositiveInteger(person.contactCadenceDays)
   ) {
     throw new MapperError("Invalid person.contactCadenceDays", "person.contactCadenceDays");
+  }
+}
+
+function assertValidHttpUrl(url: string, field: string): void {
+  const trimmed = url.trim();
+  if (trimmed.length === 0) {
+    throw new MapperError(`Invalid URL: ${field}`, field);
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new MapperError(`Invalid URL: ${field}`, field);
+    }
+  } catch {
+    throw new MapperError(`Invalid URL: ${field}`, field);
+  }
+}
+
+export function parseRequiredSkillIds(value: unknown, field: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !isUuid(item)) {
+      throw new MapperError(`Invalid ${field}: expected UUID strings`, field);
+    }
+    if (!ids.includes(item)) {
+      ids.push(item);
+    }
+  }
+  return ids;
+}
+
+export function assertValidJobApplication(app: JobApplication): void {
+  assertUuid(app.id, "jobApplication.id");
+  assertNonEmptyName(app.company, "jobApplication.company");
+  assertNonEmptyName(app.roleTitle, "jobApplication.roleTitle");
+  assertIsoTimestamp(app.createdAtIso, "jobApplication.createdAtIso");
+  assertIsoTimestamp(app.updatedAtIso, "jobApplication.updatedAtIso");
+
+  if (!isApplicationStatus(app.status)) {
+    throw new MapperError("Invalid jobApplication.status", "jobApplication.status");
+  }
+  if (app.salaryMin !== undefined && !isPositiveInteger(app.salaryMin)) {
+    throw new MapperError("Invalid jobApplication.salaryMin", "jobApplication.salaryMin");
+  }
+  if (app.salaryMax !== undefined && !isPositiveInteger(app.salaryMax)) {
+    throw new MapperError("Invalid jobApplication.salaryMax", "jobApplication.salaryMax");
+  }
+  if (
+    app.salaryMin !== undefined &&
+    app.salaryMax !== undefined &&
+    app.salaryMax < app.salaryMin
+  ) {
+    throw new MapperError(
+      "jobApplication.salaryMax must be >= salaryMin",
+      "jobApplication.salaryMax"
+    );
+  }
+  if (app.location !== undefined && typeof app.location !== "string") {
+    throw new MapperError("Invalid jobApplication.location", "jobApplication.location");
+  }
+  if (app.remotePolicy !== undefined && !isRemotePolicy(app.remotePolicy)) {
+    throw new MapperError("Invalid jobApplication.remotePolicy", "jobApplication.remotePolicy");
+  }
+  if (app.appliedDate !== undefined) {
+    assertIsoDate(app.appliedDate, "jobApplication.appliedDate");
+  }
+  if (app.url !== undefined) {
+    assertValidHttpUrl(app.url, "jobApplication.url");
+  }
+  if (app.notes !== undefined && typeof app.notes !== "string") {
+    throw new MapperError("Invalid jobApplication.notes", "jobApplication.notes");
+  }
+  if (!Array.isArray(app.requiredSkillIds)) {
+    throw new MapperError(
+      "Invalid jobApplication.requiredSkillIds",
+      "jobApplication.requiredSkillIds"
+    );
+  }
+  for (const skillId of app.requiredSkillIds) {
+    assertUuid(skillId, "jobApplication.requiredSkillIds");
+  }
+  if (app.requiredSkillsText !== undefined && typeof app.requiredSkillsText !== "string") {
+    throw new MapperError(
+      "Invalid jobApplication.requiredSkillsText",
+      "jobApplication.requiredSkillsText"
+    );
+  }
+}
+
+export function assertValidCareerTarget(target: CareerTarget): void {
+  assertUuid(target.id, "careerTarget.id");
+  assertNonEmptyName(target.roleTitle, "careerTarget.roleTitle");
+  assertIsoTimestamp(target.updatedAtIso, "careerTarget.updatedAtIso");
+
+  if (target.company !== undefined && typeof target.company !== "string") {
+    throw new MapperError("Invalid careerTarget.company", "careerTarget.company");
+  }
+  if (target.notes !== undefined && typeof target.notes !== "string") {
+    throw new MapperError("Invalid careerTarget.notes", "careerTarget.notes");
+  }
+  if (!Array.isArray(target.requiredSkillIds)) {
+    throw new MapperError(
+      "Invalid careerTarget.requiredSkillIds",
+      "careerTarget.requiredSkillIds"
+    );
+  }
+  for (const skillId of target.requiredSkillIds) {
+    assertUuid(skillId, "careerTarget.requiredSkillIds");
+  }
+  if (target.requiredSkillsText !== undefined && typeof target.requiredSkillsText !== "string") {
+    throw new MapperError(
+      "Invalid careerTarget.requiredSkillsText",
+      "careerTarget.requiredSkillsText"
+    );
   }
 }
 
@@ -604,6 +777,148 @@ export function personFromRow(row: PersonRow): Person {
   return person;
 }
 
+export function jobApplicationToRow(app: JobApplication, userId: string): JobApplicationRow {
+  assertUuid(userId, "userId");
+  assertValidJobApplication(app);
+
+  return {
+    id: app.id,
+    user_id: userId,
+    company: app.company.trim(),
+    role_title: app.roleTitle.trim(),
+    status: app.status,
+    salary_min: app.salaryMin ?? null,
+    salary_max: app.salaryMax ?? null,
+    location: app.location?.trim() || null,
+    remote_policy: app.remotePolicy ?? null,
+    applied_date: app.appliedDate ?? null,
+    url: app.url?.trim() || null,
+    notes: app.notes?.trim() || null,
+    required_skill_ids: app.requiredSkillIds,
+    required_skills_text: app.requiredSkillsText?.trim() || null,
+    created_at: app.createdAtIso,
+    updated_at: app.updatedAtIso,
+  };
+}
+
+export function jobApplicationFromRow(row: JobApplicationRow): JobApplication {
+  assertUuid(row.id, "job_applications.id");
+  assertUuid(row.user_id, "job_applications.user_id");
+  assertNonEmptyName(row.company, "job_applications.company");
+  assertNonEmptyName(row.role_title, "job_applications.role_title");
+  assertIsoTimestamp(row.created_at, "job_applications.created_at");
+  assertIsoTimestamp(row.updated_at, "job_applications.updated_at");
+
+  if (!isApplicationStatus(row.status)) {
+    throw new MapperError("Invalid job_applications.status", "job_applications.status");
+  }
+  if (row.salary_min !== null && !isPositiveInteger(row.salary_min)) {
+    throw new MapperError("Invalid job_applications.salary_min", "job_applications.salary_min");
+  }
+  if (row.salary_max !== null && !isPositiveInteger(row.salary_max)) {
+    throw new MapperError("Invalid job_applications.salary_max", "job_applications.salary_max");
+  }
+  if (
+    row.salary_min !== null &&
+    row.salary_max !== null &&
+    row.salary_max < row.salary_min
+  ) {
+    throw new MapperError(
+      "Invalid job_applications.salary_max",
+      "job_applications.salary_max"
+    );
+  }
+  if (row.remote_policy !== null && !isRemotePolicy(row.remote_policy)) {
+    throw new MapperError(
+      "Invalid job_applications.remote_policy",
+      "job_applications.remote_policy"
+    );
+  }
+  if (row.applied_date !== null) {
+    assertIsoDate(row.applied_date, "job_applications.applied_date");
+  }
+  if (row.url !== null && row.url.trim().length > 0) {
+    assertValidHttpUrl(row.url, "job_applications.url");
+  }
+
+  const requiredSkillIds = parseRequiredSkillIds(
+    row.required_skill_ids,
+    "job_applications.required_skill_ids"
+  );
+
+  const app: JobApplication = {
+    id: row.id,
+    company: row.company.trim(),
+    roleTitle: row.role_title.trim(),
+    status: row.status,
+    requiredSkillIds,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.salary_min !== null) app.salaryMin = row.salary_min;
+  if (row.salary_max !== null) app.salaryMax = row.salary_max;
+  if (row.location !== null && row.location.trim().length > 0) {
+    app.location = row.location.trim();
+  }
+  if (row.remote_policy !== null) app.remotePolicy = row.remote_policy;
+  if (row.applied_date !== null) app.appliedDate = row.applied_date;
+  if (row.url !== null && row.url.trim().length > 0) app.url = row.url.trim();
+  if (row.notes !== null && row.notes.trim().length > 0) app.notes = row.notes.trim();
+  if (row.required_skills_text !== null && row.required_skills_text.trim().length > 0) {
+    app.requiredSkillsText = row.required_skills_text.trim();
+  }
+
+  return app;
+}
+
+export function careerTargetToRow(target: CareerTarget, userId: string): CareerTargetRow {
+  assertUuid(userId, "userId");
+  assertValidCareerTarget(target);
+
+  return {
+    id: target.id,
+    user_id: userId,
+    role_title: target.roleTitle.trim(),
+    company: target.company?.trim() || null,
+    notes: target.notes?.trim() || null,
+    required_skill_ids: target.requiredSkillIds,
+    required_skills_text: target.requiredSkillsText?.trim() || null,
+    updated_at: target.updatedAtIso,
+  };
+}
+
+export function careerTargetFromRow(row: CareerTargetRow): CareerTarget {
+  assertUuid(row.id, "career_targets.id");
+  assertUuid(row.user_id, "career_targets.user_id");
+  assertNonEmptyName(row.role_title, "career_targets.role_title");
+  assertIsoTimestamp(row.updated_at, "career_targets.updated_at");
+
+  const requiredSkillIds = parseRequiredSkillIds(
+    row.required_skill_ids,
+    "career_targets.required_skill_ids"
+  );
+
+  const target: CareerTarget = {
+    id: row.id,
+    roleTitle: row.role_title.trim(),
+    requiredSkillIds,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.company !== null && row.company.trim().length > 0) {
+    target.company = row.company.trim();
+  }
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    target.notes = row.notes.trim();
+  }
+  if (row.required_skills_text !== null && row.required_skills_text.trim().length > 0) {
+    target.requiredSkillsText = row.required_skills_text.trim();
+  }
+
+  return target;
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -695,15 +1010,34 @@ export function payloadFromRows(
   sessionRows: SessionRow[],
   overrideRows: OverrideRow[],
   eventRows: EventRow[] = [],
-  peopleRows: PersonRow[] = []
+  peopleRows: PersonRow[] = [],
+  jobApplicationRows: JobApplicationRow[] = [],
+  careerTargetRows: CareerTargetRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
   const overrides = overrideRows.map((row) => overrideFromRow(row));
   const events = eventRows.map((row) => eventFromRow(row));
   const people = peopleRows.map((row) => personFromRow(row));
+  const jobApplications = jobApplicationRows.map((row) => jobApplicationFromRow(row));
 
-  const payload: AppPayload = { skills, sessions, overrides, events, people };
+  let careerTarget: CareerTarget | undefined;
+  if (careerTargetRows.length > 0) {
+    const sorted = [...careerTargetRows].sort((a, b) =>
+      b.updated_at.localeCompare(a.updated_at)
+    );
+    careerTarget = careerTargetFromRow(sorted[0]!);
+  }
+
+  const payload: AppPayload = {
+    skills,
+    sessions,
+    overrides,
+    events,
+    people,
+    jobApplications,
+    careerTarget,
+  };
   validatePayloadForUpload(payload);
   return payload;
 }
@@ -765,6 +1099,35 @@ export function validatePayloadForUpload(payload: AppPayload): void {
         `Event references unknown person: ${event.personId}`,
         "events.personId"
       );
+    }
+  }
+
+  const applicationIds = new Set<string>();
+  for (const app of payload.jobApplications) {
+    assertValidJobApplication(app);
+    if (applicationIds.has(app.id)) {
+      throw new MapperError(`Duplicate job application id: ${app.id}`, "jobApplications.id");
+    }
+    applicationIds.add(app.id);
+    for (const skillId of app.requiredSkillIds) {
+      if (!skillIds.has(skillId)) {
+        throw new MapperError(
+          `Job application references unknown skill: ${skillId}`,
+          "jobApplications.requiredSkillIds"
+        );
+      }
+    }
+  }
+
+  if (payload.careerTarget !== undefined) {
+    assertValidCareerTarget(payload.careerTarget);
+    for (const skillId of payload.careerTarget.requiredSkillIds) {
+      if (!skillIds.has(skillId)) {
+        throw new MapperError(
+          `Career target references unknown skill: ${skillId}`,
+          "careerTarget.requiredSkillIds"
+        );
+      }
     }
   }
 }

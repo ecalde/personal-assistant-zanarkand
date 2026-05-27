@@ -24,6 +24,7 @@ export function defaultPayload(): AppPayload {
     overrides: [],
     events: [],
     people: [],
+    jobApplications: [],
   };
 }
 

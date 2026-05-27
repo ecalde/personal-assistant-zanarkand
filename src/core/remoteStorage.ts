@@ -6,22 +6,33 @@ import { defaultPayload } from "./state";
 import { nowIso, saveAppData, type AppData } from "./storage";
 import {
   MapperError,
+  careerTargetToRow,
   eventToRow,
   isUuid,
+  jobApplicationToRow,
   overrideToRow,
   payloadFromRows,
   personToRow,
   sessionToRow,
   skillToRow,
   validatePayloadForUpload,
+  type CareerTargetRow,
   type EventRow,
+  type JobApplicationRow,
   type OverrideRow,
   type PersonRow,
   type SessionRow,
   type SkillRow,
 } from "./dbMappers";
 
-type AppTable = "skills" | "sessions" | "overrides" | "events" | "people";
+type AppTable =
+  | "skills"
+  | "sessions"
+  | "overrides"
+  | "events"
+  | "people"
+  | "job_applications"
+  | "career_targets";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -88,7 +99,14 @@ function buildInList(ids: string[]): string {
 
 async function upsertRows(
   table: AppTable,
-  rows: SkillRow[] | SessionRow[] | OverrideRow[] | EventRow[] | PersonRow[]
+  rows:
+    | SkillRow[]
+    | SessionRow[]
+    | OverrideRow[]
+    | EventRow[]
+    | PersonRow[]
+    | JobApplicationRow[]
+    | CareerTargetRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -110,13 +128,15 @@ async function deleteRowsNotIn(table: AppTable, userId: string, keepIds: string[
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
     supabase.from("overrides").select("*").eq("user_id", userId),
     supabase.from("events").select("*").eq("user_id", userId),
     supabase.from("people").select("*").eq("user_id", userId),
+    supabase.from("job_applications").select("*").eq("user_id", userId),
+    supabase.from("career_targets").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -124,6 +144,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(overridesResult.error, "overrides");
   throwOnSupabaseError(eventsResult.error, "events");
   throwOnSupabaseError(peopleResult.error, "people");
+  throwOnSupabaseError(jobApplicationsResult.error, "job_applications");
+  throwOnSupabaseError(careerTargetsResult.error, "career_targets");
 
   try {
     return payloadFromRows(
@@ -131,7 +153,9 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<SessionRow>(sessionsResult.data),
       asRows<OverrideRow>(overridesResult.data),
       asRows<EventRow>(eventsResult.data),
-      asRows<PersonRow>(peopleResult.data)
+      asRows<PersonRow>(peopleResult.data),
+      asRows<JobApplicationRow>(jobApplicationsResult.data),
+      asRows<CareerTargetRow>(careerTargetsResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -152,24 +176,36 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const overrideRows = payload.overrides.map((item) => overrideToRow(item, userId));
   const peopleRows = payload.people.map((person) => personToRow(person, userId));
   const eventRows = payload.events.map((event) => eventToRow(event, userId));
+  const jobApplicationRows = payload.jobApplications.map((app) =>
+    jobApplicationToRow(app, userId)
+  );
+  const careerTargetRows = payload.careerTarget
+    ? [careerTargetToRow(payload.careerTarget, userId)]
+    : [];
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
   await upsertRows("overrides", overrideRows);
   await upsertRows("people", peopleRows);
   await upsertRows("events", eventRows);
+  await upsertRows("job_applications", jobApplicationRows);
+  await upsertRows("career_targets", careerTargetRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
   const skillIds = payload.skills.map((s) => s.id);
   const overrideIds = overrideRows.map((r) => r.id);
   const eventIds = payload.events.map((e) => e.id);
   const peopleIds = payload.people.map((p) => p.id);
+  const jobApplicationIds = payload.jobApplications.map((a) => a.id);
+  const careerTargetIds = payload.careerTarget ? [payload.careerTarget.id] : [];
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
   await deleteRowsNotIn("skills", userId, skillIds);
   await deleteRowsNotIn("overrides", userId, overrideIds);
   await deleteRowsNotIn("events", userId, eventIds);
   await deleteRowsNotIn("people", userId, peopleIds);
+  await deleteRowsNotIn("job_applications", userId, jobApplicationIds);
+  await deleteRowsNotIn("career_targets", userId, careerTargetIds);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -178,7 +214,9 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.sessions.length > 0 ||
     payload.overrides.length > 0 ||
     payload.events.length > 0 ||
-    payload.people.length > 0
+    payload.people.length > 0 ||
+    payload.jobApplications.length > 0 ||
+    payload.careerTarget !== undefined
   );
 }
 

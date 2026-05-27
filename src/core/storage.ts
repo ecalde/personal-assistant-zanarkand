@@ -41,6 +41,13 @@ function normalizePayload(payload: unknown): AppPayload {
         overrides: Array.isArray(p.overrides) ? p.overrides : [],
         events: Array.isArray(p.events) ? p.events : [],
         people: Array.isArray(p.people) ? p.people : [],
+        jobApplications: Array.isArray(p.jobApplications) ? p.jobApplications : [],
+        careerTarget:
+            p.careerTarget &&
+            typeof p.careerTarget === "object" &&
+            !Array.isArray(p.careerTarget)
+                ? (p.careerTarget as AppPayload["careerTarget"])
+                : undefined,
     };
 }
 

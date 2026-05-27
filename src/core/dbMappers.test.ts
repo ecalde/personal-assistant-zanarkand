@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { LifeEvent, Person, Session, Skill } from "./model";
+import type { CareerTarget, JobApplication, LifeEvent, Person, Session, Skill } from "./model";
 import {
   MapperError,
+  careerTargetFromRow,
+  careerTargetToRow,
   eventFromRow,
   eventToRow,
   isBirthdayMonthDay,
@@ -12,6 +14,8 @@ import {
   isPositiveInteger,
   isPriority,
   isUuid,
+  jobApplicationFromRow,
+  jobApplicationToRow,
   overrideFromRow,
   overrideToRow,
   parseWeeklySchedule,
@@ -32,6 +36,8 @@ const BLOCK_ID = "44444444-4444-4444-8444-444444444444";
 const OVERRIDE_ID = "55555555-5555-4555-8555-555555555555";
 const EVENT_ID = "77777777-7777-4777-8777-777777777777";
 const PERSON_ID = "88888888-8888-4888-8888-888888888888";
+const APP_ID = "99999999-9999-4999-8999-999999999999";
+const TARGET_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const NOW = "2026-05-26T12:00:00.000Z";
 const EVENT_DATE = "2026-06-15";
@@ -83,6 +89,32 @@ function samplePerson(overrides: Partial<Person> = {}): Person {
     birthdayMonthDay: "06-15",
     relationship: "friend",
     createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
+function sampleJobApplication(overrides: Partial<JobApplication> = {}): JobApplication {
+  return {
+    id: APP_ID,
+    company: "Acme Corp",
+    roleTitle: "Software Engineer",
+    status: "applied",
+    requiredSkillIds: [SKILL_ID],
+    appliedDate: EVENT_DATE,
+    url: "https://jobs.example.com/123",
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
+function sampleCareerTarget(overrides: Partial<CareerTarget> = {}): CareerTarget {
+  return {
+    id: TARGET_ID,
+    roleTitle: "Staff Engineer",
+    company: "Dream Co",
+    requiredSkillIds: [SKILL_ID],
     updatedAtIso: NOW,
     ...overrides,
   };
@@ -348,6 +380,59 @@ describe("payloadFromRows", () => {
     expect(payload.overrides).toEqual([]);
     expect(payload.events).toHaveLength(1);
     expect(payload.people).toHaveLength(1);
+    expect(payload.jobApplications).toEqual([]);
+  });
+
+  it("maps career target singleton from rows", () => {
+    const skill = sampleSkill();
+    const payload = payloadFromRows(
+      [skillToRow(skill, USER_ID)],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [careerTargetToRow(sampleCareerTarget(), USER_ID)]
+    );
+    expect(payload.careerTarget?.roleTitle).toBe("Staff Engineer");
+  });
+});
+
+describe("job application mappers", () => {
+  it("round-trips job application", () => {
+    const app = sampleJobApplication();
+    const row = jobApplicationToRow(app, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(jobApplicationFromRow(row)).toEqual(app);
+  });
+
+  it("rejects invalid status", () => {
+    expect(() =>
+      jobApplicationToRow(sampleJobApplication({ status: "invalid" as JobApplication["status"] }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects bad salary range", () => {
+    expect(() =>
+      jobApplicationToRow(
+        sampleJobApplication({ salaryMin: 200000, salaryMax: 100000 }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects invalid URL", () => {
+    expect(() =>
+      jobApplicationToRow(sampleJobApplication({ url: "not-a-url" }), USER_ID)
+    ).toThrow(MapperError);
+  });
+});
+
+describe("career target mappers", () => {
+  it("round-trips career target", () => {
+    const target = sampleCareerTarget();
+    const row = careerTargetToRow(target, USER_ID);
+    expect(careerTargetFromRow(row)).toEqual(target);
   });
 });
 
@@ -361,6 +446,7 @@ describe("validatePayloadForUpload", () => {
         overrides: [],
         events: [],
         people: [],
+        jobApplications: [],
       })
     ).toThrow(MapperError);
   });
@@ -373,6 +459,7 @@ describe("validatePayloadForUpload", () => {
         overrides: [],
         events: [],
         people: [],
+        jobApplications: [],
       })
     ).toThrow(MapperError);
   });
@@ -386,6 +473,7 @@ describe("validatePayloadForUpload", () => {
         overrides: [],
         events: [event, event],
         people: [],
+        jobApplications: [],
       })
     ).toThrow(MapperError);
   });
@@ -398,6 +486,7 @@ describe("validatePayloadForUpload", () => {
         overrides: [],
         events: [sampleEvent({ personId: PERSON_ID })],
         people: [],
+        jobApplications: [],
       })
     ).toThrow(MapperError);
   });
@@ -411,6 +500,34 @@ describe("validatePayloadForUpload", () => {
         overrides: [],
         events: [],
         people: [person, person],
+        jobApplications: [],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects job application referencing unknown skill", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [sampleJobApplication()],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects career target referencing unknown skill", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        careerTarget: sampleCareerTarget(),
       })
     ).toThrow(MapperError);
   });

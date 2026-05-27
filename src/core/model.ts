@@ -90,10 +90,52 @@ export type Person = {
   updatedAtIso: string;
 };
 
+export type ApplicationStatus =
+  | "saved"
+  | "applied"
+  | "screening"
+  | "technical"
+  | "onsite"
+  | "offer"
+  | "rejected"
+  | "withdrawn";
+
+export type RemotePolicy = "remote" | "hybrid" | "onsite" | "unknown";
+
+export type JobApplication = {
+  id: string;
+  company: string;
+  roleTitle: string;
+  status: ApplicationStatus;
+  salaryMin?: number;
+  salaryMax?: number;
+  location?: string;
+  remotePolicy?: RemotePolicy;
+  appliedDate?: string;
+  url?: string;
+  notes?: string;
+  requiredSkillIds: string[];
+  requiredSkillsText?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type CareerTarget = {
+  id: string;
+  roleTitle: string;
+  company?: string;
+  notes?: string;
+  requiredSkillIds: string[];
+  requiredSkillsText?: string;
+  updatedAtIso: string;
+};
+
 export type AppPayload = {
   skills: Skill[];
   sessions: Session[];
   overrides: Array<unknown>;
   events: LifeEvent[];
   people: Person[];
+  jobApplications: JobApplication[];
+  careerTarget?: CareerTarget;
 };

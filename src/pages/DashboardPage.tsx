@@ -15,6 +15,7 @@ import {
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
+import { CareerPipelineSection } from "../components/dashboard/CareerPipelineSection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
@@ -27,7 +28,7 @@ import {
 } from "../components/dashboard/UnifiedTimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
-import type { LifeEvent, Person, Session, Skill } from "../core/model";
+import type { JobApplication, LifeEvent, Person, Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 
 /** Toggle legacy schedule-only timeline during rollout. */
@@ -44,6 +45,7 @@ export type DashboardPageProps = {
   sessions: Session[];
   events: LifeEvent[];
   people: Person[];
+  jobApplications: JobApplication[];
   onAddSession: (skillId: string, minutes: number) => void;
 };
 
@@ -52,6 +54,7 @@ export default function DashboardPage({
   sessions,
   events,
   people,
+  jobApplications,
   onAddSession,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
@@ -151,6 +154,10 @@ export default function DashboardPage({
           followUps={peopleNeedingFollowUp}
           birthdayWindowDays={PEOPLE_BIRTHDAY_WINDOW_DAYS}
         />
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <CareerPipelineSection jobApplications={jobApplications} />
       </div>
 
       {USE_UNIFIED_TIMELINE && (

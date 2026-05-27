@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppPayload, LifeEvent, Person, Skill, Session } from "./core/model";
+import type {
+  AppPayload,
+  CareerTarget,
+  JobApplication,
+  LifeEvent,
+  Person,
+  Skill,
+  Session,
+} from "./core/model";
 import {
   initialSync,
   isRemoteSyncEnabled,
@@ -10,6 +18,7 @@ import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
+import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
 import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
@@ -22,6 +31,26 @@ const REMOTE_DEBOUNCE_MS = 400;
 
 function id() {
   return crypto.randomUUID();
+}
+
+function stripSkillIdFromCareerPayload(
+  payload: AppPayload,
+  skillId: string
+): Pick<AppPayload, "jobApplications" | "careerTarget"> {
+  const jobApplications = (payload.jobApplications ?? []).map((app) => ({
+    ...app,
+    requiredSkillIds: app.requiredSkillIds.filter((id) => id !== skillId),
+  }));
+
+  let careerTarget = payload.careerTarget;
+  if (careerTarget) {
+    careerTarget = {
+      ...careerTarget,
+      requiredSkillIds: careerTarget.requiredSkillIds.filter((id) => id !== skillId),
+    };
+  }
+
+  return { jobApplications, careerTarget };
 }
 
 function applyEventPersonFields(
@@ -234,7 +263,14 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (!app) return;
 
     const skills = app.payload.skills.filter((s) => s.id !== skillId);
-    commit({ ...app, payload: { ...app.payload, skills } });
+    const { jobApplications, careerTarget } = stripSkillIdFromCareerPayload(
+      app.payload,
+      skillId
+    );
+    commit({
+      ...app,
+      payload: { ...app.payload, skills, jobApplications, careerTarget },
+    });
   }
 
   // ---------- SESSIONS ----------
@@ -512,6 +548,156 @@ export default function App({ userId, onSignOut }: AppProps) {
     setEventDraft(null);
   }, []);
 
+  // ---------- CAREER ----------
+  function addJobApplication(
+    input: Omit<JobApplication, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+
+    const trimmedCompany = input.company.trim();
+    const trimmedRole = input.roleTitle.trim();
+    if (!trimmedCompany || !trimmedRole) return;
+
+    const now = new Date().toISOString();
+    const newApplication: JobApplication = {
+      id: id(),
+      company: trimmedCompany,
+      roleTitle: trimmedRole,
+      status: input.status,
+      requiredSkillIds: [...input.requiredSkillIds],
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.salaryMin !== undefined) newApplication.salaryMin = input.salaryMin;
+    if (input.salaryMax !== undefined) newApplication.salaryMax = input.salaryMax;
+    if (input.location?.trim()) newApplication.location = input.location.trim();
+    if (input.remotePolicy) newApplication.remotePolicy = input.remotePolicy;
+    if (input.appliedDate) newApplication.appliedDate = input.appliedDate;
+    if (input.url?.trim()) newApplication.url = input.url.trim();
+    if (input.notes?.trim()) newApplication.notes = input.notes.trim();
+    if (input.requiredSkillsText?.trim()) {
+      newApplication.requiredSkillsText = input.requiredSkillsText.trim();
+    }
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        jobApplications: [...(app.payload.jobApplications ?? []), newApplication],
+      },
+    });
+  }
+
+  function updateJobApplication(updated: JobApplication) {
+    if (!app) return;
+
+    const trimmedCompany = updated.company.trim();
+    const trimmedRole = updated.roleTitle.trim();
+    if (!trimmedCompany || !trimmedRole) return;
+
+    const now = new Date().toISOString();
+    const nextApplication: JobApplication = {
+      ...updated,
+      company: trimmedCompany,
+      roleTitle: trimmedRole,
+      requiredSkillIds: [...updated.requiredSkillIds],
+      updatedAtIso: now,
+    };
+
+    if (updated.salaryMin !== undefined) {
+      nextApplication.salaryMin = updated.salaryMin;
+    } else {
+      delete nextApplication.salaryMin;
+    }
+    if (updated.salaryMax !== undefined) {
+      nextApplication.salaryMax = updated.salaryMax;
+    } else {
+      delete nextApplication.salaryMax;
+    }
+    if (updated.location?.trim()) {
+      nextApplication.location = updated.location.trim();
+    } else {
+      delete nextApplication.location;
+    }
+    if (updated.remotePolicy) {
+      nextApplication.remotePolicy = updated.remotePolicy;
+    } else {
+      delete nextApplication.remotePolicy;
+    }
+    if (updated.appliedDate) {
+      nextApplication.appliedDate = updated.appliedDate;
+    } else {
+      delete nextApplication.appliedDate;
+    }
+    if (updated.url?.trim()) {
+      nextApplication.url = updated.url.trim();
+    } else {
+      delete nextApplication.url;
+    }
+    if (updated.notes?.trim()) {
+      nextApplication.notes = updated.notes.trim();
+    } else {
+      delete nextApplication.notes;
+    }
+    if (updated.requiredSkillsText?.trim()) {
+      nextApplication.requiredSkillsText = updated.requiredSkillsText.trim();
+    } else {
+      delete nextApplication.requiredSkillsText;
+    }
+
+    const jobApplications = (app.payload.jobApplications ?? []).map((application) =>
+      application.id === updated.id ? nextApplication : application
+    );
+
+    commit({ ...app, payload: { ...app.payload, jobApplications } });
+  }
+
+  function deleteJobApplication(applicationId: string) {
+    if (!app) return;
+
+    const jobApplications = (app.payload.jobApplications ?? []).filter(
+      (application) => application.id !== applicationId
+    );
+    commit({ ...app, payload: { ...app.payload, jobApplications } });
+  }
+
+  function setCareerTarget(input: Omit<CareerTarget, "id" | "updatedAtIso">) {
+    if (!app) return;
+
+    const trimmedRole = input.roleTitle.trim();
+    if (!trimmedRole) return;
+
+    const now = new Date().toISOString();
+    const existing = app.payload.careerTarget;
+    const careerTarget: CareerTarget = {
+      id: existing?.id ?? id(),
+      roleTitle: trimmedRole,
+      requiredSkillIds: [...input.requiredSkillIds],
+      updatedAtIso: now,
+    };
+
+    if (input.company?.trim()) {
+      careerTarget.company = input.company.trim();
+    }
+    if (input.notes?.trim()) {
+      careerTarget.notes = input.notes.trim();
+    }
+    if (input.requiredSkillsText?.trim()) {
+      careerTarget.requiredSkillsText = input.requiredSkillsText.trim();
+    }
+
+    commit({ ...app, payload: { ...app.payload, careerTarget } });
+  }
+
+  function clearCareerTarget() {
+    if (!app) return;
+
+    const nextPayload = { ...app.payload };
+    delete nextPayload.careerTarget;
+    commit({ ...app, payload: nextPayload });
+  }
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -558,6 +744,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           sessions={app.payload.sessions ?? []}
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
+          jobApplications={app.payload.jobApplications ?? []}
           onAddSession={addSession}
         />
       )}
@@ -595,6 +782,19 @@ export default function App({ userId, onSignOut }: AppProps) {
           onUpdate={updatePerson}
           onDelete={deletePerson}
           onCreateLinkedEvent={openLinkedEventDraft}
+        />
+      )}
+
+      {page === "career" && (
+        <CareerPage
+          jobApplications={app.payload.jobApplications ?? []}
+          careerTarget={app.payload.careerTarget}
+          skills={app.payload.skills}
+          onAddApplication={addJobApplication}
+          onUpdateApplication={updateJobApplication}
+          onDeleteApplication={deleteJobApplication}
+          onSetCareerTarget={setCareerTarget}
+          onClearCareerTarget={clearCareerTarget}
         />
       )}
     </AppShell>
