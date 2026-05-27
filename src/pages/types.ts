@@ -1,1 +1,1 @@
-export type Page = "dashboard" | "skills";
+export type Page = "dashboard" | "skills" | "events";

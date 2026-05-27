@@ -22,6 +22,7 @@ export function defaultPayload(): AppPayload {
     skills: [],
     sessions: [],
     overrides: [],
+    events: [],
   };
 }
 

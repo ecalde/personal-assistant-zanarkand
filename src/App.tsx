@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppPayload, Skill, Session } from "./core/model";
+import type { AppPayload, LifeEvent, Skill, Session } from "./core/model";
 import {
   initialSync,
   isRemoteSyncEnabled,
@@ -11,6 +11,7 @@ import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/sto
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
 import DashboardPage from "./pages/DashboardPage";
+import EventsPage from "./pages/EventsPage";
 import SkillsPage from "./pages/SkillsPage";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
@@ -247,6 +248,81 @@ export default function App({ userId, onSignOut }: AppProps) {
     });
   }
 
+  // ---------- EVENTS ----------
+  function addEvent(
+    input: Omit<LifeEvent, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+
+    const trimmedTitle = input.title.trim();
+    if (!trimmedTitle || !input.date || !input.type) return;
+
+    const now = new Date().toISOString();
+    const newEvent: LifeEvent = {
+      id: id(),
+      title: trimmedTitle,
+      date: input.date,
+      type: input.type,
+      reminder: input.reminder,
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.personName?.trim()) {
+      newEvent.personName = input.personName.trim();
+    }
+    if (input.notes?.trim()) {
+      newEvent.notes = input.notes.trim();
+    }
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        events: [...(app.payload.events ?? []), newEvent],
+      },
+    });
+  }
+
+  function updateEvent(updated: LifeEvent) {
+    if (!app) return;
+
+    const trimmedTitle = updated.title.trim();
+    if (!trimmedTitle || !updated.date || !updated.type) return;
+
+    const now = new Date().toISOString();
+    const nextEvent: LifeEvent = {
+      ...updated,
+      title: trimmedTitle,
+      updatedAtIso: now,
+    };
+
+    if (updated.personName?.trim()) {
+      nextEvent.personName = updated.personName.trim();
+    } else {
+      delete nextEvent.personName;
+    }
+
+    if (updated.notes?.trim()) {
+      nextEvent.notes = updated.notes.trim();
+    } else {
+      delete nextEvent.notes;
+    }
+
+    const events = (app.payload.events ?? []).map((event) =>
+      event.id === updated.id ? nextEvent : event
+    );
+
+    commit({ ...app, payload: { ...app.payload, events } });
+  }
+
+  function deleteEvent(eventId: string) {
+    if (!app) return;
+
+    const events = (app.payload.events ?? []).filter((event) => event.id !== eventId);
+    commit({ ...app, payload: { ...app.payload, events } });
+  }
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -304,6 +380,15 @@ export default function App({ userId, onSignOut }: AppProps) {
           onDelete={deleteSkill}
           onAddSession={addSession}
           onDeleteSession={deleteSession}
+        />
+      )}
+
+      {page === "events" && (
+        <EventsPage
+          events={app.payload.events ?? []}
+          onAdd={addEvent}
+          onUpdate={updateEvent}
+          onDelete={deleteEvent}
         />
       )}
     </AppShell>

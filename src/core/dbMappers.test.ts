@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { Session, Skill } from "./model";
+import type { LifeEvent, Session, Skill } from "./model";
 import {
   MapperError,
+  eventFromRow,
+  eventToRow,
+  isIsoDate,
   isIsoTimestamp,
   isPositiveInteger,
   isPriority,
@@ -23,8 +26,10 @@ const SKILL_ID = "22222222-2222-4222-8222-222222222222";
 const SESSION_ID = "33333333-3333-4333-8333-333333333333";
 const BLOCK_ID = "44444444-4444-4444-8444-444444444444";
 const OVERRIDE_ID = "55555555-5555-4555-8555-555555555555";
+const EVENT_ID = "77777777-7777-4777-8777-777777777777";
 
 const NOW = "2026-05-26T12:00:00.000Z";
+const EVENT_DATE = "2026-06-15";
 
 function sampleSkill(overrides: Partial<Skill> = {}): Skill {
   return {
@@ -51,6 +56,21 @@ function sampleSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
+function sampleEvent(overrides: Partial<LifeEvent> = {}): LifeEvent {
+  return {
+    id: EVENT_ID,
+    title: "Birthday dinner",
+    date: EVENT_DATE,
+    type: "birthday",
+    personName: "Alex",
+    notes: "Bring cake",
+    reminder: true,
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
 describe("validation helpers", () => {
   it("accepts valid UUIDs", () => {
     expect(isUuid(SKILL_ID)).toBe(true);
@@ -68,6 +88,12 @@ describe("validation helpers", () => {
   it("accepts ISO timestamps", () => {
     expect(isIsoTimestamp(NOW)).toBe(true);
     expect(isIsoTimestamp("not-a-date")).toBe(false);
+  });
+
+  it("accepts ISO dates", () => {
+    expect(isIsoDate(EVENT_DATE)).toBe(true);
+    expect(isIsoDate("2026-13-01")).toBe(false);
+    expect(isIsoDate("not-a-date")).toBe(false);
   });
 });
 
@@ -150,6 +176,39 @@ describe("session mappers", () => {
   });
 });
 
+describe("event mappers", () => {
+  it("round-trips event domain ↔ row", () => {
+    const event = sampleEvent();
+    const row = eventToRow(event, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.person_name).toBe("Alex");
+    expect(eventFromRow(row)).toEqual(event);
+  });
+
+  it("maps optional fields to null", () => {
+    const row = eventToRow(
+      sampleEvent({ personName: undefined, notes: undefined, reminder: false }),
+      USER_ID
+    );
+    expect(row.person_name).toBeNull();
+    expect(row.notes).toBeNull();
+    expect(eventFromRow(row).personName).toBeUndefined();
+    expect(eventFromRow(row).notes).toBeUndefined();
+  });
+
+  it("rejects invalid event type", () => {
+    expect(() =>
+      eventToRow(sampleEvent({ type: "invalid" as LifeEvent["type"] }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects invalid date", () => {
+    expect(() => eventToRow(sampleEvent({ date: "2026-99-99" }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+});
+
 describe("override mappers", () => {
   it("round-trips object override with id", () => {
     const item = { id: OVERRIDE_ID, kind: "vacation", note: "away" };
@@ -186,11 +245,13 @@ describe("payloadFromRows", () => {
     const payload = payloadFromRows(
       [skillToRow(skill, USER_ID)],
       [sessionToRow(session, USER_ID)],
-      []
+      [],
+      [eventToRow(sampleEvent(), USER_ID)]
     );
     expect(payload.skills).toHaveLength(1);
     expect(payload.sessions).toHaveLength(1);
     expect(payload.overrides).toEqual([]);
+    expect(payload.events).toHaveLength(1);
   });
 });
 
@@ -202,6 +263,7 @@ describe("validatePayloadForUpload", () => {
         skills: [skill, skill],
         sessions: [],
         overrides: [],
+        events: [],
       })
     ).toThrow(MapperError);
   });
@@ -212,6 +274,19 @@ describe("validatePayloadForUpload", () => {
         skills: [sampleSkill()],
         sessions: [sampleSession({ skillId: "66666666-6666-4666-8666-666666666666" })],
         overrides: [],
+        events: [],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects duplicate event ids", () => {
+    const event = sampleEvent();
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [event, event],
       })
     ).toThrow(MapperError);
   });

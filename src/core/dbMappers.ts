@@ -3,6 +3,8 @@
 import { defaultWeeklySchedule } from "./state";
 import type {
   AppPayload,
+  EventType,
+  LifeEvent,
   Priority,
   ScheduleBlock,
   Session,
@@ -15,6 +17,17 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const HHMM_RE = /^(\d{2}):(\d{2})$/;
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const EVENT_TYPES: EventType[] = [
+  "birthday",
+  "hangout",
+  "trip",
+  "holiday",
+  "deadline",
+  "other",
+];
 
 const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -47,6 +60,19 @@ export type OverrideRow = {
   created_at: string;
 };
 
+export type EventRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  date: string;
+  type: string;
+  person_name: string | null;
+  notes: string | null;
+  reminder: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export class MapperError extends Error {
   readonly field?: string;
 
@@ -77,6 +103,24 @@ export function isNonNegativeInteger(value: number): boolean {
   return Number.isInteger(value) && value >= 0;
 }
 
+export function isIsoDate(value: string): boolean {
+  if (!ISO_DATE_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+export function isEventType(value: string): value is EventType {
+  return (EVENT_TYPES as string[]).includes(value);
+}
+
 function assertUuid(value: string, field: string): void {
   if (!isUuid(value)) {
     throw new MapperError(`Invalid UUID: ${field}`, field);
@@ -86,6 +130,12 @@ function assertUuid(value: string, field: string): void {
 function assertIsoTimestamp(value: string, field: string): void {
   if (!isIsoTimestamp(value)) {
     throw new MapperError(`Invalid ISO timestamp: ${field}`, field);
+  }
+}
+
+function assertIsoDate(value: string, field: string): void {
+  if (!isIsoDate(value)) {
+    throw new MapperError(`Invalid ISO date: ${field}`, field);
   }
 }
 
@@ -180,6 +230,27 @@ function assertValidSession(session: Session): void {
 
   if (!isPositiveInteger(session.minutes)) {
     throw new MapperError("Invalid session.minutes", "session.minutes");
+  }
+}
+
+function assertValidEvent(event: LifeEvent): void {
+  assertUuid(event.id, "event.id");
+  assertNonEmptyName(event.title, "event.title");
+  assertIsoDate(event.date, "event.date");
+  assertIsoTimestamp(event.createdAtIso, "event.createdAtIso");
+  assertIsoTimestamp(event.updatedAtIso, "event.updatedAtIso");
+
+  if (!isEventType(event.type)) {
+    throw new MapperError("Invalid event.type", "event.type");
+  }
+  if (typeof event.reminder !== "boolean") {
+    throw new MapperError("Invalid event.reminder", "event.reminder");
+  }
+  if (event.personName !== undefined && typeof event.personName !== "string") {
+    throw new MapperError("Invalid event.personName", "event.personName");
+  }
+  if (event.notes !== undefined && typeof event.notes !== "string") {
+    throw new MapperError("Invalid event.notes", "event.notes");
   }
 }
 
@@ -283,6 +354,59 @@ export function sessionFromRow(row: SessionRow): Session {
   };
 }
 
+export function eventToRow(event: LifeEvent, userId: string): EventRow {
+  assertUuid(userId, "userId");
+  assertValidEvent(event);
+
+  return {
+    id: event.id,
+    user_id: userId,
+    title: event.title.trim(),
+    date: event.date,
+    type: event.type,
+    person_name: event.personName?.trim() || null,
+    notes: event.notes?.trim() || null,
+    reminder: event.reminder,
+    created_at: event.createdAtIso,
+    updated_at: event.updatedAtIso,
+  };
+}
+
+export function eventFromRow(row: EventRow): LifeEvent {
+  assertUuid(row.id, "events.id");
+  assertUuid(row.user_id, "events.user_id");
+  assertNonEmptyName(row.title, "events.title");
+  assertIsoDate(row.date, "events.date");
+  assertIsoTimestamp(row.created_at, "events.created_at");
+  assertIsoTimestamp(row.updated_at, "events.updated_at");
+
+  if (!isEventType(row.type)) {
+    throw new MapperError("Invalid events.type", "events.type");
+  }
+  if (typeof row.reminder !== "boolean") {
+    throw new MapperError("Invalid events.reminder", "events.reminder");
+  }
+
+  const event: LifeEvent = {
+    id: row.id,
+    title: row.title.trim(),
+    date: row.date,
+    type: row.type,
+    reminder: row.reminder,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.person_name !== null && row.person_name.trim().length > 0) {
+    event.personName = row.person_name.trim();
+  }
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    event.notes = row.notes.trim();
+  }
+
+  return event;
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -372,13 +496,15 @@ export function overrideFromRow(row: OverrideRow): unknown {
 export function payloadFromRows(
   skillRows: SkillRow[],
   sessionRows: SessionRow[],
-  overrideRows: OverrideRow[]
+  overrideRows: OverrideRow[],
+  eventRows: EventRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
   const overrides = overrideRows.map((row) => overrideFromRow(row));
+  const events = eventRows.map((row) => eventFromRow(row));
 
-  const payload: AppPayload = { skills, sessions, overrides };
+  const payload: AppPayload = { skills, sessions, overrides, events };
   validatePayloadForUpload(payload);
   return payload;
 }
@@ -414,5 +540,14 @@ export function validatePayloadForUpload(payload: AppPayload): void {
     if (readOverrideId(item) !== undefined) {
       assertUuid(readOverrideId(item)!, "override.id");
     }
+  }
+
+  const eventIds = new Set<string>();
+  for (const event of payload.events) {
+    assertValidEvent(event);
+    if (eventIds.has(event.id)) {
+      throw new MapperError(`Duplicate event id: ${event.id}`, "events.id");
+    }
+    eventIds.add(event.id);
   }
 }

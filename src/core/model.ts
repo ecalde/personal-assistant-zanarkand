@@ -51,8 +51,29 @@ export type Session = {
   createdAtIso: string;
 };
 
+export type EventType =
+  | "birthday"
+  | "hangout"
+  | "trip"
+  | "holiday"
+  | "deadline"
+  | "other";
+
+export type LifeEvent = {
+  id: string;
+  title: string;
+  date: string;
+  type: EventType;
+  personName?: string;
+  notes?: string;
+  reminder: boolean;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type AppPayload = {
   skills: Skill[];
   sessions: Session[];
   overrides: Array<unknown>;
+  events: LifeEvent[];
 };
