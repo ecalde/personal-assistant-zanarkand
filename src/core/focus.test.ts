@@ -11,9 +11,15 @@ import type {
 } from "./model";
 import { defaultWeeklySchedule } from "./state";
 import {
+  addDaysIso,
+  addHoursIso,
   buildDailyFocusSummary,
   collectSkillFocusItems,
+  endOfLocalDayIso,
+  filterExpiredFocusItems,
+  formatFocusActionLabel,
   formatFocusContextLine,
+  formatFocusExpirationHint,
   mergeFocusItems,
   priorityFromScore,
   rankFocusItems,
@@ -145,6 +151,190 @@ function emptyInput(overrides: Partial<Parameters<typeof buildDailyFocusSummary>
     ...overrides,
   };
 }
+
+describe("time helpers", () => {
+  it("endOfLocalDayIso returns local end-of-day timestamp", () => {
+    const iso = endOfLocalDayIso("2026-05-27");
+    const date = new Date(iso);
+    expect(date.getFullYear()).toBe(2026);
+    expect(date.getMonth()).toBe(4);
+    expect(date.getDate()).toBe(27);
+    expect(date.getHours()).toBe(23);
+    expect(date.getMinutes()).toBe(59);
+  });
+
+  it("addHoursIso shifts timestamp forward", () => {
+    const base = "2026-05-27T10:00:00.000Z";
+    const shifted = addHoursIso(base, 2);
+    expect(new Date(shifted).getTime() - new Date(base).getTime()).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it("addDaysIso shifts timestamp forward by whole days", () => {
+    const base = endOfLocalDayIso("2026-05-27");
+    const shifted = addDaysIso(base, 7);
+    const diffDays = Math.round(
+      (new Date(shifted).getTime() - new Date(base).getTime()) / (24 * 60 * 60 * 1000)
+    );
+    expect(diffDays).toBe(7);
+  });
+});
+
+describe("filterExpiredFocusItems", () => {
+  it("removes expired items and preserves order", () => {
+    const items: FocusItem[] = [
+      {
+        id: "a",
+        category: "event",
+        title: "Active",
+        description: "",
+        priorityScore: 900,
+        urgency: "high",
+        urgencyLabel: "High",
+        reasonCodes: ["event_today"],
+        expiresAtIso: "2026-05-28T00:00:00.000Z",
+      },
+      {
+        id: "b",
+        category: "skill",
+        title: "Expired",
+        description: "",
+        priorityScore: 800,
+        urgency: "high",
+        urgencyLabel: "High",
+        reasonCodes: ["skill_overdue"],
+        expiresAtIso: "2026-05-27T12:00:00.000Z",
+      },
+      {
+        id: "c",
+        category: "fitness",
+        title: "No expiry",
+        description: "",
+        priorityScore: 400,
+        urgency: "low",
+        urgencyLabel: "Low",
+        reasonCodes: ["fitness_no_workout_this_week"],
+      },
+    ];
+
+    const filtered = filterExpiredFocusItems(items, "2026-05-27T18:00:00.000Z");
+    expect(filtered.map((item) => item.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("formatFocusActionLabel", () => {
+  it("maps action types to CTA labels", () => {
+    expect(formatFocusActionLabel("log_skill_minutes")).toBe("Log minutes");
+    expect(formatFocusActionLabel("apply_to_job")).toBe("Apply");
+    expect(formatFocusActionLabel("resolve_conflict")).toBe("Review conflict");
+    expect(formatFocusActionLabel("schedule_workout")).toBe("Start workout");
+  });
+});
+
+describe("formatFocusExpirationHint", () => {
+  it("returns undefined for past expirations", () => {
+    expect(
+      formatFocusExpirationHint("2026-05-27T10:00:00.000Z", "2026-05-27T18:00:00.000Z")
+    ).toBeUndefined();
+  });
+
+  it("returns hour hint for same-day expiry", () => {
+    const hint = formatFocusExpirationHint(
+      "2026-05-27T20:00:00.000Z",
+      "2026-05-27T18:00:00.000Z"
+    );
+    expect(hint).toMatch(/Expires in ~/);
+  });
+});
+
+describe("action metadata", () => {
+  it("assigns log_skill_minutes action to overdue skills", () => {
+    const skill = sampleSkill({
+      schedule: {
+        ...defaultWeeklySchedule(),
+        wed: [{ id: "b1", startTime: "09:00", minutes: 60 }],
+      },
+    });
+    const drafts = collectSkillFocusItems([skill], [], NOW_EVENING);
+    const overdue = drafts.find((d) => d.reasonCodes.includes("skill_overdue"));
+    expect(overdue?.suggestedActionType).toBe("log_skill_minutes");
+    expect(overdue?.actionTargetId).toBe(SKILL_A);
+    expect(overdue?.expiresAtIso).toBeDefined();
+  });
+
+  it("assigns apply_to_job action to saved applications", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        jobApplications: [sampleApplication()],
+      })
+    );
+    const item = summary.items.find((i) =>
+      i.reasonCodes.includes("career_saved_not_applied")
+    );
+    expect(item?.suggestedActionType).toBe("apply_to_job");
+    expect(item?.actionTargetId).toBe(APP_ID);
+    expect(item?.expiresAtIso).toBeDefined();
+  });
+
+  it("assigns contact_person action to follow-ups", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        people: [samplePerson({ lastContactDate: "2026-01-01", contactCadenceDays: 7 })],
+      })
+    );
+    const item = summary.items.find((i) =>
+      i.reasonCodes.includes("people_follow_up_overdue")
+    );
+    expect(item?.suggestedActionType).toBe("contact_person");
+    expect(item?.actionTargetId).toBe(PERSON_ID);
+  });
+
+  it("assigns resolve_conflict action for timeline conflicts", () => {
+    const skill = sampleSkill({
+      schedule: {
+        ...defaultWeeklySchedule(),
+        wed: [{ id: "b1", startTime: "09:00", minutes: 60 }],
+      },
+    });
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        skills: [skill],
+        events: [
+          sampleEvent({
+            title: "Meeting",
+            startTime: "09:30",
+            endTime: "10:30",
+          }),
+        ],
+        now: NOW_MORNING,
+      })
+    );
+    const item = summary.items.find((i) =>
+      i.reasonCodes.includes("timeline_schedule_conflict")
+    );
+    expect(item?.suggestedActionType).toBe("resolve_conflict");
+    expect(item?.actionTargetId).toBeDefined();
+  });
+});
+
+describe("buildDailyFocusSummary expiration", () => {
+  it("excludes items past their expiration", () => {
+    const skill = sampleSkill({
+      schedule: {
+        ...defaultWeeklySchedule(),
+        wed: [{ id: "b1", startTime: "09:00", minutes: 60 }],
+      },
+    });
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        skills: [skill],
+        now: new Date(2026, 4, 27, 23, 30, 0),
+      })
+    );
+    expect(
+      summary.items.some((item) => item.reasonCodes.includes("skill_overdue"))
+    ).toBe(false);
+  });
+});
 
 describe("priorityFromScore", () => {
   it("maps score bands to urgency levels", () => {

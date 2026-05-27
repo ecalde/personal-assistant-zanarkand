@@ -110,6 +110,10 @@ src/
 - Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), daily focus ([`focus.ts`](../src/core/focus.ts))
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
 - Daily focus ([`focus.ts`](../src/core/focus.ts)): `buildDailyFocusSummary` aggregates skills, events, people, career, fitness, and timeline signals into ranked read-only `FocusItem` recommendations — tested in [`focus.test.ts`](../src/core/focus.test.ts). **Not persisted**; recomputed on each dashboard render. Recommendations only (no mutations, notifications, or auto-rescheduling).
+  - **`FocusActionType`** — derived action hints (`log_skill_minutes`, `apply_to_job`, `resolve_conflict`, etc.) mapped in [`DailyFocusSection`](../src/components/dashboard/DailyFocusSection.tsx) to existing page navigation handlers.
+  - **Derived metadata** on each `FocusItem`: `suggestedActionType`, `actionTargetId`, and `expiresAtIso` — never stored in `AppPayload` or synced to Supabase.
+  - **Expiration semantics**: collectors assign per-signal expiry (event end, block end, end of day, +7 days for career, next day for follow-ups). `filterExpiredFocusItems` removes stale items before the dashboard cap is applied.
+  - **Cleanup lifecycle**: collect → merge → score → rank → filter expired → slice top N.
 - Progression ([`progression.ts`](../src/core/progression.ts)): lifetime XP (1 XP = 1 logged minute), linear level bands (`XP_PER_LEVEL_BAND`), per-skill and global streaks — tested in [`progression.test.ts`](../src/core/progression.test.ts). **Not stored** in Postgres or `AppPayload`; recomputed from `sessions` on each render. Streak rule: meet `dailyGoalMinutes` when set, else any minutes > 0; global streak counts a day if **any** skill qualifies.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
@@ -118,7 +122,7 @@ src/
 
 1. **ProgressionHero** — account level, lifetime XP, global streak, level progress bar (hidden when no skills)
 2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
-3. **DailyFocusSection** — top 5 ranked cross-domain focus items with urgency labels, context line, skill quick-log, and deep-links to domain pages
+3. **DailyFocusSection** — top 5 ranked cross-domain focus items with urgency labels, contextual CTAs from `FocusActionType`, optional expiration hints, skill quick-log, and deep-links to domain pages
 4. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
 5. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
 6. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)

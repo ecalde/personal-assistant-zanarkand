@@ -1,6 +1,16 @@
 import type { CSSProperties } from "react";
-import type { DailyFocusSummary, FocusCategory, FocusItem, FocusPriority } from "../../core/focus";
-import { formatFocusCategory, formatFocusContextLine } from "../../core/focus";
+import type {
+  DailyFocusSummary,
+  FocusActionType,
+  FocusItem,
+  FocusPriority,
+} from "../../core/focus";
+import {
+  formatFocusActionLabel,
+  formatFocusCategory,
+  formatFocusContextLine,
+  formatFocusExpirationHint,
+} from "../../core/focus";
 import { styles } from "../../ui/appStyles";
 import { formatMinutes } from "../../ui/format";
 import { QuickLogControls } from "./QuickLogControls";
@@ -25,40 +35,55 @@ const URGENCY_PILL_STYLES: Record<FocusPriority, CSSProperties> = {
   low: styles.statusIdle,
 };
 
-function openHandlerForCategory(
-  category: FocusCategory,
+function resolveFocusActionHandler(
+  actionType: FocusActionType,
   props: DailyFocusSectionProps
 ): (() => void) | undefined {
-  switch (category) {
-    case "skill":
+  switch (actionType) {
+    case "open_skills":
       return props.onOpenSkills;
-    case "event":
+    case "open_events":
+    case "resolve_conflict":
       return props.onOpenEvents;
-    case "people":
+    case "open_people":
+    case "contact_person":
       return props.onOpenPeople;
-    case "career":
+    case "open_career":
+    case "apply_to_job":
       return props.onOpenCareer;
-    case "fitness":
+    case "open_fitness":
+    case "schedule_workout":
       return props.onOpenFitness;
-    default:
+    case "log_skill_minutes":
       return undefined;
   }
 }
 
 function FocusItemRow({
   item,
-  onNavigate,
+  nowIso,
+  onAction,
   onAddSession,
 }: {
   item: FocusItem;
-  onNavigate?: () => void;
+  nowIso: string;
+  onAction?: () => void;
   onAddSession?: (skillId: string, minutes: number) => void;
 }) {
+  const actionType = item.suggestedActionType;
+  const ctaLabel =
+    actionType !== undefined
+      ? formatFocusActionLabel(actionType)
+      : item.actionLabel;
+  const expirationHint =
+    item.expiresAtIso !== undefined
+      ? formatFocusExpirationHint(item.expiresAtIso, nowIso)
+      : undefined;
+
   const showQuickLog =
-    item.category === "skill" &&
-    item.sourceId !== undefined &&
-    onAddSession !== undefined &&
-    item.actionLabel === "Log minutes";
+    actionType === "log_skill_minutes" &&
+    item.actionTargetId !== undefined &&
+    onAddSession !== undefined;
 
   return (
     <div style={styles.listRow}>
@@ -88,6 +113,7 @@ function FocusItemRow({
             {item.estimatedMinutes !== undefined && item.estimatedMinutes > 0 && (
               <span>~{formatMinutes(item.estimatedMinutes)}</span>
             )}
+            {expirationHint && <span>{expirationHint}</span>}
           </div>
         </div>
 
@@ -99,16 +125,16 @@ function FocusItemRow({
       {showQuickLog && (
         <div style={{ marginTop: 10 }}>
           <QuickLogControls
-            onLog={(minutes) => onAddSession!(item.sourceId!, minutes)}
+            onLog={(minutes) => onAddSession!(item.actionTargetId!, minutes)}
             inputAriaLabel={`Minutes to log for ${item.title}`}
           />
         </div>
       )}
 
-      {!showQuickLog && item.actionLabel && onNavigate && (
+      {!showQuickLog && ctaLabel && onAction && (
         <div style={{ marginTop: 10 }}>
-          <button type="button" onClick={onNavigate}>
-            {item.actionLabel}
+          <button type="button" onClick={onAction}>
+            {ctaLabel}
           </button>
         </div>
       )}
@@ -158,7 +184,12 @@ export function DailyFocusSection({
             <FocusItemRow
               key={item.id}
               item={item}
-              onNavigate={openHandlerForCategory(item.category, sectionProps)}
+              nowIso={summary.generatedAtIso}
+              onAction={
+                item.suggestedActionType
+                  ? resolveFocusActionHandler(item.suggestedActionType, sectionProps)
+                  : undefined
+              }
               onAddSession={onAddSession}
             />
           ))}

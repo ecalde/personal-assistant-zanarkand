@@ -11,12 +11,22 @@
 
 import { buildSkillDayRows } from "./dashboardStats";
 import {
+  addDaysToDateKey,
+  buildUpcomingEventItems,
+  daysBetweenDateKeys,
+} from "./events";
+import {
+  addMinutesToHHMM,
+  minutesSinceMidnight,
+  parseHHMMToMinutes,
+  weekdayFromDate,
+} from "./schedule";
+import {
   buildApplicationsNeedingAttention,
   buildInterviewStageSummary,
   buildSkillGapPriorityList,
   type ApplicationAttentionReason,
 } from "./career";
-import { buildUpcomingEventItems, daysBetweenDateKeys } from "./events";
 import {
   buildWorkoutWeekSummary,
   getLastSession,
@@ -40,6 +50,7 @@ import { buildSkillProgressions } from "./progression";
 import {
   buildUnifiedTimelineRange,
   computeDailyWorkloadForDay,
+  formatLocalDateKey,
   type TimelineConflict,
 } from "./timeline";
 
@@ -160,6 +171,18 @@ export type FocusReasonCode =
   | "timeline_high_blocked_time"
   | "timeline_low_available_skill_time";
 
+export type FocusActionType =
+  | "open_skills"
+  | "open_events"
+  | "open_people"
+  | "open_career"
+  | "open_fitness"
+  | "log_skill_minutes"
+  | "contact_person"
+  | "apply_to_job"
+  | "schedule_workout"
+  | "resolve_conflict";
+
 export type FocusItem = {
   id: string;
   category: FocusCategory;
@@ -172,6 +195,9 @@ export type FocusItem = {
   sourceId?: string;
   estimatedMinutes?: number;
   reasonCodes: FocusReasonCode[];
+  suggestedActionType?: FocusActionType;
+  actionTargetId?: string;
+  expiresAtIso?: string;
 };
 
 export type DailyFocusContext = {
@@ -224,6 +250,9 @@ export type FocusItemDraft = {
   estimatedMinutes?: number;
   reasonCodes: FocusReasonCode[];
   score: FocusScoreComponents;
+  suggestedActionType?: FocusActionType;
+  actionTargetId?: string;
+  expiresAtIso?: string;
 };
 
 function emptyByCategory(): Record<FocusCategory, FocusItem[]> {
@@ -235,6 +264,142 @@ function emptyByCategory(): Record<FocusCategory, FocusItem[]> {
     fitness: [],
     timeline: [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Time helpers (pure, derived expiration timestamps)
+// ---------------------------------------------------------------------------
+
+function parseDateKeyToLocalDate(dateKey: string): Date | null {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+export function endOfLocalDayIso(dateKey: string): string {
+  const date = parseDateKeyToLocalDate(dateKey);
+  if (!date) return new Date().toISOString();
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return end.toISOString();
+}
+
+export function addHoursIso(iso: string, hours: number): string {
+  const date = new Date(iso);
+  date.setTime(date.getTime() + hours * 60 * 60 * 1000);
+  return date.toISOString();
+}
+
+export function addDaysIso(iso: string, days: number): string {
+  const date = new Date(iso);
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function localDateTimeIso(dateKey: string, hhmm: string): string | null {
+  const date = parseDateKeyToLocalDate(dateKey);
+  if (!date) return null;
+  const minutes = parseHHMMToMinutes(hhmm);
+  const hh = Math.floor(minutes / 60) % 24;
+  const mm = minutes % 60;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm, 0, 0).toISOString();
+}
+
+function startOfNextLocalDayIso(dateKey: string): string {
+  const nextKey = addDaysToDateKey(dateKey, 1);
+  if (!nextKey) return addDaysIso(endOfLocalDayIso(dateKey), 0);
+  const date = parseDateKeyToLocalDate(nextKey);
+  if (!date) return addDaysIso(endOfLocalDayIso(dateKey), 0);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).toISOString();
+}
+
+function skillBlockEndExpirationIso(skill: Skill, todayKey: string, now: Date): string {
+  const dayKey = weekdayFromDate(now);
+  const blocks = skill.schedule[dayKey] ?? [];
+  const nowMin = minutesSinceMidnight(now);
+  let latestEndMin = -1;
+  let latestEndHhmm: string | null = null;
+
+  for (const block of blocks) {
+    const startMin = parseHHMMToMinutes(block.startTime);
+    const endMin = startMin + block.minutes;
+    if (nowMin >= startMin && endMin > latestEndMin) {
+      latestEndMin = endMin;
+      latestEndHhmm = addMinutesToHHMM(block.startTime, block.minutes);
+    }
+  }
+
+  if (latestEndHhmm) {
+    const iso = localDateTimeIso(todayKey, latestEndHhmm);
+    if (iso) return iso;
+  }
+
+  return endOfLocalDayIso(todayKey);
+}
+
+function eventExpirationIso(event: LifeEvent, todayKey: string): string {
+  if (event.endTime) {
+    const iso = localDateTimeIso(event.date, event.endTime);
+    if (iso) return iso;
+  }
+  if (event.startTime && !event.endTime) {
+    const iso = localDateTimeIso(event.date, event.startTime);
+    if (iso) return addHoursIso(iso, 1);
+  }
+  return endOfLocalDayIso(event.date || todayKey);
+}
+
+function laterIso(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
+export function formatFocusActionLabel(actionType: FocusActionType): string {
+  switch (actionType) {
+    case "log_skill_minutes":
+      return "Log minutes";
+    case "open_events":
+      return "Open event";
+    case "open_people":
+      return "Open people";
+    case "contact_person":
+      return "Contact";
+    case "apply_to_job":
+      return "Apply";
+    case "open_career":
+      return "View career";
+    case "schedule_workout":
+      return "Start workout";
+    case "resolve_conflict":
+      return "Review conflict";
+    case "open_skills":
+      return "Open skills";
+    case "open_fitness":
+      return "View fitness";
+  }
+}
+
+export function formatFocusExpirationHint(
+  expiresAtIso: string,
+  nowIso?: string
+): string | undefined {
+  const nowMs = new Date(nowIso ?? new Date().toISOString()).getTime();
+  const expiresMs = new Date(expiresAtIso).getTime();
+  const diffMs = expiresMs - nowMs;
+  if (diffMs <= 0) return undefined;
+
+  const diffHours = Math.ceil(diffMs / (60 * 60 * 1000));
+  if (diffHours < 24) {
+    return diffHours <= 1 ? "Expires within an hour" : `Expires in ~${diffHours}h`;
+  }
+
+  const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  return diffDays === 1 ? "Expires tomorrow" : `Expires in ~${diffDays} days`;
+}
+
+export function filterExpiredFocusItems(items: FocusItem[], nowIso?: string): FocusItem[] {
+  const now = nowIso ?? new Date().toISOString();
+  return items.filter((item) => !item.expiresAtIso || item.expiresAtIso > now);
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +439,10 @@ function sumScoreComponents(score: FocusScoreComponents): number {
 export function scoreFocusItem(draft: FocusItemDraft): FocusItem {
   const priorityScore = sumScoreComponents(draft.score);
   const urgency = priorityFromScore(priorityScore);
+  const actionLabel =
+    draft.actionLabel ??
+    (draft.suggestedActionType ? formatFocusActionLabel(draft.suggestedActionType) : undefined);
+
   return {
     id: draft.id,
     category: draft.category,
@@ -282,10 +451,13 @@ export function scoreFocusItem(draft: FocusItemDraft): FocusItem {
     priorityScore,
     urgency,
     urgencyLabel: URGENCY_LABELS[urgency],
-    actionLabel: draft.actionLabel,
+    actionLabel,
     sourceId: draft.sourceId,
     estimatedMinutes: draft.estimatedMinutes,
     reasonCodes: draft.reasonCodes,
+    suggestedActionType: draft.suggestedActionType,
+    actionTargetId: draft.actionTargetId,
+    expiresAtIso: draft.expiresAtIso,
   };
 }
 
@@ -330,6 +502,15 @@ export function mergeFocusItems(drafts: FocusItemDraft[]): FocusItemDraft[] {
           ? draft.description
           : existing.description,
       actionLabel: draft.actionLabel ?? existing.actionLabel,
+      suggestedActionType:
+        draft.score.categoryBase >= existing.score.categoryBase
+          ? (draft.suggestedActionType ?? existing.suggestedActionType)
+          : (existing.suggestedActionType ?? draft.suggestedActionType),
+      actionTargetId:
+        draft.score.categoryBase >= existing.score.categoryBase
+          ? (draft.actionTargetId ?? existing.actionTargetId)
+          : (existing.actionTargetId ?? draft.actionTargetId),
+      expiresAtIso: laterIso(existing.expiresAtIso, draft.expiresAtIso),
       estimatedMinutes: Math.max(draft.estimatedMinutes ?? 0, existing.estimatedMinutes ?? 0) || undefined,
       reasonCodes: mergedCodes,
       score: {
@@ -422,6 +603,7 @@ export function collectSkillFocusItems(
   now: Date
 ): FocusItemDraft[] {
   const drafts: FocusItemDraft[] = [];
+  const todayKey = formatLocalDateKey(now);
   const rows = buildSkillDayRows(skills, sessions, now);
   const progressions = buildSkillProgressions(skills, sessions, now);
   const progressionBySkillId = new Map(progressions.map((p) => [p.skill.id, p]));
@@ -443,7 +625,9 @@ export function collectSkillFocusItems(
           title: `Catch up on ${skill.name}`,
           description: `${minutesBehind}m behind schedule today.`,
           estimatedMinutes: minutesBehind,
-          actionLabel: "Log minutes",
+          suggestedActionType: "log_skill_minutes",
+          actionTargetId: skill.id,
+          expiresAtIso: skillBlockEndExpirationIso(skill, todayKey, now),
           reasonCodes: ["skill_overdue"],
           score: {
             categoryBase: CATEGORY_BASE.skill_overdue!,
@@ -469,7 +653,9 @@ export function collectSkillFocusItems(
           title: `Hit daily goal for ${skill.name}`,
           description: `${remaining}m left to reach today's goal.`,
           estimatedMinutes: remaining,
-          actionLabel: "Log minutes",
+          suggestedActionType: "log_skill_minutes",
+          actionTargetId: skill.id,
+          expiresAtIso: endOfLocalDayIso(todayKey),
           reasonCodes: ["skill_daily_goal_incomplete"],
           score: {
             categoryBase: CATEGORY_BASE.skill_daily_goal_incomplete!,
@@ -494,7 +680,9 @@ export function collectSkillFocusItems(
           sourceId: skill.id,
           title: `Keep your ${progression.currentStreak}-day streak on ${skill.name}`,
           description: "Log time today before the day ends.",
-          actionLabel: "Log minutes",
+          suggestedActionType: "log_skill_minutes",
+          actionTargetId: skill.id,
+          expiresAtIso: endOfLocalDayIso(todayKey),
           reasonCodes: ["skill_streak_at_risk"],
           score: {
             categoryBase: CATEGORY_BASE.skill_streak_at_risk!,
@@ -519,7 +707,9 @@ export function collectSkillFocusItems(
           sourceId: skill.id,
           title: `Start ${skill.name}`,
           description: "High-priority skill with no time logged yet today.",
-          actionLabel: "Log minutes",
+          suggestedActionType: "log_skill_minutes",
+          actionTargetId: skill.id,
+          expiresAtIso: endOfLocalDayIso(todayKey),
           reasonCodes: ["skill_high_priority"],
           score: {
             categoryBase: CATEGORY_BASE.skill_high_priority!,
@@ -558,6 +748,9 @@ export function collectEventFocusItems(
           sourceId: event.id,
           title: `${event.title} today`,
           description: `${event.type}${timePart}${personSuffix}`,
+          suggestedActionType: "open_events",
+          actionTargetId: event.id,
+          expiresAtIso: eventExpirationIso(event, todayKey),
           reasonCodes: ["event_today"],
           score: {
             categoryBase: CATEGORY_BASE.event_today!,
@@ -578,6 +771,9 @@ export function collectEventFocusItems(
           sourceId: event.id,
           title: `${event.title} tomorrow`,
           description: `${event.type}${personSuffix}`,
+          suggestedActionType: "open_events",
+          actionTargetId: event.id,
+          expiresAtIso: endOfLocalDayIso(event.date),
           reasonCodes: ["event_tomorrow"],
           score: {
             categoryBase: CATEGORY_BASE.event_tomorrow!,
@@ -596,6 +792,9 @@ export function collectEventFocusItems(
           sourceId: event.id,
           title: `${event.title} in ${daysUntil} days`,
           description: `${event.type}${personSuffix}`,
+          suggestedActionType: "open_events",
+          actionTargetId: event.id,
+          expiresAtIso: endOfLocalDayIso(event.date),
           reasonCodes: ["event_urgent_upcoming"],
           score: {
             categoryBase: CATEGORY_BASE.event_urgent_upcoming!,
@@ -613,6 +812,9 @@ export function collectEventFocusItems(
           sourceId: event.id,
           title: `Deadline: ${event.title}`,
           description: `Due in ${daysUntil} day${daysUntil === 1 ? "" : "s"}${personSuffix}`,
+          suggestedActionType: "open_events",
+          actionTargetId: event.id,
+          expiresAtIso: endOfLocalDayIso(event.date),
           reasonCodes: ["event_deadline"],
           score: {
             categoryBase: CATEGORY_BASE.event_deadline!,
@@ -647,7 +849,9 @@ export function collectPeopleFocusItems(
           sourceId: item.person.id,
           title: `${item.person.name}'s birthday today`,
           description: "Reach out or send a message.",
-          actionLabel: "View people",
+          suggestedActionType: "contact_person",
+          actionTargetId: item.person.id,
+          expiresAtIso: endOfLocalDayIso(todayKey),
           reasonCodes: ["people_birthday_today"],
           score: {
             categoryBase: CATEGORY_BASE.people_birthday_today!,
@@ -663,7 +867,9 @@ export function collectPeopleFocusItems(
           sourceId: item.person.id,
           title: `${item.person.name}'s birthday ${item.urgencyLabel.toLowerCase()}`,
           description: "Plan a gift or message ahead of time.",
-          actionLabel: "View people",
+          suggestedActionType: "contact_person",
+          actionTargetId: item.person.id,
+          expiresAtIso: endOfLocalDayIso(item.nextDateKey),
           reasonCodes: ["people_birthday_soon"],
           score: {
             categoryBase: CATEGORY_BASE.people_birthday_soon!,
@@ -684,7 +890,9 @@ export function collectPeopleFocusItems(
         sourceId: item.person.id,
         title: `Follow up with ${item.person.name}`,
         description: `${item.daysSinceContact} days since last contact (cadence: every ${item.cadenceDays} days).`,
-        actionLabel: "View people",
+        suggestedActionType: "contact_person",
+        actionTargetId: item.person.id,
+        expiresAtIso: startOfNextLocalDayIso(todayKey),
         reasonCodes: ["people_follow_up_overdue"],
         score: {
           categoryBase: CATEGORY_BASE.people_follow_up_overdue!,
@@ -712,6 +920,7 @@ export function collectCareerFocusItems(
     attentionAppIds.add(status.application.id);
     const reasonCodes = status.reasons.map((r) => ATTENTION_REASON_TO_FOCUS[r]);
     const primary = primaryReasonCode(reasonCodes);
+    const isApplyAction = status.reasons.includes("saved_not_applied");
 
     drafts.push(
       makeDraft({
@@ -726,7 +935,9 @@ export function collectCareerFocusItems(
             return `In ${status.application.status} stage for ${status.daysInStage ?? 0} days.`;
           })
           .join(" "),
-        actionLabel: "View career",
+        suggestedActionType: isApplyAction ? "apply_to_job" : "open_career",
+        actionTargetId: status.application.id,
+        expiresAtIso: addDaysIso(endOfLocalDayIso(todayKey), 7),
         reasonCodes,
         score: {
           categoryBase: CATEGORY_BASE[primary] ?? 600,
@@ -749,7 +960,9 @@ export function collectCareerFocusItems(
         sourceId: app.id,
         title: `Apply to ${app.company}`,
         description: `${app.roleTitle} is saved and ready to apply.`,
-        actionLabel: "View career",
+        suggestedActionType: "apply_to_job",
+        actionTargetId: app.id,
+        expiresAtIso: addDaysIso(endOfLocalDayIso(todayKey), 7),
         reasonCodes: ["career_saved_not_applied"],
         score: {
           categoryBase: CATEGORY_BASE.career_saved_not_applied!,
@@ -768,7 +981,9 @@ export function collectCareerFocusItems(
         sourceId: app.id,
         title: `Prepare for ${app.company} interview`,
         description: `${app.roleTitle} is in ${app.status} stage.`,
-        actionLabel: "View career",
+        suggestedActionType: "open_career",
+        actionTargetId: app.id,
+        expiresAtIso: addDaysIso(endOfLocalDayIso(todayKey), 7),
         reasonCodes: ["career_interview_active"],
         score: {
           categoryBase: CATEGORY_BASE.career_interview_active!,
@@ -790,7 +1005,9 @@ export function collectCareerFocusItems(
           description: careerTarget.roleTitle
             ? `Skill gap for ${careerTarget.roleTitle}.`
             : "Close a skill gap for your dream job target.",
-          actionLabel: "View career",
+          suggestedActionType: "open_skills",
+          actionTargetId: topLinked.skillId,
+          expiresAtIso: addDaysIso(endOfLocalDayIso(todayKey), 7),
           reasonCodes: ["career_skill_gap"],
           score: {
             categoryBase: CATEGORY_BASE.career_skill_gap!,
@@ -813,6 +1030,8 @@ export function collectFitnessFocusItems(
   const hasFitnessData = workoutPlans.length > 0 || workoutSessions.length > 0;
   if (!hasFitnessData) return drafts;
 
+  const dayEnd = endOfLocalDayIso(todayKey);
+
   const weekSummary = buildWorkoutWeekSummary(workoutSessions, todayKey);
   const lastSession = getLastSession(workoutSessions);
   const sessionToday = workoutSessions.some((s) => s.date === todayKey);
@@ -825,7 +1044,8 @@ export function collectFitnessFocusItems(
         category: "fitness",
         title: "No workouts logged this week",
         description: "Log a session to stay on track.",
-        actionLabel: "View fitness",
+        suggestedActionType: "open_fitness",
+        expiresAtIso: dayEnd,
         reasonCodes: ["fitness_no_workout_this_week"],
         score: {
           categoryBase: CATEGORY_BASE.fitness_no_workout_this_week!,
@@ -845,7 +1065,9 @@ export function collectFitnessFocusItems(
           sourceId: lastSession.id,
           title: "Time to work out again",
           description: `Last workout was ${daysSince} days ago.`,
-          actionLabel: "View fitness",
+          suggestedActionType: "open_fitness",
+          actionTargetId: lastSession.id,
+          expiresAtIso: dayEnd,
           reasonCodes: ["fitness_long_gap_since_last"],
           score: {
             categoryBase: CATEGORY_BASE.fitness_long_gap_since_last!,
@@ -866,7 +1088,9 @@ export function collectFitnessFocusItems(
         sourceId: plan.id,
         title: `Log ${plan.name}`,
         description: "Use a saved workout plan today.",
-        actionLabel: "View fitness",
+        suggestedActionType: "schedule_workout",
+        actionTargetId: plan.id,
+        expiresAtIso: dayEnd,
         reasonCodes: ["fitness_log_from_plan"],
         score: {
           categoryBase: CATEGORY_BASE.fitness_log_from_plan!,
@@ -894,6 +1118,16 @@ function conflictDescription(conflicts: TimelineConflict[]): string {
   return `${totalMinutes}m total overlap across ${conflicts.length} conflicts.`;
 }
 
+function conflictExpirationIso(todayKey: string, conflict: TimelineConflict): string {
+  const iso = localDateTimeIso(todayKey, conflict.overlapEndTime);
+  if (iso) return iso;
+  return endOfLocalDayIso(todayKey);
+}
+
+function conflictActionTargetId(conflict: TimelineConflict): string {
+  return conflict.bId;
+}
+
 export function collectTimelineFocusItems(
   skills: Skill[],
   events: LifeEvent[],
@@ -911,6 +1145,7 @@ export function collectTimelineFocusItems(
 
   if (scheduleConflicts.length > 0) {
     if (scheduleConflicts.length > 2) {
+      const leadConflict = scheduleConflicts[0];
       drafts.push(
         makeDraft({
           id: "timeline:conflicts-aggregated",
@@ -918,6 +1153,9 @@ export function collectTimelineFocusItems(
           title: conflictTitle(scheduleConflicts),
           description: conflictDescription(scheduleConflicts),
           estimatedMinutes: scheduleConflicts.reduce((sum, c) => sum + c.overlapMinutes, 0),
+          suggestedActionType: "resolve_conflict",
+          actionTargetId: conflictActionTargetId(leadConflict),
+          expiresAtIso: conflictExpirationIso(todayKey, leadConflict),
           reasonCodes: ["timeline_schedule_conflict"],
           score: {
             categoryBase: CATEGORY_BASE.timeline_schedule_conflict!,
@@ -938,6 +1176,9 @@ export function collectTimelineFocusItems(
             title: "Schedule conflict today",
             description: `${conflict.overlapMinutes}m overlap at ${conflict.overlapStartTime}–${conflict.overlapEndTime}.`,
             estimatedMinutes: conflict.overlapMinutes,
+            suggestedActionType: "resolve_conflict",
+            actionTargetId: conflictActionTargetId(conflict),
+            expiresAtIso: conflictExpirationIso(todayKey, conflict),
             reasonCodes: ["timeline_schedule_conflict"],
             score: {
               categoryBase: CATEGORY_BASE.timeline_schedule_conflict!,
@@ -957,6 +1198,8 @@ export function collectTimelineFocusItems(
         category: "timeline",
         title: "Heavy calendar today",
         description: `${workload.blockedMinutes}m blocked by timed events.`,
+        suggestedActionType: "open_events",
+        expiresAtIso: endOfLocalDayIso(todayKey),
         reasonCodes: ["timeline_high_blocked_time"],
         score: {
           categoryBase: CATEGORY_BASE.timeline_high_blocked_time!,
@@ -976,6 +1219,8 @@ export function collectTimelineFocusItems(
         category: "timeline",
         title: "Limited skill time today",
         description: `Only ${Math.max(workload.netAvailableForSkillsMinutes, 0)}m available after conflicts.`,
+        suggestedActionType: "open_skills",
+        expiresAtIso: endOfLocalDayIso(todayKey),
         reasonCodes: ["timeline_low_available_skill_time"],
         score: {
           categoryBase: CATEGORY_BASE.timeline_low_available_skill_time!,
@@ -1094,10 +1339,11 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
   const merged = mergeFocusItems(capped);
   const scored = merged.map(scoreFocusItem);
   const ranked = rankFocusItems(scored);
-  const items = ranked.slice(0, maxItems);
+  const active = filterExpiredFocusItems(ranked, now.toISOString());
+  const items = active.slice(0, maxItems);
 
   const byCategory = emptyByCategory();
-  for (const item of ranked) {
+  for (const item of active) {
     byCategory[item.category].push(item);
   }
 
