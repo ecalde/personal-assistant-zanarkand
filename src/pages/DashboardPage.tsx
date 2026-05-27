@@ -8,6 +8,7 @@ import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSecti
 import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
 import { TimelineSection } from "../components/dashboard/TimelineSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
+import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
 import type { Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -57,6 +58,8 @@ export default function DashboardPage({
           <TimelineSection timelineItems={timelineItems} onAddSession={onAddSession} />
 
           <SkillProgressSection rows={rows} />
+
+          <WeeklyPreviewSection rows={rows} sessions={sessions} />
         </div>
       )}
     </div>
