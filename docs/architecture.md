@@ -37,6 +37,7 @@ src/
     people.ts           # People birthdays, follow-ups, event label resolution
     career.ts           # Job applications pipeline, skill-gap helpers, search/sort
     fitness.ts          # Workout plans/sessions helpers, search/sort, summaries
+    focus.ts            # Daily Focus Engine — ranked cross-domain recommendations
     progression.ts      # Derived XP, levels, streaks (from sessions; not persisted)
     timeline.ts         # Unified schedule + events timeline
   lib/                  # Supabase client (VITE_* env only)
@@ -91,7 +92,7 @@ src/
 - Presentational: receive slices of `app.payload` and callbacks
 - Must not call `saveAppData`, `initialSync`, or `replaceRemotePayload` directly
 - Examples: [`DashboardPage.tsx`](../src/pages/DashboardPage.tsx), [`SkillsPage`](../src/pages/SkillsPage.tsx), [`EventsPage`](../src/pages/EventsPage.tsx), [`PeoplePage`](../src/pages/PeoplePage.tsx), [`CareerPage`](../src/pages/CareerPage.tsx), [`FitnessPage`](../src/pages/FitnessPage.tsx)
-- [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats` and `core/progression`, then composes visual sections; it does not persist or call sync APIs.
+- [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats`, `core/progression`, and `core/focus`, then composes visual sections; it does not persist or call sync APIs.
 
 ### Components (`src/components`)
 
@@ -106,24 +107,26 @@ src/
 - Persistence and backup ([`storage.ts`](../src/core/storage.ts))
 - Remote sync policy ([`remoteStorage.ts`](../src/core/remoteStorage.ts), [`syncErrors.ts`](../src/core/syncErrors.ts))
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
-- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts))
+- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), daily focus ([`focus.ts`](../src/core/focus.ts))
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
+- Daily focus ([`focus.ts`](../src/core/focus.ts)): `buildDailyFocusSummary` aggregates skills, events, people, career, fitness, and timeline signals into ranked read-only `FocusItem` recommendations — tested in [`focus.test.ts`](../src/core/focus.test.ts). **Not persisted**; recomputed on each dashboard render. Recommendations only (no mutations, notifications, or auto-rescheduling).
 - Progression ([`progression.ts`](../src/core/progression.ts)): lifetime XP (1 XP = 1 logged minute), linear level bands (`XP_PER_LEVEL_BAND`), per-skill and global streaks — tested in [`progression.test.ts`](../src/core/progression.test.ts). **Not stored** in Postgres or `AppPayload`; recomputed from `sessions` on each render. Streak rule: meet `dailyGoalMinutes` when set, else any minutes > 0; global streak counts a day if **any** skill qualifies.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
-[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `workoutPlans`, `workoutSessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts), then composes visual sections top to bottom:
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`focus.ts`](../src/core/focus.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts), then composes visual sections top to bottom:
 
 1. **ProgressionHero** — account level, lifetime XP, global streak, level progress bar (hidden when no skills)
 2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
-3. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
-4. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
-5. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
-6. **FitnessSummarySection** — sessions logged this week, last workout summary, recent session lines, and “View fitness” navigation (hidden when empty)
-7. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
-8. **OverdueBehindSection** — skills behind schedule with quick log
-9. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
-10. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+3. **DailyFocusSection** — top 5 ranked cross-domain focus items with urgency labels, context line, skill quick-log, and deep-links to domain pages
+4. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
+5. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
+6. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
+7. **FitnessSummarySection** — sessions logged this week, last workout summary, recent session lines, and “View fitness” navigation (hidden when empty)
+8. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
+9. **OverdueBehindSection** — skills behind schedule with quick log
+10. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
+11. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
 
 Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `UnifiedTimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
 
@@ -199,5 +202,5 @@ Never commit real values. Use `.env.local` locally and Vercel project settings i
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes

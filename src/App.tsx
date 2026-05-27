@@ -911,9 +911,13 @@ export default function App({ userId, onSignOut }: AppProps) {
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
           jobApplications={app.payload.jobApplications ?? []}
+          careerTarget={app.payload.careerTarget}
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           onAddSession={addSession}
+          onOpenSkills={() => setPage("skills")}
+          onOpenEvents={() => setPage("events")}
+          onOpenPeople={() => setPage("people")}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={() => setPage("fitness")}
         />

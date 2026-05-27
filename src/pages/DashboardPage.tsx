@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { buildDailyFocusSummary } from "../core/focus";
 import {
   buildSkillDayRows,
   buildTimelineItems,
@@ -16,6 +17,7 @@ import {
   formatLocalDateKey,
 } from "../core/timeline";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
+import { DailyFocusSection } from "../components/dashboard/DailyFocusSection";
 import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
@@ -30,6 +32,7 @@ import {
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
 import type {
+  CareerTarget,
   JobApplication,
   LifeEvent,
   Person,
@@ -55,9 +58,13 @@ export type DashboardPageProps = {
   events: LifeEvent[];
   people: Person[];
   jobApplications: JobApplication[];
+  careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
   onAddSession: (skillId: string, minutes: number) => void;
+  onOpenSkills?: () => void;
+  onOpenEvents?: () => void;
+  onOpenPeople?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: () => void;
 };
@@ -68,9 +75,13 @@ export default function DashboardPage({
   events,
   people,
   jobApplications,
+  careerTarget,
   workoutPlans,
   workoutSessions,
   onAddSession,
+  onOpenSkills,
+  onOpenEvents,
+  onOpenPeople,
   onOpenCareer,
   onOpenFitness,
 }: DashboardPageProps) {
@@ -149,6 +160,32 @@ export default function DashboardPage({
     [people, today]
   );
 
+  const dailyFocusSummary = useMemo(
+    () =>
+      buildDailyFocusSummary({
+        skills,
+        sessions,
+        events,
+        people,
+        jobApplications,
+        careerTarget,
+        workoutPlans,
+        workoutSessions,
+        todayKey: today,
+      }),
+    [
+      skills,
+      sessions,
+      events,
+      people,
+      jobApplications,
+      careerTarget,
+      workoutPlans,
+      workoutSessions,
+      today,
+    ]
+  );
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
@@ -156,6 +193,18 @@ export default function DashboardPage({
       {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
 
       <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
+
+      <div style={{ marginTop: 12 }}>
+        <DailyFocusSection
+          summary={dailyFocusSummary}
+          onOpenSkills={onOpenSkills}
+          onOpenEvents={onOpenEvents}
+          onOpenPeople={onOpenPeople}
+          onOpenCareer={onOpenCareer}
+          onOpenFitness={onOpenFitness}
+          onAddSession={onAddSession}
+        />
+      </div>
 
       <div style={{ marginTop: 12 }}>
         <UpcomingEventsSection
