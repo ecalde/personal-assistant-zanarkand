@@ -304,7 +304,7 @@ function localDateTimeIso(dateKey: string, hhmm: string): string | null {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm, 0, 0).toISOString();
 }
 
-function startOfNextLocalDayIso(dateKey: string): string {
+export function startOfNextLocalDayIso(dateKey: string): string {
   const nextKey = addDaysToDateKey(dateKey, 1);
   if (!nextKey) return addDaysIso(endOfLocalDayIso(dateKey), 0);
   const date = parseDateKeyToLocalDate(nextKey);
@@ -1265,7 +1265,7 @@ export function formatFocusContextLine(context: DailyFocusContext): string {
   return parts.join(" · ");
 }
 
-function buildHeadline(items: FocusItem[]): string | undefined {
+export function buildHeadline(items: FocusItem[]): string | undefined {
   const highCount = items.filter(
     (item) => item.urgency === "critical" || item.urgency === "high"
   ).length;

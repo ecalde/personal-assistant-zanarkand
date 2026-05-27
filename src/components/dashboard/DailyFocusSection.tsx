@@ -17,6 +17,11 @@ import { QuickLogControls } from "./QuickLogControls";
 
 export type DailyFocusSectionProps = {
   summary: DailyFocusSummary;
+  hiddenCount?: number;
+  onDismissFocusItem?: (focusItemId: string) => void;
+  onSnoozeFocusItem?: (focusItemId: string, hours: number) => void;
+  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string) => void;
+  onRestoreAll?: () => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
@@ -33,6 +38,16 @@ const URGENCY_PILL_STYLES: Record<FocusPriority, CSSProperties> = {
   },
   medium: styles.statusOnTrack,
   low: styles.statusIdle,
+};
+
+const SECONDARY_BUTTON_STYLE: CSSProperties = {
+  fontSize: 12,
+  padding: "4px 10px",
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  background: "transparent",
+  opacity: 0.85,
+  cursor: "pointer",
 };
 
 function resolveFocusActionHandler(
@@ -64,11 +79,17 @@ function FocusItemRow({
   nowIso,
   onAction,
   onAddSession,
+  onDismissFocusItem,
+  onSnoozeFocusItem,
+  onSnoozeFocusItemUntilTomorrow,
 }: {
   item: FocusItem;
   nowIso: string;
   onAction?: () => void;
   onAddSession?: (skillId: string, minutes: number) => void;
+  onDismissFocusItem?: (focusItemId: string) => void;
+  onSnoozeFocusItem?: (focusItemId: string, hours: number) => void;
+  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string) => void;
 }) {
   const actionType = item.suggestedActionType;
   const ctaLabel =
@@ -84,6 +105,11 @@ function FocusItemRow({
     actionType === "log_skill_minutes" &&
     item.actionTargetId !== undefined &&
     onAddSession !== undefined;
+
+  const showFeedbackActions =
+    onDismissFocusItem !== undefined ||
+    onSnoozeFocusItem !== undefined ||
+    onSnoozeFocusItemUntilTomorrow !== undefined;
 
   return (
     <div style={styles.listRow}>
@@ -138,12 +164,59 @@ function FocusItemRow({
           </button>
         </div>
       )}
+
+      {showFeedbackActions && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: 10,
+          }}
+        >
+          {onDismissFocusItem && (
+            <button
+              type="button"
+              style={SECONDARY_BUTTON_STYLE}
+              onClick={() => onDismissFocusItem(item.id)}
+              aria-label={`Dismiss ${item.title}`}
+            >
+              Dismiss
+            </button>
+          )}
+          {onSnoozeFocusItem && (
+            <button
+              type="button"
+              style={SECONDARY_BUTTON_STYLE}
+              onClick={() => onSnoozeFocusItem(item.id, 3)}
+              aria-label={`Snooze ${item.title} for 3 hours`}
+            >
+              Snooze 3h
+            </button>
+          )}
+          {onSnoozeFocusItemUntilTomorrow && (
+            <button
+              type="button"
+              style={SECONDARY_BUTTON_STYLE}
+              onClick={() => onSnoozeFocusItemUntilTomorrow(item.id)}
+              aria-label={`Snooze ${item.title} until tomorrow`}
+            >
+              Snooze tomorrow
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export function DailyFocusSection({
   summary,
+  hiddenCount = 0,
+  onDismissFocusItem,
+  onSnoozeFocusItem,
+  onSnoozeFocusItemUntilTomorrow,
+  onRestoreAll,
   onOpenSkills,
   onOpenEvents,
   onOpenPeople,
@@ -154,6 +227,11 @@ export function DailyFocusSection({
   const contextLine = formatFocusContextLine(summary.context);
   const sectionProps: DailyFocusSectionProps = {
     summary,
+    hiddenCount,
+    onDismissFocusItem,
+    onSnoozeFocusItem,
+    onSnoozeFocusItemUntilTomorrow,
+    onRestoreAll,
     onOpenSkills,
     onOpenEvents,
     onOpenPeople,
@@ -191,10 +269,38 @@ export function DailyFocusSection({
                   : undefined
               }
               onAddSession={onAddSession}
+              onDismissFocusItem={onDismissFocusItem}
+              onSnoozeFocusItem={onSnoozeFocusItem}
+              onSnoozeFocusItemUntilTomorrow={onSnoozeFocusItemUntilTomorrow}
             />
           ))}
         </div>
       )}
+
+      {hiddenCount > 0 && onRestoreAll && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 12,
+            fontSize: 12,
+            opacity: 0.75,
+          }}
+        >
+          <span>
+            {hiddenCount} focus item{hiddenCount === 1 ? "" : "s"} hidden
+          </span>
+          <button type="button" style={SECONDARY_BUTTON_STYLE} onClick={onRestoreAll}>
+            Restore all
+          </button>
+        </div>
+      )}
+
+      <p style={{ margin: "12px 0 0 0", fontSize: 12, opacity: 0.65 }}>
+        Hidden items may reappear when conditions change.
+      </p>
     </section>
   );
 }

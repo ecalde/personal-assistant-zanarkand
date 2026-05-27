@@ -170,6 +170,17 @@ export type WorkoutSession = {
   updatedAtIso: string;
 };
 
+export type FocusFeedbackAction = "dismissed" | "snoozed";
+
+export type FocusFeedback = {
+  id: string;
+  focusItemId: string;
+  action: FocusFeedbackAction;
+  untilIso?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type AppPayload = {
   skills: Skill[];
   sessions: Session[];
@@ -180,4 +191,5 @@ export type AppPayload = {
   careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  focusFeedback: FocusFeedback[];
 };

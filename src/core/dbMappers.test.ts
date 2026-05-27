@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CareerTarget, ExerciseEntry, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
+import type { CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   careerTargetFromRow,
   careerTargetToRow,
   eventFromRow,
   eventToRow,
+  focusFeedbackFromRow,
+  focusFeedbackToRow,
   isBirthdayMonthDay,
   isHhMm,
   isIsoDate,
@@ -47,6 +49,7 @@ const TARGET_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PLAN_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const WORKOUT_SESSION_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const EXERCISE_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const FEEDBACK_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
 const NOW = "2026-05-26T12:00:00.000Z";
 const EVENT_DATE = "2026-06-15";
@@ -545,6 +548,7 @@ describe("workout mappers", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [sampleWorkoutSession({ planId: PLAN_ID })],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -563,6 +567,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -578,6 +583,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -594,6 +600,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -609,6 +616,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -625,6 +633,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -640,6 +649,7 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [sampleJobApplication()],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
       })
     ).toThrow(MapperError);
   });
@@ -655,8 +665,68 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        focusFeedback: [],
         careerTarget: sampleCareerTarget(),
       })
+    ).toThrow(MapperError);
+  });
+});
+
+describe("focus feedback mappers", () => {
+  function sampleFocusFeedback(overrides: Partial<FocusFeedback> = {}): FocusFeedback {
+    return {
+      id: FEEDBACK_ID,
+      focusItemId: "skill:test-skill",
+      action: "dismissed",
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips dismissed feedback", () => {
+    const entry = sampleFocusFeedback();
+    const row = focusFeedbackToRow(entry, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(focusFeedbackFromRow(row)).toEqual(entry);
+  });
+
+  it("round-trips snoozed feedback", () => {
+    const entry = sampleFocusFeedback({
+      action: "snoozed",
+      untilIso: "2026-05-27T15:00:00.000Z",
+    });
+    const row = focusFeedbackToRow(entry, USER_ID);
+    expect(focusFeedbackFromRow(row)).toEqual(entry);
+  });
+
+  it("rejects snoozed without untilIso", () => {
+    expect(() =>
+      focusFeedbackToRow(
+        sampleFocusFeedback({ action: "snoozed" }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects dismissed with untilIso", () => {
+    expect(() =>
+      focusFeedbackToRow(
+        sampleFocusFeedback({
+          action: "dismissed",
+          untilIso: "2026-05-27T15:00:00.000Z",
+        }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects invalid action", () => {
+    expect(() =>
+      focusFeedbackToRow(
+        sampleFocusFeedback({ action: "invalid" as FocusFeedback["action"] }),
+        USER_ID
+      )
     ).toThrow(MapperError);
   });
 });

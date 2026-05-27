@@ -1,6 +1,16 @@
 import { useMemo } from "react";
 import { buildDailyBriefing } from "../core/briefing";
-import { buildDailyFocusSummary } from "../core/focus";
+import {
+  buildDailyFocusSummary,
+  buildHeadline,
+  FOCUS_DASHBOARD_MAX_ITEMS,
+  rankFocusItems,
+  type FocusItem,
+} from "../core/focus";
+import {
+  countSuppressedFocusItems,
+  filterSuppressedFocusItems,
+} from "../core/focusFeedback";
 import {
   buildSkillDayRows,
   buildTimelineItems,
@@ -35,6 +45,7 @@ import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
 import type {
   CareerTarget,
+  FocusFeedback,
   JobApplication,
   LifeEvent,
   Person,
@@ -63,7 +74,12 @@ export type DashboardPageProps = {
   careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
+  onDismissFocusItem: (focusItemId: string) => void;
+  onSnoozeFocusItem: (focusItemId: string, hours: number) => void;
+  onSnoozeFocusItemUntilTomorrow: (focusItemId: string) => void;
+  onRestoreAllFocusItems: () => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
@@ -80,7 +96,12 @@ export default function DashboardPage({
   careerTarget,
   workoutPlans,
   workoutSessions,
+  focusFeedback,
   onAddSession,
+  onDismissFocusItem,
+  onSnoozeFocusItem,
+  onSnoozeFocusItemUntilTomorrow,
+  onRestoreAllFocusItems,
   onOpenSkills,
   onOpenEvents,
   onOpenPeople,
@@ -188,6 +209,34 @@ export default function DashboardPage({
     ]
   );
 
+  const visibleFocusSummary = useMemo(() => {
+    const allRanked = rankFocusItems(
+      (Object.values(dailyFocusSummary.byCategory) as FocusItem[][]).flat()
+    );
+    const visible = filterSuppressedFocusItems(
+      allRanked,
+      focusFeedback,
+      dailyFocusSummary.generatedAtIso
+    ).slice(0, FOCUS_DASHBOARD_MAX_ITEMS);
+
+    return {
+      ...dailyFocusSummary,
+      items: visible,
+      headline: buildHeadline(visible),
+    };
+  }, [dailyFocusSummary, focusFeedback]);
+
+  const hiddenFocusCount = useMemo(() => {
+    const allRanked = rankFocusItems(
+      (Object.values(dailyFocusSummary.byCategory) as FocusItem[][]).flat()
+    );
+    return countSuppressedFocusItems(
+      allRanked,
+      focusFeedback,
+      dailyFocusSummary.generatedAtIso
+    );
+  }, [dailyFocusSummary, focusFeedback]);
+
   const dailyBriefing = useMemo(
     () =>
       buildDailyBriefing({
@@ -232,7 +281,12 @@ export default function DashboardPage({
 
       <div style={{ marginTop: 12 }}>
         <DailyFocusSection
-          summary={dailyFocusSummary}
+          summary={visibleFocusSummary}
+          hiddenCount={hiddenFocusCount}
+          onDismissFocusItem={onDismissFocusItem}
+          onSnoozeFocusItem={onSnoozeFocusItem}
+          onSnoozeFocusItemUntilTomorrow={onSnoozeFocusItemUntilTomorrow}
+          onRestoreAll={onRestoreAllFocusItems}
           onOpenSkills={onOpenSkills}
           onOpenEvents={onOpenEvents}
           onOpenPeople={onOpenPeople}

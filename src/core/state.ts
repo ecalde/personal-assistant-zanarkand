@@ -27,6 +27,7 @@ export function defaultPayload(): AppPayload {
     jobApplications: [],
     workoutPlans: [],
     workoutSessions: [],
+    focusFeedback: [],
   };
 }
 

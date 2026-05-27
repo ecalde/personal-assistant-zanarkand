@@ -21,6 +21,8 @@ import type {
   WorkoutFocus,
   WorkoutPlan,
   WorkoutSession,
+  FocusFeedback,
+  FocusFeedbackAction,
 } from "./model";
 
 const UUID_RE =
@@ -64,6 +66,8 @@ const WORKOUT_FOCUSES: WorkoutFocus[] = [
   "cardio",
   "mobility",
 ];
+
+const FOCUS_FEEDBACK_ACTIONS: FocusFeedbackAction[] = ["dismissed", "snoozed"];
 
 export type SkillRow = {
   id: string;
@@ -178,6 +182,16 @@ export type WorkoutSessionRow = {
   notes: string | null;
   duration_minutes: number | null;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FocusFeedbackRow = {
+  id: string;
+  user_id: string;
+  focus_item_id: string;
+  action: string;
+  until_iso: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -720,6 +734,31 @@ export function assertValidWorkoutSession(session: WorkoutSession): void {
   }
 }
 
+function isFocusFeedbackAction(value: string): value is FocusFeedbackAction {
+  return (FOCUS_FEEDBACK_ACTIONS as string[]).includes(value);
+}
+
+export function assertValidFocusFeedback(entry: FocusFeedback): void {
+  assertUuid(entry.id, "focusFeedback.id");
+  if (typeof entry.focusItemId !== "string" || entry.focusItemId.trim().length === 0) {
+    throw new MapperError("focusFeedback.focusItemId must not be empty", "focusFeedback.focusItemId");
+  }
+  if (!isFocusFeedbackAction(entry.action)) {
+    throw new MapperError("Invalid focusFeedback.action", "focusFeedback.action");
+  }
+  assertIsoTimestamp(entry.createdAtIso, "focusFeedback.createdAtIso");
+  assertIsoTimestamp(entry.updatedAtIso, "focusFeedback.updatedAtIso");
+
+  if (entry.action === "snoozed") {
+    if (entry.untilIso === undefined) {
+      throw new MapperError("Snoozed focusFeedback requires untilIso", "focusFeedback.untilIso");
+    }
+    assertIsoTimestamp(entry.untilIso, "focusFeedback.untilIso");
+  } else if (entry.untilIso !== undefined) {
+    throw new MapperError("Dismissed focusFeedback cannot include untilIso", "focusFeedback.untilIso");
+  }
+}
+
 export function skillToRow(skill: Skill, userId: string): SkillRow {
   assertUuid(userId, "userId");
   const schedule = assertValidSkill(skill);
@@ -1236,6 +1275,57 @@ export function workoutSessionFromRow(row: WorkoutSessionRow): WorkoutSession {
   return session;
 }
 
+export function focusFeedbackToRow(entry: FocusFeedback, userId: string): FocusFeedbackRow {
+  assertUuid(userId, "userId");
+  assertValidFocusFeedback(entry);
+
+  return {
+    id: entry.id,
+    user_id: userId,
+    focus_item_id: entry.focusItemId.trim(),
+    action: entry.action,
+    until_iso: entry.untilIso ?? null,
+    created_at: entry.createdAtIso,
+    updated_at: entry.updatedAtIso,
+  };
+}
+
+export function focusFeedbackFromRow(row: FocusFeedbackRow): FocusFeedback {
+  assertUuid(row.id, "focus_feedback.id");
+  assertUuid(row.user_id, "focus_feedback.user_id");
+  if (typeof row.focus_item_id !== "string" || row.focus_item_id.trim().length === 0) {
+    throw new MapperError("Invalid focus_feedback.focus_item_id", "focus_feedback.focus_item_id");
+  }
+  if (!isFocusFeedbackAction(row.action)) {
+    throw new MapperError("Invalid focus_feedback.action", "focus_feedback.action");
+  }
+  assertIsoTimestamp(row.created_at, "focus_feedback.created_at");
+  assertIsoTimestamp(row.updated_at, "focus_feedback.updated_at");
+
+  if (row.action === "snoozed") {
+    if (row.until_iso === null) {
+      throw new MapperError("Snoozed focus_feedback requires until_iso", "focus_feedback.until_iso");
+    }
+    assertIsoTimestamp(row.until_iso, "focus_feedback.until_iso");
+  } else if (row.until_iso !== null) {
+    throw new MapperError("Dismissed focus_feedback cannot include until_iso", "focus_feedback.until_iso");
+  }
+
+  const entry: FocusFeedback = {
+    id: row.id,
+    focusItemId: row.focus_item_id.trim(),
+    action: row.action,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.until_iso !== null) {
+    entry.untilIso = row.until_iso;
+  }
+
+  return entry;
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -1331,7 +1421,8 @@ export function payloadFromRows(
   jobApplicationRows: JobApplicationRow[] = [],
   careerTargetRows: CareerTargetRow[] = [],
   workoutPlanRows: WorkoutPlanRow[] = [],
-  workoutSessionRows: WorkoutSessionRow[] = []
+  workoutSessionRows: WorkoutSessionRow[] = [],
+  focusFeedbackRows: FocusFeedbackRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -1341,6 +1432,7 @@ export function payloadFromRows(
   const jobApplications = jobApplicationRows.map((row) => jobApplicationFromRow(row));
   const workoutPlans = workoutPlanRows.map((row) => workoutPlanFromRow(row));
   const workoutSessions = workoutSessionRows.map((row) => workoutSessionFromRow(row));
+  const focusFeedback = focusFeedbackRows.map((row) => focusFeedbackFromRow(row));
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -1360,6 +1452,7 @@ export function payloadFromRows(
     careerTarget,
     workoutPlans,
     workoutSessions,
+    focusFeedback,
   };
   validatePayloadForUpload(payload);
   return payload;
@@ -1482,5 +1575,14 @@ export function validatePayloadForUpload(payload: AppPayload): void {
         "workoutSessions.planId"
       );
     }
+  }
+
+  const focusFeedbackIds = new Set<string>();
+  for (const entry of payload.focusFeedback) {
+    assertValidFocusFeedback(entry);
+    if (focusFeedbackIds.has(entry.id)) {
+      throw new MapperError(`Duplicate focus feedback id: ${entry.id}`, "focusFeedback.id");
+    }
+    focusFeedbackIds.add(entry.id);
   }
 }

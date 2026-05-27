@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AppPayload,
   CareerTarget,
+  FocusFeedback,
   JobApplication,
   LifeEvent,
   Person,
@@ -11,13 +12,19 @@ import type {
   WorkoutSession,
 } from "./core/model";
 import {
+  cleanupExpiredFeedback,
+  dismissUntilEndOfDay,
+  snoozeFocusItem as buildSnoozeFocusFeedback,
+  snoozeFocusItemUntilTomorrow as buildSnoozeUntilTomorrowFeedback,
+} from "./core/focusFeedback";
+import {
   initialSync,
   isRemoteSyncEnabled,
   replaceRemotePayload,
 } from "./core/remoteStorage";
 import { cloudSafeMessage, loadDataErrorMessage } from "./core/syncErrors";
 import type { AppData } from "./core/storage";
-import { exportBackup, importBackup, loadAppData, saveAppData } from "./core/storage";
+import { exportBackup, importBackup, loadAppData, nowIso, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
 import CareerPage from "./pages/CareerPage";
@@ -149,7 +156,14 @@ export default function App({ userId, onSignOut }: AppProps) {
     clearDebounce();
 
     try {
-      const data = await initialSync(userId, () => loadAppData(userId));
+      let data = await initialSync(userId, () => loadAppData(userId));
+      const cleaned = cleanupExpiredFeedback(data.payload.focusFeedback ?? [], nowIso());
+      if (cleaned.length !== (data.payload.focusFeedback ?? []).length) {
+        data = saveAppData(
+          { ...data, payload: { ...data.payload, focusFeedback: cleaned } },
+          userId
+        );
+      }
       setApp(data);
       setSyncError(null);
       syncReadyRef.current = true;
@@ -864,6 +878,37 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
   }
 
+  function upsertFocusFeedbackEntry(entry: FocusFeedback) {
+    if (!app) return;
+
+    const existing = app.payload.focusFeedback ?? [];
+    const next = [
+      ...existing.filter((item) => item.focusItemId !== entry.focusItemId),
+      entry,
+    ];
+    commit({ ...app, payload: { ...app.payload, focusFeedback: next } });
+  }
+
+  function dismissFocusItem(focusItemId: string) {
+    if (!app) return;
+    upsertFocusFeedbackEntry(dismissUntilEndOfDay(focusItemId, nowIso()));
+  }
+
+  function snoozeFocusItem(focusItemId: string, hours: number) {
+    if (!app) return;
+    upsertFocusFeedbackEntry(buildSnoozeFocusFeedback(focusItemId, nowIso(), hours));
+  }
+
+  function snoozeFocusItemUntilTomorrow(focusItemId: string) {
+    if (!app) return;
+    upsertFocusFeedbackEntry(buildSnoozeUntilTomorrowFeedback(focusItemId, nowIso()));
+  }
+
+  function restoreAllFocusItems() {
+    if (!app) return;
+    commit({ ...app, payload: { ...app.payload, focusFeedback: [] } });
+  }
+
   // ---------- UI ----------
   if (dataLoading) {
     return (
@@ -914,7 +959,12 @@ export default function App({ userId, onSignOut }: AppProps) {
           careerTarget={app.payload.careerTarget}
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
+          focusFeedback={app.payload.focusFeedback ?? []}
           onAddSession={addSession}
+          onDismissFocusItem={dismissFocusItem}
+          onSnoozeFocusItem={snoozeFocusItem}
+          onSnoozeFocusItemUntilTomorrow={snoozeFocusItemUntilTomorrow}
+          onRestoreAllFocusItems={restoreAllFocusItems}
           onOpenSkills={() => setPage("skills")}
           onOpenEvents={() => setPage("events")}
           onOpenPeople={() => setPage("people")}

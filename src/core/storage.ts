@@ -50,6 +50,7 @@ function normalizePayload(payload: unknown): AppPayload {
                 : undefined,
         workoutPlans: Array.isArray(p.workoutPlans) ? p.workoutPlans : [],
         workoutSessions: Array.isArray(p.workoutSessions) ? p.workoutSessions : [],
+        focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
     };
 }
 

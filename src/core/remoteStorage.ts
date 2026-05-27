@@ -11,6 +11,7 @@ import {
   isUuid,
   jobApplicationToRow,
   overrideToRow,
+  focusFeedbackToRow,
   payloadFromRows,
   personToRow,
   sessionToRow,
@@ -27,6 +28,7 @@ import {
   type SkillRow,
   type WorkoutPlanRow,
   type WorkoutSessionRow,
+  type FocusFeedbackRow,
 } from "./dbMappers";
 
 type AppTable =
@@ -38,7 +40,8 @@ type AppTable =
   | "job_applications"
   | "career_targets"
   | "workout_plans"
-  | "workout_sessions";
+  | "workout_sessions"
+  | "focus_feedback";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -115,6 +118,7 @@ async function upsertRows(
     | CareerTargetRow[]
     | WorkoutPlanRow[]
     | WorkoutSessionRow[]
+    | FocusFeedbackRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -136,7 +140,7 @@ async function deleteRowsNotIn(table: AppTable, userId: string, keepIds: string[
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, focusFeedbackResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -147,6 +151,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("career_targets").select("*").eq("user_id", userId),
     supabase.from("workout_plans").select("*").eq("user_id", userId),
     supabase.from("workout_sessions").select("*").eq("user_id", userId),
+    supabase.from("focus_feedback").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -158,6 +163,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(careerTargetsResult.error, "career_targets");
   throwOnSupabaseError(workoutPlansResult.error, "workout_plans");
   throwOnSupabaseError(workoutSessionsResult.error, "workout_sessions");
+  throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
 
   try {
     return payloadFromRows(
@@ -169,7 +175,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<JobApplicationRow>(jobApplicationsResult.data),
       asRows<CareerTargetRow>(careerTargetsResult.data),
       asRows<WorkoutPlanRow>(workoutPlansResult.data),
-      asRows<WorkoutSessionRow>(workoutSessionsResult.data)
+      asRows<WorkoutSessionRow>(workoutSessionsResult.data),
+      asRows<FocusFeedbackRow>(focusFeedbackResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -202,6 +209,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const workoutSessionRows = payload.workoutSessions.map((session) =>
     workoutSessionToRow(session, userId)
   );
+  const focusFeedbackRows = payload.focusFeedback.map((entry) =>
+    focusFeedbackToRow(entry, userId)
+  );
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
@@ -212,6 +222,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("career_targets", careerTargetRows);
   await upsertRows("workout_plans", workoutPlanRows);
   await upsertRows("workout_sessions", workoutSessionRows);
+  await upsertRows("focus_feedback", focusFeedbackRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
   const skillIds = payload.skills.map((s) => s.id);
@@ -222,6 +233,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const careerTargetIds = payload.careerTarget ? [payload.careerTarget.id] : [];
   const workoutPlanIds = payload.workoutPlans.map((p) => p.id);
   const workoutSessionIds = payload.workoutSessions.map((s) => s.id);
+  const focusFeedbackIds = payload.focusFeedback.map((f) => f.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
   await deleteRowsNotIn("skills", userId, skillIds);
@@ -232,6 +244,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("career_targets", userId, careerTargetIds);
   await deleteRowsNotIn("workout_plans", userId, workoutPlanIds);
   await deleteRowsNotIn("workout_sessions", userId, workoutSessionIds);
+  await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -244,7 +257,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.jobApplications.length > 0 ||
     payload.careerTarget !== undefined ||
     payload.workoutPlans.length > 0 ||
-    payload.workoutSessions.length > 0
+    payload.workoutSessions.length > 0 ||
+    payload.focusFeedback.length > 0
   );
 }
 
