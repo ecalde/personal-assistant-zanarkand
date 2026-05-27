@@ -16,8 +16,24 @@ export type UnifiedTimelineSectionProps = {
   onAddSession: (skillId: string, minutes: number) => void;
 };
 
+type WorkloadMetricProps = {
+  value: number;
+  label: string;
+  helper: string;
+};
+
 function scheduleKey(skillId: string, blockId: string): string {
   return `${skillId}:${blockId}`;
+}
+
+function WorkloadMetric({ value, label, helper }: WorkloadMetricProps) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statValue}>{formatMinutes(value)}</div>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.helpText}>{helper}</div>
+    </div>
+  );
 }
 
 export function UnifiedTimelineSection({
@@ -31,35 +47,60 @@ export function UnifiedTimelineSection({
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>
         Today&apos;s timeline
       </h2>
-      <p style={{ margin: "0 0 10px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
         Scheduled skill blocks and life events merged chronologically.
       </p>
 
       <div
         style={{
-          ...styles.dashboardGrid,
+          background: "#fafafa",
+          border: "1px solid #e5e5e5",
+          borderRadius: 12,
+          padding: 12,
           marginBottom: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
         }}
-        aria-label="Daily workload summary"
+        aria-label="Today workload"
       >
-        <div style={styles.statCard}>
-          <div style={styles.statValue}>{formatMinutes(workload.plannedSkillMinutes)}</div>
-          <div style={styles.statLabel}>Planned skills</div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={styles.statValue}>{formatMinutes(workload.blockedMinutes)}</div>
-          <div style={styles.statLabel}>Blocked by events</div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={styles.statValue}>{formatMinutes(workload.conflictMinutes)}</div>
-          <div style={styles.statLabel}>Conflicts</div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={styles.statValue}>
-            {formatMinutes(workload.netAvailableForSkillsMinutes)}
-          </div>
-          <div style={styles.statLabel}>Net available</div>
+        <h3 style={{ fontWeight: 800, margin: "0 0 4px 0", fontSize: 14 }}>
+          Today workload
+        </h3>
+        <p style={{ ...styles.helpText, margin: "0 0 10px 0" }}>
+          These numbers explain how your scheduled skill time interacts with timed events.
+          Events without an end time don&apos;t count as blocked.
+        </p>
+
+        <div
+          style={{
+            ...styles.dashboardGrid,
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+          }}
+          aria-label="Daily workload summary"
+        >
+          <WorkloadMetric
+            value={workload.plannedSkillMinutes}
+            label="Planned (skills)"
+            helper="From your weekly schedule template."
+          />
+          <WorkloadMetric
+            value={workload.blockedMinutes}
+            label="Blocked (events)"
+            helper="Timed events only (start + end)."
+          />
+          <WorkloadMetric
+            value={workload.conflictMinutes}
+            label="Conflict (skills × events)"
+            helper="Minutes where a skill block overlaps a timed event."
+          />
+          <WorkloadMetric
+            value={workload.netAvailableForSkillsMinutes}
+            label="Net scheduled (after conflicts)"
+            helper="Planned minus conflict minutes."
+          />
+          <WorkloadMetric
+            value={workload.netFreeMinutes}
+            label="Free time (after events)"
+            helper="24h minus blocked event minutes."
+          />
         </div>
       </div>
 

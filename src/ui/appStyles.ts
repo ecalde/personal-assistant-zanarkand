@@ -155,4 +155,42 @@ export const styles: Record<string, CSSProperties> = {
   timelineAccentUpcoming: {
     borderLeftColor: "#bdbdbd",
   },
+  timelineAccentEvent: {
+    borderLeftColor: "#64b5f6",
+  },
+  timelineAccentMarker: {
+    borderLeftColor: "#b39ddb",
+  },
+  timelineAccentAllDay: {
+    borderLeftColor: "#cfd8dc",
+  },
+  timelineAccentConflict: {
+    borderLeftColor: "#e65100",
+  },
+  statusEvent: {
+    border: "1px solid #90caf9",
+    background: "#e3f2fd",
+  },
+  statusMarker: {
+    border: "1px solid #ce93d8",
+    background: "#f3e5f5",
+  },
+  statusAllDay: {
+    border: "1px solid #cfd8dc",
+    background: "#eceff1",
+  },
+  categoryPill: {
+    padding: "2px 8px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.02em",
+  },
+  helpText: {
+    fontSize: 12,
+    opacity: 0.75,
+    lineHeight: 1.35,
+  },
 };
