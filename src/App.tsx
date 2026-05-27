@@ -93,10 +93,12 @@ type Page = "dashboard" | "skills";
 const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 export type AppProps = {
+  userId: string;
   onSignOut?: () => void;
 };
 
-export default function App({ onSignOut }: AppProps) {
+export default function App({ userId, onSignOut }: AppProps) {
+  void userId;
   const [app, setApp] = useState<AppData>(() => {
     const loaded = loadAppData();
     // Safety: if payload missing for any reason

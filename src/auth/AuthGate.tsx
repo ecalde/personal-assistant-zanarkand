@@ -52,6 +52,7 @@ export function AuthGate() {
 
   return (
     <App
+      userId={session.user.id}
       onSignOut={() => {
         void supabase.auth.signOut();
       }}
