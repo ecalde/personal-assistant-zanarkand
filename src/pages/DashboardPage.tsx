@@ -5,8 +5,9 @@ import {
   totalMinutesToday,
 } from "../core/dashboardStats";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
+import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
 import { TodayHero } from "../components/dashboard/TodayHero";
-import type { Priority, Session, Skill } from "../core/model";
+import type { Session, Skill } from "../core/model";
 import { styles } from "../ui/appStyles";
 import { priorityEmoji } from "../ui/format";
 
@@ -41,17 +42,6 @@ export default function DashboardPage({
     [skills, sessions]
   );
 
-  const sortedRows = useMemo(() => {
-    // Sort: priority 1->4, then name
-    const pr = (p?: Priority) => (p ?? 999);
-    return [...rows].sort((a, b) => {
-      const ap = pr(a.skill.priority);
-      const bp = pr(b.skill.priority);
-      if (ap !== bp) return ap - bp;
-      return a.skill.name.localeCompare(b.skill.name);
-    });
-  }, [rows]);
-
   return (
     <div style={styles.card}>
       <div style={styles.cardTitle}>Dashboard (Phase 1)</div>
@@ -69,12 +59,8 @@ export default function DashboardPage({
         <div style={{ display: "grid", gap: 12 }}>
           <OverdueBehindSection rows={rows} onAddSession={onAddSession} />
 
-          {/* All skills section */}
+          {/* Timeline section */}
           <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>All skills today</div>
-
-            {/* Timeline section */}
-            <div style={{ background: "white", border: "1px solid #e5e5e5", padding: 12, borderRadius: 12 }}>
               <div style={{ fontWeight: 800, marginBottom: 6 }}>Today’s timeline</div>
               <div style={{ opacity: 0.8, marginBottom: 10 }}>
                 Your scheduled blocks for today, sorted by time (based on your weekly template).
@@ -141,42 +127,9 @@ export default function DashboardPage({
                   ))}
                 </div>
               )}
-            </div>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              {sortedRows.map((r) => (
-                <div key={r.skill.id} style={styles.listRow}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 16 }}>
-                      {priorityEmoji(r.skill.priority)} <b>{r.skill.name}</b>
-                    </div>
-
-                    <span
-                      style={{
-                        ...styles.statusPill,
-                        ...(r.status === "onTrack"
-                          ? styles.statusOnTrack
-                          : r.status === "overdue"
-                            ? styles.statusOverdue
-                            : styles.statusIdle),
-                      }}
-                    >
-                      {r.status === "onTrack"
-                        ? "🟢 On track"
-                        : r.status === "overdue"
-                          ? "🔴 Overdue"
-                          : "⚪ Idle"}
-                    </span>
-                  </div>
-
-                  <div style={{ opacity: 0.8, marginTop: 4 }}>
-                    Today: <b>{r.todayMinutes}m</b> · Expected by now: <b>{r.expectedByNow}m</b> · Goal:{" "}
-                    <b>{r.skill.dailyGoalMinutes ?? "—"}m</b>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
+
+          <SkillProgressSection rows={rows} />
         </div>
       )}
     </div>
