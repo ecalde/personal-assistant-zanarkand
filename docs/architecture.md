@@ -32,10 +32,13 @@ src/
   App.tsx               # Sync lifecycle, commit, CRUD, page state
   auth/                 # Auth gate and sign-in screen
   core/                 # Domain model, storage, sync, mappers, pure helpers
+    dashboardStats.ts   # Pure dashboard derivations (today/week/timeline)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Skills)
+    DashboardPage.tsx   # Composes dashboard sections from props
   components/
     layout/             # AppShell, NavButton
+    dashboard/          # Dashboard sections and shared widgets
     skills/             # SkillEditor, GoalInput
   ui/                   # Shared styles and display helpers
 ```
@@ -47,6 +50,7 @@ src/
 | `src/lib` | `createClient` for Supabase (public env vars only) |
 | `src/pages` | Presentational pages; props in, callbacks out |
 | `src/components/layout` | App chrome (header, nav, banners) |
+| `src/components/dashboard` | Presentational dashboard sections (`TodayHero`, timeline, progress, weekly preview) |
 | `src/components/skills` | Skills-specific UI building blocks |
 | `src/ui` | `appStyles`, `format` helpers (no domain rules) |
 
@@ -70,12 +74,14 @@ src/
 
 - Presentational: receive slices of `app.payload` and callbacks
 - Must not call `saveAppData`, `initialSync`, or `replaceRemotePayload` directly
-- Examples: `DashboardPage`, `SkillsPage`
+- Examples: [`DashboardPage.tsx`](../src/pages/DashboardPage.tsx), `SkillsPage`
+- [`DashboardPage`](../src/pages/DashboardPage.tsx) builds derived data via `core/dashboardStats`, then composes visual sections; it does not persist or call sync APIs.
 
 ### Components (`src/components`)
 
 - Reusable UI composed by pages or `AppShell`
 - Layout: `AppShell`, `NavButton`
+- Dashboard ([`src/components/dashboard/`](../src/components/dashboard/)): presentational only — props in, events out; no `saveAppData` or Supabase
 - Skills: `SkillEditor`, `GoalInput`
 
 ### Core (`src/core`)
@@ -84,7 +90,20 @@ src/
 - Persistence and backup ([`storage.ts`](../src/core/storage.ts))
 - Remote sync policy ([`remoteStorage.ts`](../src/core/remoteStorage.ts), [`syncErrors.ts`](../src/core/syncErrors.ts))
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
-- Pure helpers: schedule math, duration parsing, sessions utilities
+- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), duration parsing, sessions utilities
+- Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
+
+### Dashboard (`DashboardPage` + `components/dashboard`)
+
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), and renders sections top to bottom:
+
+1. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
+2. **OverdueBehindSection** — skills behind schedule with quick log
+3. **TimelineSection** — today’s scheduled blocks across skills
+4. **SkillProgressSection** — per-skill today progress and goals
+5. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+
+Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
 
 ## Data flow
 
@@ -133,5 +152,5 @@ Never commit real values. Use `.env.local` locally and Vercel project settings i
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `dashboardStats.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes
