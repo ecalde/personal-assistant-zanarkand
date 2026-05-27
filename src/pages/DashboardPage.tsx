@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { buildDailyBriefing } from "../core/briefing";
 import { buildDailyFocusSummary } from "../core/focus";
 import {
   buildSkillDayRows,
@@ -17,6 +18,7 @@ import {
   formatLocalDateKey,
 } from "../core/timeline";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
+import { DailyBriefingSection } from "../components/dashboard/DailyBriefingSection";
 import { DailyFocusSection } from "../components/dashboard/DailyFocusSection";
 import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
@@ -186,6 +188,36 @@ export default function DashboardPage({
     ]
   );
 
+  const dailyBriefing = useMemo(
+    () =>
+      buildDailyBriefing({
+        skills,
+        sessions,
+        events,
+        people,
+        jobApplications,
+        workoutPlans,
+        workoutSessions,
+        focusSummary: dailyFocusSummary,
+        unifiedTimelineDay: unifiedToday,
+        workload: todayWorkload,
+        todayKey: today,
+      }),
+    [
+      skills,
+      sessions,
+      events,
+      people,
+      jobApplications,
+      workoutPlans,
+      workoutSessions,
+      dailyFocusSummary,
+      unifiedToday,
+      todayWorkload,
+      today,
+    ]
+  );
+
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
@@ -193,6 +225,10 @@ export default function DashboardPage({
       {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
 
       <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
+
+      <div style={{ marginTop: 12 }}>
+        <DailyBriefingSection briefing={dailyBriefing} />
+      </div>
 
       <div style={{ marginTop: 12 }}>
         <DailyFocusSection

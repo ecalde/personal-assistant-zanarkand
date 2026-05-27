@@ -38,6 +38,7 @@ src/
     career.ts           # Job applications pipeline, skill-gap helpers, search/sort
     fitness.ts          # Workout plans/sessions helpers, search/sort, summaries
     focus.ts            # Daily Focus Engine — ranked cross-domain recommendations
+    briefing.ts         # Daily Briefing Engine — deterministic NL summaries
     progression.ts      # Derived XP, levels, streaks (from sessions; not persisted)
     timeline.ts         # Unified schedule + events timeline
   lib/                  # Supabase client (VITE_* env only)
@@ -107,30 +108,36 @@ src/
 - Persistence and backup ([`storage.ts`](../src/core/storage.ts))
 - Remote sync policy ([`remoteStorage.ts`](../src/core/remoteStorage.ts), [`syncErrors.ts`](../src/core/syncErrors.ts))
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
-- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), daily focus ([`focus.ts`](../src/core/focus.ts))
+- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), daily focus ([`focus.ts`](../src/core/focus.ts)), daily briefing ([`briefing.ts`](../src/core/briefing.ts))
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
 - Daily focus ([`focus.ts`](../src/core/focus.ts)): `buildDailyFocusSummary` aggregates skills, events, people, career, fitness, and timeline signals into ranked read-only `FocusItem` recommendations — tested in [`focus.test.ts`](../src/core/focus.test.ts). **Not persisted**; recomputed on each dashboard render. Recommendations only (no mutations, notifications, or auto-rescheduling).
   - **`FocusActionType`** — derived action hints (`log_skill_minutes`, `apply_to_job`, `resolve_conflict`, etc.) mapped in [`DailyFocusSection`](../src/components/dashboard/DailyFocusSection.tsx) to existing page navigation handlers.
   - **Derived metadata** on each `FocusItem`: `suggestedActionType`, `actionTargetId`, and `expiresAtIso` — never stored in `AppPayload` or synced to Supabase.
   - **Expiration semantics**: collectors assign per-signal expiry (event end, block end, end of day, +7 days for career, next day for follow-ups). `filterExpiredFocusItems` removes stale items before the dashboard cap is applied.
   - **Cleanup lifecycle**: collect → merge → score → rank → filter expired → slice top N.
+- Daily briefing ([`briefing.ts`](../src/core/briefing.ts)): `buildDailyBriefing` turns derived dashboard state (focus summary, unified timeline day, workload totals, domain slices) into deterministic natural-language summaries — tested in [`briefing.test.ts`](../src/core/briefing.test.ts). **Not persisted**; recomputed on each dashboard render. No AI APIs.
+  - **Relationship to focus**: briefing **reads** `DailyFocusSummary` plus timeline/workload inputs. Focus remains the actionable ranked list with CTAs; briefing adds narrative paragraphs, secondary suggestion strings (overflow focus items not shown in Today's Focus), and risk flags.
+  - **`DailyBriefing` output**: `greeting`, `summary`, `workloadSummary`, `focusSummary`, `recommendations[]` (max 5), `riskFlags[]`, `tone`, `generatedAtIso`.
+  - **`tone`**: derived read-only mood for UI styling — `warning` when risk flags exist or workload is heavy; `encouraging` when caught up (no visible focus items and no risk flags); otherwise `neutral`.
+  - **Deterministic template variation**: `selectDeterministicTemplate(templates, seed)` picks phrasing from fixed template arrays using a hash of `todayKey`, workload level, and context counts — no randomness, no AI. Used for workload summaries, clear-day copy, on-track focus copy, and recommendation fallbacks.
 - Progression ([`progression.ts`](../src/core/progression.ts)): lifetime XP (1 XP = 1 logged minute), linear level bands (`XP_PER_LEVEL_BAND`), per-skill and global streaks — tested in [`progression.test.ts`](../src/core/progression.test.ts). **Not stored** in Postgres or `AppPayload`; recomputed from `sessions` on each render. Streak rule: meet `dailyGoalMinutes` when set, else any minutes > 0; global streak counts a day if **any** skill qualifies.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
-[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`focus.ts`](../src/core/focus.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts), then composes visual sections top to bottom:
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`focus.ts`](../src/core/focus.ts), [`briefing.ts`](../src/core/briefing.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts), then composes visual sections top to bottom:
 
 1. **ProgressionHero** — account level, lifetime XP, global streak, level progress bar (hidden when no skills)
 2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
-3. **DailyFocusSection** — top 5 ranked cross-domain focus items with urgency labels, contextual CTAs from `FocusActionType`, optional expiration hints, skill quick-log, and deep-links to domain pages
-4. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
-5. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
-6. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
-7. **FitnessSummarySection** — sessions logged this week, last workout summary, recent session lines, and “View fitness” navigation (hidden when empty)
-8. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
-9. **OverdueBehindSection** — skills behind schedule with quick log
-10. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
-11. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+3. **DailyBriefingSection** — deterministic assistant-style greeting, day summary paragraphs (tone-aware styling), secondary suggestions, and risk flags (no CTAs)
+4. **DailyFocusSection** — top 5 ranked cross-domain focus items with urgency labels, contextual CTAs from `FocusActionType`, optional expiration hints, skill quick-log, and deep-links to domain pages
+5. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
+6. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
+7. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
+8. **FitnessSummarySection** — sessions logged this week, last workout summary, recent session lines, and “View fitness” navigation (hidden when empty)
+9. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
+10. **OverdueBehindSection** — skills behind schedule with quick log
+11. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
+12. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
 
 Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `UnifiedTimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
 
@@ -198,6 +205,20 @@ Client-only (Vite `import.meta.env`):
 
 Never commit real values. Use `.env.local` locally and Vercel project settings in production. Do not put service-role keys in client code.
 
+## Bundle and modularization notes
+
+The production build currently emits a single main JS chunk (~590 KB minified; Vite warns when chunks exceed 500 KB). **This warning is non-blocking** — the app builds and runs correctly today.
+
+Likely future code-split points (not implemented yet):
+
+- [`CareerPage`](../src/pages/CareerPage.tsx) — forms, cards, skill picker
+- [`FitnessPage`](../src/pages/FitnessPage.tsx) — workout editor and session history
+- [`PeoplePage`](../src/pages/PeoplePage.tsx) — contact cards and follow-up tooling
+- [`EventsPage`](../src/pages/EventsPage.tsx) — life events CRUD
+- Dashboard heavy derived widgets — focus/briefing engines are pure and cheap; page-level lazy loading of domain screens is the higher-yield split
+
+No Vite config or `React.lazy` changes in the current phase; revisit when adding routes or new large dependencies.
+
 ## Deployment
 
 - Build: `npm run build` → `dist/`
@@ -206,5 +227,5 @@ Never commit real values. Use `.env.local` locally and Vercel project settings i
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes
