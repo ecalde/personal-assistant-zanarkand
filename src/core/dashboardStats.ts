@@ -142,6 +142,7 @@ export function aggregateProgressTarget(rows: SkillDayRow[]): number {
   return rows.reduce((sum, r) => sum + (r.progressTargetMinutes ?? 0), 0);
 }
 
+/** @deprecated Prefer `buildUnifiedTimelineRange` from `timeline.ts` for merged schedule + event views. */
 export function buildTimelineItems(
   skills: Skill[],
   sessions: Session[],

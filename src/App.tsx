@@ -385,6 +385,7 @@ export default function App({ userId, onSignOut }: AppProps) {
         <DashboardPage
           skills={app.payload.skills}
           sessions={app.payload.sessions ?? []}
+          events={app.payload.events ?? []}
           onAddSession={addSession}
         />
       )}
