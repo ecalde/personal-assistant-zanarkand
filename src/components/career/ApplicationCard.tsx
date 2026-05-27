@@ -1,20 +1,27 @@
 import {
   buildSkillsById,
   formatApplicationStatus,
+  formatAttentionReasonLabel,
   formatRemotePolicy,
   formatSalaryRange,
+  getApplicationAttentionStatus,
   resolveRequiredSkills,
+  type QuickStatusAction,
 } from "../../core/career";
 import type { JobApplication, Skill } from "../../core/model";
+import { ApplicationQuickActions } from "./ApplicationQuickActions";
+import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
 import { styles } from "../../ui/appStyles";
 
 export type ApplicationCardProps = {
   application: JobApplication;
   skills: Skill[];
+  todayKey: string;
   expanded: boolean;
   onToggleExpand: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onQuickAction: (action: QuickStatusAction) => void;
 };
 
 function formatAppliedDate(dateKey: string): string {
@@ -30,21 +37,27 @@ function formatAppliedDate(dateKey: string): string {
 export function ApplicationCard({
   application,
   skills,
+  todayKey,
   expanded,
   onToggleExpand,
   onEdit,
   onDelete,
+  onQuickAction,
 }: ApplicationCardProps) {
   const salary = formatSalaryRange(application.salaryMin, application.salaryMax);
   const remote = formatRemotePolicy(application.remotePolicy);
   const skillsById = buildSkillsById(skills);
   const skillSummary = resolveRequiredSkills(application.requiredSkillIds, skillsById);
+  const attention = getApplicationAttentionStatus(application, todayKey);
 
   const summaryParts = [
     salary,
     remote,
     application.location,
     application.appliedDate ? `Applied ${formatAppliedDate(application.appliedDate)}` : undefined,
+    attention?.daysInStage !== null && attention?.daysInStage !== undefined
+      ? `In ${formatApplicationStatus(application.status).toLowerCase()} ${attention.daysInStage} days`
+      : undefined,
   ].filter(Boolean);
 
   return (
@@ -63,14 +76,32 @@ export function ApplicationCard({
             <strong>{application.company}</strong>
             <div style={{ opacity: 0.9 }}>{application.roleTitle}</div>
           </div>
-          <span style={{ ...styles.statusPill, ...styles.statusIdle }}>
-            {formatApplicationStatus(application.status)}
-          </span>
+          <ApplicationStatusBadge status={application.status} attention={attention} />
         </div>
+
+        {attention && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {attention.reasons.map((reason) => (
+              <span
+                key={reason}
+                style={{
+                  ...styles.statusPill,
+                  ...(reason === "stuck_in_stage" || reason === "no_response"
+                    ? styles.statusOverdue
+                    : styles.statusIdle),
+                }}
+              >
+                {formatAttentionReasonLabel(reason, attention)}
+              </span>
+            ))}
+          </div>
+        )}
 
         {summaryParts.length > 0 && (
           <div style={{ opacity: 0.85, fontSize: 13 }}>{summaryParts.join(" · ")}</div>
         )}
+
+        <ApplicationQuickActions status={application.status} onQuickAction={onQuickAction} />
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <button type="button" onClick={onToggleExpand}>
@@ -127,11 +158,14 @@ export function ApplicationCard({
               </div>
             )}
 
-            {!application.notes && !application.url && skillSummary.linkedRequirements.length === 0 && !application.requiredSkillsText && (
-              <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>
-                No extra details yet. Edit to add notes, a link, or required skills.
-              </p>
-            )}
+            {!application.notes &&
+              !application.url &&
+              skillSummary.linkedRequirements.length === 0 &&
+              !application.requiredSkillsText && (
+                <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>
+                  No extra details yet. Edit to add notes, a link, or required skills.
+                </p>
+              )}
           </div>
         )}
       </div>

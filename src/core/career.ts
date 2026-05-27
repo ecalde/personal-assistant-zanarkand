@@ -6,12 +6,12 @@
  * - Job posting paste → structured parse with user confirmation
  * - Cover letter / outreach draft using application notes + company info
  * - Skill gap → learning plan suggestions tied to skill daily goals
- * - Application status nudges ("no update in 14 days")
  * - Board sync (Greenhouse/Lever/LinkedIn) — explicit non-goal for v1
  *
  * Future: buildCareerContext(payload: AppPayload): CareerContext
  */
 
+import { daysBetweenDateKeys } from "./events";
 import type {
   ApplicationStatus,
   CareerTarget,
@@ -19,6 +19,9 @@ import type {
   RemotePolicy,
   Skill,
 } from "./model";
+
+export const APPLIED_NO_RESPONSE_DAYS = 14;
+export const STUCK_IN_STAGE_DAYS = 21;
 
 export type ResolvedSkillRequirement = {
   skillId: string;
@@ -38,7 +41,7 @@ export type ApplicationPipelineSummary = {
   recentApplications: JobApplication[];
 };
 
-export type ApplicationsSortMode = "recent" | "company" | "status";
+export type ApplicationsSortMode = "recent" | "company" | "status" | "needsAttention";
 
 export type ApplicationStatusFilter =
   | "all"
@@ -46,7 +49,39 @@ export type ApplicationStatusFilter =
   | "applied"
   | "in-progress"
   | "offer"
-  | "closed";
+  | "closed"
+  | "needs-attention";
+
+export type ApplicationAttentionReason =
+  | "saved_not_applied"
+  | "no_response"
+  | "stuck_in_stage";
+
+export type ApplicationAttentionStatus = {
+  application: JobApplication;
+  reasons: ApplicationAttentionReason[];
+  daysSinceApplied: number | null;
+  daysInStage: number | null;
+  priority: number;
+};
+
+export type InterviewStageSummary = {
+  count: number;
+  byStage: Pick<Record<ApplicationStatus, number>, "screening" | "technical" | "onsite">;
+  applications: JobApplication[];
+};
+
+export type SkillGapPriorityItem =
+  | { kind: "linked"; skillId: string; skillName: string; skillPriority?: number }
+  | { kind: "unlinked"; label: string };
+
+export type QuickStatusAction = {
+  label: string;
+  nextStatus: ApplicationStatus;
+  setAppliedDateToday?: boolean;
+};
+
+export type StatusBadgeVariant = "neutral" | "positive" | "warning" | "overdue";
 
 const APPLICATION_STATUSES: ApplicationStatus[] = [
   "saved",
@@ -59,6 +94,8 @@ const APPLICATION_STATUSES: ApplicationStatus[] = [
   "withdrawn",
 ];
 
+const INTERVIEW_STATUSES: ApplicationStatus[] = ["screening", "technical", "onsite"];
+
 const STATUS_PIPELINE_ORDER: Record<ApplicationStatus, number> = {
   saved: 0,
   applied: 1,
@@ -68,6 +105,12 @@ const STATUS_PIPELINE_ORDER: Record<ApplicationStatus, number> = {
   offer: 5,
   rejected: 6,
   withdrawn: 7,
+};
+
+const ATTENTION_REASON_PRIORITY: Record<ApplicationAttentionReason, number> = {
+  stuck_in_stage: 3,
+  no_response: 2,
+  saved_not_applied: 1,
 };
 
 export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -99,6 +142,26 @@ function emptyStatusCounts(): Record<ApplicationStatus, number> {
     rejected: 0,
     withdrawn: 0,
   };
+}
+
+function isoToDateKey(iso: string): string | null {
+  const dateKey = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : null;
+}
+
+function daysSinceDateKey(fromKey: string, todayKey: string): number | null {
+  return daysBetweenDateKeys(fromKey, todayKey);
+}
+
+function maxAttentionReasonPriority(reasons: ApplicationAttentionReason[]): number {
+  return Math.max(...reasons.map((reason) => ATTENTION_REASON_PRIORITY[reason]));
+}
+
+function computeAttentionPriority(status: ApplicationAttentionStatus): number {
+  const reasonScore = maxAttentionReasonPriority(status.reasons) * 1000;
+  const daysScore =
+    Math.max(status.daysInStage ?? 0, status.daysSinceApplied ?? 0) * 10;
+  return reasonScore + daysScore;
 }
 
 export function buildSkillsById(skills: Skill[]): Map<string, Skill> {
@@ -140,6 +203,235 @@ export function buildDreamJobSkillGap(
   }
 
   return summary;
+}
+
+export function buildSkillGapPriorityList(
+  skills: Skill[],
+  target: CareerTarget | undefined
+): SkillGapPriorityItem[] {
+  if (!target) return [];
+
+  const skillsById = buildSkillsById(skills);
+  const items: SkillGapPriorityItem[] = [];
+
+  const linked = target.requiredSkillIds
+    .map((skillId) => skillsById.get(skillId))
+    .filter((skill): skill is Skill => skill !== undefined)
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+
+  for (const skill of linked) {
+    items.push({
+      kind: "linked",
+      skillId: skill.id,
+      skillName: skill.name,
+      skillPriority: skill.priority,
+    });
+  }
+
+  const text = target.requiredSkillsText?.trim();
+  if (text) {
+    for (const part of text.split(/[,;\n]+/)) {
+      const label = part.trim();
+      if (label) {
+        items.push({ kind: "unlinked", label });
+      }
+    }
+  }
+
+  return items;
+}
+
+export function getApplicationAttentionStatus(
+  app: JobApplication,
+  todayKey: string
+): ApplicationAttentionStatus | null {
+  if (!isActiveApplication(app.status) && app.status !== "saved") {
+    return null;
+  }
+
+  const reasons: ApplicationAttentionReason[] = [];
+  let daysSinceApplied: number | null = null;
+  let daysInStage: number | null = null;
+
+  if (app.status === "saved") {
+    reasons.push("saved_not_applied");
+  }
+
+  if (app.status === "applied" && app.appliedDate) {
+    daysSinceApplied = daysSinceDateKey(app.appliedDate, todayKey);
+    if (daysSinceApplied !== null && daysSinceApplied >= APPLIED_NO_RESPONSE_DAYS) {
+      reasons.push("no_response");
+    }
+  }
+
+  if (INTERVIEW_STATUSES.includes(app.status)) {
+    const stageDateKey = isoToDateKey(app.updatedAtIso);
+    if (stageDateKey) {
+      daysInStage = daysSinceDateKey(stageDateKey, todayKey);
+      if (daysInStage !== null && daysInStage >= STUCK_IN_STAGE_DAYS) {
+        reasons.push("stuck_in_stage");
+      }
+    }
+  }
+
+  if (reasons.length === 0) {
+    return null;
+  }
+
+  const status: ApplicationAttentionStatus = {
+    application: app,
+    reasons,
+    daysSinceApplied,
+    daysInStage,
+    priority: 0,
+  };
+  status.priority = computeAttentionPriority(status);
+  return status;
+}
+
+export function sortApplicationsByAttentionPriority(
+  items: ApplicationAttentionStatus[]
+): ApplicationAttentionStatus[] {
+  return [...items].sort((a, b) => {
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
+    const company = a.application.company.localeCompare(b.application.company, undefined, {
+      sensitivity: "base",
+    });
+    if (company !== 0) return company;
+    return a.application.roleTitle.localeCompare(b.application.roleTitle, undefined, {
+      sensitivity: "base",
+    });
+  });
+}
+
+export function buildApplicationsNeedingAttention(
+  apps: JobApplication[],
+  todayKey: string,
+  opts?: { limit?: number }
+): ApplicationAttentionStatus[] {
+  const items = apps
+    .map((app) => getApplicationAttentionStatus(app, todayKey))
+    .filter((item): item is ApplicationAttentionStatus => item !== null);
+
+  const sorted = sortApplicationsByAttentionPriority(items);
+  const limit = opts?.limit;
+  return limit !== undefined ? sorted.slice(0, limit) : sorted;
+}
+
+export function buildInterviewStageSummary(apps: JobApplication[]): InterviewStageSummary {
+  const byStage = { screening: 0, technical: 0, onsite: 0 };
+  const applications: JobApplication[] = [];
+
+  for (const app of apps) {
+    if (app.status === "screening") {
+      byStage.screening += 1;
+      applications.push(app);
+    } else if (app.status === "technical") {
+      byStage.technical += 1;
+      applications.push(app);
+    } else if (app.status === "onsite") {
+      byStage.onsite += 1;
+      applications.push(app);
+    }
+  }
+
+  return {
+    count: byStage.screening + byStage.technical + byStage.onsite,
+    byStage,
+    applications,
+  };
+}
+
+export function formatAttentionReasonLabel(
+  reason: ApplicationAttentionReason,
+  status: ApplicationAttentionStatus
+): string {
+  switch (reason) {
+    case "saved_not_applied":
+      return "Ready to apply";
+    case "no_response":
+      return status.daysSinceApplied !== null
+        ? `No response in ${status.daysSinceApplied} days`
+        : "No response yet";
+    case "stuck_in_stage":
+      return status.daysInStage !== null
+        ? `Stuck in ${formatApplicationStatus(status.application.status).toLowerCase()} ${status.daysInStage} days`
+        : `Stuck in ${formatApplicationStatus(status.application.status).toLowerCase()}`;
+  }
+}
+
+export function getStatusBadgeVariant(
+  status: ApplicationStatus,
+  attention: ApplicationAttentionStatus | null
+): StatusBadgeVariant {
+  if (attention?.reasons.includes("stuck_in_stage") || attention?.reasons.includes("no_response")) {
+    return "overdue";
+  }
+  if (attention?.reasons.includes("saved_not_applied")) {
+    return "warning";
+  }
+  if (status === "offer") {
+    return "positive";
+  }
+  if (status === "rejected" || status === "withdrawn") {
+    return "neutral";
+  }
+  return "neutral";
+}
+
+export function getQuickStatusActions(status: ApplicationStatus): QuickStatusAction[] {
+  switch (status) {
+    case "saved":
+      return [{ label: "Mark applied", nextStatus: "applied", setAppliedDateToday: true }];
+    case "applied":
+      return [{ label: "Move to screening", nextStatus: "screening" }];
+    case "screening":
+      return [{ label: "Move to technical", nextStatus: "technical" }];
+    case "technical":
+      return [{ label: "Move to onsite", nextStatus: "onsite" }];
+    case "onsite":
+      return [
+        { label: "Mark offer", nextStatus: "offer" },
+        { label: "Rejected", nextStatus: "rejected" },
+        { label: "Withdrawn", nextStatus: "withdrawn" },
+      ];
+    default:
+      return [];
+  }
+}
+
+export function getSecondaryQuickStatusActions(
+  status: ApplicationStatus
+): QuickStatusAction[] {
+  if (status === "offer" || status === "rejected" || status === "withdrawn" || status === "saved") {
+    return [];
+  }
+  if (status === "onsite") {
+    return [];
+  }
+  return [
+    { label: "Rejected", nextStatus: "rejected" },
+    { label: "Withdrawn", nextStatus: "withdrawn" },
+  ];
+}
+
+export function applyQuickStatusTransition(
+  app: JobApplication,
+  action: QuickStatusAction,
+  todayKey: string
+): JobApplication {
+  const next: JobApplication = {
+    ...app,
+    status: action.nextStatus,
+  };
+
+  if (action.setAppliedDateToday && !next.appliedDate) {
+    next.appliedDate = todayKey;
+  }
+
+  return next;
 }
 
 export function isActiveApplication(status: ApplicationStatus): boolean {
@@ -187,8 +479,15 @@ export function applicationMatchesQuery(app: JobApplication, query: string): boo
 
 function matchesStatusFilter(
   status: ApplicationStatus,
-  filter: ApplicationStatusFilter
+  filter: ApplicationStatusFilter,
+  app: JobApplication,
+  todayKey?: string
 ): boolean {
+  if (filter === "needs-attention") {
+    if (!todayKey) return false;
+    return getApplicationAttentionStatus(app, todayKey) !== null;
+  }
+
   switch (filter) {
     case "all":
       return true;
@@ -202,6 +501,8 @@ function matchesStatusFilter(
       return status === "offer";
     case "closed":
       return status === "rejected" || status === "withdrawn";
+    default:
+      return true;
   }
 }
 
@@ -228,20 +529,39 @@ function compareByStatus(a: JobApplication, b: JobApplication): number {
   return compareRecent(a, b);
 }
 
+function compareByAttention(
+  a: JobApplication,
+  b: JobApplication,
+  todayKey: string
+): number {
+  const aAttention = getApplicationAttentionStatus(a, todayKey);
+  const bAttention = getApplicationAttentionStatus(b, todayKey);
+
+  if (aAttention && bAttention) {
+    return bAttention.priority - aAttention.priority;
+  }
+  if (aAttention && !bAttention) return -1;
+  if (!aAttention && bAttention) return 1;
+  return compareRecent(a, b);
+}
+
 export function filterAndSortApplications(
   apps: JobApplication[],
   opts: {
     query?: string;
     sortMode: ApplicationsSortMode;
     statusFilter?: ApplicationStatusFilter;
+    todayKey?: string;
   }
 ): JobApplication[] {
   const query = opts.query ?? "";
   const statusFilter = opts.statusFilter ?? "all";
+  const todayKey = opts.todayKey;
 
   const filtered = apps.filter(
     (app) =>
-      applicationMatchesQuery(app, query) && matchesStatusFilter(app.status, statusFilter)
+      applicationMatchesQuery(app, query) &&
+      matchesStatusFilter(app.status, statusFilter, app, todayKey)
   );
 
   const sorted = [...filtered];
@@ -254,6 +574,13 @@ export function filterAndSortApplications(
       break;
     case "status":
       sorted.sort(compareByStatus);
+      break;
+    case "needsAttention":
+      if (todayKey) {
+        sorted.sort((a, b) => compareByAttention(a, b, todayKey));
+      } else {
+        sorted.sort(compareRecent);
+      }
       break;
   }
 
@@ -288,4 +615,8 @@ export function buildApplicationPipelineSummary(
 
 export function getApplicationStatuses(): ApplicationStatus[] {
   return [...APPLICATION_STATUSES];
+}
+
+export function countSavedApplications(apps: JobApplication[]): number {
+  return apps.filter((app) => app.status === "saved").length;
 }

@@ -15,7 +15,7 @@ import {
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
-import { CareerPipelineSection } from "../components/dashboard/CareerPipelineSection";
+import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
@@ -47,6 +47,7 @@ export type DashboardPageProps = {
   people: Person[];
   jobApplications: JobApplication[];
   onAddSession: (skillId: string, minutes: number) => void;
+  onOpenCareer?: () => void;
 };
 
 export default function DashboardPage({
@@ -56,6 +57,7 @@ export default function DashboardPage({
   people,
   jobApplications,
   onAddSession,
+  onOpenCareer,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
 
@@ -157,7 +159,11 @@ export default function DashboardPage({
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <CareerPipelineSection jobApplications={jobApplications} />
+        <CareerActionsSection
+          jobApplications={jobApplications}
+          todayKey={today}
+          onOpenCareer={onOpenCareer}
+        />
       </div>
 
       {USE_UNIFIED_TIMELINE && (

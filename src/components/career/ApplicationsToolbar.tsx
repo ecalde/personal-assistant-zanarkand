@@ -52,6 +52,7 @@ export function ApplicationsToolbar({
             <option value="in-progress">In progress</option>
             <option value="offer">Offer</option>
             <option value="closed">Closed</option>
+            <option value="needs-attention">Needs attention</option>
           </select>
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -63,6 +64,7 @@ export function ApplicationsToolbar({
             <option value="recent">Recent</option>
             <option value="company">Company</option>
             <option value="status">Status</option>
+            <option value="needsAttention">Needs attention</option>
           </select>
         </label>
       </div>

@@ -746,6 +746,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           people={app.payload.people ?? []}
           jobApplications={app.payload.jobApplications ?? []}
           onAddSession={addSession}
+          onOpenCareer={() => setPage("career")}
         />
       )}
 

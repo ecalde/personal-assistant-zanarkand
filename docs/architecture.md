@@ -114,7 +114,7 @@ src/
 2. **TodayHero** — daily total, on-track / overdue / idle counts, aggregate progress bar
 3. **UpcomingEventsSection** — next 14 days of life events (up to 10 items)
 4. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
-5. **CareerPipelineSection** — active application count, status chips, recent applications (hidden when empty)
+5. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
 6. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
 7. **OverdueBehindSection** — skills behind schedule with quick log
 8. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
@@ -133,7 +133,8 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 
 - **`JobApplication`** records store company, role title, pipeline status, salary range (USD), location, remote policy, applied date, posting URL, notes, and required skills (`requiredSkillIds` linked to `Skill.id`, plus optional `requiredSkillsText` for untracked requirements).
 - **`CareerTarget`** is an optional singleton dream-job target (role, company, notes, required skills) stored in `AppPayload.careerTarget` and synced to the `career_targets` table (one row per user).
-- Skill-gap display uses pure helpers in [`career.ts`](../src/core/career.ts): linked skills resolve to tracker names; free-text requirements show as “not yet in tracker.”
+- Skill-gap display uses pure helpers in [`career.ts`](../src/core/career.ts): linked skills resolve to tracker names; free-text requirements show as “not yet in tracker”; `buildSkillGapPriorityList` orders focus items for the Career page.
+- Follow-up awareness uses `appliedDate` and `updatedAtIso` (no extra fields): `buildApplicationsNeedingAttention` flags saved bookmarks, stale applied roles (≥14 days), and stuck interview stages (≥21 days); quick status transitions call existing `onUpdateApplication`.
 - Deleting a skill strips its id from application and target `requiredSkillIds` in the same `commit` (mirrors person unlink on events).
 - Future AI extension points (not implemented): `CareerContext` bundle, job-posting parse, cover-letter draft, learning-plan nudges — see header comment in `career.ts`.
 

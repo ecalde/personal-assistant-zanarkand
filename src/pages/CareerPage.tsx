@@ -1,14 +1,19 @@
 import { useMemo, useState } from "react";
 import {
+  applyQuickStatusTransition,
   filterAndSortApplications,
   type ApplicationStatusFilter,
   type ApplicationsSortMode,
+  type QuickStatusAction,
 } from "../core/career";
 import type { CareerTarget, JobApplication, Skill } from "../core/model";
+import { formatLocalDateKey } from "../core/timeline";
 import { ApplicationCard } from "../components/career/ApplicationCard";
 import { ApplicationForm } from "../components/career/ApplicationForm";
 import { ApplicationsToolbar } from "../components/career/ApplicationsToolbar";
 import { CareerTargetSection } from "../components/career/CareerTargetSection";
+import { InterviewStageSummaryBar } from "../components/career/InterviewStageSummary";
+import { NeedsAttentionSection } from "../components/career/NeedsAttentionSection";
 import { SkillGapPanel } from "../components/career/SkillGapPanel";
 import {
   applicationFormFromApplication,
@@ -51,14 +56,17 @@ export default function CareerPage({
   const [statusFilter, setStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const todayKey = formatLocalDateKey(new Date());
+
   const filteredApplications = useMemo(
     () =>
       filterAndSortApplications(jobApplications, {
         query,
         sortMode,
         statusFilter,
+        todayKey,
       }),
-    [jobApplications, query, sortMode, statusFilter]
+    [jobApplications, query, sortMode, statusFilter, todayKey]
   );
 
   function resetForm() {
@@ -103,6 +111,10 @@ export default function CareerPage({
     resetForm();
   }
 
+  function handleQuickAction(application: JobApplication, action: QuickStatusAction) {
+    onUpdateApplication(applyQuickStatusTransition(application, action, todayKey));
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header>
@@ -111,6 +123,10 @@ export default function CareerPage({
           Track job applications, salaries, and skills needed for your dream role.
         </p>
       </header>
+
+      <NeedsAttentionSection jobApplications={jobApplications} todayKey={todayKey} />
+
+      <InterviewStageSummaryBar jobApplications={jobApplications} />
 
       <CareerTargetSection
         careerTarget={careerTarget}
@@ -172,9 +188,11 @@ export default function CareerPage({
 
             {filteredApplications.length === 0 ? (
               <p style={{ ...styles.helpText, margin: 0 }}>
-                {query.trim()
-                  ? `No matches for '${query.trim()}'.`
-                  : "No applications match this filter."}
+                {statusFilter === "needs-attention"
+                  ? "Nothing needs attention right now — you're caught up on follow-ups."
+                  : query.trim()
+                    ? `No matches for '${query.trim()}'.`
+                    : "No applications match this filter."}
               </p>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
@@ -183,6 +201,7 @@ export default function CareerPage({
                     key={application.id}
                     application={application}
                     skills={skills}
+                    todayKey={todayKey}
                     expanded={expandedId === application.id}
                     onToggleExpand={() =>
                       setExpandedId((current) =>
@@ -191,6 +210,7 @@ export default function CareerPage({
                     }
                     onEdit={() => openEditForm(application)}
                     onDelete={() => onDeleteApplication(application.id)}
+                    onQuickAction={(action) => handleQuickAction(application, action)}
                   />
                 ))}
               </div>
