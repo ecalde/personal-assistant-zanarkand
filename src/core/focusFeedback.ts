@@ -68,42 +68,75 @@ function newFeedbackId(): string {
   return crypto.randomUUID();
 }
 
-export function dismissUntilEndOfDay(focusItemId: string, nowIso: string): FocusFeedback {
-  return {
-    id: newFeedbackId(),
-    focusItemId,
-    action: "dismissed",
-    createdAtIso: nowIso,
-    updatedAtIso: nowIso,
-  };
+export function buildFocusSourceSnapshot(title: string, description?: string): string {
+  const trimmedTitle = title.trim();
+  const trimmedDescription = description?.trim();
+  if (trimmedDescription && trimmedDescription.length > 0) {
+    return `${trimmedTitle}\n${trimmedDescription}`;
+  }
+  return trimmedTitle;
+}
+
+function withSourceSnapshot(
+  entry: FocusFeedback,
+  sourceSnapshot?: string
+): FocusFeedback {
+  const trimmed = sourceSnapshot?.trim();
+  if (!trimmed) return entry;
+  return { ...entry, sourceSnapshot: trimmed };
+}
+
+export function dismissUntilEndOfDay(
+  focusItemId: string,
+  nowIso: string,
+  sourceSnapshot?: string
+): FocusFeedback {
+  return withSourceSnapshot(
+    {
+      id: newFeedbackId(),
+      focusItemId,
+      action: "dismissed",
+      createdAtIso: nowIso,
+      updatedAtIso: nowIso,
+    },
+    sourceSnapshot
+  );
 }
 
 export function snoozeFocusItem(
   focusItemId: string,
   nowIso: string,
-  hours: number
+  hours: number,
+  sourceSnapshot?: string
 ): FocusFeedback {
-  return {
-    id: newFeedbackId(),
-    focusItemId,
-    action: "snoozed",
-    untilIso: addHoursIso(nowIso, hours),
-    createdAtIso: nowIso,
-    updatedAtIso: nowIso,
-  };
+  return withSourceSnapshot(
+    {
+      id: newFeedbackId(),
+      focusItemId,
+      action: "snoozed",
+      untilIso: addHoursIso(nowIso, hours),
+      createdAtIso: nowIso,
+      updatedAtIso: nowIso,
+    },
+    sourceSnapshot
+  );
 }
 
 export function snoozeFocusItemUntilTomorrow(
   focusItemId: string,
-  nowIso: string
+  nowIso: string,
+  sourceSnapshot?: string
 ): FocusFeedback {
   const todayKey = localDateKeyFromIso(nowIso);
-  return {
-    id: newFeedbackId(),
-    focusItemId,
-    action: "snoozed",
-    untilIso: startOfNextLocalDayIso(todayKey),
-    createdAtIso: nowIso,
-    updatedAtIso: nowIso,
-  };
+  return withSourceSnapshot(
+    {
+      id: newFeedbackId(),
+      focusItemId,
+      action: "snoozed",
+      untilIso: startOfNextLocalDayIso(todayKey),
+      createdAtIso: nowIso,
+      updatedAtIso: nowIso,
+    },
+    sourceSnapshot
+  );
 }

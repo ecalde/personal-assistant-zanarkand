@@ -4,6 +4,7 @@ import type { FocusFeedback } from "./model";
 import {
   cleanupExpiredFeedback,
   dismissUntilEndOfDay,
+  buildFocusSourceSnapshot,
   filterSuppressedFocusItems,
   isFocusItemSuppressed,
   snoozeFocusItem,
@@ -183,6 +184,45 @@ describe("focusFeedback", () => {
       expect(filterSuppressedFocusItems([item], feedback, checkIso)).toEqual(
         filterSuppressedFocusItems([item], feedback, checkIso)
       );
+    });
+  });
+
+  describe("sourceSnapshot", () => {
+    it("buildFocusSourceSnapshot combines title and description", () => {
+      expect(buildFocusSourceSnapshot("Log ML time", "Daily goal incomplete")).toBe(
+        "Log ML time\nDaily goal incomplete"
+      );
+    });
+
+    it("buildFocusSourceSnapshot uses title only when description is empty", () => {
+      expect(buildFocusSourceSnapshot("Log ML time", "   ")).toBe("Log ML time");
+    });
+
+    it("stores sourceSnapshot on dismiss factory", () => {
+      const entry = dismissUntilEndOfDay(
+        "skill:test",
+        NOW_MORNING,
+        "Log ML time\nDaily goal incomplete"
+      );
+      expect(entry.sourceSnapshot).toBe("Log ML time\nDaily goal incomplete");
+    });
+
+    it("does not affect suppression when sourceSnapshot is present", () => {
+      const item = sampleFocusItem();
+      const feedback = [
+        dismissUntilEndOfDay(item.id, NOW_MORNING, "Saved card copy"),
+      ];
+
+      expect(isFocusItemSuppressed(item, feedback, NOW_MORNING)).toBe(true);
+      expect(filterSuppressedFocusItems([item], feedback, NOW_MORNING)).toHaveLength(0);
+    });
+
+    it("omits sourceSnapshot when not provided", () => {
+      expect(dismissUntilEndOfDay("skill:test", NOW_MORNING).sourceSnapshot).toBeUndefined();
+      expect(snoozeFocusItem("skill:test", NOW_MORNING, 3).sourceSnapshot).toBeUndefined();
+      expect(
+        snoozeFocusItemUntilTomorrow("skill:test", NOW_MORNING).sourceSnapshot
+      ).toBeUndefined();
     });
   });
 });

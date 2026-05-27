@@ -76,9 +76,9 @@ export type DashboardPageProps = {
   workoutSessions: WorkoutSession[];
   focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
-  onDismissFocusItem: (focusItemId: string) => void;
-  onSnoozeFocusItem: (focusItemId: string, hours: number) => void;
-  onSnoozeFocusItemUntilTomorrow: (focusItemId: string) => void;
+  onDismissFocusItem: (focusItemId: string, sourceSnapshot?: string) => void;
+  onSnoozeFocusItem: (focusItemId: string, hours: number, sourceSnapshot?: string) => void;
+  onSnoozeFocusItemUntilTomorrow: (focusItemId: string, sourceSnapshot?: string) => void;
   onRestoreAllFocusItems: () => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;

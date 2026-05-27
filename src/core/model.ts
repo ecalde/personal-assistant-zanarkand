@@ -177,6 +177,7 @@ export type FocusFeedback = {
   focusItemId: string;
   action: FocusFeedbackAction;
   untilIso?: string;
+  sourceSnapshot?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };

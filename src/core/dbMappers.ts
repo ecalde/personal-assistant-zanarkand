@@ -192,6 +192,7 @@ export type FocusFeedbackRow = {
   focus_item_id: string;
   action: string;
   until_iso: string | null;
+  source_snapshot: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -757,6 +758,14 @@ export function assertValidFocusFeedback(entry: FocusFeedback): void {
   } else if (entry.untilIso !== undefined) {
     throw new MapperError("Dismissed focusFeedback cannot include untilIso", "focusFeedback.untilIso");
   }
+  if (entry.sourceSnapshot !== undefined) {
+    if (typeof entry.sourceSnapshot !== "string" || entry.sourceSnapshot.trim().length === 0) {
+      throw new MapperError(
+        "focusFeedback.sourceSnapshot must be a non-empty string when set",
+        "focusFeedback.sourceSnapshot"
+      );
+    }
+  }
 }
 
 export function skillToRow(skill: Skill, userId: string): SkillRow {
@@ -1285,6 +1294,7 @@ export function focusFeedbackToRow(entry: FocusFeedback, userId: string): FocusF
     focus_item_id: entry.focusItemId.trim(),
     action: entry.action,
     until_iso: entry.untilIso ?? null,
+    source_snapshot: entry.sourceSnapshot?.trim() || null,
     created_at: entry.createdAtIso,
     updated_at: entry.updatedAtIso,
   };
@@ -1321,6 +1331,15 @@ export function focusFeedbackFromRow(row: FocusFeedbackRow): FocusFeedback {
 
   if (row.until_iso !== null) {
     entry.untilIso = row.until_iso;
+  }
+  if (row.source_snapshot !== null) {
+    if (typeof row.source_snapshot !== "string" || row.source_snapshot.trim().length === 0) {
+      throw new MapperError(
+        "Invalid focus_feedback.source_snapshot",
+        "focus_feedback.source_snapshot"
+      );
+    }
+    entry.sourceSnapshot = row.source_snapshot.trim();
   }
 
   return entry;

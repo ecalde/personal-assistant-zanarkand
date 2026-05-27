@@ -11,6 +11,7 @@ import {
   formatFocusContextLine,
   formatFocusExpirationHint,
 } from "../../core/focus";
+import { buildFocusSourceSnapshot } from "../../core/focusFeedback";
 import { styles } from "../../ui/appStyles";
 import { formatMinutes } from "../../ui/format";
 import { QuickLogControls } from "./QuickLogControls";
@@ -18,9 +19,9 @@ import { QuickLogControls } from "./QuickLogControls";
 export type DailyFocusSectionProps = {
   summary: DailyFocusSummary;
   hiddenCount?: number;
-  onDismissFocusItem?: (focusItemId: string) => void;
-  onSnoozeFocusItem?: (focusItemId: string, hours: number) => void;
-  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string) => void;
+  onDismissFocusItem?: (focusItemId: string, sourceSnapshot?: string) => void;
+  onSnoozeFocusItem?: (focusItemId: string, hours: number, sourceSnapshot?: string) => void;
+  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string, sourceSnapshot?: string) => void;
   onRestoreAll?: () => void;
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
@@ -87,9 +88,9 @@ function FocusItemRow({
   nowIso: string;
   onAction?: () => void;
   onAddSession?: (skillId: string, minutes: number) => void;
-  onDismissFocusItem?: (focusItemId: string) => void;
-  onSnoozeFocusItem?: (focusItemId: string, hours: number) => void;
-  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string) => void;
+  onDismissFocusItem?: (focusItemId: string, sourceSnapshot?: string) => void;
+  onSnoozeFocusItem?: (focusItemId: string, hours: number, sourceSnapshot?: string) => void;
+  onSnoozeFocusItemUntilTomorrow?: (focusItemId: string, sourceSnapshot?: string) => void;
 }) {
   const actionType = item.suggestedActionType;
   const ctaLabel =
@@ -110,6 +111,8 @@ function FocusItemRow({
     onDismissFocusItem !== undefined ||
     onSnoozeFocusItem !== undefined ||
     onSnoozeFocusItemUntilTomorrow !== undefined;
+
+  const sourceSnapshot = buildFocusSourceSnapshot(item.title, item.description);
 
   return (
     <div style={styles.listRow}>
@@ -178,7 +181,7 @@ function FocusItemRow({
             <button
               type="button"
               style={SECONDARY_BUTTON_STYLE}
-              onClick={() => onDismissFocusItem(item.id)}
+              onClick={() => onDismissFocusItem(item.id, sourceSnapshot)}
               aria-label={`Dismiss ${item.title}`}
             >
               Dismiss
@@ -188,7 +191,7 @@ function FocusItemRow({
             <button
               type="button"
               style={SECONDARY_BUTTON_STYLE}
-              onClick={() => onSnoozeFocusItem(item.id, 3)}
+              onClick={() => onSnoozeFocusItem(item.id, 3, sourceSnapshot)}
               aria-label={`Snooze ${item.title} for 3 hours`}
             >
               Snooze 3h
@@ -198,7 +201,7 @@ function FocusItemRow({
             <button
               type="button"
               style={SECONDARY_BUTTON_STYLE}
-              onClick={() => onSnoozeFocusItemUntilTomorrow(item.id)}
+              onClick={() => onSnoozeFocusItemUntilTomorrow(item.id, sourceSnapshot)}
               aria-label={`Snooze ${item.title} until tomorrow`}
             >
               Snooze tomorrow

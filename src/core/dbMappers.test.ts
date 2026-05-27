@@ -700,6 +700,21 @@ describe("focus feedback mappers", () => {
     expect(focusFeedbackFromRow(row)).toEqual(entry);
   });
 
+  it("round-trips feedback with sourceSnapshot", () => {
+    const entry = sampleFocusFeedback({
+      sourceSnapshot: "Log ML time\nDaily goal incomplete",
+    });
+    const row = focusFeedbackToRow(entry, USER_ID);
+    expect(row.source_snapshot).toBe("Log ML time\nDaily goal incomplete");
+    expect(focusFeedbackFromRow(row)).toEqual(entry);
+  });
+
+  it("rejects empty sourceSnapshot", () => {
+    expect(() =>
+      focusFeedbackToRow(sampleFocusFeedback({ sourceSnapshot: "   " }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
   it("rejects snoozed without untilIso", () => {
     expect(() =>
       focusFeedbackToRow(

@@ -889,19 +889,23 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, focusFeedback: next } });
   }
 
-  function dismissFocusItem(focusItemId: string) {
+  function dismissFocusItem(focusItemId: string, sourceSnapshot?: string) {
     if (!app) return;
-    upsertFocusFeedbackEntry(dismissUntilEndOfDay(focusItemId, nowIso()));
+    upsertFocusFeedbackEntry(dismissUntilEndOfDay(focusItemId, nowIso(), sourceSnapshot));
   }
 
-  function snoozeFocusItem(focusItemId: string, hours: number) {
+  function snoozeFocusItem(focusItemId: string, hours: number, sourceSnapshot?: string) {
     if (!app) return;
-    upsertFocusFeedbackEntry(buildSnoozeFocusFeedback(focusItemId, nowIso(), hours));
+    upsertFocusFeedbackEntry(
+      buildSnoozeFocusFeedback(focusItemId, nowIso(), hours, sourceSnapshot)
+    );
   }
 
-  function snoozeFocusItemUntilTomorrow(focusItemId: string) {
+  function snoozeFocusItemUntilTomorrow(focusItemId: string, sourceSnapshot?: string) {
     if (!app) return;
-    upsertFocusFeedbackEntry(buildSnoozeUntilTomorrowFeedback(focusItemId, nowIso()));
+    upsertFocusFeedbackEntry(
+      buildSnoozeUntilTomorrowFeedback(focusItemId, nowIso(), sourceSnapshot)
+    );
   }
 
   function restoreAllFocusItems() {
