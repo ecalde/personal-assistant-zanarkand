@@ -29,6 +29,7 @@ import {
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
+import { CalendarPreviewSection } from "../components/dashboard/CalendarPreviewSection";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
 import { DailyBriefingSection } from "../components/dashboard/DailyBriefingSection";
 import { DailyFocusSection } from "../components/dashboard/DailyFocusSection";
@@ -47,6 +48,7 @@ import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
 import { WeeklyReviewSection } from "../components/dashboard/WeeklyReviewSection";
 import type {
+  CalendarColorPreferences,
   CareerTarget,
   FocusFeedback,
   JobApplication,
@@ -91,6 +93,8 @@ export type DashboardPageProps = {
   onOpenCareer?: () => void;
   onOpenFitness?: () => void;
   onOpenReview?: () => void;
+  onOpenCalendar?: () => void;
+  calendarPreferences?: CalendarColorPreferences;
 };
 
 export default function DashboardPage({
@@ -115,6 +119,8 @@ export default function DashboardPage({
   onOpenCareer,
   onOpenFitness,
   onOpenReview,
+  onOpenCalendar,
+  calendarPreferences,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
 
@@ -378,6 +384,19 @@ export default function DashboardPage({
           workoutSessions={workoutSessions}
           todayKey={today}
           onOpenFitness={onOpenFitness}
+        />
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <CalendarPreviewSection
+          skills={skills}
+          events={events}
+          people={people}
+          workoutSessions={workoutSessions}
+          workoutPlans={workoutPlans}
+          todayKey={today}
+          calendarPreferences={calendarPreferences}
+          onOpenCalendar={onOpenCalendar}
         />
       </div>
 

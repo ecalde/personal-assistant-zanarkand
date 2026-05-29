@@ -45,9 +45,11 @@ src/
     timeline.ts         # Unified schedule + events timeline
     calendar.ts         # Unified calendar foundation — domain data → CalendarItem range
     calendarColors.ts   # Pure calendar color/category preference resolution (palette + precedence)
+    calendarView.ts     # Pure calendar view math — month/week grids, ranges, filtering, layout, labels
   lib/                  # Supabase client (VITE_* env only)
-  pages/                # Route-like screens (Dashboard, Skills, Events, People, Career, Fitness, Review)
+  pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review)
     DashboardPage.tsx   # Composes dashboard sections from props
+    CalendarPage.tsx    # Read-only Outlook-style month/week calendar
     ReviewPage.tsx      # Full weekly review breakdown (read-only)
     EventsPage.tsx      # Life events CRUD
     PeoplePage.tsx      # Friends/contacts CRUD
@@ -55,6 +57,7 @@ src/
     FitnessPage.tsx     # Workout plans + completed session CRUD
   components/
     layout/             # AppShell, NavButton
+    calendar/           # Calendar views (month/week), toolbar, sidebar, pills/blocks, detail modal
     dashboard/          # Dashboard sections and shared widgets
     people/             # People page cards, toolbar, form
     career/             # Career page forms, cards, skill picker
@@ -87,7 +90,7 @@ src/
 
 ### App (`src/App.tsx`)
 
-- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `review`)
+- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `calendar` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `review`)
 - Runs `initialSync` on mount; guards mutations with `syncReadyRef`
 - All writes go through `commit` → `saveAppData(userId)` → debounced remote persist
 - Defines CRUD handlers passed to pages as callbacks
@@ -150,7 +153,16 @@ src/
   - **Birthday dedupe**: a person birthday is skipped when a matching `birthday` life event exists on the same date (linked by `personId` or name), so the explicit event wins.
   - **Sorting**: mirrors [`compareUnifiedTimelineItems`](../src/core/timeline.ts) — date, then time tier (timed range → start-only → all-day), then start/end time, then source order (`skill` → `event` → `people` → `fitness`), then title, then `id`. `groupCalendarItemsByDate` buckets sorted items per day for UI.
   - **Relationship to timeline**: [`timeline.ts`](../src/core/timeline.ts) remains the today-focused merge with conflict/workload detection; `calendar.ts` is the broader multi-day DTO. `career` is reserved in the union but emits nothing yet — career interviews/deadlines flow through `sourceType` `event`.
-  - **Future**: scheduled fitness workouts, recurrence expansion before sorting, persisted category/color preferences, and dashboard week/month views — see Phase 18 plan deferred items.
+  - **Future**: scheduled fitness workouts, recurrence expansion before sorting, and drag/edit interactions — see the Calendar UI subsection and Phase 18 plan deferred items.
+
+### Calendar UI (`CalendarPage` + `components/calendar`)
+
+- [`CalendarPage`](../src/pages/CalendarPage.tsx) is a **read-only** Outlook-style calendar. It owns local-only UI state (no persistence): `viewMode` (`month` default \| `week`), the current anchor date, a `hiddenCategories` set, and the selected item for the detail modal. It builds items via `buildCalendarItemsForRange` (with `includeFitnessHistory: true`) for the active range, filters by hidden categories, then groups with `groupCalendarItemsByDate`.
+- View math is isolated in the pure, tested [`calendarView.ts`](../src/core/calendarView.ts): `computeMonthVisibleRange` / `computeWeekRange`, `buildMonthGrid` (6×7, Sunday→Saturday, `inCurrentMonth`/`isToday` flags), `buildWeekGrid` (7 columns), `shiftMonth` / `shiftWeek` / `monthAnchorFromKey`, `filterItemsByHiddenCategories`, `splitDayItems`, `limitDayItems` (month "+N more"), `computeTimedItemLayout` (week block placement, minimum height for start-only items), and label helpers (`formatMonthTitle`, `formatWeekRangeTitle`, `formatHourLabel`, `formatItemTimeLabel`, `formatSourceTypeLabel`). Tested in [`calendarView.test.ts`](../src/core/calendarView.test.ts).
+- Components ([`components/calendar/`](../src/components/calendar/)): `CalendarToolbar` (prev/next/today + month↔week toggle), `CalendarCategorySidebar` (per-`CalendarCategoryKey` show/hide toggles with swatches; hidden categories dimmed; render-only), `MonthView` (compact `CalendarItemPill`s + "+N more" → jump to week), `WeekView` (all-day row + 24h timeline with absolutely-positioned `CalendarEventBlock`s and a current-time line), and `CalendarItemDetailModal` (read-only title/type/date/time/description; Escape + overlay-close, `role="dialog"`). All colors come from `resolveCalendarItemColor` using the optional persisted `calendarPreferences` (read-only here).
+- **Dashboard preview**: [`CalendarPreviewSection`](../src/components/dashboard/CalendarPreviewSection.tsx) shows the next 7 days grouped with an "Open Calendar" button (navigates via `onOpenCalendar`). It is **additive** — existing dashboard sections are unchanged.
+- **Constraints**: no recurrence engine, no drag-and-drop, no editing, no settings page, no schema/persistence changes, no new dependencies.
+- **Future extension points**: recurrence would add a pure expansion step inside `calendar.ts` before sorting (views consume `CalendarItem[]` unchanged); editing/DnD would add mutation callbacks on the views routed through `App.tsx` `commit`; a `CalendarPreferencesPage` would write `calendarPreferences`; view mode could later be persisted.
 
 ### Calendar color preferences
 
@@ -176,10 +188,11 @@ src/
 7. **PeopleRemindersSection** — upcoming birthdays and contacts needing follow-up (hidden when empty)
 8. **CareerActionsSection** — saved-to-apply count, needs-attention items, interview pipeline, recent applications, and “View career” navigation (hidden when empty)
 9. **FitnessSummarySection** — sessions logged this week, last workout summary, recent session lines, and “View fitness” navigation (hidden when empty)
-10. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
-11. **OverdueBehindSection** — skills behind schedule with quick log
-12. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
-13. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
+10. **CalendarPreviewSection** — next 7 days of calendar items (compact, grouped by day) with an “Open Calendar” button
+11. **UnifiedTimelineSection** — today’s merged schedule blocks and timed/untimed events
+12. **OverdueBehindSection** — skills behind schedule with quick log
+13. **SkillProgressSection** — per-skill level, streak, lifetime XP bar, and today goal progress
+14. **WeeklyPreviewSection** — weekly goal progress (hidden when no skill has `weeklyGoalMinutes`)
 
 Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `UnifiedTimelineRow`, `ProgressionHero`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
 
@@ -231,7 +244,7 @@ sequenceDiagram
 
 ## Navigation
 
-Internal tab state only (`useState<Page>` in `App`); no React Router yet. `AppShell` renders nav buttons; `App` switches page children inside `<main>`.
+Internal tab state only (`useState<Page>` in `App`); no React Router yet. `AppShell` renders nav buttons (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review); `App` switches page children inside `<main>`.
 
 To add a section later: extend `Page` in [`src/pages/types.ts`](../src/pages/types.ts), add a page component, wire nav in `AppShell`, and add mutations in `App` that use `commit`.
 

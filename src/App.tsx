@@ -29,6 +29,7 @@ import type { AppData } from "./core/storage";
 import { exportBackup, importBackup, loadAppData, nowIso, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
+import CalendarPage from "./pages/CalendarPage";
 import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
 import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
@@ -983,6 +984,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
+          calendarPreferences={app.payload.calendarPreferences}
           onAddSession={addSession}
           onDismissFocusItem={dismissFocusItem}
           onSnoozeFocusItem={snoozeFocusItem}
@@ -996,6 +998,18 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenCareer={() => setPage("career")}
           onOpenFitness={() => setPage("fitness")}
           onOpenReview={() => setPage("review")}
+          onOpenCalendar={() => setPage("calendar")}
+        />
+      )}
+
+      {page === "calendar" && (
+        <CalendarPage
+          skills={app.payload.skills}
+          events={app.payload.events ?? []}
+          people={app.payload.people ?? []}
+          workoutSessions={app.payload.workoutSessions ?? []}
+          workoutPlans={app.payload.workoutPlans ?? []}
+          calendarPreferences={app.payload.calendarPreferences}
         />
       )}
 
