@@ -177,6 +177,20 @@ describe("color usage labeling", () => {
       index.get("amber.base")?.some((u) => u.key === "event:birthday")
     ).toBe(true);
   });
+
+  it("labels fitness subcategory overrides with readable names", () => {
+    const prefs: CalendarColorPreferences = {
+      subcategories: { "fitness:legs": "orange.base" },
+    };
+    expect(describeColorUsage("orange.base", prefs)).toBe("Legs workouts");
+  });
+
+  it("labels legacy event subcategory overrides", () => {
+    const prefs: CalendarColorPreferences = {
+      subcategories: { "event:trip": "teal.base" },
+    };
+    expect(describeColorUsage("teal.base", prefs)).toBe("Trips");
+  });
 });
 
 describe("palette integrity", () => {

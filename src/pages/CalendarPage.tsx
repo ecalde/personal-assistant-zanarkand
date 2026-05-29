@@ -23,6 +23,7 @@ import { formatLocalDateKey } from "../core/timeline";
 import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../core/model";
 import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
 import { CalendarItemDetailModal } from "../components/calendar/CalendarItemDetailModal";
+import { CalendarSettingsSection } from "../components/calendar/CalendarSettingsSection";
 import { CalendarToolbar } from "../components/calendar/CalendarToolbar";
 import { MonthView } from "../components/calendar/MonthView";
 import { WeekView } from "../components/calendar/WeekView";
@@ -35,6 +36,7 @@ export type CalendarPageProps = {
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
   calendarPreferences?: CalendarColorPreferences;
+  onSaveCalendarPreferences: (prefs: CalendarColorPreferences | undefined) => void;
 };
 
 export default function CalendarPage({
@@ -44,6 +46,7 @@ export default function CalendarPage({
   workoutSessions,
   workoutPlans,
   calendarPreferences,
+  onSaveCalendarPreferences,
 }: CalendarPageProps) {
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
@@ -127,55 +130,63 @@ export default function CalendarPage({
   }
 
   return (
-    <div style={styles.card}>
-      <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Calendar</h1>
+    <div style={{ display: "grid", gap: 0 }}>
+      <div style={styles.card}>
+        <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Calendar</h1>
 
-      <div style={styles.calendarLayout}>
-        <div style={styles.calendarMain}>
-          <CalendarToolbar
-            title={title}
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            onToday={handleToday}
+        <div style={styles.calendarLayout}>
+          <div style={styles.calendarMain}>
+            <CalendarToolbar
+              title={title}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              onToday={handleToday}
+            />
+
+            {viewMode === "month" ? (
+              <MonthView
+                monthAnchorKey={anchorKey}
+                todayKey={todayKey}
+                itemsByDate={itemsByDate}
+                preferences={calendarPreferences}
+                onSelectItem={setSelectedItem}
+                onSelectDay={handleSelectDay}
+              />
+            ) : (
+              <WeekView
+                anchorKey={anchorKey}
+                todayKey={todayKey}
+                itemsByDate={itemsByDate}
+                preferences={calendarPreferences}
+                onSelectItem={setSelectedItem}
+                nowMinutes={nowMinutes}
+              />
+            )}
+          </div>
+
+          <CalendarCategorySidebar
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={toggleCategory}
+            preferences={calendarPreferences}
           />
-
-          {viewMode === "month" ? (
-            <MonthView
-              monthAnchorKey={anchorKey}
-              todayKey={todayKey}
-              itemsByDate={itemsByDate}
-              preferences={calendarPreferences}
-              onSelectItem={setSelectedItem}
-              onSelectDay={handleSelectDay}
-            />
-          ) : (
-            <WeekView
-              anchorKey={anchorKey}
-              todayKey={todayKey}
-              itemsByDate={itemsByDate}
-              preferences={calendarPreferences}
-              onSelectItem={setSelectedItem}
-              nowMinutes={nowMinutes}
-            />
-          )}
         </div>
 
-        <CalendarCategorySidebar
-          hiddenCategories={hiddenCategories}
-          onToggleCategory={toggleCategory}
-          preferences={calendarPreferences}
-        />
+        {selectedItem ? (
+          <CalendarItemDetailModal
+            item={selectedItem}
+            preferences={calendarPreferences}
+            onClose={() => setSelectedItem(null)}
+          />
+        ) : null}
       </div>
 
-      {selectedItem ? (
-        <CalendarItemDetailModal
-          item={selectedItem}
-          preferences={calendarPreferences}
-          onClose={() => setSelectedItem(null)}
-        />
-      ) : null}
+      <CalendarSettingsSection
+        key={JSON.stringify(calendarPreferences ?? null)}
+        preferences={calendarPreferences}
+        onSave={onSaveCalendarPreferences}
+      />
     </div>
   );
 }

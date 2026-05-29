@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AppPayload,
+  CalendarColorPreferences,
   CareerTarget,
   FocusFeedback,
   JobApplication,
@@ -25,11 +26,13 @@ import {
   replaceRemotePayload,
 } from "./core/remoteStorage";
 import { cloudSafeMessage, loadDataErrorMessage } from "./core/syncErrors";
+import { parseCalendarColorPreferences } from "./core/dbMappers";
 import type { AppData } from "./core/storage";
 import { removeSkillFromPayload } from "./core/sessions";
 import { exportBackup, importBackup, loadAppData, nowIso, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
+import { isCalendarPreferencesEmpty } from "./components/calendar/calendarPreferencesFormState";
 import CalendarPage from "./pages/CalendarPage";
 import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -721,6 +724,18 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: nextPayload });
   }
 
+  function setCalendarPreferences(prefs: CalendarColorPreferences | undefined) {
+    if (!app) return;
+
+    const nextPayload = { ...app.payload };
+    if (!prefs || isCalendarPreferencesEmpty(prefs)) {
+      delete nextPayload.calendarPreferences;
+    } else {
+      nextPayload.calendarPreferences = parseCalendarColorPreferences(prefs);
+    }
+    commit({ ...app, payload: nextPayload });
+  }
+
   // ---------- FITNESS ----------
   function addWorkoutPlan(
     input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">
@@ -1030,6 +1045,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutSessions={app.payload.workoutSessions ?? []}
           workoutPlans={app.payload.workoutPlans ?? []}
           calendarPreferences={app.payload.calendarPreferences}
+          onSaveCalendarPreferences={setCalendarPreferences}
         />
       )}
 

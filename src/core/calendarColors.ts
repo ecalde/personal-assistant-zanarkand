@@ -5,11 +5,10 @@
 // Resolution precedence is: item override > subcategory > category > built-in default
 // > neutral fallback. The module is total (never throws) and never mutates inputs.
 //
-// Preferences are NOT persisted in this phase. CalendarColorPreferences defines the
-// shape a future per-user singleton (AppPayload.calendarPreferences + a
-// calendar_preferences Supabase table) will adopt; today it is only consumed by these
-// pure helpers. CalendarItem is intentionally left unchanged — its existing colorKey
-// hook serves as the per-item override.
+// CalendarColorPreferences is persisted per user (AppPayload.calendarPreferences +
+// calendar_preferences Supabase table). This module stays pure — resolution only;
+// storage and UI wiring live elsewhere. CalendarItem is unchanged — colorKey is the
+// per-item override hook.
 
 export type CalendarCategoryKey =
   | "skill"
@@ -238,20 +237,42 @@ export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
 // Readable labels for the supported subcategory keys (used for "color used by" copy).
 export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "event:birthday": "Birthdays",
+  "event:meeting": "Meetings",
+  "event:social": "Social",
+  "event:travel": "Travel",
+  "event:medical": "Medical",
   "event:hangout": "Hangouts",
+  "event:trip": "Trips",
+  "event:holiday": "Holidays",
   "event:deadline": "Deadlines",
+  "event:other": "Other events",
   "fitness:push": "Push workouts",
   "fitness:pull": "Pull workouts",
+  "fitness:legs": "Legs workouts",
+  "fitness:cardio": "Cardio",
+  "fitness:mobility": "Mobility",
+  "fitness:full_body": "Full body workouts",
   "skill:scheduleBlock": "Schedule blocks",
 };
 
 // Stable ordering for usage indexing and "used by" descriptions.
 const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "event:birthday",
+  "event:meeting",
+  "event:social",
+  "event:travel",
+  "event:medical",
   "event:hangout",
+  "event:trip",
+  "event:holiday",
   "event:deadline",
+  "event:other",
   "fitness:push",
   "fitness:pull",
+  "fitness:legs",
+  "fitness:cardio",
+  "fitness:mobility",
+  "fitness:full_body",
   "skill:scheduleBlock",
 ];
 
