@@ -46,6 +46,7 @@ src/
     calendar.ts         # Unified calendar foundation — domain data → CalendarItem range
     calendarColors.ts   # Pure calendar color/category preference resolution (palette + precedence)
     calendarView.ts     # Pure calendar view math — month/week grids, ranges, filtering, layout, labels
+    recurrence.ts       # Pure recurrence engine — rule expansion into date keys (standalone, unwired)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review)
     DashboardPage.tsx   # Composes dashboard sections from props
@@ -175,6 +176,16 @@ src/
   - **Deferred settings UI (next phase)**: a `CalendarPreferencesPage` (new `Page` value + `AppShell` nav button) with swatch pickers per category/subcategory, alias inputs, and live "used by" labels; `App.tsx` would add a `setCalendarPreferences` handler committing through the standard `commit` path. No calendar/settings UI exists yet.
   - **Future icons**: `CalendarItem.iconKey` is the per-item icon override hook; `CalendarColorPreferences` reserves `categoryIcons` / `subcategoryIcons` for a symmetric `resolveCalendarIconKey` (same precedence) to be added in the icon phase.
 
+### Recurrence engine
+
+- Recurrence ([`recurrence.ts`](../src/core/recurrence.ts)): a pure, dependency-free engine that expands a `RecurrenceRule` into concrete occurrences for a query range — tested in [`recurrence.test.ts`](../src/core/recurrence.test.ts). No React, storage, schema, or Supabase; total functions that never throw and never mutate inputs (invalid input yields empty results). Dates are local `YYYY-MM-DD` keys compared lexicographically; **no timezone/DST handling** (date-only). **Standalone in this phase** — nothing consumes it yet; built so future recurring Events, Skills, and Fitness schedules can share one expansion step.
+  - **Types**: `RecurrenceFrequency` (`daily` \| `weekly` \| `monthly` \| `yearly`); `RecurrenceRule` (`anchorDate`, optional `frequency`, `interval`, `byWeekdays`, `dayOfMonth`, `startDate`, `end`, `exceptions`); `RecurrenceEnd` (`never` \| `onDate` \| `afterCount`); `RecurrenceException` (`skip` \| `override` with `overrideDate`); `RecurrenceInstance` (`date`, optional `originalDate`, `occurrenceIndex`, `isException`). A rule with `frequency` omitted is the **one-time** equivalent (a single occurrence on `anchorDate`).
+  - **Helpers**: `expandRecurrenceInstances(rule, rangeStart, rangeEnd)` (main expansion), `getRecurrenceDateKeys` (date keys only), `isDateInRecurrenceRange`, `applyRecurrenceExceptions` (exported for tests/UI preview), `splitRecurrenceSeriesAtDate` (pure before/after fork for edit flows), `formatRecurrenceSummary` (human-readable label), and `isValidRecurrenceRule`.
+  - **Expansion pipeline**: normalize/validate → generate candidates from the effective series start (`max(anchorDate, startDate)`) → cap by `onDate` / `afterCount` → apply exceptions → clip to the inclusive query range → sort by date, then original date, then occurrence index. Generation may walk before `rangeStart` so `maxOccurrences` counting and overrides that move dates into range stay correct; a fixed candidate cap guards against runaway input.
+  - **Counting / boundaries**: `maxOccurrences` counts **scheduled candidates** (a skipped date still consumes a slot; overrides move rather than add). Monthly clamps to the last day of shorter months (Jan 31 → Feb 28/29); yearly maps Feb 29 → Feb 28 in non-leap years (same rule as `calendar.ts` birthdays); weekly `interval` buckets weeks from the anchor.
+  - **Series split**: `splitRecurrenceSeriesAtDate` returns a `beforeRule` (original pattern ending the day before `splitDate`) and a caller-supplied `afterRule` (started on `splitDate`), with the original exceptions partitioned by the split date. This supports changing, e.g., a recurring Wednesday event to Friday from a future date **without altering past occurrences**.
+  - **Future integration** (deferred): `LifeEvent` gains optional `recurrence`/`seriesId`; `buildCalendarItemsForRange` adds an expansion step (one `CalendarItem` per `RecurrenceInstance`, recurring stable IDs) **before** sorting so views consume `CalendarItem[]` unchanged; people birthdays may switch to `frequency: "yearly"`; skills/fitness schedules can adopt rules later. Persistence adds a validated `parseRecurrenceRule` in `dbMappers.ts` (allowlisted frequencies/weekdays, date-shape checks) when the field lands.
+
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
 [`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, `focusFeedback`, focus feedback callbacks, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`focus.ts`](../src/core/focus.ts), [`focusFeedback.ts`](../src/core/focusFeedback.ts), [`briefing.ts`](../src/core/briefing.ts), [`review.ts`](../src/core/review.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts), then composes visual sections top to bottom:
@@ -282,5 +293,5 @@ No Vite config or `React.lazy` changes in the current phase; revisit when adding
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes
