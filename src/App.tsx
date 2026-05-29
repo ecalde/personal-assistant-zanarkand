@@ -224,7 +224,7 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   // ---------- SKILLS CRUD ----------
-  function addSkill(name: string) {
+  function addSkill(name: string, scheduleSeries?: Skill["scheduleSeries"]) {
     if (!app) return;
 
     const trimmed = name.trim();
@@ -242,6 +242,10 @@ export default function App({ userId, onSignOut }: AppProps) {
       priority: 2,
     };
 
+    if (scheduleSeries !== undefined) {
+      newSkill.scheduleSeries = scheduleSeries;
+    }
+
     commit({
       ...app,
       payload: {
@@ -255,10 +259,22 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (!app) return;
 
     const now = new Date().toISOString();
-    const skills = app.payload.skills.map((s) =>
-      s.id === skillId ? { ...s, ...patch, updatedAtIso: now } : s
-    );
+    const skills = app.payload.skills.map((s) => {
+      if (s.id !== skillId) return s;
+      const next = { ...s, ...patch, updatedAtIso: now };
+      if ("scheduleSeries" in patch && patch.scheduleSeries === undefined) {
+        delete next.scheduleSeries;
+      }
+      return next;
+    });
     commit({ ...app, payload: { ...app.payload, skills } });
+  }
+
+  function setSkillScheduleSeries(
+    skillId: string,
+    scheduleSeries: Skill["scheduleSeries"]
+  ) {
+    updateSkill(skillId, { scheduleSeries });
   }
 
   function deleteSkill(skillId: string) {
@@ -1007,6 +1023,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           sessions={app.payload.sessions}
           onAdd={addSkill}
           onUpdate={updateSkill}
+          onSetScheduleSeries={setSkillScheduleSeries}
           onDelete={deleteSkill}
           onAddSession={addSession}
           onDeleteSession={deleteSession}

@@ -4,6 +4,7 @@ import type { AppPayload, Skill, SkillScheduleSeries } from "./model";
 import {
   buildActiveSkillsForDate,
   cleanupInvalidSkillScheduleSeries,
+  formatSkillScheduleSeriesLabel,
   getSkillSeriesDateRange,
   isSkillActiveOnDate,
   isValidSkillScheduleSeries,
@@ -304,6 +305,62 @@ describe("cleanupInvalidSkillScheduleSeries", () => {
       focusFeedback: [],
     };
     expect(cleanupInvalidSkillScheduleSeries(payload)).toBe(payload);
+  });
+});
+
+describe("formatSkillScheduleSeriesLabel", () => {
+  it("labels omitted scheduleSeries as indefinite", () => {
+    expect(formatSkillScheduleSeriesLabel(makeSkill())).toBe("Available indefinitely");
+  });
+
+  it("labels date_range with formatted bounds", () => {
+    const label = formatSkillScheduleSeriesLabel(
+      makeSkill({
+        scheduleSeries: {
+          mode: "date_range",
+          startDate: "2026-01-01",
+          endDate: "2026-06-30",
+        },
+      })
+    );
+    expect(label).toContain("Jan");
+    expect(label).toContain("2026");
+    expect(label).toMatch(/Available .+ – .+/);
+  });
+
+  it("labels single_day", () => {
+    const label = formatSkillScheduleSeriesLabel(
+      makeSkill({
+        scheduleSeries: { mode: "single_day", singleDate: "2026-05-10" },
+      })
+    );
+    expect(label).toContain("Available only on");
+    expect(label).toContain("May");
+    expect(label).toContain("2026");
+  });
+
+  it("labels indefinite with startDate as available from", () => {
+    const label = formatSkillScheduleSeriesLabel(
+      makeSkill({
+        scheduleSeries: { mode: "indefinite", startDate: "2026-01-01" },
+      })
+    );
+    expect(label).toContain("Available from");
+    expect(label).toContain("Jan");
+  });
+
+  it("labels invalid series as indefinite (display-safe)", () => {
+    expect(
+      formatSkillScheduleSeriesLabel(
+        makeSkill({
+          scheduleSeries: {
+            mode: "date_range",
+            startDate: "2026-08-01",
+            endDate: "2026-06-01",
+          } as SkillScheduleSeries,
+        })
+      )
+    ).toBe("Available indefinitely");
   });
 });
 

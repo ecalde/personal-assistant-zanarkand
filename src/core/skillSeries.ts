@@ -157,6 +157,42 @@ export function getSkillSeriesDateRange(skill: Skill): SkillSeriesDateRange {
   }
 }
 
+function formatSkillScheduleDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return dateKey;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Human-readable availability label for Skills page cards. */
+export function formatSkillScheduleSeriesLabel(skill: Skill): string {
+  if (skill.scheduleSeries === undefined) {
+    return "Available indefinitely";
+  }
+
+  const series = normalizeSkillScheduleSeries(skill.scheduleSeries);
+  if (series === undefined) {
+    return "Available indefinitely";
+  }
+
+  switch (series.mode) {
+    case "indefinite":
+      if (series.startDate === undefined) {
+        return "Available indefinitely";
+      }
+      return `Available from ${formatSkillScheduleDateKey(series.startDate)}`;
+    case "date_range":
+      return `Available ${formatSkillScheduleDateKey(series.startDate!)} – ${formatSkillScheduleDateKey(series.endDate!)}`;
+    case "single_day":
+      return `Available only on ${formatSkillScheduleDateKey(series.singleDate!)}`;
+    default:
+      return "Available indefinitely";
+  }
+}
+
 /** Drops invalid scheduleSeries from skills on load/import (fail-closed repair). */
 export function cleanupInvalidSkillScheduleSeries(payload: AppPayload): AppPayload {
   let changed = false;

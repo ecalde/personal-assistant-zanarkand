@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { parseDurationToMinutes } from "../../core/duration";
-import type { Priority, Session, Skill, Weekday } from "../../core/model";
+import type { Priority, Session, Skill, SkillScheduleSeries, Weekday } from "../../core/model";
+import { formatSkillScheduleSeriesLabel } from "../../core/skillSeries";
 import {
   expectedMinutesByNow,
   weekdayFromDate,
@@ -10,8 +11,87 @@ import { weekdayLabel } from "../../core/state";
 import { styles } from "../../ui/appStyles";
 import { formatLocal, formatTimeOnly, priorityEmoji } from "../../ui/format";
 import { GoalInput } from "./GoalInput";
+import { SkillScheduleFields } from "./SkillScheduleFields";
+import {
+  skillScheduleFormFromSeries,
+  skillScheduleSeriesEqual,
+  skillScheduleSeriesFromForm,
+  type SkillScheduleFormState,
+  type SkillScheduleUiMode,
+  validateSkillScheduleForm,
+} from "./skillScheduleFormState";
 
 const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+function scheduleSeriesSyncKey(skill: Skill): string {
+  return skill.scheduleSeries ? JSON.stringify(skill.scheduleSeries) : "omit";
+}
+
+type SkillScheduleEditorSectionProps = {
+  skill: Skill;
+  onScheduleSeriesChange: (series: SkillScheduleSeries | undefined) => void;
+};
+
+function SkillScheduleEditorSection({
+  skill,
+  onScheduleSeriesChange,
+}: SkillScheduleEditorSectionProps) {
+  const [scheduleForm, setScheduleForm] = useState<SkillScheduleFormState>(() =>
+    skillScheduleFormFromSeries(skill.scheduleSeries)
+  );
+  const scheduleFormRef = useRef(scheduleForm);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  function setScheduleFormState(next: SkillScheduleFormState) {
+    scheduleFormRef.current = next;
+    setScheduleForm(next);
+  }
+
+  function commitScheduleForm(nextForm: SkillScheduleFormState) {
+    const error = validateSkillScheduleForm(nextForm);
+    if (error) {
+      setScheduleError(error);
+      return;
+    }
+
+    setScheduleError(null);
+    const series = skillScheduleSeriesFromForm(nextForm);
+    if (skillScheduleSeriesEqual(series, skill.scheduleSeries)) return;
+    onScheduleSeriesChange(series);
+  }
+
+  function handleScheduleModeChange(mode: SkillScheduleUiMode) {
+    const nextForm = { ...scheduleFormRef.current, mode };
+    setScheduleFormState(nextForm);
+
+    if (mode === "indefinite") {
+      setScheduleError(null);
+      if (skill.scheduleSeries !== undefined) {
+        onScheduleSeriesChange(undefined);
+      }
+      return;
+    }
+
+    setScheduleError(null);
+  }
+
+  function handleScheduleDateBlur() {
+    const form = scheduleFormRef.current;
+    if (form.mode === "indefinite") return;
+    commitScheduleForm(form);
+  }
+
+  return (
+    <SkillScheduleFields
+      state={scheduleForm}
+      radioGroupName={`skill-schedule-${skill.id}`}
+      onChange={setScheduleFormState}
+      onModeChange={handleScheduleModeChange}
+      onDateBlur={handleScheduleDateBlur}
+      error={scheduleError}
+    />
+  );
+}
 
 export type SkillEditorProps = {
   skill: Skill;
@@ -19,6 +99,7 @@ export type SkillEditorProps = {
   onAddSession: (minutes: number) => void;
   onDeleteSession: (sessionId: string) => void;
   onUpdate: (patch: Partial<Skill>) => void;
+  onScheduleSeriesChange: (series: SkillScheduleSeries | undefined) => void;
   onDelete: () => void;
 };
 
@@ -28,6 +109,7 @@ export function SkillEditor({
   onAddSession,
   onDeleteSession,
   onUpdate,
+  onScheduleSeriesChange,
   onDelete,
 }: SkillEditorProps) {
   const [durationError, setDurationError] = useState<string | null>(null);
@@ -114,6 +196,9 @@ export function SkillEditor({
           </div>
           <div style={{ opacity: 0.7, fontSize: 13 }}>
             Updated: {formatLocal(skill.updatedAtIso)}
+          </div>
+          <div style={{ opacity: 0.75, fontSize: 13, marginTop: 4 }}>
+            {formatSkillScheduleSeriesLabel(skill)}
           </div>
         </div>
 
@@ -257,6 +342,14 @@ export function SkillEditor({
       </div>
 
       {durationError && <div style={styles.errorInline}>{durationError}</div>}
+
+      <div style={{ marginTop: 14 }}>
+        <SkillScheduleEditorSection
+          key={`${skill.id}-${scheduleSeriesSyncKey(skill)}`}
+          skill={skill}
+          onScheduleSeriesChange={onScheduleSeriesChange}
+        />
+      </div>
 
       <div style={{ marginTop: 14, fontWeight: 600 }}>Weekly schedule template</div>
       <div style={{ opacity: 0.8, marginBottom: 10 }}>
