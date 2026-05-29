@@ -13,6 +13,7 @@
 
 import { daysBetweenDateKeys } from "./events";
 import type {
+  AppPayload,
   ApplicationStatus,
   CareerTarget,
   JobApplication,
@@ -619,4 +620,47 @@ export function getApplicationStatuses(): ApplicationStatus[] {
 
 export function countSavedApplications(apps: JobApplication[]): number {
   return apps.filter((app) => app.status === "saved").length;
+}
+
+/** Removes a single skill id from career entities (used when deleting that skill). */
+export function stripSkillIdFromCareerPayload(
+  payload: AppPayload,
+  skillId: string
+): Pick<AppPayload, "jobApplications" | "careerTarget"> {
+  const jobApplications = (payload.jobApplications ?? []).map((app) => ({
+    ...app,
+    requiredSkillIds: app.requiredSkillIds.filter((id) => id !== skillId),
+  }));
+
+  let careerTarget = payload.careerTarget;
+  if (careerTarget) {
+    careerTarget = {
+      ...careerTarget,
+      requiredSkillIds: careerTarget.requiredSkillIds.filter((id) => id !== skillId),
+    };
+  }
+
+  return { jobApplications, careerTarget };
+}
+
+/** Strips requiredSkillIds that no longer exist in payload.skills (legacy/orphan cleanup). */
+export function stripUnknownSkillIdsFromCareer(
+  payload: AppPayload
+): Pick<AppPayload, "jobApplications" | "careerTarget"> {
+  const skillIds = new Set(payload.skills.map((s) => s.id));
+
+  const jobApplications = (payload.jobApplications ?? []).map((app) => ({
+    ...app,
+    requiredSkillIds: app.requiredSkillIds.filter((id) => skillIds.has(id)),
+  }));
+
+  let careerTarget = payload.careerTarget;
+  if (careerTarget) {
+    careerTarget = {
+      ...careerTarget,
+      requiredSkillIds: careerTarget.requiredSkillIds.filter((id) => skillIds.has(id)),
+    };
+  }
+
+  return { jobApplications, careerTarget };
 }

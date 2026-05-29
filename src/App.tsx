@@ -26,6 +26,7 @@ import {
 } from "./core/remoteStorage";
 import { cloudSafeMessage, loadDataErrorMessage } from "./core/syncErrors";
 import type { AppData } from "./core/storage";
+import { removeSkillFromPayload } from "./core/sessions";
 import { exportBackup, importBackup, loadAppData, nowIso, saveAppData } from "./core/storage";
 import { defaultWeeklySchedule } from "./core/state";
 import { AppShell } from "./components/layout/AppShell";
@@ -45,26 +46,6 @@ const REMOTE_DEBOUNCE_MS = 400;
 
 function id() {
   return crypto.randomUUID();
-}
-
-function stripSkillIdFromCareerPayload(
-  payload: AppPayload,
-  skillId: string
-): Pick<AppPayload, "jobApplications" | "careerTarget"> {
-  const jobApplications = (payload.jobApplications ?? []).map((app) => ({
-    ...app,
-    requiredSkillIds: app.requiredSkillIds.filter((id) => id !== skillId),
-  }));
-
-  let careerTarget = payload.careerTarget;
-  if (careerTarget) {
-    careerTarget = {
-      ...careerTarget,
-      requiredSkillIds: careerTarget.requiredSkillIds.filter((id) => id !== skillId),
-    };
-  }
-
-  return { jobApplications, careerTarget };
 }
 
 function applyEventPersonFields(
@@ -283,14 +264,9 @@ export default function App({ userId, onSignOut }: AppProps) {
   function deleteSkill(skillId: string) {
     if (!app) return;
 
-    const skills = app.payload.skills.filter((s) => s.id !== skillId);
-    const { jobApplications, careerTarget } = stripSkillIdFromCareerPayload(
-      app.payload,
-      skillId
-    );
     commit({
       ...app,
-      payload: { ...app.payload, skills, jobApplications, careerTarget },
+      payload: removeSkillFromPayload(app.payload, skillId),
     });
   }
 

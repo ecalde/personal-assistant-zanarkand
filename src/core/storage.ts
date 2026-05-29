@@ -1,6 +1,7 @@
 // This is my app's memory system, it is responsible for loading, saving, exporting, and importing app data
 
 import type { AppPayload } from "./model";
+import { sanitizeSkillReferences } from "./sessions";
 import { defaultPayload } from "./state";
 
 export type AppData = {
@@ -37,7 +38,7 @@ export function normalizePayload(payload: unknown): AppPayload {
 
     const p = payload as Record<string, unknown>;
 
-    return {
+    const normalized: AppPayload = {
         ...base,
         ...p,
         skills: Array.isArray(p.skills) ? p.skills : [],
@@ -62,6 +63,8 @@ export function normalizePayload(payload: unknown): AppPayload {
                 ? (p.calendarPreferences as AppPayload["calendarPreferences"])
                 : undefined,
     };
+
+    return sanitizeSkillReferences(normalized);
 }
 
 function parseStoredAppData(raw: string): AppData | null {
