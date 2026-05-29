@@ -5,6 +5,12 @@
 export type { CalendarColorPreferences } from "./calendarColors";
 import type { CalendarColorPreferences } from "./calendarColors";
 
+// Re-exported so LifeEvent can carry an optional recurrence rule without
+// depending on the (pure) recurrence module's logic. Type-only cross-import:
+// recurrence.ts imports Weekday from here, which is safe because types erase.
+export type { RecurrenceRule } from "./recurrence";
+import type { RecurrenceRule } from "./recurrence";
+
 export type Priority = 1 | 2 | 3 | 4;
 
 export type Weekday =
@@ -75,6 +81,10 @@ export type LifeEvent = {
   personId?: string;
   notes?: string;
   reminder: boolean;
+  // Optional recurrence. Undefined means a one-time event (legacy behavior).
+  recurrence?: RecurrenceRule;
+  // Optional series linkage (used by future split flows); undefined for one-off events.
+  seriesId?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };

@@ -300,6 +300,146 @@ describe("buildCalendarItemsForRange", () => {
   });
 });
 
+describe("recurring events", () => {
+  it("expands a weekly recurring event across the range with stable per-instance ids", () => {
+    // 2026-06-03 is a Wednesday.
+    const event = makeEvent({
+      id: "tennis",
+      title: "Tennis",
+      date: "2026-06-03",
+      startTime: "18:00",
+      endTime: "19:00",
+      recurrence: { anchorDate: "2026-06-03", frequency: "weekly", byWeekdays: ["wed"] },
+    });
+
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+      skills: [],
+      events: [event],
+      people: [],
+    });
+
+    const tennisItems = items.filter((i) => i.sourceId === "tennis");
+    expect(tennisItems.map((i) => i.date)).toEqual([
+      "2026-06-03",
+      "2026-06-10",
+      "2026-06-17",
+      "2026-06-24",
+    ]);
+    expect(tennisItems[0].id).toBe("event:tennis:2026-06-03");
+    expect(tennisItems[0].startTime).toBe("18:00");
+    expect(tennisItems[0].endTime).toBe("19:00");
+    expect(tennisItems[0].title).toBe("Tennis");
+    const meta = tennisItems[1].sourceMeta;
+    expect(meta.kind).toBe("lifeEvent");
+    if (meta.kind === "lifeEvent") {
+      expect(meta.recurrenceDate).toBe("2026-06-10");
+      expect(meta.occurrenceIndex).toBe(2);
+      expect(meta.isRecurrenceException).toBe(false);
+    }
+  });
+
+  it("emits nothing when no recurrence instances fall in the range", () => {
+    const event = makeEvent({
+      id: "tennis",
+      title: "Tennis",
+      date: "2026-06-03",
+      recurrence: {
+        anchorDate: "2026-06-03",
+        frequency: "weekly",
+        byWeekdays: ["wed"],
+        end: { kind: "onDate", endDate: "2026-06-30" },
+      },
+    });
+
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      skills: [],
+      events: [event],
+      people: [],
+    });
+
+    expect(items.filter((i) => i.sourceId === "tennis")).toHaveLength(0);
+  });
+
+  it("moves an overridden instance to its override date and flags it", () => {
+    const event = makeEvent({
+      id: "tennis",
+      title: "Tennis",
+      date: "2026-06-03",
+      recurrence: {
+        anchorDate: "2026-06-03",
+        frequency: "weekly",
+        byWeekdays: ["wed"],
+        exceptions: [{ kind: "override", date: "2026-06-10", overrideDate: "2026-06-12" }],
+      },
+    });
+
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-06-01",
+      endDate: "2026-06-17",
+      skills: [],
+      events: [event],
+      people: [],
+    });
+
+    const dates = items.filter((i) => i.sourceId === "tennis").map((i) => i.date);
+    expect(dates).toEqual(["2026-06-03", "2026-06-12", "2026-06-17"]);
+
+    const moved = items.find((i) => i.date === "2026-06-12")!;
+    expect(moved.id).toBe("event:tennis:2026-06-12");
+    if (moved.sourceMeta.kind === "lifeEvent") {
+      expect(moved.sourceMeta.originalDate).toBe("2026-06-10");
+      expect(moved.sourceMeta.isRecurrenceException).toBe(true);
+    }
+  });
+
+  it("suppresses a single skipped instance", () => {
+    const event = makeEvent({
+      id: "tennis",
+      title: "Tennis",
+      date: "2026-06-03",
+      recurrence: {
+        anchorDate: "2026-06-03",
+        frequency: "weekly",
+        byWeekdays: ["wed"],
+        exceptions: [{ kind: "skip", date: "2026-06-10" }],
+      },
+    });
+
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-06-01",
+      endDate: "2026-06-17",
+      skills: [],
+      events: [event],
+      people: [],
+    });
+
+    expect(items.filter((i) => i.sourceId === "tennis").map((i) => i.date)).toEqual([
+      "2026-06-03",
+      "2026-06-17",
+    ]);
+  });
+
+  it("keeps the stable id unchanged for one-time events", () => {
+    const event = makeEvent({ id: "e1", title: "Meeting", date: "2026-06-03" });
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+      skills: [],
+      events: [event],
+      people: [],
+    });
+    const item = items.find((i) => i.sourceId === "e1")!;
+    expect(item.id).toBe("event:e1");
+    if (item.sourceMeta.kind === "lifeEvent") {
+      expect(item.sourceMeta.recurrenceDate).toBeUndefined();
+    }
+  });
+});
+
 describe("sorting and grouping", () => {
   it("orders by date, then time tier, then source, then title, then id", () => {
     const base = {

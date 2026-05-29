@@ -10,6 +10,13 @@ import {
   type CalendarColorPreferences,
   type CalendarColorToken,
 } from "./calendarColors";
+import {
+  isValidRecurrenceRule,
+  type RecurrenceEnd,
+  type RecurrenceException,
+  type RecurrenceFrequency,
+  type RecurrenceRule,
+} from "./recurrence";
 import type {
   AppPayload,
   ApplicationStatus,
@@ -118,6 +125,8 @@ export type EventRow = {
   person_id: string | null;
   notes: string | null;
   reminder: boolean;
+  recurrence: unknown | null;
+  series_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -391,6 +400,176 @@ function assertValidSession(session: Session): void {
   }
 }
 
+const RECURRENCE_FREQUENCIES: RecurrenceFrequency[] = [
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+];
+
+const RECURRENCE_ALLOWED_KEYS = [
+  "anchorDate",
+  "frequency",
+  "interval",
+  "byWeekdays",
+  "dayOfMonth",
+  "startDate",
+  "end",
+  "exceptions",
+];
+
+const RECURRENCE_END_ALLOWED_KEYS = ["kind", "endDate", "maxOccurrences"];
+
+const RECURRENCE_EXCEPTION_ALLOWED_KEYS = ["kind", "date", "overrideDate"];
+
+function parseRecurrenceEnd(raw: unknown, field: string): RecurrenceEnd {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  for (const key of Object.keys(raw)) {
+    if (!RECURRENCE_END_ALLOWED_KEYS.includes(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  const kind = raw.kind;
+  if (kind === "never") return { kind: "never" };
+  if (kind === "onDate") {
+    if (typeof raw.endDate !== "string" || !isIsoDate(raw.endDate)) {
+      throw new MapperError(`Invalid ${field}.endDate`, `${field}.endDate`);
+    }
+    return { kind: "onDate", endDate: raw.endDate };
+  }
+  if (kind === "afterCount") {
+    if (typeof raw.maxOccurrences !== "number" || !isPositiveInteger(raw.maxOccurrences)) {
+      throw new MapperError(`Invalid ${field}.maxOccurrences`, `${field}.maxOccurrences`);
+    }
+    return { kind: "afterCount", maxOccurrences: raw.maxOccurrences };
+  }
+  throw new MapperError(`Invalid ${field}.kind`, `${field}.kind`);
+}
+
+function parseRecurrenceException(raw: unknown, field: string): RecurrenceException {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  for (const key of Object.keys(raw)) {
+    if (!RECURRENCE_EXCEPTION_ALLOWED_KEYS.includes(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  if (typeof raw.date !== "string" || !isIsoDate(raw.date)) {
+    throw new MapperError(`Invalid ${field}.date`, `${field}.date`);
+  }
+  if (raw.kind === "skip") {
+    return { kind: "skip", date: raw.date };
+  }
+  if (raw.kind === "override") {
+    if (typeof raw.overrideDate !== "string" || !isIsoDate(raw.overrideDate)) {
+      throw new MapperError(`Invalid ${field}.overrideDate`, `${field}.overrideDate`);
+    }
+    return { kind: "override", date: raw.date, overrideDate: raw.overrideDate };
+  }
+  throw new MapperError(`Invalid ${field}.kind`, `${field}.kind`);
+}
+
+/**
+ * Validates untrusted recurrence input and returns a canonical RecurrenceRule:
+ * allowlisted keys, ISO date strings, allowlisted frequency/weekday/end/exception
+ * shapes. Cross-checks the result with the engine's isValidRecurrenceRule so the
+ * semantic rules (e.g. weekly requires byWeekdays) have a single source of truth.
+ * Throws MapperError on invalid input.
+ */
+export function parseRecurrenceRule(raw: unknown, field = "recurrence"): RecurrenceRule {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  for (const key of Object.keys(raw)) {
+    if (!RECURRENCE_ALLOWED_KEYS.includes(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  if (typeof raw.anchorDate !== "string" || !isIsoDate(raw.anchorDate)) {
+    throw new MapperError(`Invalid ${field}.anchorDate`, `${field}.anchorDate`);
+  }
+
+  const rule: RecurrenceRule = { anchorDate: raw.anchorDate };
+
+  if (raw.frequency !== undefined) {
+    if (
+      typeof raw.frequency !== "string" ||
+      !(RECURRENCE_FREQUENCIES as string[]).includes(raw.frequency)
+    ) {
+      throw new MapperError(`Invalid ${field}.frequency`, `${field}.frequency`);
+    }
+    rule.frequency = raw.frequency as RecurrenceFrequency;
+  }
+
+  if (raw.interval !== undefined) {
+    if (typeof raw.interval !== "number" || !isPositiveInteger(raw.interval)) {
+      throw new MapperError(`Invalid ${field}.interval`, `${field}.interval`);
+    }
+    rule.interval = raw.interval;
+  }
+
+  if (raw.byWeekdays !== undefined) {
+    if (!Array.isArray(raw.byWeekdays)) {
+      throw new MapperError(`Invalid ${field}.byWeekdays: expected array`, `${field}.byWeekdays`);
+    }
+    const days: Weekday[] = [];
+    for (const day of raw.byWeekdays) {
+      if (typeof day !== "string" || !WEEKDAYS.includes(day as Weekday)) {
+        throw new MapperError(
+          `Invalid ${field}.byWeekdays: unknown weekday`,
+          `${field}.byWeekdays`
+        );
+      }
+      if (!days.includes(day as Weekday)) days.push(day as Weekday);
+    }
+    rule.byWeekdays = days;
+  }
+
+  if (raw.dayOfMonth !== undefined) {
+    if (
+      typeof raw.dayOfMonth !== "number" ||
+      !Number.isInteger(raw.dayOfMonth) ||
+      raw.dayOfMonth < 1 ||
+      raw.dayOfMonth > 31
+    ) {
+      throw new MapperError(`Invalid ${field}.dayOfMonth`, `${field}.dayOfMonth`);
+    }
+    rule.dayOfMonth = raw.dayOfMonth;
+  }
+
+  if (raw.startDate !== undefined) {
+    if (typeof raw.startDate !== "string" || !isIsoDate(raw.startDate)) {
+      throw new MapperError(`Invalid ${field}.startDate`, `${field}.startDate`);
+    }
+    rule.startDate = raw.startDate;
+  }
+
+  if (raw.end !== undefined) {
+    rule.end = parseRecurrenceEnd(raw.end, `${field}.end`);
+  }
+
+  if (raw.exceptions !== undefined) {
+    if (!Array.isArray(raw.exceptions)) {
+      throw new MapperError(`Invalid ${field}.exceptions: expected array`, `${field}.exceptions`);
+    }
+    rule.exceptions = raw.exceptions.map((exc, index) =>
+      parseRecurrenceException(exc, `${field}.exceptions[${index}]`)
+    );
+  }
+
+  if (!isValidRecurrenceRule(rule)) {
+    throw new MapperError(`Invalid ${field}: rule failed validation`, field);
+  }
+
+  return rule;
+}
+
 function assertValidEvent(event: LifeEvent): void {
   assertUuid(event.id, "event.id");
   assertNonEmptyName(event.title, "event.title");
@@ -428,6 +607,12 @@ function assertValidEvent(event: LifeEvent): void {
     if (parseHHMMToMinutes(event.endTime) < parseHHMMToMinutes(event.startTime)) {
       throw new MapperError("event.endTime must be >= event.startTime", "event.endTime");
     }
+  }
+  if (event.recurrence !== undefined) {
+    parseRecurrenceRule(event.recurrence, "event.recurrence");
+  }
+  if (event.seriesId !== undefined) {
+    assertUuid(event.seriesId, "event.seriesId");
   }
 }
 
@@ -898,6 +1083,8 @@ export function eventToRow(event: LifeEvent, userId: string): EventRow {
     person_id: event.personId ?? null,
     notes: event.notes?.trim() || null,
     reminder: event.reminder,
+    recurrence: event.recurrence ? parseRecurrenceRule(event.recurrence) : null,
+    series_id: event.seriesId ?? null,
     created_at: event.createdAtIso,
     updated_at: event.updatedAtIso,
   };
@@ -943,6 +1130,13 @@ export function eventFromRow(row: EventRow): LifeEvent {
   }
   if (row.end_time !== null && isHhMm(row.end_time)) {
     event.endTime = row.end_time;
+  }
+  if (row.recurrence !== null && row.recurrence !== undefined) {
+    event.recurrence = parseRecurrenceRule(row.recurrence, "events.recurrence");
+  }
+  if (row.series_id !== null && row.series_id !== undefined) {
+    assertUuid(row.series_id, "events.series_id");
+    event.seriesId = row.series_id;
   }
 
   return event;

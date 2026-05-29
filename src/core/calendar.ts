@@ -8,8 +8,9 @@
 //
 // Career is reserved in the source-type union but emits no items: career
 // interviews/deadlines currently flow through life events (sourceType "event").
-// Recurrence is not handled here yet — skill weekly blocks are the only implicit
-// recurrence (weekday template expansion).
+// Recurring life events (event.recurrence) expand via the pure recurrence engine
+// into one CalendarItem per occurrence. Skill weekly blocks remain a separate
+// implicit recurrence (weekday template expansion).
 
 import type {
   EventType,
@@ -25,6 +26,7 @@ import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import { formatSessionHeadline } from "./fitness";
 import { addMinutesToHHMM } from "./schedule";
 import { iterateDateRange, weekdayFromDateString } from "./timeline";
+import { expandRecurrenceInstances, type RecurrenceInstance } from "./recurrence";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +56,11 @@ export type CalendarItemSourceMeta =
       eventType: EventType;
       reminder: boolean;
       personName?: string;
+      // Present only for recurring-event instances (one-time events omit these).
+      recurrenceDate?: string; // instance.date (where it appears)
+      originalDate?: string; // instance.originalDate when an override moved it
+      occurrenceIndex?: number;
+      isRecurrenceException?: boolean;
     }
   | {
       kind: "personBirthday";
@@ -118,7 +125,9 @@ export function buildStableCalendarItemId(
     case "skillScheduleBlock":
       return `skill:${meta.skillId}:${meta.blockId}:${date}`;
     case "lifeEvent":
-      return `event:${meta.eventId}`;
+      return meta.recurrenceDate !== undefined
+        ? `event:${meta.eventId}:${meta.recurrenceDate}`
+        : `event:${meta.eventId}`;
     case "personBirthday":
       return `people:birthday:${meta.personId}:${date}`;
     case "workoutSession":
@@ -262,6 +271,54 @@ function collectSkillItems(skills: Skill[], dates: string[]): CalendarItem[] {
   return items;
 }
 
+function buildEventCalendarItem(
+  event: LifeEvent,
+  date: string,
+  personLabel: string | undefined,
+  instance?: RecurrenceInstance
+): CalendarItem {
+  const hasStart = event.startTime !== undefined;
+  const hasEnd = hasStart && event.endTime !== undefined;
+
+  const meta: CalendarItemSourceMeta = {
+    kind: "lifeEvent",
+    eventId: event.id,
+    eventType: event.type,
+    reminder: event.reminder,
+    ...(personLabel ? { personName: personLabel } : {}),
+    ...(instance
+      ? {
+          recurrenceDate: instance.date,
+          ...(instance.originalDate !== undefined
+            ? { originalDate: instance.originalDate }
+            : {}),
+          occurrenceIndex: instance.occurrenceIndex,
+          isRecurrenceException: instance.isException,
+        }
+      : {}),
+  };
+
+  const item: CalendarItem = {
+    id: buildStableCalendarItemId(meta, date),
+    sourceType: "event",
+    sourceId: event.id,
+    title: event.title,
+    date,
+    allDay: !hasStart,
+    categoryKey: "event",
+    subcategoryKey: event.type,
+    isTimed: hasStart,
+    isMultiDay: false,
+    sourceMeta: meta,
+  };
+
+  if (hasStart) item.startTime = event.startTime;
+  if (hasEnd) item.endTime = event.endTime;
+  if (event.notes) item.description = event.notes;
+
+  return item;
+}
+
 function collectEventItems(
   events: LifeEvent[],
   startDate: string,
@@ -271,39 +328,20 @@ function collectEventItems(
   const items: CalendarItem[] = [];
 
   for (const event of events) {
-    if (event.date < startDate || event.date > endDate) continue;
-
     const personLabel = resolveEventPersonLabel(event, peopleById);
-    const hasStart = event.startTime !== undefined;
-    const hasEnd = hasStart && event.endTime !== undefined;
 
-    const meta: CalendarItemSourceMeta = {
-      kind: "lifeEvent",
-      eventId: event.id,
-      eventType: event.type,
-      reminder: event.reminder,
-      ...(personLabel ? { personName: personLabel } : {}),
-    };
+    // Recurring events expand into one CalendarItem per occurrence in range.
+    if (event.recurrence) {
+      const instances = expandRecurrenceInstances(event.recurrence, startDate, endDate);
+      for (const instance of instances) {
+        items.push(buildEventCalendarItem(event, instance.date, personLabel, instance));
+      }
+      continue;
+    }
 
-    const item: CalendarItem = {
-      id: buildStableCalendarItemId(meta, event.date),
-      sourceType: "event",
-      sourceId: event.id,
-      title: event.title,
-      date: event.date,
-      allDay: !hasStart,
-      categoryKey: "event",
-      subcategoryKey: event.type,
-      isTimed: hasStart,
-      isMultiDay: false,
-      sourceMeta: meta,
-    };
-
-    if (hasStart) item.startTime = event.startTime;
-    if (hasEnd) item.endTime = event.endTime;
-    if (event.notes) item.description = event.notes;
-
-    items.push(item);
+    // One-time events keep their original single-date behavior.
+    if (event.date < startDate || event.date > endDate) continue;
+    items.push(buildEventCalendarItem(event, event.date, personLabel));
   }
 
   return items;

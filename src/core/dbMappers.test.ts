@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, RecurrenceRule, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   calendarPreferencesFromRow,
@@ -24,6 +24,7 @@ import {
   overrideFromRow,
   overrideToRow,
   parseExerciseEntries,
+  parseRecurrenceRule,
   parseWeeklySchedule,
   payloadFromRows,
   personFromRow,
@@ -52,6 +53,7 @@ const PLAN_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const WORKOUT_SESSION_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const EXERCISE_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const FEEDBACK_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const SERIES_ID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 const NOW = "2026-05-26T12:00:00.000Z";
 const EVENT_DATE = "2026-06-15";
@@ -315,6 +317,119 @@ describe("event mappers", () => {
     const row = eventToRow(event, USER_ID);
     expect(row.person_id).toBe(PERSON_ID);
     expect(eventFromRow(row)).toEqual(event);
+  });
+
+  it("round-trips a recurring event with rule, exceptions, and seriesId", () => {
+    const recurrence: RecurrenceRule = {
+      anchorDate: "2026-06-03",
+      frequency: "weekly",
+      byWeekdays: ["wed"],
+      end: { kind: "onDate", endDate: "2026-12-31" },
+      exceptions: [{ kind: "skip", date: "2026-07-01" }],
+    };
+    const event = sampleEvent({ recurrence, seriesId: SERIES_ID });
+    const row = eventToRow(event, USER_ID);
+    expect(row.recurrence).toEqual(recurrence);
+    expect(row.series_id).toBe(SERIES_ID);
+    expect(eventFromRow(row)).toEqual(event);
+  });
+
+  it("keeps recurrence and series_id null for one-time events", () => {
+    const row = eventToRow(sampleEvent(), USER_ID);
+    expect(row.recurrence).toBeNull();
+    expect(row.series_id).toBeNull();
+    const restored = eventFromRow(row);
+    expect(restored.recurrence).toBeUndefined();
+    expect(restored.seriesId).toBeUndefined();
+  });
+
+  it("rejects a recurring weekly event without weekdays", () => {
+    expect(() =>
+      eventToRow(
+        sampleEvent({ recurrence: { anchorDate: "2026-06-03", frequency: "weekly" } }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects recurrence with a bad anchorDate", () => {
+    expect(() =>
+      eventToRow(
+        sampleEvent({ recurrence: { anchorDate: "2026-99-99", frequency: "daily" } }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects recurrence with an unknown field", () => {
+    expect(() =>
+      eventToRow(
+        sampleEvent({
+          recurrence: {
+            anchorDate: "2026-06-03",
+            frequency: "daily",
+            bogus: true,
+          } as unknown as RecurrenceRule,
+        }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects a non-uuid seriesId", () => {
+    expect(() => eventToRow(sampleEvent({ seriesId: "not-a-uuid" }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+});
+
+describe("parseRecurrenceRule", () => {
+  it("returns a canonical rule and dedupes weekdays", () => {
+    const rule = parseRecurrenceRule({
+      anchorDate: "2026-06-03",
+      frequency: "weekly",
+      byWeekdays: ["wed", "wed", "fri"],
+      interval: 2,
+    });
+    expect(rule).toEqual({
+      anchorDate: "2026-06-03",
+      frequency: "weekly",
+      byWeekdays: ["wed", "fri"],
+      interval: 2,
+    });
+  });
+
+  it("validates each end kind", () => {
+    expect(parseRecurrenceRule({ anchorDate: "2026-06-03", end: { kind: "never" } }).end).toEqual({
+      kind: "never",
+    });
+    expect(
+      parseRecurrenceRule({
+        anchorDate: "2026-06-03",
+        frequency: "daily",
+        end: { kind: "afterCount", maxOccurrences: 5 },
+      }).end
+    ).toEqual({ kind: "afterCount", maxOccurrences: 5 });
+  });
+
+  it("rejects malformed input", () => {
+    expect(() => parseRecurrenceRule(null)).toThrow(MapperError);
+    expect(() => parseRecurrenceRule({})).toThrow(MapperError);
+    expect(() => parseRecurrenceRule({ anchorDate: "2026-06-03", interval: 0 })).toThrow(
+      MapperError
+    );
+    expect(() =>
+      parseRecurrenceRule({ anchorDate: "2026-06-03", dayOfMonth: 40 })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseRecurrenceRule({ anchorDate: "2026-06-03", end: { kind: "bogus" } })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseRecurrenceRule({
+        anchorDate: "2026-06-03",
+        exceptions: [{ kind: "override", date: "2026-06-03" }],
+      })
+    ).toThrow(MapperError);
   });
 });
 
@@ -598,6 +713,22 @@ describe("validatePayloadForUpload", () => {
         sessions: [],
         overrides: [],
         events: [event, event],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
+        focusFeedback: [],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects events with an invalid recurrence rule", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [sampleEvent({ recurrence: { anchorDate: "2026-06-03", frequency: "weekly" } })],
         people: [],
         jobApplications: [],
         workoutPlans: [],

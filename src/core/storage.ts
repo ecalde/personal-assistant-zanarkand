@@ -28,6 +28,8 @@ function defaultAppData(): AppData {
 
 // Exported for unit testing (pure; does not touch browser APIs). Old payloads
 // missing newer optional fields (e.g. calendarPreferences) load unchanged.
+// Per-event optional fields (e.g. recurrence/seriesId) are preserved as-is
+// because the events array is kept intact; deep validation lives in dbMappers.
 export function normalizePayload(payload: unknown): AppPayload {
     const base = defaultPayload();
 
