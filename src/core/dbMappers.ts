@@ -17,6 +17,9 @@ import {
   type RecurrenceFrequency,
   type RecurrenceRule,
 } from "./recurrence";
+import {
+  normalizeSkillScheduleSeries,
+} from "./skillSeries";
 import type {
   AppPayload,
   ApplicationStatus,
@@ -31,6 +34,7 @@ import type {
   ScheduleBlock,
   Session,
   Skill,
+  SkillScheduleSeries,
   Weekday,
   WeeklySchedule,
   WorkoutFocus,
@@ -92,6 +96,7 @@ export type SkillRow = {
   daily_goal_minutes: number | null;
   weekly_goal_minutes: number | null;
   schedule: WeeklySchedule;
+  schedule_series: SkillScheduleSeries | null;
   created_at: string;
   updated_at: string;
 };
@@ -364,6 +369,33 @@ export function parseWeeklySchedule(raw: unknown, context = "schedule"): WeeklyS
   return schedule;
 }
 
+const SKILL_SCHEDULE_SERIES_ALLOWED_KEYS = ["mode", "startDate", "endDate", "singleDate"];
+
+/**
+ * Parses untrusted schedule-series jsonb into a canonical SkillScheduleSeries.
+ * Cross-checks with normalizeSkillScheduleSeries so semantic rules have one source of truth.
+ */
+export function parseSkillScheduleSeries(
+  raw: unknown,
+  field = "scheduleSeries"
+): SkillScheduleSeries {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  for (const key of Object.keys(raw)) {
+    if (!SKILL_SCHEDULE_SERIES_ALLOWED_KEYS.includes(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  const normalized = normalizeSkillScheduleSeries(raw);
+  if (normalized === undefined) {
+    throw new MapperError(`Invalid ${field}: failed validation`, field);
+  }
+
+  return normalized;
+}
+
 function assertValidSkill(skill: Skill): WeeklySchedule {
   assertUuid(skill.id, "skill.id");
   assertNonEmptyName(skill.name, "skill.name");
@@ -384,6 +416,10 @@ function assertValidSkill(skill: Skill): WeeklySchedule {
     !isNonNegativeInteger(skill.weeklyGoalMinutes)
   ) {
     throw new MapperError("Invalid skill.weeklyGoalMinutes", "skill.weeklyGoalMinutes");
+  }
+
+  if (skill.scheduleSeries !== undefined) {
+    parseSkillScheduleSeries(skill.scheduleSeries, "skill.scheduleSeries");
   }
 
   return parseWeeklySchedule(skill.schedule, "skill.schedule");
@@ -979,6 +1015,9 @@ export function skillToRow(skill: Skill, userId: string): SkillRow {
     daily_goal_minutes: skill.dailyGoalMinutes ?? null,
     weekly_goal_minutes: skill.weeklyGoalMinutes ?? null,
     schedule,
+    schedule_series: skill.scheduleSeries
+      ? parseSkillScheduleSeries(skill.scheduleSeries, "skill.scheduleSeries")
+      : null,
     created_at: skill.createdAtIso,
     updated_at: skill.updatedAtIso,
   };
@@ -1028,6 +1067,12 @@ export function skillFromRow(row: SkillRow): Skill {
   }
   if (row.weekly_goal_minutes !== null) {
     skill.weeklyGoalMinutes = row.weekly_goal_minutes;
+  }
+  if (row.schedule_series !== null && row.schedule_series !== undefined) {
+    skill.scheduleSeries = parseSkillScheduleSeries(
+      row.schedule_series,
+      "skills.schedule_series"
+    );
   }
 
   return skill;

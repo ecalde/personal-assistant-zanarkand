@@ -75,6 +75,54 @@ describe("normalizePayload event recurrence", () => {
   });
 });
 
+describe("normalizePayload skill scheduleSeries", () => {
+  it("preserves valid scheduleSeries on skills (backup round-trip)", () => {
+    const skill: Skill = {
+      id: SKILL_ID,
+      name: "Piano",
+      schedule: defaultWeeklySchedule(),
+      scheduleSeries: {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      },
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+    };
+    const result = normalizePayload({ skills: [skill] });
+    expect(result.skills[0].scheduleSeries).toEqual(skill.scheduleSeries);
+  });
+
+  it("strips invalid scheduleSeries on load", () => {
+    const skill: Skill = {
+      id: SKILL_ID,
+      name: "Piano",
+      schedule: defaultWeeklySchedule(),
+      scheduleSeries: {
+        mode: "date_range",
+        startDate: "2026-08-01",
+        endDate: "2026-06-01",
+      },
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+    };
+    const result = normalizePayload({ skills: [skill] });
+    expect(result.skills[0].scheduleSeries).toBeUndefined();
+  });
+
+  it("loads a skill without scheduleSeries unchanged", () => {
+    const skill: Skill = {
+      id: SKILL_ID,
+      name: "Piano",
+      schedule: defaultWeeklySchedule(),
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+    };
+    const result = normalizePayload({ skills: [skill] });
+    expect(result.skills[0].scheduleSeries).toBeUndefined();
+  });
+});
+
 describe("normalizePayload orphaned sessions", () => {
   it("strips sessions referencing deleted skills from legacy local data", () => {
     const skill: Skill = {

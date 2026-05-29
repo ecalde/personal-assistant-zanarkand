@@ -31,6 +31,16 @@ export type ScheduleBlock = {
 
 export type WeeklySchedule = Record<Weekday, ScheduleBlock[]>;
 
+export type SkillRecurrenceMode = "indefinite" | "date_range" | "single_day";
+
+/** When the weekly template is in effect. Omitted = indefinite (legacy). */
+export type SkillScheduleSeries = {
+  mode: SkillRecurrenceMode;
+  startDate?: string;
+  endDate?: string;
+  singleDate?: string;
+};
+
 export type Skill = {
   id: string;
   name: string;
@@ -44,6 +54,9 @@ export type Skill = {
 
   // Template schedule (recurring weekly plan)
   schedule: WeeklySchedule;
+
+  /** Optional bounds for when the weekly template applies. Omitted = always active. */
+  scheduleSeries?: SkillScheduleSeries;
 
   createdAtIso: string;
   updatedAtIso: string;

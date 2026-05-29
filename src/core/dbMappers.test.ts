@@ -25,6 +25,7 @@ import {
   overrideToRow,
   parseExerciseEntries,
   parseRecurrenceRule,
+  parseSkillScheduleSeries,
   parseWeeklySchedule,
   payloadFromRows,
   personFromRow,
@@ -237,6 +238,40 @@ describe("skill mappers", () => {
   it("rejects invalid user id", () => {
     expect(() => skillToRow(sampleSkill(), "bad-id")).toThrow(MapperError);
   });
+
+  it("round-trips skill with scheduleSeries", () => {
+    const skill = sampleSkill({
+      scheduleSeries: {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      },
+    });
+    const row = skillToRow(skill, USER_ID);
+    expect(row.schedule_series).toEqual(skill.scheduleSeries);
+    expect(skillFromRow(row)).toEqual(skill);
+  });
+
+  it("maps undefined scheduleSeries to null on row", () => {
+    const row = skillToRow(sampleSkill(), USER_ID);
+    expect(row.schedule_series).toBeNull();
+    expect(skillFromRow(row).scheduleSeries).toBeUndefined();
+  });
+
+  it("rejects invalid scheduleSeries on toRow", () => {
+    expect(() =>
+      skillToRow(
+        sampleSkill({
+          scheduleSeries: {
+            mode: "date_range",
+            startDate: "2026-08-01",
+            endDate: "2026-06-01",
+          },
+        }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
 });
 
 describe("session mappers", () => {
@@ -378,6 +413,40 @@ describe("event mappers", () => {
 
   it("rejects a non-uuid seriesId", () => {
     expect(() => eventToRow(sampleEvent({ seriesId: "not-a-uuid" }), USER_ID)).toThrow(
+      MapperError
+    );
+  });
+});
+
+describe("parseSkillScheduleSeries", () => {
+  it("parses valid indefinite series", () => {
+    expect(parseSkillScheduleSeries({ mode: "indefinite" })).toEqual({ mode: "indefinite" });
+  });
+
+  it("parses valid date_range series", () => {
+    expect(
+      parseSkillScheduleSeries({
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-06-30",
+      })
+    ).toEqual({
+      mode: "date_range",
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+    });
+  });
+
+  it("rejects invalid series", () => {
+    expect(() => parseSkillScheduleSeries({ mode: "weekly" })).toThrow(MapperError);
+    expect(() =>
+      parseSkillScheduleSeries({
+        mode: "date_range",
+        startDate: "2026-08-01",
+        endDate: "2026-06-01",
+      })
+    ).toThrow(MapperError);
+    expect(() => parseSkillScheduleSeries({ mode: "indefinite", seriesId: "x" })).toThrow(
       MapperError
     );
   });

@@ -47,6 +47,7 @@ src/
     calendarColors.ts   # Pure calendar color/category preference resolution (palette + precedence)
     calendarView.ts     # Pure calendar view math — month/week grids, ranges, filtering, layout, labels
     recurrence.ts       # Pure recurrence engine — rule expansion into date keys (standalone, unwired)
+    skillSeries.ts      # Pure skill schedule-series bounds — active-date filtering (unwired)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review)
     DashboardPage.tsx   # Composes dashboard sections from props
@@ -188,7 +189,18 @@ src/
   - **Event recurrence persistence** (Phase 22B): `LifeEvent` carries optional `recurrence?: RecurrenceRule` and `seriesId?: string` (re-exported from [`recurrence.ts`](../src/core/recurrence.ts) through [`model.ts`](../src/core/model.ts)). Backed by nullable `recurrence jsonb` (object-shape CHECK) and `series_id uuid` columns on `events` (migration `20260528000000_event_recurrence.sql`; RLS/policies/grants unchanged, existing rows preserved as one-time). [`dbMappers.ts`](../src/core/dbMappers.ts) adds a strict `parseRecurrenceRule` (allowlisted top-level keys, ISO date strings, allowlisted frequency/weekday/end/exception shapes) that cross-checks the engine's `isValidRecurrenceRule`, wired through `assertValidEvent` / `eventToRow` / `eventFromRow` / `validatePayloadForUpload`. Remote sync needs no change (`select("*")` + existing `eventToRow` routing). [`storage.ts`](../src/core/storage.ts) `normalizePayload` preserves the nested fields as-is, so old localStorage payloads and backups without recurrence load unchanged.
   - **Calendar expansion** (Phase 22B): [`collectEventItems`](../src/core/calendar.ts) calls `expandRecurrenceInstances(event.recurrence, startDate, endDate)` for recurring events and emits one `CalendarItem` per instance (`date = instance.date`, preserving `title`/`type`/`startTime`/`endTime`/`personName`/`notes`), with recurrence metadata on `sourceMeta` (`recurrenceDate`, `originalDate`, `occurrenceIndex`, `isRecurrenceException`). Recurring instances use stable id `event:${eventId}:${instance.date}`; one-time events keep `event:${eventId}` exactly. Views and [`calendarView.ts`](../src/core/calendarView.ts) consume `CalendarItem[]` unchanged. People-birthday dedupe stays keyed on the one-time `event.date`; recurring birthday-type events are not de-duplicated against people birthdays (birthdays remain a people-domain yearly concern).
   - **Deferred UI** (not in 22B): no recurrence editor in [`EventsPage`](../src/pages/EventsPage.tsx) (a read-only "Repeats: …" line via `formatRecurrenceSummary` is the only safe-display option); no per-instance skip/override UI, no `splitRecurrenceSeriesAtDate` edit flow / `seriesId` generation, no drag/drop.
-  - **Future integration** (deferred): people birthdays may switch to `frequency: "yearly"`; skills/fitness schedules can adopt rules later.
+  - **Future integration** (deferred): people birthdays may switch to `frequency: "yearly"`; fitness schedules can adopt rules later.
+
+### Skill schedule series
+
+- Skill series ([`skillSeries.ts`](../src/core/skillSeries.ts)): pure, dependency-free helpers for optional schedule bounds on [`Skill`](../src/core/model.ts) — tested in [`skillSeries.test.ts`](../src/core/skillSeries.test.ts). No React, UI, or calendar expansion in this phase; total functions that never throw and never mutate inputs. Dates are local `YYYY-MM-DD` keys compared lexicographically (no timezone/DST handling).
+  - **Types**: `SkillRecurrenceMode` (`indefinite` \| `date_range` \| `single_day`); `SkillScheduleSeries` — single object shape `{ mode, startDate?, endDate?, singleDate? }` (easier to extend later with `seriesId`, exceptions, `archivedAt`, etc.). Optional `scheduleSeries?: SkillScheduleSeries` on `Skill`. Omitted = always active (legacy).
+  - **Two layers**: `WeeklySchedule` still defines *which weekdays* have blocks; `scheduleSeries` defines *when* that template applies. Orthogonal to [`recurrence.ts`](../src/core/recurrence.ts) (life events use full RRULE-style rules; skills use weekday template + optional date window).
+  - **Validation** (`isValidSkillScheduleSeries`, `normalizeSkillScheduleSeries`): `indefinite` — optional valid `startDate` (active from that date onward); `date_range` — required `startDate`/`endDate`, inclusive, `endDate >= startDate`; `single_day` — required `singleDate`. Unknown mode, invalid dates, wrong field combinations, and unknown keys → invalid.
+  - **Fail-closed invalid behavior**: invalid `scheduleSeries` is **not** treated as indefinite. `normalizeSkillScheduleSeries` returns `undefined`; `isSkillActiveOnDate` returns `false` if invalid series is still in memory; `cleanupInvalidSkillScheduleSeries` strips invalid series on load/import (via [`sanitizeSkillReferences`](../src/core/sessions.ts)).
+  - **Active-date helpers**: `isSkillActiveOnDate(skill, dateKey)`; `buildActiveSkillsForDate(skills, dateKey)` (preserves order); `getSkillSeriesDateRange(skill)` for future calendar range optimization (`unbounded` vs `bounded`).
+  - **Persistence** (Phase 23): nullable `schedule_series jsonb` on `skills` (migration `20260528100000_skill_schedule_series.sql`; object-shape CHECK only). [`dbMappers.ts`](../src/core/dbMappers.ts) adds `parseSkillScheduleSeries` (allowlisted keys, cross-checks `normalizeSkillScheduleSeries`), wired through `assertValidSkill` / `skillToRow` / `skillFromRow` / `validatePayloadForUpload`. Remote sync unchanged (`select("*")`). Old skills without `scheduleSeries` round-trip as `NULL` / omitted field.
+  - **Deferred integration**: [`calendar.ts`](../src/core/calendar.ts) `collectSkillItems` and [`timeline.ts`](../src/core/timeline.ts) `generateScheduleItems` still expand all skills by weekday; future phases call `buildActiveSkillsForDate` per date. Same for [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`review.ts`](../src/core/review.ts), and [`focus.ts`](../src/core/focus.ts). No Skills page editor, recurrence UI, or notifications in this phase.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
@@ -297,5 +309,5 @@ No Vite config or `React.lazy` changes in the current phase; revisit when adding
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`, `skillSeries.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes
