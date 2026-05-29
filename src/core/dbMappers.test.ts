@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
+  calendarPreferencesFromRow,
+  calendarPreferencesToRow,
   careerTargetFromRow,
   careerTargetToRow,
   eventFromRow,
@@ -742,6 +744,104 @@ describe("focus feedback mappers", () => {
         sampleFocusFeedback({ action: "invalid" as FocusFeedback["action"] }),
         USER_ID
       )
+    ).toThrow(MapperError);
+  });
+});
+
+describe("calendar preferences mappers", () => {
+  function samplePreferences(
+    overrides: Partial<CalendarColorPreferences> = {}
+  ): CalendarColorPreferences {
+    return {
+      categories: { skill: "indigo.base", event: "red.base" },
+      subcategories: { "event:birthday": "amber.base" },
+      aliases: { skill: "Growth" },
+      ...overrides,
+    };
+  }
+
+  it("round-trips calendar preferences", () => {
+    const prefs = samplePreferences();
+    const row = calendarPreferencesToRow(prefs, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(calendarPreferencesFromRow(row)).toEqual(prefs);
+  });
+
+  it("rejects an invalid color token", () => {
+    expect(() =>
+      calendarPreferencesToRow(
+        { categories: { skill: "not-a-token" as never } },
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects an unknown category key", () => {
+    expect(() =>
+      calendarPreferencesToRow(
+        { categories: { bogus: "red.base" } as never },
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects an unsafe subcategory key", () => {
+    expect(() =>
+      calendarPreferencesToRow(
+        { subcategories: { "unknownCategory:thing": "red.base" } },
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects unknown top-level fields", () => {
+    expect(() =>
+      calendarPreferencesToRow(
+        { categoryIcons: { skill: "star" } } as never,
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("sanitizes aliases and drops empty ones", () => {
+    const row = calendarPreferencesToRow(
+      { aliases: { skill: "  Deep   Work  ", event: "   " } },
+      USER_ID
+    );
+    expect(calendarPreferencesFromRow(row)).toEqual({
+      aliases: { skill: "Deep Work" },
+    });
+  });
+
+  it("rejects a non-string alias", () => {
+    expect(() =>
+      calendarPreferencesToRow(
+        { aliases: { skill: 42 as never } },
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("builds the singleton in payloadFromRows", () => {
+    const row = calendarPreferencesToRow(samplePreferences(), USER_ID);
+    const payload = payloadFromRows([], [], [], [], [], [], [], [], [], [], [row]);
+    expect(payload.calendarPreferences).toEqual(samplePreferences());
+  });
+
+  it("rejects an invalid calendarPreferences in validatePayloadForUpload", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
+        focusFeedback: [],
+        calendarPreferences: { categories: { skill: "bad.token" as never } },
+      })
     ).toThrow(MapperError);
   });
 });

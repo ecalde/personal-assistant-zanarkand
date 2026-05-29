@@ -2,6 +2,14 @@
 
 import { defaultWeeklySchedule } from "./state";
 import { parseHHMMToMinutes } from "./schedule";
+import {
+  isCalendarCategoryKey,
+  isCalendarColorToken,
+  sanitizeCategoryAlias,
+  type CalendarCategoryKey,
+  type CalendarColorPreferences,
+  type CalendarColorToken,
+} from "./calendarColors";
 import type {
   AppPayload,
   ApplicationStatus,
@@ -194,6 +202,12 @@ export type FocusFeedbackRow = {
   until_iso: string | null;
   source_snapshot: string | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type CalendarPreferencesRow = {
+  user_id: string;
+  preferences: unknown;
   updated_at: string;
 };
 
@@ -1345,6 +1359,155 @@ export function focusFeedbackFromRow(row: FocusFeedbackRow): FocusFeedback {
   return entry;
 }
 
+const CALENDAR_PREFERENCES_ALLOWED_KEYS = ["categories", "subcategories", "aliases"];
+const SUBCATEGORY_KEY_MAX_LENGTH = 64;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Subcategory keys are user-influenced; allowlist the shape "<category>:<suffix>"
+// with an allowlisted category prefix, a non-empty single-segment suffix, no
+// control characters, and a capped length (SECURITY_RULES: allowlist + size limits).
+function isSafeSubcategoryKey(key: string): boolean {
+  if (key.length === 0 || key.length > SUBCATEGORY_KEY_MAX_LENGTH) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(key)) return false;
+  const separator = key.indexOf(":");
+  if (separator <= 0 || separator === key.length - 1) return false;
+  const prefix = key.slice(0, separator);
+  const suffix = key.slice(separator + 1);
+  return isCalendarCategoryKey(prefix) && suffix.length > 0 && !suffix.includes(":");
+}
+
+/**
+ * Validates untrusted calendar preferences and returns a canonical object:
+ * allowlisted category/subcategory keys, palette-backed color tokens, sanitized
+ * aliases (empty dropped), unknown top-level fields rejected. Throws MapperError
+ * on invalid input. Used by both the row mapper and upload validation.
+ */
+export function parseCalendarColorPreferences(
+  raw: unknown,
+  field = "calendarPreferences"
+): CalendarColorPreferences {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+
+  for (const key of Object.keys(raw)) {
+    if (!CALENDAR_PREFERENCES_ALLOWED_KEYS.includes(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  const prefs: CalendarColorPreferences = {};
+
+  if (raw.categories !== undefined) {
+    if (!isPlainObject(raw.categories)) {
+      throw new MapperError(`Invalid ${field}.categories: expected object`, `${field}.categories`);
+    }
+    const categories: Partial<Record<CalendarCategoryKey, CalendarColorToken>> = {};
+    for (const [key, value] of Object.entries(raw.categories)) {
+      if (!isCalendarCategoryKey(key)) {
+        throw new MapperError(
+          `Invalid ${field}.categories: unknown category "${key}"`,
+          `${field}.categories`
+        );
+      }
+      if (!isCalendarColorToken(value)) {
+        throw new MapperError(
+          `Invalid ${field}.categories: invalid token for "${key}"`,
+          `${field}.categories`
+        );
+      }
+      categories[key] = value;
+    }
+    if (Object.keys(categories).length > 0) prefs.categories = categories;
+  }
+
+  if (raw.subcategories !== undefined) {
+    if (!isPlainObject(raw.subcategories)) {
+      throw new MapperError(
+        `Invalid ${field}.subcategories: expected object`,
+        `${field}.subcategories`
+      );
+    }
+    const subcategories: Record<string, CalendarColorToken> = {};
+    for (const [key, value] of Object.entries(raw.subcategories)) {
+      if (!isSafeSubcategoryKey(key)) {
+        throw new MapperError(
+          `Invalid ${field}.subcategories: unsafe key "${key}"`,
+          `${field}.subcategories`
+        );
+      }
+      if (!isCalendarColorToken(value)) {
+        throw new MapperError(
+          `Invalid ${field}.subcategories: invalid token for "${key}"`,
+          `${field}.subcategories`
+        );
+      }
+      subcategories[key] = value;
+    }
+    if (Object.keys(subcategories).length > 0) prefs.subcategories = subcategories;
+  }
+
+  if (raw.aliases !== undefined) {
+    if (!isPlainObject(raw.aliases)) {
+      throw new MapperError(`Invalid ${field}.aliases: expected object`, `${field}.aliases`);
+    }
+    const aliases: Partial<Record<CalendarCategoryKey, string>> = {};
+    for (const [key, value] of Object.entries(raw.aliases)) {
+      if (!isCalendarCategoryKey(key)) {
+        throw new MapperError(
+          `Invalid ${field}.aliases: unknown category "${key}"`,
+          `${field}.aliases`
+        );
+      }
+      if (typeof value !== "string") {
+        throw new MapperError(
+          `Invalid ${field}.aliases: alias for "${key}" must be a string`,
+          `${field}.aliases`
+        );
+      }
+      const alias = sanitizeCategoryAlias(value);
+      if (alias !== undefined) aliases[key] = alias;
+    }
+    if (Object.keys(aliases).length > 0) prefs.aliases = aliases;
+  }
+
+  return prefs;
+}
+
+export function assertValidCalendarPreferences(prefs: CalendarColorPreferences): void {
+  parseCalendarColorPreferences(prefs);
+}
+
+export function calendarPreferencesToRow(
+  prefs: CalendarColorPreferences,
+  userId: string
+): CalendarPreferencesRow {
+  assertUuid(userId, "userId");
+  const preferences = parseCalendarColorPreferences(prefs);
+
+  return {
+    user_id: userId,
+    preferences,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function calendarPreferencesFromRow(
+  row: CalendarPreferencesRow
+): CalendarColorPreferences {
+  assertUuid(row.user_id, "calendar_preferences.user_id");
+  assertIsoTimestamp(row.updated_at, "calendar_preferences.updated_at");
+
+  return parseCalendarColorPreferences(
+    row.preferences,
+    "calendar_preferences.preferences"
+  );
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -1441,7 +1604,8 @@ export function payloadFromRows(
   careerTargetRows: CareerTargetRow[] = [],
   workoutPlanRows: WorkoutPlanRow[] = [],
   workoutSessionRows: WorkoutSessionRow[] = [],
-  focusFeedbackRows: FocusFeedbackRow[] = []
+  focusFeedbackRows: FocusFeedbackRow[] = [],
+  calendarPreferencesRows: CalendarPreferencesRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -1461,6 +1625,14 @@ export function payloadFromRows(
     careerTarget = careerTargetFromRow(sorted[0]!);
   }
 
+  let calendarPreferences: CalendarColorPreferences | undefined;
+  if (calendarPreferencesRows.length > 0) {
+    const sorted = [...calendarPreferencesRows].sort((a, b) =>
+      b.updated_at.localeCompare(a.updated_at)
+    );
+    calendarPreferences = calendarPreferencesFromRow(sorted[0]!);
+  }
+
   const payload: AppPayload = {
     skills,
     sessions,
@@ -1472,6 +1644,7 @@ export function payloadFromRows(
     workoutPlans,
     workoutSessions,
     focusFeedback,
+    calendarPreferences,
   };
   validatePayloadForUpload(payload);
   return payload;
@@ -1603,5 +1776,9 @@ export function validatePayloadForUpload(payload: AppPayload): void {
       throw new MapperError(`Duplicate focus feedback id: ${entry.id}`, "focusFeedback.id");
     }
     focusFeedbackIds.add(entry.id);
+  }
+
+  if (payload.calendarPreferences !== undefined) {
+    assertValidCalendarPreferences(payload.calendarPreferences);
   }
 }

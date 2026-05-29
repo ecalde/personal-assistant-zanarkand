@@ -6,6 +6,7 @@ import { defaultPayload } from "./state";
 import { nowIso, saveAppData, type AppData } from "./storage";
 import {
   MapperError,
+  calendarPreferencesToRow,
   careerTargetToRow,
   eventToRow,
   isUuid,
@@ -19,6 +20,7 @@ import {
   workoutPlanToRow,
   workoutSessionToRow,
   validatePayloadForUpload,
+  type CalendarPreferencesRow,
   type CareerTargetRow,
   type EventRow,
   type JobApplicationRow,
@@ -41,7 +43,8 @@ type AppTable =
   | "career_targets"
   | "workout_plans"
   | "workout_sessions"
-  | "focus_feedback";
+  | "focus_feedback"
+  | "calendar_preferences";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -137,10 +140,31 @@ async function deleteRowsNotIn(table: AppTable, userId: string, keepIds: string[
   throwOnSupabaseError(error, table);
 }
 
+// calendar_preferences is a user_id-keyed singleton (no id column): upsert the
+// single row when present, otherwise delete the user's row.
+async function replaceCalendarPreferences(
+  userId: string,
+  row: CalendarPreferencesRow | null
+): Promise<void> {
+  if (row) {
+    const { error } = await supabase
+      .from("calendar_preferences")
+      .upsert(row, { onConflict: "user_id" });
+    throwOnSupabaseError(error, "calendar_preferences");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("calendar_preferences")
+    .delete()
+    .eq("user_id", userId);
+  throwOnSupabaseError(error, "calendar_preferences");
+}
+
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, focusFeedbackResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, focusFeedbackResult, calendarPreferencesResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -152,6 +176,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("workout_plans").select("*").eq("user_id", userId),
     supabase.from("workout_sessions").select("*").eq("user_id", userId),
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
+    supabase.from("calendar_preferences").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -164,6 +189,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(workoutPlansResult.error, "workout_plans");
   throwOnSupabaseError(workoutSessionsResult.error, "workout_sessions");
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
+  throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
 
   try {
     return payloadFromRows(
@@ -176,7 +202,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<CareerTargetRow>(careerTargetsResult.data),
       asRows<WorkoutPlanRow>(workoutPlansResult.data),
       asRows<WorkoutSessionRow>(workoutSessionsResult.data),
-      asRows<FocusFeedbackRow>(focusFeedbackResult.data)
+      asRows<FocusFeedbackRow>(focusFeedbackResult.data),
+      asRows<CalendarPreferencesRow>(calendarPreferencesResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -212,6 +239,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const focusFeedbackRows = payload.focusFeedback.map((entry) =>
     focusFeedbackToRow(entry, userId)
   );
+  const calendarPreferencesRow = payload.calendarPreferences
+    ? calendarPreferencesToRow(payload.calendarPreferences, userId)
+    : null;
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
@@ -245,6 +275,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("workout_plans", userId, workoutPlanIds);
   await deleteRowsNotIn("workout_sessions", userId, workoutSessionIds);
   await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
+
+  await replaceCalendarPreferences(userId, calendarPreferencesRow);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -258,7 +290,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.careerTarget !== undefined ||
     payload.workoutPlans.length > 0 ||
     payload.workoutSessions.length > 0 ||
-    payload.focusFeedback.length > 0
+    payload.focusFeedback.length > 0 ||
+    payload.calendarPreferences !== undefined
   );
 }
 

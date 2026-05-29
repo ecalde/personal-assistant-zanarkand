@@ -26,7 +26,9 @@ function defaultAppData(): AppData {
     return { version: 1, updatedAtIso: nowIso(), payload: defaultPayload() };
 }
 
-function normalizePayload(payload: unknown): AppPayload {
+// Exported for unit testing (pure; does not touch browser APIs). Old payloads
+// missing newer optional fields (e.g. calendarPreferences) load unchanged.
+export function normalizePayload(payload: unknown): AppPayload {
     const base = defaultPayload();
 
     if (!payload || typeof payload !== "object") return base;
@@ -51,6 +53,12 @@ function normalizePayload(payload: unknown): AppPayload {
         workoutPlans: Array.isArray(p.workoutPlans) ? p.workoutPlans : [],
         workoutSessions: Array.isArray(p.workoutSessions) ? p.workoutSessions : [],
         focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
+        calendarPreferences:
+            p.calendarPreferences &&
+            typeof p.calendarPreferences === "object" &&
+            !Array.isArray(p.calendarPreferences)
+                ? (p.calendarPreferences as AppPayload["calendarPreferences"])
+                : undefined,
     };
 }
 

@@ -1,5 +1,10 @@
 // model.ts defines the core data types for the personal assistant app
 
+// Re-exported so AppPayload can reference the persisted calendar preferences
+// singleton without depending on the (pure) calendarColors module's logic.
+export type { CalendarColorPreferences } from "./calendarColors";
+import type { CalendarColorPreferences } from "./calendarColors";
+
 export type Priority = 1 | 2 | 3 | 4;
 
 export type Weekday =
@@ -193,4 +198,5 @@ export type AppPayload = {
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
   focusFeedback: FocusFeedback[];
+  calendarPreferences?: CalendarColorPreferences;
 };
