@@ -81,13 +81,38 @@ function toRemoteStorageError(err: unknown, table: AppTable): RemoteStorageError
     return new RemoteStorageError(err.message, { table });
   }
   if (err && typeof err === "object" && "code" in err) {
-    const code = typeof (err as { code: unknown }).code === "string" ? (err as { code: string }).code : undefined;
-    return new RemoteStorageError(`Could not sync ${table}. Please try again.`, {
-      code,
+    const supaErr = err as { code?: string; message?: string };
+    return new RemoteStorageError(syncFailureMessage(supaErr, table), {
+      code: supaErr.code,
       table,
     });
   }
-  return new RemoteStorageError(`Could not sync ${table}. Please try again.`, { table });
+  return new RemoteStorageError(syncFailureMessage({}, table), { table });
+}
+
+function syncFailureMessage(
+  error: { code?: string; message?: string },
+  table: AppTable
+): string {
+  const msg = (error.message ?? "").toLowerCase();
+
+  if (
+    table === "events" &&
+    (error.code === "PGRST204" ||
+      (msg.includes("column") &&
+        (msg.includes("recurrence") || msg.includes("series_id"))))
+  ) {
+    return (
+      "Could not sync events. Your Supabase database is missing the event recurrence " +
+      "migration (20260528000000_event_recurrence.sql). Apply it, then retry cloud save."
+    );
+  }
+
+  if (table === "events" && error.code === "23503") {
+    return "Could not sync events. An event links to a person that no longer exists.";
+  }
+
+  return `Could not sync ${table}. Please try again.`;
 }
 
 function throwOnSupabaseError(
@@ -95,10 +120,49 @@ function throwOnSupabaseError(
   table: AppTable
 ): void {
   if (!error) return;
-  throw new RemoteStorageError(`Could not sync ${table}. Please try again.`, {
+  throw new RemoteStorageError(syncFailureMessage(error, table), {
     code: error.code,
     table,
   });
+}
+
+function isMissingRecurrenceColumnsError(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  if (error.code === "PGRST204") return true;
+  const msg = (error.message ?? "").toLowerCase();
+  return (
+    msg.includes("column") && (msg.includes("recurrence") || msg.includes("series_id"))
+  );
+}
+
+type EventRowWithoutRecurrence = Omit<EventRow, "recurrence" | "series_id">;
+
+function stripEventRecurrenceColumns(row: EventRow): EventRowWithoutRecurrence {
+  // Omit recurrence columns for databases that have not run the Phase 22B migration yet.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- intentional omit
+  const { recurrence, series_id, ...rest } = row;
+  return rest;
+}
+
+/** Upserts events; retries without recurrence columns when the DB schema is not migrated yet. */
+async function upsertEventRows(rows: EventRow[]): Promise<void> {
+  if (rows.length === 0) return;
+
+  const { error } = await supabase.from("events").upsert(rows, { onConflict: "id" });
+  if (!error) return;
+
+  if (isMissingRecurrenceColumnsError(error)) {
+    const legacyRows = rows.map(stripEventRecurrenceColumns);
+    const { error: retryError } = await supabase
+      .from("events")
+      .upsert(legacyRows, { onConflict: "id" });
+    throwOnSupabaseError(retryError, "events");
+    return;
+  }
+
+  throwOnSupabaseError(error, "events");
 }
 
 function asRows<T>(data: unknown[] | null): T[] {
@@ -247,7 +311,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("sessions", sessionRows);
   await upsertRows("overrides", overrideRows);
   await upsertRows("people", peopleRows);
-  await upsertRows("events", eventRows);
+  await upsertEventRows(eventRows);
   await upsertRows("job_applications", jobApplicationRows);
   await upsertRows("career_targets", careerTargetRows);
   await upsertRows("workout_plans", workoutPlanRows);

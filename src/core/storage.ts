@@ -1,6 +1,7 @@
 // This is my app's memory system, it is responsible for loading, saving, exporting, and importing app data
 
 import type { AppPayload } from "./model";
+import { sanitizeEventReferences } from "./events";
 import { sanitizeSkillReferences } from "./sessions";
 import { defaultPayload } from "./state";
 
@@ -64,7 +65,7 @@ export function normalizePayload(payload: unknown): AppPayload {
                 : undefined,
     };
 
-    return sanitizeSkillReferences(normalized);
+    return sanitizeEventReferences(sanitizeSkillReferences(normalized));
 }
 
 function parseStoredAppData(raw: string): AppData | null {

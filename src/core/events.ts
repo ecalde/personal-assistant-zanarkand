@@ -1,4 +1,5 @@
-import type { LifeEvent } from "./model";
+import type { AppPayload, LifeEvent } from "./model";
+import { isValidRecurrenceRule } from "./recurrence";
 import { formatLocalDateKey } from "./timeline";
 
 export type UpcomingEventUrgencyLabel = "Today" | "Tomorrow" | `In ${number} days`;
@@ -94,6 +95,47 @@ export function sortPastEvents(events: LifeEvent[]): LifeEvent[] {
     if (byDate !== 0) return byDate;
     return compareLifeEventsWithinDay(a, b);
   });
+}
+
+/** Clears personId when the linked person no longer exists (legacy/orphan cleanup). */
+export function cleanupOrphanedEventPersonRefs(payload: AppPayload): AppPayload {
+  const personIds = new Set(payload.people.map((p) => p.id));
+  let changed = false;
+  const events = payload.events.map((event) => {
+    if (event.personId !== undefined && !personIds.has(event.personId)) {
+      changed = true;
+      const next = { ...event };
+      delete next.personId;
+      return next;
+    }
+    return event;
+  });
+  if (!changed) return payload;
+  return { ...payload, events };
+}
+
+/** Drops invalid recurrence metadata so upload validation and DB checks can succeed. */
+export function cleanupInvalidEventRecurrence(payload: AppPayload): AppPayload {
+  let changed = false;
+  const events = payload.events.map((event) => {
+    if (event.recurrence !== undefined && !isValidRecurrenceRule(event.recurrence)) {
+      changed = true;
+      const next = { ...event };
+      delete next.recurrence;
+      delete next.seriesId;
+      return next;
+    }
+    return event;
+  });
+  if (!changed) return payload;
+  return { ...payload, events };
+}
+
+/** Repairs event references on load/import (does not remove valid events). */
+export function sanitizeEventReferences(payload: AppPayload): AppPayload {
+  let next = cleanupOrphanedEventPersonRefs(payload);
+  next = cleanupInvalidEventRecurrence(next);
+  return next;
 }
 
 export function partitionEventsByToday(
