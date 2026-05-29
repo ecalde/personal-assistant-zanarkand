@@ -6,6 +6,7 @@ import {
   getRecurrenceDateKeys,
   isDateInRecurrenceRange,
   isValidRecurrenceRule,
+  normalizeRecurrenceRule,
   splitRecurrenceSeriesAtDate,
   type RecurrenceInstance,
   type RecurrenceRule,
@@ -403,5 +404,37 @@ describe("isValidRecurrenceRule", () => {
     expect(
       isValidRecurrenceRule(makeRule({ anchorDate: "2026-01-01", frequency: "monthly", dayOfMonth: 40 }))
     ).toBe(false);
+  });
+});
+
+describe("normalizeRecurrenceRule", () => {
+  it("returns undefined for invalid rules", () => {
+    expect(normalizeRecurrenceRule(makeRule({ anchorDate: "2026-02-30", frequency: "daily" }))).toBeUndefined();
+  });
+
+  it("returns lean canonical shape for valid rules", () => {
+    expect(
+      normalizeRecurrenceRule(
+        makeRule({ anchorDate: "2026-05-25", frequency: "daily", interval: 1, end: { kind: "never" } })
+      )
+    ).toEqual({
+      anchorDate: "2026-05-25",
+      frequency: "daily",
+    });
+
+    expect(
+      normalizeRecurrenceRule(
+        makeRule({
+          anchorDate: "2026-01-15",
+          frequency: "monthly",
+          dayOfMonth: 15,
+          end: { kind: "afterCount", maxOccurrences: 3 },
+        })
+      )
+    ).toEqual({
+      anchorDate: "2026-01-15",
+      frequency: "monthly",
+      end: { kind: "afterCount", maxOccurrences: 3 },
+    });
   });
 });

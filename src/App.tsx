@@ -356,6 +356,9 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (input.endTime) {
       newEvent.endTime = input.endTime;
     }
+    if (input.recurrence !== undefined) {
+      newEvent.recurrence = input.recurrence;
+    }
 
     commit({
       ...app,
@@ -406,6 +409,13 @@ export default function App({ userId, onSignOut }: AppProps) {
       nextEvent.endTime = updated.endTime;
     } else {
       delete nextEvent.endTime;
+    }
+
+    if (updated.recurrence !== undefined) {
+      nextEvent.recurrence = updated.recurrence;
+    } else {
+      delete nextEvent.recurrence;
+      delete nextEvent.seriesId;
     }
 
     const events = (app.payload.events ?? []).map((event) =>

@@ -1,4 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EventRecurrenceFields } from "../components/events/EventRecurrenceFields";
+import {
+  emptyEventRecurrenceFormState,
+  eventRecurrenceFormFromRule,
+  eventRecurrenceRuleFromForm,
+  formatEventRecurrenceLabel,
+  seedWeeklyWeekdays,
+  type EventRecurrenceFormState,
+  type EventRecurrenceUiMode,
+  type RecurrenceEndUiKind,
+  validateEventRecurrenceForm,
+} from "../components/events/eventRecurrenceFormState";
 import { partitionEventsByToday } from "../core/events";
 import { buildPeopleById, resolveEventPersonLabel } from "../core/people";
 import { parseHHMMToMinutes } from "../core/schedule";
@@ -151,6 +163,9 @@ function EventRow({
             {event.reminder && <span style={styles.streakPill}>Reminder</span>}
           </div>
           <div style={{ opacity: 0.85 }}>{formatEventSchedule(event)}</div>
+          {event.recurrence?.frequency && (
+            <div style={{ opacity: 0.85 }}>{formatEventRecurrenceLabel(event.recurrence)}</div>
+          )}
           {personLabel && <div>With {personLabel}</div>}
           {event.notes && <div style={{ opacity: 0.85 }}>{event.notes}</div>}
         </div>
@@ -183,6 +198,16 @@ export default function EventsPage({
     initialDraft ? formFromDraft(initialDraft) : emptyFormState()
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [recurrenceForm, setRecurrenceForm] = useState<EventRecurrenceFormState>(
+    emptyEventRecurrenceFormState
+  );
+  const recurrenceFormRef = useRef(recurrenceForm);
+  const [recurrenceError, setRecurrenceError] = useState<string | null>(null);
+
+  function setRecurrenceFormState(next: EventRecurrenceFormState) {
+    recurrenceFormRef.current = next;
+    setRecurrenceForm(next);
+  }
 
   const today = todayIsoDate();
   const peopleById = useMemo(() => buildPeopleById(people), [people]);
@@ -203,6 +228,8 @@ export default function EventsPage({
 
   function resetForm() {
     setForm(emptyFormState());
+    setRecurrenceFormState(emptyEventRecurrenceFormState());
+    setRecurrenceError(null);
     setEditingId(null);
     setFormError(null);
     setShowForm(false);
@@ -210,6 +237,8 @@ export default function EventsPage({
 
   function openCreateForm() {
     setForm(emptyFormState());
+    setRecurrenceFormState(emptyEventRecurrenceFormState());
+    setRecurrenceError(null);
     setEditingId(null);
     setFormError(null);
     setShowForm(true);
@@ -217,9 +246,40 @@ export default function EventsPage({
 
   function openEditForm(event: LifeEvent) {
     setForm(formFromEvent(event));
+    setRecurrenceFormState(eventRecurrenceFormFromRule(event.date, event.recurrence));
+    setRecurrenceError(null);
     setEditingId(event.id);
     setFormError(null);
     setShowForm(true);
+  }
+
+  function handleRecurrenceModeChange(mode: EventRecurrenceUiMode) {
+    const next: EventRecurrenceFormState = {
+      ...recurrenceFormRef.current,
+      mode,
+    };
+    if (mode === "weekly") {
+      next.byWeekdays = seedWeeklyWeekdays(form.date, next.byWeekdays);
+    }
+    if (mode === "none") {
+      next.byWeekdays = [];
+      next.dayOfMonth = "";
+      next.endKind = "never";
+      next.endDate = "";
+      next.maxOccurrences = "";
+      setRecurrenceError(null);
+    }
+    setRecurrenceFormState(next);
+  }
+
+  function handleRecurrenceEndKindChange(endKind: RecurrenceEndUiKind) {
+    setRecurrenceFormState({ ...recurrenceFormRef.current, endKind });
+    setRecurrenceError(null);
+  }
+
+  function handleRecurrenceFieldBlur() {
+    if (recurrenceFormRef.current.mode === "none") return;
+    setRecurrenceError(validateEventRecurrenceForm(form.date, recurrenceFormRef.current));
   }
 
   function handleSubmit() {
@@ -249,6 +309,14 @@ export default function EventsPage({
       return;
     }
 
+    const recurrenceValidationError = validateEventRecurrenceForm(form.date, recurrenceFormRef.current);
+    if (recurrenceValidationError) {
+      setRecurrenceError(recurrenceValidationError);
+      return;
+    }
+
+    const recurrence = eventRecurrenceRuleFromForm(form.date, recurrenceFormRef.current);
+
     const payload = {
       title,
       date: form.date,
@@ -262,6 +330,7 @@ export default function EventsPage({
           : undefined,
       notes: form.notes.trim() || undefined,
       reminder: form.reminder,
+      recurrence,
     };
 
     if (editingId) {
@@ -322,7 +391,16 @@ export default function EventsPage({
                 <input
                   type="date"
                   value={form.date}
-                  onChange={(e) => setForm((current) => ({ ...current, date: e.target.value }))}
+                  onChange={(e) => {
+                    const date = e.target.value;
+                    setForm((current) => ({ ...current, date }));
+                    if (recurrenceFormRef.current.mode === "weekly") {
+                      setRecurrenceFormState({
+                        ...recurrenceFormRef.current,
+                        byWeekdays: seedWeeklyWeekdays(date, recurrenceFormRef.current.byWeekdays),
+                      });
+                    }
+                  }}
                   style={styles.input}
                 />
               </label>
@@ -347,6 +425,19 @@ export default function EventsPage({
                 </select>
               </label>
             </div>
+
+            <EventRecurrenceFields
+              state={recurrenceForm}
+              radioGroupName={editingId ? `event-recurrence-edit-${editingId}` : "event-recurrence-create"}
+              endRadioGroupName={
+                editingId ? `event-recurrence-end-edit-${editingId}` : "event-recurrence-end-create"
+              }
+              onChange={setRecurrenceFormState}
+              onModeChange={handleRecurrenceModeChange}
+              onEndKindChange={handleRecurrenceEndKindChange}
+              onFieldBlur={handleRecurrenceFieldBlur}
+              error={recurrenceError}
+            />
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <label style={styles.label}>

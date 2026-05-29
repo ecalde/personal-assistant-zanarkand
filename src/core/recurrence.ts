@@ -266,6 +266,47 @@ export function isValidRecurrenceRule(rule: RecurrenceRule): boolean {
   return normalizeRule(rule) !== null;
 }
 
+/** Returns a lean, canonical RecurrenceRule or undefined when invalid. */
+export function normalizeRecurrenceRule(rule: RecurrenceRule): RecurrenceRule | undefined {
+  const normalized = normalizeRule(rule);
+  if (!normalized) return undefined;
+
+  const result: RecurrenceRule = { anchorDate: normalized.anchorDate };
+
+  if (normalized.frequency !== undefined) {
+    result.frequency = normalized.frequency;
+  }
+
+  if (normalized.interval > 1) {
+    result.interval = normalized.interval;
+  }
+
+  if (normalized.frequency === "weekly") {
+    result.byWeekdays = [...normalized.byWeekdays];
+  }
+
+  if (normalized.frequency === "monthly") {
+    const anchor = parseDateKey(normalized.anchorDate);
+    if (anchor && normalized.dayOfMonth !== anchor.day) {
+      result.dayOfMonth = normalized.dayOfMonth;
+    }
+  }
+
+  if (normalized.startDate !== normalized.anchorDate) {
+    result.startDate = normalized.startDate;
+  }
+
+  if (normalized.end.kind !== "never") {
+    result.end = normalized.end;
+  }
+
+  if (normalized.exceptions.length > 0) {
+    result.exceptions = normalized.exceptions;
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Candidate generation
 // ---------------------------------------------------------------------------
