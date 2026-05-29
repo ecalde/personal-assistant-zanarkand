@@ -64,8 +64,11 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 24 | **Skill schedule series integration** | Calendar, timeline, dashboard stats, review, focus/briefing respect active skill dates. |
 | 25 | **Skill schedule series UI** | Skills page schedule availability (indefinite / date range / single day). |
 | 26 | **Event recurrence UI** | Events form recurrence fields; create/edit recurring events; card labels via `formatRecurrenceSummary`. |
+| 27–30 | **Workout scheduling** | Schedulable `WorkoutPlan` weekday blocks + bounds; calendar `workoutScheduleBlock` items; focus/briefing/review/dashboard consume scheduled workouts. |
+| 31 | **Calendar color settings UI** | Collapsible settings on `CalendarPage` to edit category/subcategory colors + aliases; `setCalendarPreferences` commit path; live "used by" labels. |
+| 32 | **Dashboard calendar centerpiece** | Desktop-first three-column dashboard (left do-now rail / center read-only calendar widget / right briefing rail) + mobile stack; shared `useCalendarController`; persisted dashboard view mode; `CalendarPreviewSection` deprecated. |
 
-**Not yet shipped** (called out in architecture): series split/edit flows, recurrence exceptions UI, calendar drag-and-drop, calendar color **settings** page, scheduled workouts, notifications, analytics, AI layers.
+**Not yet shipped** (called out in architecture): series split/edit flows, recurrence exceptions UI, calendar drag-and-drop, gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
 
 ---
 
@@ -176,17 +179,17 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Scheduled workouts appear as `CalendarItem`s (`sourceType: fitness` or dedicated subtype).
 - Dashboard preview, briefing, review, focus, and timeline consume scheduled (not only completed) workouts.
 
-### Phase 31 — Calendar Color Settings UI
+### Phase 31 — Calendar Color Settings UI ✅ (shipped)
 
-- Page or modal to edit category/subcategory colors and display aliases.
-- Wire `setCalendarPreferences` through `App.tsx` `commit`; live “used by” labels from `buildColorUsageIndex`.
+- Collapsible settings on `CalendarPage` to edit category/subcategory colors and display aliases.
+- `setCalendarPreferences` through `App.tsx` `commit`; live “used by” labels from `buildColorUsageIndex`.
 
-### Phase 32 — Dashboard Layout Redesign
+### Phase 32 — Dashboard Calendar Centerpiece ✅ (shipped)
 
-- Calendar-centered dashboard.
-- Left filter sidebar (categories/sources).
-- Right action sidebar (quick actions, focus snippets).
-- XP/level strip integrated with progression hero.
+- Calendar-centered dashboard: desktop-first three columns (left do-now rail / center read-only calendar widget / right briefing rail) with a stacked mobile fallback.
+- Left rail: Daily Focus → category filters → quick actions. Right rail: briefing → upcoming → weekly review → career/fitness/people alerts.
+- Shared `useCalendarController` between `CalendarPage` and `DashboardCalendarWidget`; persisted dashboard month/week view mode (localStorage, not synced).
+- `ProgressionHero` left unchanged (XP integration deferred to the gamification phase); `CalendarPreviewSection` deprecated and slated for later removal.
 
 ### Phase 33 — Series Editing
 
@@ -246,14 +249,14 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 6. Current next action
 
-**Current recommended next phase: [Phase 27 — Workout Scheduling Foundation](#phase-27--workout-scheduling-foundation).**
+**Current recommended next phase: [Phase 33 — Series Editing](#phase-33--series-editing).**
 
-Before writing migrations or UI:
+Before building edit flows:
 
-1. Read [`fitness.ts`](../../src/core/fitness.ts) and existing calendar skill-series patterns ([`skillSeries.ts`](../../src/core/skillSeries.ts), [`recurrence.ts`](../../src/core/recurrence.ts)).
-2. Draft `.cursor/plans/phase_27_workout_scheduling_foundation.plan.md` with the chosen model and test cases.
-3. Implement pure helpers + unit tests in Phase 27; defer persistence to Phase 28.
+1. Read [`recurrence.ts`](../../src/core/recurrence.ts) (`splitRecurrenceSeriesAtDate`, exceptions) and the Events form recurrence wiring.
+2. Decide the "this occurrence / this and future / entire series" UX and `seriesId` generation.
+3. Implement pure split/exception helpers + tests first, then UI; keep mutations routed through `App.tsx` `commit`.
 
 ---
 
-*Last updated: 2026-05-29 — through Phase 26 (Event recurrence UI).*
+*Last updated: 2026-05-29 — through Phase 32 (Dashboard calendar centerpiece).*

@@ -29,8 +29,12 @@ import {
   computeDailyWorkloadForDay,
   formatLocalDateKey,
 } from "../core/timeline";
+import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
+import { useCalendarController } from "../components/calendar/useCalendarController";
 import { CalendarPreviewSection } from "../components/dashboard/CalendarPreviewSection";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
+import { DashboardCalendarWidget } from "../components/dashboard/DashboardCalendarWidget";
+import { DashboardQuickActions } from "../components/dashboard/DashboardQuickActions";
 import { DailyBriefingSection } from "../components/dashboard/DailyBriefingSection";
 import { DailyFocusSection } from "../components/dashboard/DailyFocusSection";
 import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySection";
@@ -47,6 +51,7 @@ import {
 import { TodayHero } from "../components/dashboard/TodayHero";
 import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSection";
 import { WeeklyReviewSection } from "../components/dashboard/WeeklyReviewSection";
+import { useIsDesktopViewport } from "../ui/useMediaQuery";
 import type {
   CalendarColorPreferences,
   CareerTarget,
@@ -63,6 +68,9 @@ import { styles } from "../ui/appStyles";
 
 /** Toggle legacy schedule-only timeline during rollout. */
 const USE_UNIFIED_TIMELINE = true;
+
+/** UI-only preference key: dashboard calendar month/week view, client-local (not synced). */
+const DASHBOARD_CALENDAR_VIEW_MODE_KEY = "pa.dashboardCalendar.viewMode.v1";
 
 const UPCOMING_EVENTS_WINDOW_DAYS = 14;
 const UPCOMING_EVENTS_MAX_ITEMS = 10;
@@ -123,6 +131,17 @@ export default function DashboardPage({
   calendarPreferences,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
+  const isDesktop = useIsDesktopViewport();
+
+  const calendar = useCalendarController({
+    skills,
+    events,
+    people,
+    workoutSessions,
+    workoutPlans,
+    todayKey: today,
+    viewModePersistenceKey: DASHBOARD_CALENDAR_VIEW_MODE_KEY,
+  });
 
   const rows = useMemo(
     () => buildSkillDayRows(skills, sessions),
@@ -321,104 +340,126 @@ export default function DashboardPage({
     ]
   );
 
-  return (
-    <div style={styles.card}>
-      <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
+  // Section blocks composed differently for desktop (three columns) vs. mobile (stacked).
+  const todayStrip = <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />;
 
-      {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
+  const calendarWidget = (
+    <DashboardCalendarWidget
+      controller={calendar}
+      todayKey={today}
+      calendarPreferences={calendarPreferences}
+      onOpenCalendar={onOpenCalendar}
+    />
+  );
 
-      <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} />
+  const dailyFocus = (
+    <DailyFocusSection
+      summary={visibleFocusSummary}
+      hiddenCount={hiddenFocusCount}
+      hiddenFocusItems={hiddenFocusItems}
+      onDismissFocusItem={onDismissFocusItem}
+      onSnoozeFocusItem={onSnoozeFocusItem}
+      onSnoozeFocusItemUntilTomorrow={onSnoozeFocusItemUntilTomorrow}
+      onRestoreAll={onRestoreAllFocusItems}
+      onRestoreFocusFeedbackEntry={onRestoreFocusFeedbackEntry}
+      onOpenSkills={onOpenSkills}
+      onOpenEvents={onOpenEvents}
+      onOpenPeople={onOpenPeople}
+      onOpenCareer={onOpenCareer}
+      onOpenFitness={onOpenFitness}
+      onAddSession={onAddSession}
+    />
+  );
 
-      <div style={{ marginTop: 12 }}>
-        <DailyBriefingSection briefing={dailyBriefing} />
-      </div>
+  const categoryFilters = (
+    <CalendarCategorySidebar
+      hiddenCategories={calendar.hiddenCategories}
+      onToggleCategory={calendar.toggleCategory}
+      preferences={calendarPreferences}
+    />
+  );
 
-      <div style={{ marginTop: 12 }}>
-        <WeeklyReviewSection review={weeklyReview} onOpenReview={onOpenReview} />
-      </div>
+  const quickActions = (
+    <DashboardQuickActions
+      onOpenSkills={onOpenSkills}
+      onOpenEvents={onOpenEvents}
+      onOpenPeople={onOpenPeople}
+      onOpenCareer={onOpenCareer}
+      onOpenFitness={onOpenFitness}
+      onOpenReview={onOpenReview}
+      onOpenCalendar={onOpenCalendar}
+    />
+  );
 
-      <div style={{ marginTop: 12 }}>
-        <DailyFocusSection
-          summary={visibleFocusSummary}
-          hiddenCount={hiddenFocusCount}
-          hiddenFocusItems={hiddenFocusItems}
-          onDismissFocusItem={onDismissFocusItem}
-          onSnoozeFocusItem={onSnoozeFocusItem}
-          onSnoozeFocusItemUntilTomorrow={onSnoozeFocusItemUntilTomorrow}
-          onRestoreAll={onRestoreAllFocusItems}
-          onRestoreFocusFeedbackEntry={onRestoreFocusFeedbackEntry}
-          onOpenSkills={onOpenSkills}
-          onOpenEvents={onOpenEvents}
-          onOpenPeople={onOpenPeople}
-          onOpenCareer={onOpenCareer}
-          onOpenFitness={onOpenFitness}
+  const dailyBriefingBlock = <DailyBriefingSection briefing={dailyBriefing} />;
+
+  const upcomingEvents = (
+    <UpcomingEventsSection
+      items={upcomingEventItems}
+      windowDays={UPCOMING_EVENTS_WINDOW_DAYS}
+      people={people}
+    />
+  );
+
+  const weeklyReviewSection = (
+    <WeeklyReviewSection review={weeklyReview} onOpenReview={onOpenReview} />
+  );
+
+  const careerAlerts = (
+    <CareerActionsSection
+      jobApplications={jobApplications}
+      todayKey={today}
+      onOpenCareer={onOpenCareer}
+    />
+  );
+
+  const fitnessAlerts = (
+    <FitnessSummarySection
+      workoutPlans={workoutPlans}
+      workoutSessions={workoutSessions}
+      todayKey={today}
+      onOpenFitness={onOpenFitness}
+    />
+  );
+
+  const peopleAlerts = (
+    <PeopleRemindersSection
+      birthdays={upcomingBirthdays}
+      followUps={peopleNeedingFollowUp}
+      birthdayWindowDays={PEOPLE_BIRTHDAY_WINDOW_DAYS}
+    />
+  );
+
+  const detailsBand = (
+    <div style={styles.dashboardDetails}>
+      {USE_UNIFIED_TIMELINE && (
+        <UnifiedTimelineSection
+          items={unifiedToday.items}
+          workload={todayWorkload}
+          scheduleEnrichmentByKey={scheduleEnrichmentByKey}
           onAddSession={onAddSession}
         />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <UpcomingEventsSection
-          items={upcomingEventItems}
-          windowDays={UPCOMING_EVENTS_WINDOW_DAYS}
-          people={people}
-        />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <PeopleRemindersSection
-          birthdays={upcomingBirthdays}
-          followUps={peopleNeedingFollowUp}
-          birthdayWindowDays={PEOPLE_BIRTHDAY_WINDOW_DAYS}
-        />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <CareerActionsSection
-          jobApplications={jobApplications}
-          todayKey={today}
-          onOpenCareer={onOpenCareer}
-        />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <FitnessSummarySection
-          workoutPlans={workoutPlans}
-          workoutSessions={workoutSessions}
-          todayKey={today}
-          onOpenFitness={onOpenFitness}
-        />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <CalendarPreviewSection
-          skills={skills}
-          events={events}
-          people={people}
-          workoutSessions={workoutSessions}
-          workoutPlans={workoutPlans}
-          todayKey={today}
-          calendarPreferences={calendarPreferences}
-          onOpenCalendar={onOpenCalendar}
-        />
-      </div>
-
-      {USE_UNIFIED_TIMELINE && (
-        <div style={{ marginTop: 12 }}>
-          <UnifiedTimelineSection
-            items={unifiedToday.items}
-            workload={todayWorkload}
-            scheduleEnrichmentByKey={scheduleEnrichmentByKey}
-            onAddSession={onAddSession}
-          />
-        </div>
       )}
 
+      {/* Deprecated (Phase 32): superseded by the dashboard calendar widget; kept for
+          the next-7-days quick scan. Planned for removal in a later phase. */}
+      <CalendarPreviewSection
+        skills={skills}
+        events={events}
+        people={people}
+        workoutSessions={workoutSessions}
+        workoutPlans={workoutPlans}
+        todayKey={today}
+        calendarPreferences={calendarPreferences}
+        onOpenCalendar={onOpenCalendar}
+      />
+
       {skills.length === 0 ? (
-        <div style={{ opacity: 0.8, marginTop: 12 }}>
+        <div style={{ opacity: 0.8 }}>
           No skills yet. Go to Skills and add “Learn SQL”, “Blender”, etc.
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        <>
           <OverdueBehindSection rows={rows} onAddSession={onAddSession} />
 
           {!USE_UNIFIED_TIMELINE && (
@@ -431,8 +472,54 @@ export default function DashboardPage({
           <SkillProgressSection rows={rows} progressionsBySkillId={progressionsBySkillId} />
 
           <WeeklyPreviewSection rows={rows} sessions={sessions} />
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={styles.card}>
+      <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
+
+      {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
+
+      {isDesktop ? (
+        <div style={styles.dashboardLayout}>
+          <div style={styles.dashboardLeftRail}>
+            {dailyFocus}
+            {categoryFilters}
+            {quickActions}
+          </div>
+          <div style={styles.dashboardCenter}>
+            {todayStrip}
+            {calendarWidget}
+          </div>
+          <div style={styles.dashboardRightRail}>
+            {dailyBriefingBlock}
+            {upcomingEvents}
+            {weeklyReviewSection}
+            {careerAlerts}
+            {fitnessAlerts}
+            {peopleAlerts}
+          </div>
+        </div>
+      ) : (
+        <div style={styles.dashboardStack}>
+          {todayStrip}
+          {dailyFocus}
+          {calendarWidget}
+          {dailyBriefingBlock}
+          {upcomingEvents}
+          {categoryFilters}
+          {quickActions}
+          {weeklyReviewSection}
+          {careerAlerts}
+          {fitnessAlerts}
+          {peopleAlerts}
         </div>
       )}
+
+      {detailsBand}
     </div>
   );
 }

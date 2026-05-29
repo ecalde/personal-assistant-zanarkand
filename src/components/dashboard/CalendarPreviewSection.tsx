@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 32 — superseded by `DashboardCalendarWidget` (the calendar
+ * centerpiece). Retained for now as the compact "next 7 days" quick scan in the
+ * dashboard details band. Planned for removal in a later phase once the widget
+ * fully covers this use case. Do not add new dependents.
+ */
 import { useMemo } from "react";
 import {
   buildCalendarItemsForRange,

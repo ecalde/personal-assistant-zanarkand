@@ -1,24 +1,7 @@
-import { useMemo, useState } from "react";
-import {
-  buildCalendarItemsForRange,
-  groupCalendarItemsByDate,
-  type CalendarItem,
-} from "../core/calendar";
+import { useMemo } from "react";
 import type {
-  CalendarCategoryKey,
   CalendarColorPreferences,
 } from "../core/calendarColors";
-import {
-  computeMonthVisibleRange,
-  computeWeekRange,
-  filterItemsByHiddenCategories,
-  formatMonthTitle,
-  formatWeekRangeTitle,
-  monthAnchorFromKey,
-  shiftMonth,
-  shiftWeek,
-  type CalendarViewMode,
-} from "../core/calendarView";
 import { formatLocalDateKey } from "../core/timeline";
 import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../core/model";
 import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
@@ -27,6 +10,7 @@ import { CalendarSettingsSection } from "../components/calendar/CalendarSettings
 import { CalendarToolbar } from "../components/calendar/CalendarToolbar";
 import { MonthView } from "../components/calendar/MonthView";
 import { WeekView } from "../components/calendar/WeekView";
+import { useCalendarController } from "../components/calendar/useCalendarController";
 import { styles } from "../ui/appStyles";
 
 export type CalendarPageProps = {
@@ -52,82 +36,14 @@ export default function CalendarPage({
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
-  const [anchorKey, setAnchorKey] = useState<string>(todayKey);
-  const [hiddenCategories, setHiddenCategories] = useState<Set<CalendarCategoryKey>>(
-    () => new Set()
-  );
-  const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
-
-  const range = useMemo(
-    () =>
-      viewMode === "month"
-        ? computeMonthVisibleRange(anchorKey)
-        : computeWeekRange(anchorKey),
-    [viewMode, anchorKey]
-  );
-
-  const itemsByDate = useMemo(() => {
-    const items = buildCalendarItemsForRange(
-      {
-        startDate: range.startDate,
-        endDate: range.endDate,
-        skills,
-        events,
-        people,
-        workoutSessions,
-        workoutPlans,
-      },
-      { includeFitnessHistory: true, includeWorkoutSchedules: true }
-    );
-    const visible = filterItemsByHiddenCategories(items, hiddenCategories);
-    return groupCalendarItemsByDate(visible);
-  }, [range, skills, events, people, workoutSessions, workoutPlans, hiddenCategories]);
-
-  const title =
-    viewMode === "month"
-      ? formatMonthTitle(anchorKey)
-      : formatWeekRangeTitle(anchorKey);
-
-  function handlePrev() {
-    setAnchorKey((current) =>
-      viewMode === "month" ? shiftMonth(current, -1) : shiftWeek(current, -1)
-    );
-  }
-
-  function handleNext() {
-    setAnchorKey((current) =>
-      viewMode === "month" ? shiftMonth(current, 1) : shiftWeek(current, 1)
-    );
-  }
-
-  function handleToday() {
-    setAnchorKey(viewMode === "month" ? monthAnchorFromKey(todayKey) : todayKey);
-  }
-
-  function handleViewModeChange(mode: CalendarViewMode) {
-    setViewMode(mode);
-    setAnchorKey((current) =>
-      mode === "month" ? monthAnchorFromKey(current) : current
-    );
-  }
-
-  function handleSelectDay(dateKey: string) {
-    setViewMode("week");
-    setAnchorKey(dateKey);
-  }
-
-  function toggleCategory(category: CalendarCategoryKey) {
-    setHiddenCategories((current) => {
-      const next = new Set(current);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-      }
-      return next;
-    });
-  }
+  const calendar = useCalendarController({
+    skills,
+    events,
+    people,
+    workoutSessions,
+    workoutPlans,
+    todayKey,
+  });
 
   return (
     <div style={{ display: "grid", gap: 0 }}>
@@ -137,47 +53,47 @@ export default function CalendarPage({
         <div style={styles.calendarLayout}>
           <div style={styles.calendarMain}>
             <CalendarToolbar
-              title={title}
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              onToday={handleToday}
+              title={calendar.title}
+              viewMode={calendar.viewMode}
+              onViewModeChange={calendar.handleViewModeChange}
+              onPrev={calendar.handlePrev}
+              onNext={calendar.handleNext}
+              onToday={calendar.handleToday}
             />
 
-            {viewMode === "month" ? (
+            {calendar.viewMode === "month" ? (
               <MonthView
-                monthAnchorKey={anchorKey}
+                monthAnchorKey={calendar.anchorKey}
                 todayKey={todayKey}
-                itemsByDate={itemsByDate}
+                itemsByDate={calendar.itemsByDate}
                 preferences={calendarPreferences}
-                onSelectItem={setSelectedItem}
-                onSelectDay={handleSelectDay}
+                onSelectItem={calendar.setSelectedItem}
+                onSelectDay={calendar.handleSelectDay}
               />
             ) : (
               <WeekView
-                anchorKey={anchorKey}
+                anchorKey={calendar.anchorKey}
                 todayKey={todayKey}
-                itemsByDate={itemsByDate}
+                itemsByDate={calendar.itemsByDate}
                 preferences={calendarPreferences}
-                onSelectItem={setSelectedItem}
+                onSelectItem={calendar.setSelectedItem}
                 nowMinutes={nowMinutes}
               />
             )}
           </div>
 
           <CalendarCategorySidebar
-            hiddenCategories={hiddenCategories}
-            onToggleCategory={toggleCategory}
+            hiddenCategories={calendar.hiddenCategories}
+            onToggleCategory={calendar.toggleCategory}
             preferences={calendarPreferences}
           />
         </div>
 
-        {selectedItem ? (
+        {calendar.selectedItem ? (
           <CalendarItemDetailModal
-            item={selectedItem}
+            item={calendar.selectedItem}
             preferences={calendarPreferences}
-            onClose={() => setSelectedItem(null)}
+            onClose={() => calendar.setSelectedItem(null)}
           />
         ) : null}
       </div>
