@@ -44,6 +44,7 @@ src/
     progression.ts      # Derived XP, levels, streaks (from sessions; not persisted)
     timeline.ts         # Unified schedule + events timeline
     calendar.ts         # Unified calendar foundation — domain data → CalendarItem range
+    calendarColors.ts   # Pure calendar color/category preference resolution (palette + precedence)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Skills, Events, People, Career, Fitness, Review)
     DashboardPage.tsx   # Composes dashboard sections from props
@@ -150,6 +151,17 @@ src/
   - **Sorting**: mirrors [`compareUnifiedTimelineItems`](../src/core/timeline.ts) — date, then time tier (timed range → start-only → all-day), then start/end time, then source order (`skill` → `event` → `people` → `fitness`), then title, then `id`. `groupCalendarItemsByDate` buckets sorted items per day for UI.
   - **Relationship to timeline**: [`timeline.ts`](../src/core/timeline.ts) remains the today-focused merge with conflict/workload detection; `calendar.ts` is the broader multi-day DTO. `career` is reserved in the union but emits nothing yet — career interviews/deadlines flow through `sourceType` `event`.
   - **Future**: scheduled fitness workouts, recurrence expansion before sorting, persisted category/color preferences, and dashboard week/month views — see Phase 18 plan deferred items.
+
+### Calendar color preferences
+
+- Calendar colors ([`calendarColors.ts`](../src/core/calendarColors.ts)): pure, dependency-free resolution of a display color (and category display label) for a calendar item — tested in [`calendarColors.test.ts`](../src/core/calendarColors.test.ts). No React, storage, or Supabase; total functions that never throw and never mutate inputs. **Not persisted** in this phase; consumed on demand by future calendar/settings UI.
+  - **Palette**: a fixed `CALENDAR_PALETTE` of swatches built from ~13 base hues × `soft` / `base` / `strong` variants (the "hue variants", not a free color picker). Each `CalendarColorSwatch` carries `token` (`"<hue>.<variant>"`, e.g. `"red.base"`), `background`, an accessibility-aware `foreground` (chosen by WCAG contrast), `border`, and `label`. `CALENDAR_PALETTE_BY_TOKEN` indexes them; `FALLBACK_COLOR_TOKEN` (`slate.base`) covers unknown keys.
+  - **Resolution precedence** (`resolveCalendarItemColorToken` / `resolveCalendarItemColor`): **item override** (`CalendarItem.colorKey` when a valid token) → **subcategory** (pref or default for `"category:subcategory"`, e.g. `event:birthday → amber.base`) → **category** (pref or built-in default: `skill` indigo, `event` red, `people` pink, `fitness` green, `career` violet) → **fallback**. Invalid/unknown tokens at any step are ignored and fall through. Input is a structural subset (`categoryKey` / `subcategoryKey?` / `colorKey?`), so the module stays decoupled from `calendar.ts`; `CalendarItem` is assignable to it. `CalendarItem` is **unchanged** — `colorKey` is the per-item override hook.
+  - **Display aliases**: `resolveCategoryLabel` returns a sanitized per-category alias (e.g. `skill → "Growth"`) or the built-in default label. `sanitizeCategoryAlias` trims, collapses whitespace, strips control characters, and caps length (untrusted free-text validated per `SECURITY_RULES`; React escapes on render). Aliases affect calendar display only — they never change `categoryKey` or the navigation tab names in [`pages/types.ts`](../src/pages/types.ts).
+  - **"Color already used by"**: `buildColorUsageIndex` maps each token to the categories/subcategories assigned to it (defaults merged with overrides); `describeColorUsage` renders a readable summary (e.g. `"Skills, Events"`). Reuse is allowed and never blocked — shared colors are simply labeled.
+  - **Deferred persistence (next phase)**: a per-user singleton `CalendarColorPreferences` (`categories`, `subcategories`, `aliases`) added to `AppPayload.calendarPreferences`, backed by a dedicated `calendar_preferences` Supabase table (one row per user, jsonb, RLS owner policies, `updated_at` trigger — mirroring `career_targets` / the focus-feedback migration), with `dbMappers` row validators (token allowlist, alias sanitization, key allowlist) and `remoteStorage` fetch/upsert wiring. No DB, `AppPayload`, migration, or sync code exists yet.
+  - **Deferred settings UI (next phase)**: a `CalendarPreferencesPage` (new `Page` value + `AppShell` nav button) with swatch pickers per category/subcategory, alias inputs, and live "used by" labels; `App.tsx` would add a `setCalendarPreferences` handler committing through the standard `commit` path.
+  - **Future icons**: `CalendarItem.iconKey` is the per-item icon override hook; `CalendarColorPreferences` reserves `categoryIcons` / `subcategoryIcons` for a symmetric `resolveCalendarIconKey` (same precedence) to be added in the icon phase.
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
