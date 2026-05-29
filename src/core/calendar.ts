@@ -23,9 +23,14 @@ import type {
   WorkoutSession,
 } from "./model";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
-import { formatSessionHeadline } from "./fitness";
+import {
+  expandWorkoutOccurrencesForDateRange,
+  formatSessionHeadline,
+  isPlanSchedulable,
+} from "./fitness";
 import { addMinutesToHHMM } from "./schedule";
 import { isSkillActiveOnDate, getSkillSeriesDateRange } from "./skillSeries";
+import { getWorkoutPlanSeriesDateRange } from "./workoutSeries";
 import { iterateDateRange, weekdayFromDateString } from "./timeline";
 import { expandRecurrenceInstances, type RecurrenceInstance } from "./recurrence";
 
@@ -76,6 +81,15 @@ export type CalendarItemSourceMeta =
       focus?: WorkoutFocus;
       durationMinutes?: number;
       completedAtIso: string;
+    }
+  | {
+      kind: "workoutScheduleBlock";
+      planId: string;
+      blockId: string;
+      planName: string;
+      focus?: WorkoutFocus;
+      plannedMinutes: number;
+      occurrenceDate: string;
     };
 
 export type CalendarItem = {
@@ -112,6 +126,7 @@ export type BuildCalendarItemsForRangeOptions = {
   includeEvents?: boolean; // default true
   includePeopleBirthdays?: boolean; // default true
   includeFitnessHistory?: boolean; // default false
+  includeWorkoutSchedules?: boolean; // default false
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +148,8 @@ export function buildStableCalendarItemId(
       return `people:birthday:${meta.personId}:${date}`;
     case "workoutSession":
       return `fitness:session:${meta.sessionId}`;
+    case "workoutScheduleBlock":
+      return `fitness:plan:${meta.planId}:${meta.blockId}:${meta.occurrenceDate}`;
   }
 }
 
@@ -430,6 +447,62 @@ function collectBirthdayItems(
   return items;
 }
 
+function workoutPlanSeriesIntersectsRange(
+  plan: WorkoutPlan,
+  queryStart: string,
+  queryEnd: string
+): boolean {
+  const range = getWorkoutPlanSeriesDateRange(plan);
+  if (range.kind === "unbounded") return true;
+  return range.startDate <= queryEnd && range.endDate >= queryStart;
+}
+
+function collectWorkoutScheduleItems(
+  plans: WorkoutPlan[],
+  startDate: string,
+  endDate: string
+): CalendarItem[] {
+  const items: CalendarItem[] = [];
+  const eligiblePlans = plans.filter(
+    (plan) => isPlanSchedulable(plan) && workoutPlanSeriesIntersectsRange(plan, startDate, endDate)
+  );
+
+  const occurrences = expandWorkoutOccurrencesForDateRange(eligiblePlans, startDate, endDate);
+  for (const occurrence of occurrences) {
+    const plannedMinutes = Number.isInteger(occurrence.block.minutes)
+      ? occurrence.block.minutes
+      : 0;
+    const endTime = addMinutesToHHMM(occurrence.block.startTime, plannedMinutes);
+    const meta: CalendarItemSourceMeta = {
+      kind: "workoutScheduleBlock",
+      planId: occurrence.planId,
+      blockId: occurrence.blockId,
+      planName: occurrence.planName,
+      plannedMinutes,
+      occurrenceDate: occurrence.dateKey,
+      ...(occurrence.focus ? { focus: occurrence.focus } : {}),
+    };
+
+    items.push({
+      id: buildStableCalendarItemId(meta, occurrence.dateKey),
+      sourceType: "fitness",
+      sourceId: occurrence.blockId,
+      title: occurrence.planName,
+      date: occurrence.dateKey,
+      startTime: occurrence.block.startTime,
+      endTime,
+      allDay: false,
+      categoryKey: "fitness",
+      subcategoryKey: "scheduled",
+      isTimed: true,
+      isMultiDay: false,
+      sourceMeta: meta,
+    });
+  }
+
+  return items;
+}
+
 function collectFitnessItems(
   sessions: WorkoutSession[],
   startDate: string,
@@ -495,6 +568,7 @@ export function buildCalendarItemsForRange(
   const includeEvents = options.includeEvents ?? true;
   const includePeopleBirthdays = options.includePeopleBirthdays ?? true;
   const includeFitnessHistory = options.includeFitnessHistory ?? false;
+  const includeWorkoutSchedules = options.includeWorkoutSchedules ?? false;
 
   const dates = iterateDateRange(input.startDate, input.endDate);
   if (dates.length === 0) return [];
@@ -526,6 +600,15 @@ export function buildCalendarItemsForRange(
     items.push(
       ...collectFitnessItems(
         input.workoutSessions ?? [],
+        input.startDate,
+        input.endDate
+      )
+    );
+  }
+  if (includeWorkoutSchedules) {
+    items.push(
+      ...collectWorkoutScheduleItems(
+        input.workoutPlans ?? [],
         input.startDate,
         input.endDate
       )

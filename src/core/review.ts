@@ -33,8 +33,8 @@ import {
   type UpcomingEventItem,
 } from "./events";
 import {
-  buildWorkoutWeekSummary,
-  type WorkoutWeekSummary,
+  buildWorkoutWeekScheduleSummary,
+  type WorkoutWeekScheduleSummary,
 } from "./fitness";
 import { resolveHiddenFocusDisplayLabel } from "./focusFeedback";
 import {
@@ -57,6 +57,7 @@ import type {
   Person,
   Session,
   Skill,
+  WorkoutPlan,
   WorkoutSession,
 } from "./model";
 
@@ -140,7 +141,7 @@ export type SkillWeekSummary = {
   missedOrOverdue: SkillWeekRow[];
 };
 
-export type FitnessWeekSection = WorkoutWeekSummary & {
+export type FitnessWeekSection = WorkoutWeekScheduleSummary & {
   summaryLine: string;
 };
 
@@ -205,6 +206,7 @@ export type BuildWeeklyReviewInput = {
   events: LifeEvent[];
   people: Person[];
   jobApplications: JobApplication[];
+  workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
   focusFeedback: FocusFeedback[];
   todayKey: string;
@@ -412,11 +414,12 @@ export function buildSkillWeekSummary(
 // ---------------------------------------------------------------------------
 
 export function buildFitnessWeekSection(
+  workoutPlans: WorkoutPlan[],
   workoutSessions: WorkoutSession[],
   todayKey: string,
   weekStartKey: string
 ): FitnessWeekSection {
-  const summary = buildWorkoutWeekSummary(workoutSessions, todayKey);
+  const summary = buildWorkoutWeekScheduleSummary(workoutPlans, workoutSessions, todayKey);
   const duration =
     summary.totalDurationMinutes > 0
       ? formatMinutesLabel(summary.totalDurationMinutes)
@@ -863,6 +866,7 @@ export function buildWeeklyReview(input: BuildWeeklyReviewInput): WeeklyReview {
 
   const skills = buildSkillWeekSummary(input.skills, input.sessions, week, now);
   const fitness = buildFitnessWeekSection(
+    input.workoutPlans,
     input.workoutSessions,
     input.todayKey,
     week.weekStartKey

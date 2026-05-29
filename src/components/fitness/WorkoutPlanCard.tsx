@@ -1,5 +1,6 @@
-import { formatExerciseSummary } from "../../core/fitness";
+import { formatExerciseSummary, isPlanSchedulable } from "../../core/fitness";
 import type { WorkoutPlan } from "../../core/model";
+import { formatWorkoutScheduleSeriesLabel } from "../../core/workoutSeries";
 import { styles } from "../../ui/appStyles";
 import { WorkoutFocusBadge } from "./WorkoutFocusBadge";
 
@@ -29,6 +30,11 @@ export function WorkoutPlanCard({
           <span style={{ opacity: 0.8, fontSize: 13 }}>
             {plan.exercises.length} exercise{plan.exercises.length === 1 ? "" : "s"}
           </span>
+          {isPlanSchedulable(plan) && (
+            <span style={{ opacity: 0.75, fontSize: 12 }}>
+              {formatWorkoutScheduleSeriesLabel(plan)}
+            </span>
+          )}
         </div>
 
         {!expanded && (

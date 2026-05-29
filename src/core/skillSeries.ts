@@ -104,12 +104,15 @@ export function normalizeSkillScheduleSeries(raw: unknown): SkillScheduleSeries 
   }
 }
 
-export function isSkillActiveOnDate(skill: Skill, dateKey: string): boolean {
+export function isScheduleSeriesActiveOnDate(
+  scheduleSeries: SkillScheduleSeries | undefined,
+  dateKey: string
+): boolean {
   if (!parseDateKey(dateKey)) return false;
 
-  if (skill.scheduleSeries === undefined) return true;
+  if (scheduleSeries === undefined) return true;
 
-  const series = normalizeSkillScheduleSeries(skill.scheduleSeries);
+  const series = normalizeSkillScheduleSeries(scheduleSeries);
   if (series === undefined) return false;
 
   switch (series.mode) {
@@ -128,16 +131,22 @@ export function isSkillActiveOnDate(skill: Skill, dateKey: string): boolean {
   }
 }
 
+export function isSkillActiveOnDate(skill: Skill, dateKey: string): boolean {
+  return isScheduleSeriesActiveOnDate(skill.scheduleSeries, dateKey);
+}
+
 export function buildActiveSkillsForDate(skills: Skill[], dateKey: string): Skill[] {
   return skills.filter((skill) => isSkillActiveOnDate(skill, dateKey));
 }
 
-export function getSkillSeriesDateRange(skill: Skill): SkillSeriesDateRange {
-  if (skill.scheduleSeries === undefined) {
+export function getScheduleSeriesDateRange(
+  scheduleSeries: SkillScheduleSeries | undefined
+): SkillSeriesDateRange {
+  if (scheduleSeries === undefined) {
     return { kind: "unbounded" };
   }
 
-  const series = normalizeSkillScheduleSeries(skill.scheduleSeries);
+  const series = normalizeSkillScheduleSeries(scheduleSeries);
   if (series === undefined) {
     return { kind: "bounded", startDate: "9999-12-31", endDate: "9999-01-01" };
   }
@@ -155,6 +164,10 @@ export function getSkillSeriesDateRange(skill: Skill): SkillSeriesDateRange {
     default:
       return { kind: "bounded", startDate: "9999-12-31", endDate: "9999-01-01" };
   }
+}
+
+export function getSkillSeriesDateRange(skill: Skill): SkillSeriesDateRange {
+  return getScheduleSeriesDateRange(skill.scheduleSeries);
 }
 
 function formatSkillScheduleDateKey(dateKey: string): string {

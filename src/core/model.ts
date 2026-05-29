@@ -33,13 +33,19 @@ export type WeeklySchedule = Record<Weekday, ScheduleBlock[]>;
 
 export type SkillRecurrenceMode = "indefinite" | "date_range" | "single_day";
 
-/** When the weekly template is in effect. Omitted = indefinite (legacy). */
-export type SkillScheduleSeries = {
+/** When a weekly template is in effect (skills and workout plans). Omitted = indefinite (legacy). */
+export type ScheduleSeriesBounds = {
   mode: SkillRecurrenceMode;
   startDate?: string;
   endDate?: string;
   singleDate?: string;
 };
+
+/** @deprecated Use ScheduleSeriesBounds — kept as alias for skills. */
+export type SkillScheduleSeries = ScheduleSeriesBounds;
+
+/** Workout plan schedule-series bounds (same shape as skills). */
+export type WorkoutScheduleSeries = ScheduleSeriesBounds;
 
 export type Skill = {
   id: string;
@@ -181,6 +187,12 @@ export type WorkoutPlan = {
   focus?: WorkoutFocus;
   exercises: ExerciseEntry[];
   notes?: string;
+  /** Weekly template; empty weekdays = not schedulable. Omitted on legacy loads → treated as empty. */
+  schedule?: WeeklySchedule;
+  /** Optional bounds for when the weekly template applies. Omitted = always active. */
+  scheduleSeries?: WorkoutScheduleSeries;
+  /** Optional series linkage (future split flows). */
+  seriesId?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };

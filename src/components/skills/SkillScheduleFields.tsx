@@ -9,6 +9,8 @@ export type SkillScheduleFieldsProps = {
   onDateBlur: () => void;
   error: string | null;
   disabled?: boolean;
+  /** Defaults to "Schedule Availability". */
+  legend?: string;
 };
 
 export function SkillScheduleFields({
@@ -19,6 +21,7 @@ export function SkillScheduleFields({
   onDateBlur,
   error,
   disabled = false,
+  legend = "Schedule Availability",
 }: SkillScheduleFieldsProps) {
   const modes: { value: SkillScheduleUiMode; label: string }[] = [
     { value: "indefinite", label: "Indefinite" },
@@ -28,7 +31,7 @@ export function SkillScheduleFields({
 
   return (
     <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-      <legend style={{ fontWeight: 600, marginBottom: 8 }}>Schedule Availability</legend>
+      <legend style={{ fontWeight: 600, marginBottom: 8 }}>{legend}</legend>
       <div style={{ display: "grid", gap: 8 }}>
         {modes.map(({ value, label }) => (
           <label key={value} style={{ display: "flex", gap: 8, alignItems: "center" }}>

@@ -741,6 +741,9 @@ export default function App({ userId, onSignOut }: AppProps) {
 
     if (input.focus) newPlan.focus = input.focus;
     if (input.notes?.trim()) newPlan.notes = input.notes.trim();
+    if (input.schedule) newPlan.schedule = input.schedule;
+    if (input.scheduleSeries !== undefined) newPlan.scheduleSeries = input.scheduleSeries;
+    if (input.seriesId) newPlan.seriesId = input.seriesId;
 
     commit({
       ...app,
@@ -774,6 +777,21 @@ export default function App({ userId, onSignOut }: AppProps) {
       nextPlan.notes = updated.notes.trim();
     } else {
       delete nextPlan.notes;
+    }
+    if (updated.schedule) {
+      nextPlan.schedule = updated.schedule;
+    } else {
+      delete nextPlan.schedule;
+    }
+    if ("scheduleSeries" in updated && updated.scheduleSeries === undefined) {
+      delete nextPlan.scheduleSeries;
+    } else if (updated.scheduleSeries !== undefined) {
+      nextPlan.scheduleSeries = updated.scheduleSeries;
+    }
+    if (updated.seriesId) {
+      nextPlan.seriesId = updated.seriesId;
+    } else {
+      delete nextPlan.seriesId;
     }
 
     const workoutPlans = (app.payload.workoutPlans ?? []).map((plan) =>
@@ -1022,6 +1040,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
           jobApplications={app.payload.jobApplications ?? []}
+          workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
         />

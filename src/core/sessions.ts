@@ -1,6 +1,7 @@
 import { stripSkillIdFromCareerPayload, stripUnknownSkillIdsFromCareer } from "./career";
 import type { AppPayload, Session } from "./model";
 import { cleanupInvalidSkillScheduleSeries } from "./skillSeries";
+import { cleanupInvalidWorkoutScheduleSeries } from "./workoutSeries";
 import { isSameLocalDay, startOfTodayLocal } from "./time";
 
 export function minutesTodayForSkill(payload: AppPayload, skillId: string): number {
@@ -35,13 +36,20 @@ export function removeSkillFromPayload(payload: AppPayload, skillId: string): Ap
   return { ...payload, skills, sessions, ...career };
 }
 
+/** Strips invalid workout plan schedule series (safe for load/import). */
+export function sanitizeFitnessReferences(payload: AppPayload): AppPayload {
+  return cleanupInvalidWorkoutScheduleSeries(payload);
+}
+
 /** Removes orphaned sessions and unknown career skill ids (safe for load/import). */
 export function sanitizeSkillReferences(payload: AppPayload): AppPayload {
-  const afterSeries = cleanupInvalidSkillScheduleSeries(payload);
+  const afterFitness = sanitizeFitnessReferences(payload);
+  const afterSeries = cleanupInvalidSkillScheduleSeries(afterFitness);
   const afterSessions = cleanupOrphanedSessions(afterSeries);
   const career = stripUnknownSkillIdsFromCareer(afterSessions);
   if (
-    afterSeries === payload &&
+    afterFitness === payload &&
+    afterSeries === afterFitness &&
     afterSessions === afterSeries &&
     career.jobApplications === afterSessions.jobApplications &&
     career.careerTarget === afterSessions.careerTarget

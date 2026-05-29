@@ -68,7 +68,7 @@ export function CalendarPreviewSection({
         workoutSessions,
         workoutPlans,
       },
-      { includeFitnessHistory: true }
+      { includeFitnessHistory: true, includeWorkoutSchedules: true }
     );
     return groupCalendarItemsByDate(items);
   }, [todayKey, endKey, skills, events, people, workoutSessions, workoutPlans]);

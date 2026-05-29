@@ -10,7 +10,17 @@
  */
 
 import { startOfWeekLocal } from "./dashboardStats";
-import type { ExerciseEntry, WorkoutFocus, WorkoutPlan, WorkoutSession } from "./model";
+import type {
+  ExerciseEntry,
+  ScheduleBlock,
+  WeeklySchedule,
+  WorkoutFocus,
+  WorkoutPlan,
+  WorkoutSession,
+} from "./model";
+import { defaultWeeklySchedule } from "./state";
+import { formatLocalDateKey, weekdayFromDateString } from "./timeline";
+import { isWorkoutPlanActiveOnDate } from "./workoutSeries";
 
 export const WORKOUT_FOCUS_LABELS: Record<WorkoutFocus, string> = {
   push: "Push",
@@ -31,6 +41,23 @@ export type WorkoutWeekSummary = {
   totalDurationMinutes: number;
   sessionsWithDuration: number;
 };
+
+export type WorkoutWeekScheduleSummary = WorkoutWeekSummary & {
+  scheduledCount: number;
+  completedScheduledCount: number;
+  adherenceRate: number | null;
+};
+
+export type WorkoutOccurrence = {
+  planId: string;
+  planName: string;
+  dateKey: string;
+  blockId: string;
+  block: ScheduleBlock;
+  focus?: WorkoutFocus;
+};
+
+export type WorkoutDayStatus = "planned" | "completed" | "missed" | "not_scheduled";
 
 const WORKOUT_FOCUSES: WorkoutFocus[] = [
   "push",
@@ -330,4 +357,157 @@ export function resolvePlanName(
 ): string | undefined {
   if (!planId) return undefined;
   return plans.find((plan) => plan.id === planId)?.name;
+}
+
+export function resolveWorkoutPlanSchedule(plan: WorkoutPlan): WeeklySchedule {
+  return plan.schedule ?? defaultWeeklySchedule();
+}
+
+export function isPlanSchedulable(plan: WorkoutPlan): boolean {
+  const schedule = resolveWorkoutPlanSchedule(plan);
+  return Object.values(schedule).some((blocks) => blocks.length > 0);
+}
+
+function dateKeysInLocalWeekContaining(todayKey: string): string[] {
+  const today = parseDateKey(todayKey) ?? new Date();
+  const weekStart = startOfWeekLocal(today);
+  const keys: string[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    keys.push(formatLocalDateKey(d));
+  }
+  return keys;
+}
+
+export function expandWorkoutOccurrencesForDate(
+  plans: WorkoutPlan[],
+  dateKey: string
+): WorkoutOccurrence[] {
+  const weekday = weekdayFromDateString(dateKey);
+  const occurrences: WorkoutOccurrence[] = [];
+
+  for (const plan of plans) {
+    if (!isPlanSchedulable(plan)) continue;
+    if (!isWorkoutPlanActiveOnDate(plan, dateKey)) continue;
+
+    const blocks = resolveWorkoutPlanSchedule(plan)[weekday] ?? [];
+    for (const block of blocks) {
+      occurrences.push({
+        planId: plan.id,
+        planName: plan.name,
+        dateKey,
+        blockId: block.id,
+        block,
+        ...(plan.focus ? { focus: plan.focus } : {}),
+      });
+    }
+  }
+
+  return occurrences.sort((a, b) => {
+    const byName = a.planName.localeCompare(b.planName);
+    if (byName !== 0) return byName;
+    return a.block.startTime.localeCompare(b.block.startTime);
+  });
+}
+
+export function matchSessionToScheduledOccurrence(
+  session: WorkoutSession,
+  plan: WorkoutPlan,
+  dateKey: string
+): boolean {
+  return session.planId === plan.id && session.date === dateKey;
+}
+
+export function isWorkoutOccurrenceComplete(
+  plan: WorkoutPlan,
+  dateKey: string,
+  _blockId: string,
+  sessions: WorkoutSession[]
+): boolean {
+  return sessions.some((session) => matchSessionToScheduledOccurrence(session, plan, dateKey));
+}
+
+export function buildWorkoutDayStatus(
+  plan: WorkoutPlan,
+  dateKey: string,
+  sessions: WorkoutSession[],
+  opts?: { todayKey?: string }
+): WorkoutDayStatus {
+  if (!isPlanSchedulable(plan) || !isWorkoutPlanActiveOnDate(plan, dateKey)) {
+    return "not_scheduled";
+  }
+
+  const weekday = weekdayFromDateString(dateKey);
+  const blocks = resolveWorkoutPlanSchedule(plan)[weekday] ?? [];
+  if (blocks.length === 0) return "not_scheduled";
+
+  const completed = blocks.some((block) =>
+    isWorkoutOccurrenceComplete(plan, dateKey, block.id, sessions)
+  );
+  if (completed) return "completed";
+
+  const todayKey = opts?.todayKey;
+  if (todayKey !== undefined && dateKey < todayKey) {
+    return "missed";
+  }
+
+  return "planned";
+}
+
+export function buildWorkoutWeekScheduleSummary(
+  plans: WorkoutPlan[],
+  sessions: WorkoutSession[],
+  todayKey: string
+): WorkoutWeekScheduleSummary {
+  const base = buildWorkoutWeekSummary(sessions, todayKey);
+  let scheduledCount = 0;
+  let completedScheduledCount = 0;
+
+  for (const dateKey of dateKeysInLocalWeekContaining(todayKey)) {
+    for (const occurrence of expandWorkoutOccurrencesForDate(plans, dateKey)) {
+      scheduledCount += 1;
+      const plan = plans.find((p) => p.id === occurrence.planId);
+      if (
+        plan &&
+        isWorkoutOccurrenceComplete(plan, dateKey, occurrence.blockId, sessions)
+      ) {
+        completedScheduledCount += 1;
+      }
+    }
+  }
+
+  const adherenceRate =
+    scheduledCount > 0 ? completedScheduledCount / scheduledCount : null;
+
+  return {
+    ...base,
+    scheduledCount,
+    completedScheduledCount,
+    adherenceRate,
+  };
+}
+
+export function expandWorkoutOccurrencesForDateRange(
+  plans: WorkoutPlan[],
+  startDate: string,
+  endDate: string
+): WorkoutOccurrence[] {
+  if (startDate > endDate) return [];
+
+  const occurrences: WorkoutOccurrence[] = [];
+  const start = parseDateKey(startDate);
+  if (!start) return [];
+
+  const end = parseDateKey(endDate);
+  if (!end) return [];
+
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dateKey = formatLocalDateKey(cursor);
+    occurrences.push(...expandWorkoutOccurrencesForDate(plans, dateKey));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return occurrences;
 }

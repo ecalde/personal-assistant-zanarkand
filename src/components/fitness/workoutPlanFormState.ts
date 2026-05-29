@@ -1,5 +1,13 @@
-import type { ExerciseEntry, WorkoutFocus, WorkoutPlan } from "../../core/model";
+import type { ExerciseEntry, WeeklySchedule, WorkoutFocus, WorkoutPlan } from "../../core/model";
 import { getWorkoutFocusValues } from "../../core/fitness";
+import { defaultWeeklySchedule } from "../../core/state";
+import {
+  emptyWorkoutScheduleFormState,
+  validateWorkoutScheduleForm,
+  workoutScheduleFormFromSeries,
+  workoutScheduleSeriesFromForm,
+  type WorkoutScheduleFormState,
+} from "./workoutScheduleFormState";
 
 export type ExerciseEntryFormRow = {
   id: string;
@@ -15,6 +23,8 @@ export type WorkoutPlanFormState = {
   focus: WorkoutFocus | "";
   notes: string;
   exercises: ExerciseEntryFormRow[];
+  schedule: WeeklySchedule;
+  scheduleAvailability: WorkoutScheduleFormState;
 };
 
 export function emptyExerciseEntryFormRow(): ExerciseEntryFormRow {
@@ -34,6 +44,8 @@ export function emptyWorkoutPlanFormState(): WorkoutPlanFormState {
     focus: "",
     notes: "",
     exercises: [emptyExerciseEntryFormRow()],
+    schedule: defaultWeeklySchedule(),
+    scheduleAvailability: emptyWorkoutScheduleFormState(),
   };
 }
 
@@ -54,6 +66,8 @@ export function workoutPlanFormFromPlan(plan: WorkoutPlan): WorkoutPlanFormState
     focus: plan.focus ?? "",
     notes: plan.notes ?? "",
     exercises: plan.exercises.map(exerciseFormFromEntry),
+    schedule: plan.schedule ?? defaultWeeklySchedule(),
+    scheduleAvailability: workoutScheduleFormFromSeries(plan.scheduleSeries),
   };
 }
 
@@ -106,6 +120,9 @@ export function validateWorkoutPlanForm(form: WorkoutPlanFormState): string | nu
     return "Invalid workout focus.";
   }
 
+  const scheduleError = validateWorkoutScheduleForm(form.scheduleAvailability);
+  if (scheduleError) return scheduleError;
+
   const validRows = form.exercises.filter((row) => row.name.trim());
   if (validRows.length === 0) {
     return "Add at least one exercise with a name.";
@@ -130,10 +147,16 @@ export function workoutPlanPayloadFromForm(
   const payload: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso"> = {
     name: form.name.trim(),
     exercises,
+    schedule: form.schedule,
   };
 
   if (form.focus) payload.focus = form.focus;
   if (form.notes.trim()) payload.notes = form.notes.trim();
+
+  const scheduleSeries = workoutScheduleSeriesFromForm(form.scheduleAvailability);
+  if (scheduleSeries !== undefined) {
+    payload.scheduleSeries = scheduleSeries;
+  }
 
   return payload;
 }

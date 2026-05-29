@@ -11,7 +11,7 @@
 
 import { buildInterviewStageSummary } from "./career";
 import { daysBetweenDateKeys } from "./events";
-import { getLastSession } from "./fitness";
+import { expandWorkoutOccurrencesForDate, getLastSession } from "./fitness";
 import {
   EVENING_HOUR,
   FITNESS_LONG_GAP_DAYS,
@@ -382,7 +382,14 @@ export function buildFocusSummaryParagraph(
     );
   }
 
-  if (hasFitnessData(workoutPlans, workoutSessions) && workoutsThisWeek === 0) {
+  const scheduledToday = expandWorkoutOccurrencesForDate(workoutPlans, todayKey);
+  if (scheduledToday.length > 0) {
+    const first = scheduledToday[0]!;
+    const timeSuffix = first.block.startTime ? ` (from ${first.block.startTime})` : "";
+    parts.push(
+      `${scheduledToday.length} workout${scheduledToday.length === 1 ? "" : "s"} scheduled today${timeSuffix}`
+    );
+  } else if (hasFitnessData(workoutPlans, workoutSessions) && workoutsThisWeek === 0) {
     parts.push("you haven't logged a workout this week");
   }
 
@@ -470,6 +477,8 @@ export function focusItemToRecommendation(
     case "fitness_no_workout_this_week":
     case "fitness_long_gap_since_last":
     case "fitness_log_from_plan":
+    case "fitness_workout_scheduled_today":
+    case "fitness_workout_missed_yesterday":
       return "Schedule a workout today.";
     case "timeline_high_blocked_time":
       return "Review your calendar — today is heavily blocked.";

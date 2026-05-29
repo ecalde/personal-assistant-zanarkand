@@ -29,7 +29,9 @@ import {
 } from "./career";
 import {
   buildWorkoutWeekSummary,
+  expandWorkoutOccurrencesForDate,
   getLastSession,
+  isWorkoutOccurrenceComplete,
 } from "./fitness";
 import type {
   CareerTarget,
@@ -91,6 +93,8 @@ const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   fitness_long_gap_since_last: 450,
   fitness_no_workout_this_week: 420,
   fitness_log_from_plan: 350,
+  fitness_workout_scheduled_today: 480,
+  fitness_workout_missed_yesterday: 400,
 };
 
 const CATEGORY_TIEBREAK_ORDER: Record<FocusCategory, number> = {
@@ -167,6 +171,8 @@ export type FocusReasonCode =
   | "fitness_no_workout_this_week"
   | "fitness_long_gap_since_last"
   | "fitness_log_from_plan"
+  | "fitness_workout_scheduled_today"
+  | "fitness_workout_missed_yesterday"
   | "timeline_schedule_conflict"
   | "timeline_high_blocked_time"
   | "timeline_low_available_skill_time";
@@ -1037,6 +1043,72 @@ export function collectFitnessFocusItems(
   const sessionToday = workoutSessions.some((s) => s.date === todayKey);
   let hasHigherFitnessSignal = false;
 
+  const todayOccurrences = expandWorkoutOccurrencesForDate(workoutPlans, todayKey);
+  const hasScheduledToday = todayOccurrences.length > 0;
+  const hasUncompletedScheduledToday = todayOccurrences.some((occurrence) => {
+    const plan = workoutPlans.find((p) => p.id === occurrence.planId);
+    return plan && !isWorkoutOccurrenceComplete(plan, todayKey, occurrence.blockId, workoutSessions);
+  });
+
+  if (hasUncompletedScheduledToday) {
+    const occurrence = todayOccurrences.find((occ) => {
+      const plan = workoutPlans.find((p) => p.id === occ.planId);
+      return plan && !isWorkoutOccurrenceComplete(plan, todayKey, occ.blockId, workoutSessions);
+    });
+    const plan = occurrence
+      ? workoutPlans.find((p) => p.id === occurrence.planId)
+      : undefined;
+    const timeLabel = occurrence?.block.startTime;
+    drafts.push(
+      makeDraft({
+        id: `fitness:scheduled:${occurrence?.planId ?? "today"}:${todayKey}`,
+        category: "fitness",
+        sourceId: plan?.id,
+        title: plan ? `Scheduled: ${plan.name}` : "Workout scheduled today",
+        description: timeLabel
+          ? `Planned at ${timeLabel} — log your session when done.`
+          : "Log your session when done.",
+        suggestedActionType: "schedule_workout",
+        actionTargetId: plan?.id,
+        expiresAtIso: dayEnd,
+        reasonCodes: ["fitness_workout_scheduled_today"],
+        score: {
+          categoryBase: CATEGORY_BASE.fitness_workout_scheduled_today!,
+        },
+      })
+    );
+    hasHigherFitnessSignal = true;
+  }
+
+  const yesterdayKey = addDaysToDateKey(todayKey, -1);
+  if (yesterdayKey) {
+    const yesterdayOccurrences = expandWorkoutOccurrencesForDate(workoutPlans, yesterdayKey);
+    const missedYesterday = yesterdayOccurrences.some((occurrence) => {
+      const plan = workoutPlans.find((p) => p.id === occurrence.planId);
+      return (
+        plan &&
+        !isWorkoutOccurrenceComplete(plan, yesterdayKey, occurrence.blockId, workoutSessions)
+      );
+    });
+    if (missedYesterday && !sessionToday) {
+      drafts.push(
+        makeDraft({
+          id: `fitness:missed:${yesterdayKey}`,
+          category: "fitness",
+          title: "Missed scheduled workout yesterday",
+          description: "Log a session or adjust your plan schedule.",
+          suggestedActionType: "open_fitness",
+          expiresAtIso: dayEnd,
+          reasonCodes: ["fitness_workout_missed_yesterday"],
+          score: {
+            categoryBase: CATEGORY_BASE.fitness_workout_missed_yesterday!,
+          },
+        })
+      );
+      hasHigherFitnessSignal = true;
+    }
+  }
+
   if (weekSummary.count === 0) {
     drafts.push(
       makeDraft({
@@ -1079,7 +1151,7 @@ export function collectFitnessFocusItems(
     }
   }
 
-  if (workoutPlans.length > 0 && !sessionToday && !hasHigherFitnessSignal) {
+  if (workoutPlans.length > 0 && !sessionToday && !hasHigherFitnessSignal && !hasScheduledToday) {
     const plan = workoutPlans[0];
     drafts.push(
       makeDraft({

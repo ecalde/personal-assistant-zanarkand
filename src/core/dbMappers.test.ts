@@ -651,6 +651,7 @@ function sampleWorkoutPlan(overrides: Partial<WorkoutPlan> = {}): WorkoutPlan {
     name: "Push A",
     focus: "push",
     exercises: [sampleExercise()],
+    schedule: defaultWeeklySchedule(),
     createdAtIso: NOW,
     updatedAtIso: NOW,
     ...overrides,
@@ -673,6 +674,19 @@ function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutS
 describe("workout mappers", () => {
   it("round-trips workout plan", () => {
     const plan = sampleWorkoutPlan();
+    const row = workoutPlanToRow(plan, USER_ID);
+    expect(workoutPlanFromRow(row)).toEqual(plan);
+  });
+
+  it("round-trips workout plan with schedule and schedule series", () => {
+    const schedule = defaultWeeklySchedule();
+    schedule.tue = [
+      { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", startTime: "07:00", minutes: 50 },
+    ];
+    const plan = sampleWorkoutPlan({
+      schedule,
+      scheduleSeries: { mode: "date_range", startDate: "2026-06-01", endDate: "2026-08-31" },
+    });
     const row = workoutPlanToRow(plan, USER_ID);
     expect(workoutPlanFromRow(row)).toEqual(plan);
   });

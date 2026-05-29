@@ -2,15 +2,21 @@ import { describe, expect, it } from "vitest";
 import type { ExerciseEntry, WorkoutPlan, WorkoutSession } from "./model";
 import {
   buildRecentSessions,
+  buildWorkoutDayStatus,
+  buildWorkoutWeekScheduleSummary,
   buildWorkoutWeekSummary,
   copyExercisesFromPlan,
   createSessionDraftFromPlan,
+  expandWorkoutOccurrencesForDate,
   filterAndSortPlans,
   filterAndSortSessions,
   formatExerciseSummary,
   formatSessionDurationLabel,
   formatSessionHeadline,
   formatWorkoutFocus,
+  isPlanSchedulable,
+  isWorkoutOccurrenceComplete,
+  matchSessionToScheduledOccurrence,
   planMatchesQuery,
   sessionMatchesQuery,
   sumSessionDurationMinutes,
@@ -202,5 +208,77 @@ describe("session duration helpers", () => {
       "45 min"
     );
     expect(formatSessionDurationLabel(sampleWorkoutSession())).toBeUndefined();
+  });
+});
+
+describe("workout scheduling", () => {
+  it("treats plan without blocks as not schedulable", () => {
+    expect(isPlanSchedulable(samplePlan())).toBe(false);
+  });
+
+  it("expands occurrences for active weekday", () => {
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    expect(isPlanSchedulable(plan)).toBe(true);
+    const occurrences = expandWorkoutOccurrencesForDate([plan], "2026-05-25");
+    expect(occurrences).toHaveLength(1);
+    expect(occurrences[0]?.blockId).toBe("b1");
+  });
+
+  it("matches session to scheduled occurrence by plan and date", () => {
+    const plan = samplePlan();
+    const session = sampleWorkoutSession();
+    expect(matchSessionToScheduledOccurrence(session, plan, "2026-05-26")).toBe(true);
+    expect(matchSessionToScheduledOccurrence(session, plan, "2026-05-25")).toBe(false);
+  });
+
+  it("reports completed and missed day status", () => {
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    const sessions = [sampleWorkoutSession({ date: "2026-05-25" })];
+    expect(buildWorkoutDayStatus(plan, "2026-05-25", sessions)).toBe("completed");
+    expect(buildWorkoutDayStatus(plan, "2026-05-25", [], { todayKey: "2026-05-26" })).toBe("missed");
+    expect(isWorkoutOccurrenceComplete(plan, "2026-05-25", "b1", sessions)).toBe(true);
+  });
+
+  it("builds week schedule summary with adherence", () => {
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    const summary = buildWorkoutWeekScheduleSummary(
+      [plan],
+      [sampleWorkoutSession({ date: "2026-05-25" })],
+      "2026-05-26"
+    );
+    expect(summary.scheduledCount).toBeGreaterThanOrEqual(1);
+    expect(summary.completedScheduledCount).toBeGreaterThanOrEqual(1);
+    expect(summary.adherenceRate).not.toBeNull();
+    expect(buildWorkoutWeekSummary([], "2026-05-26").count).toBe(0);
   });
 });

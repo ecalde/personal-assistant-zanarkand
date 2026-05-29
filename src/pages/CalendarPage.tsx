@@ -75,7 +75,7 @@ export default function CalendarPage({
         workoutSessions,
         workoutPlans,
       },
-      { includeFitnessHistory: true }
+      { includeFitnessHistory: true, includeWorkoutSchedules: true }
     );
     const visible = filterItemsByHiddenCategories(items, hiddenCategories);
     return groupCalendarItemsByDate(visible);

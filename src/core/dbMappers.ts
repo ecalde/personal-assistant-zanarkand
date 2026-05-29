@@ -190,6 +190,9 @@ export type WorkoutPlanRow = {
   focus: string | null;
   exercises: unknown;
   notes: string | null;
+  schedule: WeeklySchedule;
+  schedule_series: SkillScheduleSeries | null;
+  series_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -930,6 +933,15 @@ export function assertValidWorkoutPlan(plan: WorkoutPlan): void {
   if (plan.notes !== undefined && typeof plan.notes !== "string") {
     throw new MapperError("Invalid workoutPlan.notes", "workoutPlan.notes");
   }
+  if (plan.scheduleSeries !== undefined) {
+    parseSkillScheduleSeries(plan.scheduleSeries, "workoutPlan.scheduleSeries");
+  }
+  if (plan.seriesId !== undefined) {
+    assertUuid(plan.seriesId, "workoutPlan.seriesId");
+  }
+  if (plan.schedule !== undefined) {
+    parseWeeklySchedule(plan.schedule, "workoutPlan.schedule");
+  }
 }
 
 export function assertValidWorkoutSession(session: WorkoutSession): void {
@@ -1419,6 +1431,11 @@ export function workoutPlanToRow(plan: WorkoutPlan, userId: string): WorkoutPlan
   assertUuid(userId, "userId");
   assertValidWorkoutPlan(plan);
 
+  const schedule = parseWeeklySchedule(
+    plan.schedule ?? defaultWeeklySchedule(),
+    "workoutPlan.schedule"
+  );
+
   return {
     id: plan.id,
     user_id: userId,
@@ -1426,6 +1443,11 @@ export function workoutPlanToRow(plan: WorkoutPlan, userId: string): WorkoutPlan
     focus: plan.focus ?? null,
     exercises: plan.exercises,
     notes: plan.notes?.trim() || null,
+    schedule,
+    schedule_series: plan.scheduleSeries
+      ? parseSkillScheduleSeries(plan.scheduleSeries, "workoutPlan.scheduleSeries")
+      : null,
+    series_id: plan.seriesId ?? null,
     created_at: plan.createdAtIso,
     updated_at: plan.updatedAtIso,
   };
@@ -1450,10 +1472,13 @@ export function workoutPlanFromRow(row: WorkoutPlanRow): WorkoutPlan {
     );
   }
 
+  const schedule = parseWeeklySchedule(row.schedule, "workout_plans.schedule");
+
   const plan: WorkoutPlan = {
     id: row.id,
     name: row.name.trim(),
     exercises,
+    schedule,
     createdAtIso: row.created_at,
     updatedAtIso: row.updated_at,
   };
@@ -1461,6 +1486,16 @@ export function workoutPlanFromRow(row: WorkoutPlanRow): WorkoutPlan {
   if (row.focus !== null) plan.focus = row.focus;
   if (row.notes !== null && row.notes.trim().length > 0) {
     plan.notes = row.notes.trim();
+  }
+  if (row.schedule_series !== null && row.schedule_series !== undefined) {
+    plan.scheduleSeries = parseSkillScheduleSeries(
+      row.schedule_series,
+      "workout_plans.schedule_series"
+    );
+  }
+  if (row.series_id !== null) {
+    assertUuid(row.series_id, "workout_plans.series_id");
+    plan.seriesId = row.series_id;
   }
 
   return plan;

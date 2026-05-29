@@ -1,7 +1,12 @@
 import { getWorkoutFocusValues, WORKOUT_FOCUS_LABELS } from "../../core/fitness";
 import { styles } from "../../ui/appStyles";
 import { ExerciseEntryEditor } from "./ExerciseEntryEditor";
+import { WorkoutPlanScheduleSection } from "./WorkoutPlanScheduleSection";
 import type { WorkoutPlanFormState } from "./workoutPlanFormState";
+import {
+  workoutScheduleFormFromSeries,
+  workoutScheduleSeriesFromForm,
+} from "./workoutScheduleFormState";
 
 export type WorkoutPlanFormProps = {
   editing: boolean;
@@ -68,6 +73,23 @@ export function WorkoutPlanForm({
         <ExerciseEntryEditor
           exercises={form.exercises}
           onChange={(exercises) => onChange({ ...form, exercises })}
+        />
+
+        <WorkoutPlanScheduleSection
+          schedule={form.schedule}
+          scheduleSeries={
+            form.scheduleAvailability.mode === "indefinite"
+              ? undefined
+              : workoutScheduleSeriesFromForm(form.scheduleAvailability)
+          }
+          radioGroupName={editing ? "workout-plan-schedule-edit" : "workout-plan-schedule-create"}
+          onScheduleChange={(schedule) => onChange({ ...form, schedule })}
+          onScheduleSeriesChange={(series) =>
+            onChange({
+              ...form,
+              scheduleAvailability: workoutScheduleFormFromSeries(series),
+            })
+          }
         />
 
         {formError && <div style={styles.errorInline}>{formError}</div>}

@@ -10,6 +10,7 @@ import type {
   Person,
   Session,
   Skill,
+  WorkoutPlan,
   WorkoutSession,
 } from "../core/model";
 import {
@@ -34,6 +35,7 @@ export type ReviewPageProps = {
   events: LifeEvent[];
   people: Person[];
   jobApplications: JobApplication[];
+  workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
   focusFeedback: FocusFeedback[];
 };
@@ -106,6 +108,7 @@ export default function ReviewPage({
   events,
   people,
   jobApplications,
+  workoutPlans,
   workoutSessions,
   focusFeedback,
 }: ReviewPageProps) {
@@ -118,6 +121,7 @@ export default function ReviewPage({
         events,
         people,
         jobApplications,
+        workoutPlans,
         workoutSessions,
         focusFeedback,
         todayKey,
@@ -128,6 +132,7 @@ export default function ReviewPage({
       events,
       people,
       jobApplications,
+      workoutPlans,
       workoutSessions,
       focusFeedback,
       todayKey,

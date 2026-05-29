@@ -12,6 +12,7 @@ import type {
   Person,
   Skill,
   WeeklySchedule,
+  WorkoutPlan,
   WorkoutSession,
 } from "./model";
 
@@ -266,6 +267,38 @@ describe("buildCalendarItemsForRange", () => {
 
     const birthday = items.find((i) => i.sourceType === "people")!;
     expect(birthday.date).toBe("2026-02-28");
+  });
+
+  it("expands workout schedule blocks when includeWorkoutSchedules is true", () => {
+    const schedule = emptySchedule();
+    schedule.mon = [{ id: "wb1", startTime: "06:00", minutes: 45 }];
+    const plan: WorkoutPlan = {
+      id: "plan1",
+      name: "Push A",
+      exercises: [{ id: "ex1", name: "Bench press" }],
+      schedule,
+      createdAtIso: "2026-01-01T00:00:00.000Z",
+      updatedAtIso: "2026-01-01T00:00:00.000Z",
+    };
+
+    const items = buildCalendarItemsForRange(
+      {
+        startDate: "2026-05-25",
+        endDate: "2026-05-31",
+        skills: [],
+        events: [],
+        people: [],
+        workoutPlans: [plan],
+      },
+      { includeWorkoutSchedules: true }
+    );
+
+    const scheduled = items.filter(
+      (i) => i.sourceMeta.kind === "workoutScheduleBlock"
+    );
+    expect(scheduled.length).toBeGreaterThanOrEqual(1);
+    expect(scheduled[0]?.subcategoryKey).toBe("scheduled");
+    expect(scheduled[0]?.id).toBe("fitness:plan:plan1:wb1:2026-05-25");
   });
 
   it("excludes fitness history by default and includes it when opted in", () => {
