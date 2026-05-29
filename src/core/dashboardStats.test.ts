@@ -8,6 +8,7 @@ import {
   isInLocalWeek,
   minutesThisWeekForSkill,
   plannedMinutesForDay,
+  plannedMinutesOnDate,
   startOfWeekLocal,
   totalMinutesToday,
 } from "./dashboardStats";
@@ -258,6 +259,73 @@ describe("dashboardStats", () => {
       const items = buildTimelineItems([skill], sessions, now);
       expect(items[0].loggedSoFar).toBe(30);
       expect(items[0].status).toBe("done");
+    });
+  });
+
+  describe("skill scheduleSeries", () => {
+    const now = new Date(2026, 4, 26, 10, 0, 0);
+    const todayKey = "2026-05-26";
+
+    function activeSkillWithBlock() {
+      return makeSkill({
+        id: SKILL_A,
+        name: "A",
+        schedule: {
+          ...defaultWeeklySchedule(),
+          tue: [{ id: "b1", startTime: "09:00", minutes: 30 }],
+        },
+      });
+    }
+
+    it("omits inactive date_range skill from buildSkillDayRows", () => {
+      const skill = activeSkillWithBlock();
+      skill.scheduleSeries = {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      };
+      expect(buildSkillDayRows([skill], [], now)).toHaveLength(0);
+    });
+
+    it("includes active date_range skill in buildSkillDayRows", () => {
+      const skill = activeSkillWithBlock();
+      skill.scheduleSeries = {
+        mode: "date_range",
+        startDate: "2026-05-01",
+        endDate: "2026-06-30",
+      };
+      const rows = buildSkillDayRows([skill], [], now);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].skill.id).toBe(SKILL_A);
+    });
+
+    it("omits future-start indefinite skill before startDate", () => {
+      const skill = activeSkillWithBlock();
+      skill.scheduleSeries = { mode: "indefinite", startDate: "2027-01-01" };
+      expect(buildSkillDayRows([skill], [], now)).toHaveLength(0);
+    });
+
+    it("returns zero from plannedMinutesOnDate outside active range", () => {
+      const skill = activeSkillWithBlock();
+      skill.scheduleSeries = {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      };
+      expect(plannedMinutesOnDate(skill, todayKey)).toBe(0);
+      expect(plannedMinutesOnDate(skill, "2026-06-16")).toBe(30);
+    });
+
+    it("skips inactive skill in buildTimelineItems", () => {
+      const skill = activeSkillWithBlock();
+      skill.scheduleSeries = { mode: "indefinite", startDate: "2027-01-01" };
+      expect(buildTimelineItems([skill], [], now)).toHaveLength(0);
+    });
+
+    it("leaves undefined scheduleSeries behavior unchanged", () => {
+      const skill = activeSkillWithBlock();
+      expect(buildSkillDayRows([skill], [], now)).toHaveLength(1);
+      expect(plannedMinutesOnDate(skill, todayKey)).toBe(30);
     });
   });
 });

@@ -218,6 +218,77 @@ describe("buildSkillWeekSummary", () => {
     expect(summary.topConsistent[0].skillName).toBe("TypeScript");
     expect(summary.topConsistent[0].consistencyScore).toBe(1);
   });
+
+  it("gives date_range outside week scheduledDays 0 and no missed/overdue flag", () => {
+    const schedule = defaultWeeklySchedule();
+    schedule.mon = [{ id: "b1", startTime: "09:00", minutes: 30 }];
+    schedule.wed = [{ id: "b2", startTime: "09:00", minutes: 30 }];
+    const skill = sampleSkill({
+      weeklyGoalMinutes: 120,
+      schedule,
+      scheduleSeries: {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      },
+    });
+    const sessions = [sampleSession({ minutes: 40, startedAtIso: "2026-05-26T10:00:00.000Z" })];
+    const week = getLocalWeekRange(TODAY, NOW);
+    const summary = buildSkillWeekSummary([skill], sessions, week, NOW);
+
+    expect(summary.skills[0].scheduledDays).toBe(0);
+    expect(summary.skills[0].minutesLogged).toBe(40);
+    expect(summary.missedOrOverdue).toHaveLength(0);
+  });
+
+  it("counts only active weekdays for partial date_range in week", () => {
+    const schedule = defaultWeeklySchedule();
+    schedule.mon = [{ id: "b1", startTime: "09:00", minutes: 30 }];
+    schedule.wed = [{ id: "b2", startTime: "09:00", minutes: 30 }];
+    schedule.fri = [{ id: "b3", startTime: "09:00", minutes: 30 }];
+    const skill = sampleSkill({
+      schedule,
+      scheduleSeries: {
+        mode: "date_range",
+        startDate: "2026-05-25",
+        endDate: "2026-05-27",
+      },
+    });
+    const week = getLocalWeekRange(TODAY, NOW);
+    const summary = buildSkillWeekSummary([skill], [], week, NOW);
+    expect(summary.skills[0].scheduledDays).toBe(2);
+  });
+
+  it("counts single_day skill as one scheduled day in week", () => {
+    const schedule = defaultWeeklySchedule();
+    schedule.thu = [{ id: "b1", startTime: "09:00", minutes: 30 }];
+    const skill = sampleSkill({
+      schedule,
+      scheduleSeries: { mode: "single_day", singleDate: "2026-05-28" },
+    });
+    const week = getLocalWeekRange(TODAY, NOW);
+    const summary = buildSkillWeekSummary([skill], [], week, NOW);
+    expect(summary.skills[0].scheduledDays).toBe(1);
+    expect(summary.missedOrOverdue).toHaveLength(1);
+  });
+
+  it("gives future-start indefinite skill scheduledDays 0 before startDate", () => {
+    const schedule = defaultWeeklySchedule();
+    schedule.mon = [{ id: "b1", startTime: "09:00", minutes: 30 }];
+    schedule.wed = [{ id: "b2", startTime: "09:00", minutes: 30 }];
+    const skill = sampleSkill({
+      weeklyGoalMinutes: 120,
+      schedule,
+      scheduleSeries: { mode: "indefinite", startDate: "2027-01-01" },
+    });
+    const sessions = [sampleSession({ minutes: 25, startedAtIso: "2026-05-26T10:00:00.000Z" })];
+    const week = getLocalWeekRange(TODAY, NOW);
+    const summary = buildSkillWeekSummary([skill], sessions, week, NOW);
+
+    expect(summary.skills[0].scheduledDays).toBe(0);
+    expect(summary.skills[0].minutesLogged).toBe(25);
+    expect(summary.missedOrOverdue).toHaveLength(0);
+  });
 });
 
 describe("buildFitnessWeekSection", () => {

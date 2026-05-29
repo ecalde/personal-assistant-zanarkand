@@ -1,5 +1,6 @@
 import type { EventType, LifeEvent, Person, Skill, Weekday } from "./model";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
+import { isSkillActiveOnDate } from "./skillSeries";
 import {
   addMinutesToHHMM,
   parseHHMMToMinutes,
@@ -273,6 +274,7 @@ function generateScheduleItems(
   for (const date of dates) {
     const dayKey = weekdayFromDateString(date);
     for (const skill of skills) {
+      if (!isSkillActiveOnDate(skill, date)) continue;
       const blocks = skill.schedule[dayKey] ?? [];
       for (const block of blocks) {
         items.push(scheduleBlockToItem(skill, block, date));

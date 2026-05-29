@@ -25,6 +25,7 @@ import type {
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import { formatSessionHeadline } from "./fitness";
 import { addMinutesToHHMM } from "./schedule";
+import { isSkillActiveOnDate, getSkillSeriesDateRange } from "./skillSeries";
 import { iterateDateRange, weekdayFromDateString } from "./timeline";
 import { expandRecurrenceInstances, type RecurrenceInstance } from "./recurrence";
 
@@ -231,12 +232,31 @@ function localTimeFromIso(iso: string): string | null {
 // Collectors
 // ---------------------------------------------------------------------------
 
-function collectSkillItems(skills: Skill[], dates: string[]): CalendarItem[] {
+function skillSeriesIntersectsRange(
+  skill: Skill,
+  queryStart: string,
+  queryEnd: string
+): boolean {
+  const range = getSkillSeriesDateRange(skill);
+  if (range.kind === "unbounded") return true;
+  return range.startDate <= queryEnd && range.endDate >= queryStart;
+}
+
+function collectSkillItems(
+  skills: Skill[],
+  dates: string[],
+  queryStart: string,
+  queryEnd: string
+): CalendarItem[] {
   const items: CalendarItem[] = [];
+  const eligibleSkills = skills.filter((skill) =>
+    skillSeriesIntersectsRange(skill, queryStart, queryEnd)
+  );
 
   for (const date of dates) {
     const weekday = weekdayFromDateString(date);
-    for (const skill of skills) {
+    for (const skill of eligibleSkills) {
+      if (!isSkillActiveOnDate(skill, date)) continue;
       const blocks = skill.schedule[weekday] ?? [];
       for (const block of blocks) {
         const plannedMinutes = Number.isInteger(block.minutes) ? block.minutes : 0;
@@ -483,7 +503,9 @@ export function buildCalendarItemsForRange(
   const items: CalendarItem[] = [];
 
   if (includeSkills) {
-    items.push(...collectSkillItems(input.skills, dates));
+    items.push(
+      ...collectSkillItems(input.skills, dates, input.startDate, input.endDate)
+    );
   }
   if (includeEvents) {
     items.push(

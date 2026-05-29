@@ -21,7 +21,7 @@ import {
 import {
   isInLocalWeek,
   minutesThisWeekForSkill,
-  plannedMinutesForDay,
+  plannedMinutesOnDate,
   startOfWeekLocal,
 } from "./dashboardStats";
 import {
@@ -47,7 +47,6 @@ import {
   formatLocalDateKey,
   iterateDateRange,
   summarizeWeek,
-  weekdayFromDateString,
 } from "./timeline";
 import { dayKeyFromIso } from "./progression";
 import type {
@@ -302,8 +301,7 @@ function countActiveDaysInWeek(
 function countScheduledDaysInWeek(skill: Skill, week: LocalWeekRange): number {
   let count = 0;
   for (const dayKey of iterateDateRange(week.weekStartKey, week.weekEndKey)) {
-    const weekday = weekdayFromDateString(dayKey);
-    if (plannedMinutesForDay(skill, weekday) > 0) {
+    if (plannedMinutesOnDate(skill, dayKey) > 0) {
       count += 1;
     }
   }
@@ -324,8 +322,7 @@ function hasMissedScheduledDay(
   }
 
   for (const dayKey of iterateDateRange(week.weekStartKey, week.weekEndKey)) {
-    const weekday = weekdayFromDateString(dayKey);
-    if (plannedMinutesForDay(skill, weekday) > 0 && (minutesByDay.get(dayKey) ?? 0) === 0) {
+    if (plannedMinutesOnDate(skill, dayKey) > 0 && (minutesByDay.get(dayKey) ?? 0) === 0) {
       return true;
     }
   }
@@ -339,6 +336,9 @@ function isSkillMissedOrOverdue(
   sessions: Session[],
   week: LocalWeekRange
 ): boolean {
+  if (row.scheduledDays === 0) {
+    return false;
+  }
   if (
     row.weeklyGoalMinutes !== null &&
     row.weeklyGoalMinutes > 0 &&

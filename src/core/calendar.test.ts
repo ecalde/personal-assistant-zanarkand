@@ -95,6 +95,75 @@ describe("buildCalendarItemsForRange", () => {
     expect(mon.id).toBe("skill:s1:b1:2026-05-25");
   });
 
+  describe("skill scheduleSeries", () => {
+    const rangeStart = "2026-05-25";
+    const rangeEnd = "2026-05-31";
+
+    function skillWithWeekdayBlocks(overrides: Partial<Skill> = {}): Skill {
+      const schedule = emptySchedule();
+      schedule.mon = [{ id: "b1", startTime: "09:00", minutes: 60 }];
+      schedule.wed = [{ id: "b2", startTime: "18:00", minutes: 30 }];
+      return makeSkill({ id: "s1", name: "SQL", schedule, ...overrides });
+    }
+
+    function skillItemsFor(skill: Skill) {
+      return buildCalendarItemsForRange({
+        startDate: rangeStart,
+        endDate: rangeEnd,
+        skills: [skill],
+        events: [],
+        people: [],
+      }).filter((i) => i.sourceType === "skill");
+    }
+
+    it("excludes date_range skill outside the query range", () => {
+      const skill = skillWithWeekdayBlocks({
+        scheduleSeries: {
+          mode: "date_range",
+          startDate: "2026-06-01",
+          endDate: "2026-08-31",
+        },
+      });
+      expect(skillItemsFor(skill)).toHaveLength(0);
+    });
+
+    it("includes date_range skill inside the query range", () => {
+      const skill = skillWithWeekdayBlocks({
+        scheduleSeries: {
+          mode: "date_range",
+          startDate: "2026-05-25",
+          endDate: "2026-05-31",
+        },
+      });
+      expect(skillItemsFor(skill)).toHaveLength(2);
+    });
+
+    it("emits single_day skill only on that date", () => {
+      const schedule = emptySchedule();
+      schedule.thu = [{ id: "b1", startTime: "10:00", minutes: 45 }];
+      const skill = makeSkill({
+        id: "s1",
+        name: "Workshop",
+        schedule,
+        scheduleSeries: { mode: "single_day", singleDate: "2026-05-28" },
+      });
+      const items = skillItemsFor(skill);
+      expect(items).toHaveLength(1);
+      expect(items[0].date).toBe("2026-05-28");
+    });
+
+    it("excludes future-start indefinite skill before startDate", () => {
+      const skill = skillWithWeekdayBlocks({
+        scheduleSeries: { mode: "indefinite", startDate: "2027-01-01" },
+      });
+      expect(skillItemsFor(skill)).toHaveLength(0);
+    });
+
+    it("leaves undefined scheduleSeries unchanged", () => {
+      expect(skillItemsFor(skillWithWeekdayBlocks())).toHaveLength(2);
+    });
+  });
+
   it("maps timed-range, start-only, and all-day life events", () => {
     const events: LifeEvent[] = [
       makeEvent({ id: "e1", title: "Meeting", date: "2026-05-26", startTime: "10:00", endTime: "11:00" }),

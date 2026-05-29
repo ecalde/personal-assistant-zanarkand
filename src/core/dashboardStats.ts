@@ -8,6 +8,8 @@ import {
   type BlockStatus,
   type CompletionStatus,
 } from "./schedule";
+import { isSkillActiveOnDate } from "./skillSeries";
+import { formatLocalDateKey, weekdayFromDateString } from "./timeline";
 import { isSameLocalDay } from "./time";
 
 export type SkillDayRow = {
@@ -62,6 +64,11 @@ export function plannedMinutesForDay(skill: Skill, dayKey: Weekday): number {
   );
 }
 
+export function plannedMinutesOnDate(skill: Skill, dateKey: string): number {
+  if (!isSkillActiveOnDate(skill, dateKey)) return 0;
+  return plannedMinutesForDay(skill, weekdayFromDateString(dateKey));
+}
+
 export function startOfWeekLocal(date: Date = new Date()): Date {
   const d = startOfLocalDay(date);
   const daysSinceMonday = (d.getDay() + 6) % 7;
@@ -109,8 +116,11 @@ export function buildSkillDayRows(
 ): SkillDayRow[] {
   const today = startOfLocalDay(now);
   const dayKey = weekdayFromDate(now);
+  const todayKey = formatLocalDateKey(now);
 
-  return skills.map((skill) => {
+  return skills
+    .filter((skill) => isSkillActiveOnDate(skill, todayKey))
+    .map((skill) => {
     const todayMinutes = minutesOnLocalDay(sessions, today, { skillId: skill.id });
     const blocks = skill.schedule[dayKey] ?? [];
     const expectedByNow = expectedMinutesByNow(blocks, now);
@@ -150,10 +160,12 @@ export function buildTimelineItems(
 ): TimelineItem[] {
   const today = startOfLocalDay(now);
   const dayKey = weekdayFromDate(now);
+  const todayKey = formatLocalDateKey(now);
   const currentMinute = minutesSinceMidnight(now);
 
   const loggedBySkill: Record<string, number> = {};
   for (const skill of skills) {
+    if (!isSkillActiveOnDate(skill, todayKey)) continue;
     loggedBySkill[skill.id] = minutesOnLocalDay(sessions, today, {
       skillId: skill.id,
       excludeAfter: now,
@@ -163,6 +175,7 @@ export function buildTimelineItems(
   const items: TimelineItem[] = [];
 
   for (const skill of skills) {
+    if (!isSkillActiveOnDate(skill, todayKey)) continue;
     const blocks = skill.schedule[dayKey] ?? [];
     const sortedBlocks = [...blocks].sort(
       (a, b) => parseHHMMToMinutes(a.startTime) - parseHHMMToMinutes(b.startTime)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { LifeEvent, Skill } from "./model";
+import type { LifeEvent, Skill, Weekday } from "./model";
 import {
   buildUnifiedTimelineRange,
   compareUnifiedTimelineItems,
@@ -212,6 +212,48 @@ describe("buildUnifiedTimelineRange", () => {
     );
 
     expect(days[0].items.map((item) => item.title)).toEqual(["Morning meet", "Blender"]);
+  });
+
+  describe("skill scheduleSeries", () => {
+    function skillWithBlock(day: Weekday = "tue") {
+      return makeSkill({
+        id: SKILL_A,
+        name: "SQL",
+        schedule: {
+          ...defaultWeeklySchedule(),
+          [day]: [{ id: "b1", startTime: "09:00", minutes: 45 }],
+        },
+      });
+    }
+
+    it("skips inactive date_range skill outside the query date", () => {
+      const skill = skillWithBlock("tue");
+      skill.scheduleSeries = {
+        mode: "date_range",
+        startDate: "2026-06-01",
+        endDate: "2026-08-31",
+      };
+      const days = buildUnifiedTimelineRange([skill], [], TUE, TUE);
+      expect(days[0].items.filter((i) => i.kind === "scheduleBlock")).toHaveLength(0);
+    });
+
+    it("includes active date_range skill on an in-range date", () => {
+      const skill = skillWithBlock("tue");
+      skill.scheduleSeries = {
+        mode: "date_range",
+        startDate: "2026-05-01",
+        endDate: "2026-06-30",
+      };
+      const days = buildUnifiedTimelineRange([skill], [], TUE, TUE);
+      expect(days[0].items.filter((i) => i.kind === "scheduleBlock")).toHaveLength(1);
+    });
+
+    it("skips future-start indefinite skill before startDate", () => {
+      const skill = skillWithBlock("tue");
+      skill.scheduleSeries = { mode: "indefinite", startDate: "2027-01-01" };
+      const days = buildUnifiedTimelineRange([skill], [], TUE, TUE);
+      expect(days[0].items.filter((i) => i.kind === "scheduleBlock")).toHaveLength(0);
+    });
   });
 
   it("excludes untimed events when includeUntimedEvents is false", () => {
