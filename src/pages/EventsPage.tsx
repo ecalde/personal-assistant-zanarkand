@@ -12,18 +12,35 @@ import {
   validateEventRecurrenceForm,
 } from "../components/events/eventRecurrenceFormState";
 import { partitionEventsByToday } from "../core/events";
+import {
+  isRecurringLifeEvent,
+  type EventSeriesEditScope,
+} from "../core/eventSeries";
 import { buildPeopleById, resolveEventPersonLabel } from "../core/people";
 import { parseHHMMToMinutes } from "../core/schedule";
 import type { EventType, LifeEvent, Person } from "../core/model";
 import { styles } from "../ui/appStyles";
 
+export type EventSeriesEditIntent = {
+  eventId: string;
+  scope: EventSeriesEditScope;
+  splitDate: string;
+};
+
 export type EventsPageProps = {
   events: LifeEvent[];
   people: Person[];
   initialDraft?: EventFormDraft | null;
+  initialSeriesEdit?: EventSeriesEditIntent | null;
   onDraftConsumed?: () => void;
+  onSeriesEditConsumed?: () => void;
   onAdd: (input: Omit<LifeEvent, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdate: (event: LifeEvent) => void;
+  onUpdateEventSeries: (
+    scope: EventSeriesEditScope,
+    splitDate: string,
+    event: LifeEvent
+  ) => void;
   onDelete: (eventId: string) => void;
 };
 
@@ -187,22 +204,44 @@ export default function EventsPage({
   events,
   people,
   initialDraft = null,
+  initialSeriesEdit = null,
   onDraftConsumed,
+  onSeriesEditConsumed,
   onAdd,
   onUpdate,
+  onUpdateEventSeries,
   onDelete,
 }: EventsPageProps) {
-  const [showForm, setShowForm] = useState(() => Boolean(initialDraft));
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<EventFormState>(() =>
-    initialDraft ? formFromDraft(initialDraft) : emptyFormState()
+  const [showForm, setShowForm] = useState(
+    () => Boolean(initialDraft) || Boolean(initialSeriesEdit)
   );
+  const [editingId, setEditingId] = useState<string | null>(() =>
+    initialSeriesEdit ? initialSeriesEdit.eventId : null
+  );
+  const [form, setForm] = useState<EventFormState>(() => {
+    if (initialDraft) return formFromDraft(initialDraft);
+    if (initialSeriesEdit) {
+      const event = events.find((entry) => entry.id === initialSeriesEdit.eventId);
+      if (event) return formFromEvent(event);
+    }
+    return emptyFormState();
+  });
   const [formError, setFormError] = useState<string | null>(null);
-  const [recurrenceForm, setRecurrenceForm] = useState<EventRecurrenceFormState>(
-    emptyEventRecurrenceFormState
-  );
+  const [recurrenceForm, setRecurrenceForm] = useState<EventRecurrenceFormState>(() => {
+    if (initialSeriesEdit) {
+      const event = events.find((entry) => entry.id === initialSeriesEdit.eventId);
+      if (event) return eventRecurrenceFormFromRule(event.date, event.recurrence);
+    }
+    return emptyEventRecurrenceFormState();
+  });
   const recurrenceFormRef = useRef(recurrenceForm);
   const [recurrenceError, setRecurrenceError] = useState<string | null>(null);
+  const [seriesScope, setSeriesScope] = useState<EventSeriesEditScope>(
+    () => initialSeriesEdit?.scope ?? "entire"
+  );
+  const [seriesSplitDate, setSeriesSplitDate] = useState<string>(
+    () => initialSeriesEdit?.splitDate ?? todayIsoDate()
+  );
 
   function setRecurrenceFormState(next: EventRecurrenceFormState) {
     recurrenceFormRef.current = next;
@@ -221,6 +260,11 @@ export default function EventsPage({
     onDraftConsumed?.();
   }, [initialDraft, onDraftConsumed]);
 
+  useEffect(() => {
+    if (!initialSeriesEdit) return;
+    onSeriesEditConsumed?.();
+  }, [initialSeriesEdit, onSeriesEditConsumed]);
+
   const { upcoming, past } = useMemo(
     () => partitionEventsByToday(events, today),
     [events, today]
@@ -230,6 +274,8 @@ export default function EventsPage({
     setForm(emptyFormState());
     setRecurrenceFormState(emptyEventRecurrenceFormState());
     setRecurrenceError(null);
+    setSeriesScope("entire");
+    setSeriesSplitDate(todayIsoDate());
     setEditingId(null);
     setFormError(null);
     setShowForm(false);
@@ -239,15 +285,23 @@ export default function EventsPage({
     setForm(emptyFormState());
     setRecurrenceFormState(emptyEventRecurrenceFormState());
     setRecurrenceError(null);
+    setSeriesScope("entire");
+    setSeriesSplitDate(todayIsoDate());
     setEditingId(null);
     setFormError(null);
     setShowForm(true);
   }
 
-  function openEditForm(event: LifeEvent) {
+  function openEditForm(
+    event: LifeEvent,
+    scope: EventSeriesEditScope = "entire",
+    splitDate?: string
+  ) {
     setForm(formFromEvent(event));
     setRecurrenceFormState(eventRecurrenceFormFromRule(event.date, event.recurrence));
     setRecurrenceError(null);
+    setSeriesScope(scope);
+    setSeriesSplitDate(splitDate ?? event.date);
     setEditingId(event.id);
     setFormError(null);
     setShowForm(true);
@@ -339,7 +393,19 @@ export default function EventsPage({
         setFormError("Could not find that event.");
         return;
       }
-      onUpdate({ ...existing, ...payload });
+      const merged: LifeEvent = { ...existing, ...payload };
+      const editingRecurring =
+        recurrence !== undefined && recurrenceFormRef.current.mode !== "none";
+
+      if (editingRecurring && isRecurringLifeEvent(existing)) {
+        if (seriesScope === "thisAndFuture" && !seriesSplitDate) {
+          setFormError("Split date is required for this-and-future edits.");
+          return;
+        }
+        onUpdateEventSeries(seriesScope, seriesSplitDate, merged);
+      } else {
+        onUpdate(merged);
+      }
     } else {
       onAdd(payload);
     }
@@ -438,6 +504,47 @@ export default function EventsPage({
               onFieldBlur={handleRecurrenceFieldBlur}
               error={recurrenceError}
             />
+
+            {editingId && recurrenceForm.mode !== "none" ? (
+              <fieldset style={{ border: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+                <legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                  Edit scope
+                </legend>
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="radio"
+                    name={`event-series-scope-${editingId}`}
+                    checked={seriesScope === "entire"}
+                    onChange={() => setSeriesScope("entire")}
+                  />
+                  Entire series
+                </label>
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="radio"
+                    name={`event-series-scope-${editingId}`}
+                    checked={seriesScope === "thisAndFuture"}
+                    onChange={() => setSeriesScope("thisAndFuture")}
+                  />
+                  This and future
+                </label>
+                {seriesScope === "thisAndFuture" ? (
+                  <label style={styles.label}>
+                    Split from date
+                    <input
+                      type="date"
+                      value={seriesSplitDate}
+                      onChange={(e) => setSeriesSplitDate(e.target.value)}
+                      style={styles.input}
+                    />
+                  </label>
+                ) : null}
+                <p style={{ ...styles.helpText, margin: 0 }}>
+                  Entire series updates every occurrence. This and future keeps past
+                  occurrences unchanged and starts a new series from the split date.
+                </p>
+              </fieldset>
+            ) : null}
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <label style={styles.label}>

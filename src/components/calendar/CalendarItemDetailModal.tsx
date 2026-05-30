@@ -14,6 +14,10 @@ export type CalendarItemDetailModalProps = {
   item: CalendarItem;
   preferences?: CalendarColorPreferences;
   onClose: () => void;
+  /** Opens Events edit for the full recurring series. */
+  onEditEntireSeries?: (eventId: string, occurrenceDate: string) => void;
+  /** Opens Events edit scoped to this occurrence and future. */
+  onEditThisAndFuture?: (eventId: string, splitDate: string) => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -40,10 +44,29 @@ export function CalendarItemDetailModal({
   item,
   preferences,
   onClose,
+  onEditEntireSeries,
+  onEditThisAndFuture,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColor(item, preferences);
   const timeLabel = formatItemTimeLabel(item);
+
+  const isRecurringOccurrence =
+    item.sourceType === "event" &&
+    item.sourceMeta.kind === "lifeEvent" &&
+    item.sourceMeta.recurrenceDate !== undefined;
+
+  const eventId =
+    item.sourceMeta.kind === "lifeEvent" ? item.sourceMeta.eventId : undefined;
+  const occurrenceDate =
+    item.sourceMeta.kind === "lifeEvent"
+      ? (item.sourceMeta.recurrenceDate ?? item.date)
+      : item.date;
+
+  const canEditSeries =
+    isRecurringOccurrence &&
+    eventId &&
+    (onEditEntireSeries || onEditThisAndFuture);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -100,9 +123,38 @@ export function CalendarItemDetailModal({
           ) : null}
         </div>
 
-        <p style={{ ...styles.helpText, margin: 0 }}>
-          Read-only preview. Open the source page to make changes.
-        </p>
+        {canEditSeries ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onEditEntireSeries ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  onEditEntireSeries(eventId!, occurrenceDate);
+                  onClose();
+                }}
+              >
+                Edit entire series
+              </button>
+            ) : null}
+            {onEditThisAndFuture ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  onEditThisAndFuture(eventId!, occurrenceDate);
+                  onClose();
+                }}
+              >
+                Edit this and future
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <p style={{ ...styles.helpText, margin: 0 }}>
+            Read-only preview. Open the source page to make changes.
+          </p>
+        )}
       </div>
     </div>
   );

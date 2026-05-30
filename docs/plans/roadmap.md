@@ -67,8 +67,9 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 27–30 | **Workout scheduling** | Schedulable `WorkoutPlan` weekday blocks + bounds; calendar `workoutScheduleBlock` items; focus/briefing/review/dashboard consume scheduled workouts. |
 | 31 | **Calendar color settings UI** | Collapsible settings on `CalendarPage` to edit category/subcategory colors + aliases; `setCalendarPreferences` commit path; live "used by" labels. |
 | 32 | **Dashboard calendar centerpiece** | Desktop-first three-column dashboard (left do-now rail / center read-only calendar widget / right briefing rail) + mobile stack; shared `useCalendarController`; persisted dashboard view mode; `CalendarPreviewSection` deprecated. |
+| 33 | **Series editing (events)** | Entire-series and this-and-future split for recurring life events; `eventSeries.ts` + Events scope selector + interactive calendar detail modal; `seriesId` via existing columns. |
 
-**Not yet shipped** (called out in architecture): series split/edit flows, recurrence exceptions UI, calendar drag-and-drop, gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
+**Not yet shipped** (called out in architecture): single-occurrence edit/skip, recurrence exceptions UI, calendar drag-and-drop, gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
 
 ---
 
@@ -191,12 +192,11 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Shared `useCalendarController` between `CalendarPage` and `DashboardCalendarWidget`; persisted dashboard month/week view mode (localStorage, not synced).
 - `ProgressionHero` left unchanged (XP integration deferred to the gamification phase); `CalendarPreviewSection` deprecated and slated for later removal.
 
-### Phase 33 — Series Editing
+### Phase 33 — Series Editing ✅ (shipped)
 
-- **Edit this occurrence** / **this and future** / **entire series**.
-- **Skip occurrence** and **override occurrence** (recurrence exceptions + `splitRecurrenceSeriesAtDate`).
-- Apply to events first; extend to skill series and workout schedules when models support it.
-- Generate/manage `seriesId` where needed.
+- **Entire series** and **this and future** edit scopes for recurring life events.
+- Pure `splitEventSeriesAtDate` in `eventSeries.ts`; `updateEventSeries` in `App.tsx`; scope selector on Events edit form; calendar detail modal actions on `CalendarPage`.
+- Shared `seriesId` on split halves; no schema changes.
 
 ### Phase 34 — Drag-and-Drop Calendar Editing
 
@@ -249,14 +249,14 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 6. Current next action
 
-**Current recommended next phase: [Phase 33 — Series Editing](#phase-33--series-editing).**
+**Current recommended next phase: [Phase 34 — Drag-and-Drop Calendar Editing](#phase-34--drag-and-drop-calendar-editing).**
 
-Before building edit flows:
+Before building grid interactions:
 
-1. Read [`recurrence.ts`](../../src/core/recurrence.ts) (`splitRecurrenceSeriesAtDate`, exceptions) and the Events form recurrence wiring.
-2. Decide the "this occurrence / this and future / entire series" UX and `seriesId` generation.
-3. Implement pure split/exception helpers + tests first, then UI; keep mutations routed through `App.tsx` `commit`.
+1. Read [`CalendarPage`](../src/pages/CalendarPage.tsx) and [`useCalendarController`](../src/components/calendar/useCalendarController.ts).
+2. Decide mutation callbacks per item type (skills, events, workouts) routed through `App.tsx` `commit`.
+3. Keep views presentational; defer single-occurrence recurrence edits until after DnD foundation if needed.
 
 ---
 
-*Last updated: 2026-05-29 — through Phase 32 (Dashboard calendar centerpiece).*
+*Last updated: 2026-05-30 — through Phase 33 (Series editing).*

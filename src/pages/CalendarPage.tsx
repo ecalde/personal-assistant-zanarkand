@@ -11,6 +11,7 @@ import { CalendarToolbar } from "../components/calendar/CalendarToolbar";
 import { MonthView } from "../components/calendar/MonthView";
 import { WeekView } from "../components/calendar/WeekView";
 import { useCalendarController } from "../components/calendar/useCalendarController";
+import type { EventSeriesEditScope } from "../core/eventSeries";
 import { styles } from "../ui/appStyles";
 
 export type CalendarPageProps = {
@@ -21,6 +22,11 @@ export type CalendarPageProps = {
   workoutPlans: WorkoutPlan[];
   calendarPreferences?: CalendarColorPreferences;
   onSaveCalendarPreferences: (prefs: CalendarColorPreferences | undefined) => void;
+  onEditOccurrence?: (
+    eventId: string,
+    scope: EventSeriesEditScope,
+    splitDate: string
+  ) => void;
 };
 
 export default function CalendarPage({
@@ -31,6 +37,7 @@ export default function CalendarPage({
   workoutPlans,
   calendarPreferences,
   onSaveCalendarPreferences,
+  onEditOccurrence,
 }: CalendarPageProps) {
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
@@ -94,6 +101,18 @@ export default function CalendarPage({
             item={calendar.selectedItem}
             preferences={calendarPreferences}
             onClose={() => calendar.setSelectedItem(null)}
+            onEditEntireSeries={
+              onEditOccurrence
+                ? (eventId, occurrenceDate) =>
+                    onEditOccurrence(eventId, "entire", occurrenceDate)
+                : undefined
+            }
+            onEditThisAndFuture={
+              onEditOccurrence
+                ? (eventId, splitDate) =>
+                    onEditOccurrence(eventId, "thisAndFuture", splitDate)
+                : undefined
+            }
           />
         ) : null}
       </div>

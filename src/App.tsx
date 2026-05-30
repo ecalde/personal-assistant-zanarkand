@@ -36,11 +36,18 @@ import { isCalendarPreferencesEmpty } from "./components/calendar/calendarPrefer
 import CalendarPage from "./pages/CalendarPage";
 import CareerPage from "./pages/CareerPage";
 import DashboardPage from "./pages/DashboardPage";
-import EventsPage, { type EventFormDraft } from "./pages/EventsPage";
+import EventsPage, {
+  type EventFormDraft,
+  type EventSeriesEditIntent,
+} from "./pages/EventsPage";
 import FitnessPage from "./pages/FitnessPage";
 import ReviewPage from "./pages/ReviewPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
+import {
+  splitEventSeriesAtDate,
+  type EventSeriesEditScope,
+} from "./core/eventSeries";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
 import { formatLocal } from "./ui/format";
@@ -88,6 +95,8 @@ export default function App({ userId, onSignOut }: AppProps) {
   const [page, setPage] = useState<Page>("dashboard");
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
   const [eventDraftKey, setEventDraftKey] = useState(0);
+  const [seriesEditIntent, setSeriesEditIntent] = useState<EventSeriesEditIntent | null>(null);
+  const [seriesEditKey, setSeriesEditKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -434,6 +443,54 @@ export default function App({ userId, onSignOut }: AppProps) {
     const events = (app.payload.events ?? []).filter((event) => event.id !== eventId);
     commit({ ...app, payload: { ...app.payload, events } });
   }
+
+  function updateEventSeries(
+    scope: EventSeriesEditScope,
+    splitDate: string,
+    updated: LifeEvent
+  ) {
+    if (!app) return;
+
+    if (scope === "entire") {
+      updateEvent(updated);
+      return;
+    }
+
+    const original = (app.payload.events ?? []).find((event) => event.id === updated.id);
+    if (!original) return;
+
+    const seriesId = original.seriesId ?? id();
+    const afterEventId = id();
+    const now = new Date().toISOString();
+
+    const { beforeEvent, afterEvent } = splitEventSeriesAtDate({
+      original,
+      splitDate,
+      editedEvent: updated,
+      seriesId,
+      afterEventId,
+      nowIso: now,
+    });
+
+    const withoutOriginal = (app.payload.events ?? []).filter(
+      (event) => event.id !== original.id
+    );
+    const nextEvents = beforeEvent
+      ? [...withoutOriginal, beforeEvent, afterEvent]
+      : [...withoutOriginal, afterEvent];
+
+    commit({ ...app, payload: { ...app.payload, events: nextEvents } });
+  }
+
+  function openSeriesEdit(eventId: string, scope: EventSeriesEditScope, splitDate: string) {
+    setSeriesEditIntent({ eventId, scope, splitDate });
+    setSeriesEditKey((current) => current + 1);
+    setPage("events");
+  }
+
+  const handleSeriesEditConsumed = useCallback(() => {
+    setSeriesEditIntent(null);
+  }, []);
 
   // ---------- PEOPLE ----------
   function addPerson(
@@ -1046,6 +1103,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutPlans={app.payload.workoutPlans ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
+          onEditOccurrence={openSeriesEdit}
         />
       )}
 
@@ -1077,13 +1135,22 @@ export default function App({ userId, onSignOut }: AppProps) {
 
       {page === "events" && (
         <EventsPage
-          key={eventDraft ? `draft-${eventDraftKey}` : "events"}
+          key={
+            seriesEditIntent
+              ? `series-${seriesEditKey}`
+              : eventDraft
+                ? `draft-${eventDraftKey}`
+                : "events"
+          }
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
           initialDraft={eventDraft}
+          initialSeriesEdit={seriesEditIntent}
           onDraftConsumed={handleEventDraftConsumed}
+          onSeriesEditConsumed={handleSeriesEditConsumed}
           onAdd={addEvent}
           onUpdate={updateEvent}
+          onUpdateEventSeries={updateEventSeries}
           onDelete={deleteEvent}
         />
       )}
