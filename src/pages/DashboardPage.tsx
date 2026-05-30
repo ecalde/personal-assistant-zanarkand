@@ -31,7 +31,6 @@ import {
 } from "../core/timeline";
 import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
 import { useCalendarController } from "../components/calendar/useCalendarController";
-import { CalendarPreviewSection } from "../components/dashboard/CalendarPreviewSection";
 import { CareerActionsSection } from "../components/dashboard/CareerActionsSection";
 import { DashboardCalendarWidget } from "../components/dashboard/DashboardCalendarWidget";
 import { DashboardQuickActions } from "../components/dashboard/DashboardQuickActions";
@@ -441,18 +440,9 @@ export default function DashboardPage({
         />
       )}
 
-      {/* Deprecated (Phase 32): superseded by the dashboard calendar widget; kept for
-          the next-7-days quick scan. Planned for removal in a later phase. */}
-      <CalendarPreviewSection
-        skills={skills}
-        events={events}
-        people={people}
-        workoutSessions={workoutSessions}
-        workoutPlans={workoutPlans}
-        todayKey={today}
-        calendarPreferences={calendarPreferences}
-        onOpenCalendar={onOpenCalendar}
-      />
+      {/* CalendarPreviewSection is intentionally NOT rendered here (Phase 32 follow-up):
+          DashboardCalendarWidget is the calendar centerpiece. The preview component file
+          is retained for now but no longer mounted on the dashboard. */}
 
       {skills.length === 0 ? (
         <div style={{ opacity: 0.8 }}>
@@ -484,35 +474,35 @@ export default function DashboardPage({
       {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
 
       {isDesktop ? (
-        <div style={styles.dashboardLayout}>
-          <div style={styles.dashboardLeftRail}>
-            {dailyFocus}
-            {categoryFilters}
-            {quickActions}
-          </div>
-          <div style={styles.dashboardCenter}>
-            {todayStrip}
-            {calendarWidget}
-          </div>
-          <div style={styles.dashboardRightRail}>
-            {dailyBriefingBlock}
-            {upcomingEvents}
-            {weeklyReviewSection}
-            {careerAlerts}
-            {fitnessAlerts}
-            {peopleAlerts}
+        <div style={styles.dashboardStack}>
+          {todayStrip}
+          <div style={styles.dashboardLayout}>
+            <div style={styles.dashboardLeftRail}>
+              {dailyFocus}
+              {categoryFilters}
+              {quickActions}
+            </div>
+            <div style={styles.dashboardCenter}>{calendarWidget}</div>
+            <div style={styles.dashboardRightRail}>
+              {dailyBriefingBlock}
+              {weeklyReviewSection}
+              {upcomingEvents}
+              {careerAlerts}
+              {fitnessAlerts}
+              {peopleAlerts}
+            </div>
           </div>
         </div>
       ) : (
         <div style={styles.dashboardStack}>
           {todayStrip}
-          {dailyFocus}
           {calendarWidget}
+          {dailyFocus}
           {dailyBriefingBlock}
+          {weeklyReviewSection}
           {upcomingEvents}
           {categoryFilters}
           {quickActions}
-          {weeklyReviewSection}
           {careerAlerts}
           {fitnessAlerts}
           {peopleAlerts}
