@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CalendarItem } from "../../core/calendar";
 import {
   resolveCalendarItemColor,
@@ -18,6 +18,15 @@ export type CalendarItemDetailModalProps = {
   onEditEntireSeries?: (eventId: string, occurrenceDate: string) => void;
   /** Opens Events edit scoped to this occurrence and future. */
   onEditThisAndFuture?: (eventId: string, splitDate: string) => void;
+  /** Opens Events edit for this occurrence only. */
+  onEditThisOccurrenceOnly?: (eventId: string, occurrenceDate: string) => void;
+  onSkipOccurrence?: (eventId: string, occurrenceDate: string) => void;
+  onMoveOccurrence?: (
+    eventId: string,
+    occurrenceDate: string,
+    overrideDate: string
+  ) => void;
+  onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -29,6 +38,11 @@ function formatLongDate(dateKey: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function scheduledOccurrenceDate(item: CalendarItem): string | undefined {
+  if (item.sourceMeta.kind !== "lifeEvent") return undefined;
+  return item.sourceMeta.originalDate ?? item.sourceMeta.recurrenceDate ?? item.date;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -46,6 +60,10 @@ export function CalendarItemDetailModal({
   onClose,
   onEditEntireSeries,
   onEditThisAndFuture,
+  onEditThisOccurrenceOnly,
+  onSkipOccurrence,
+  onMoveOccurrence,
+  onDeleteOccurrencesFromDate,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColor(item, preferences);
@@ -58,15 +76,24 @@ export function CalendarItemDetailModal({
 
   const eventId =
     item.sourceMeta.kind === "lifeEvent" ? item.sourceMeta.eventId : undefined;
-  const occurrenceDate =
+  const occurrenceDate = scheduledOccurrenceDate(item);
+  const displayDate =
     item.sourceMeta.kind === "lifeEvent"
       ? (item.sourceMeta.recurrenceDate ?? item.date)
       : item.date;
 
+  const [moveTargetDate, setMoveTargetDate] = useState(displayDate);
+
   const canEditSeries =
     isRecurringOccurrence &&
     eventId &&
-    (onEditEntireSeries || onEditThisAndFuture);
+    occurrenceDate &&
+    (onEditEntireSeries ||
+      onEditThisAndFuture ||
+      onEditThisOccurrenceOnly ||
+      onSkipOccurrence ||
+      onMoveOccurrence ||
+      onDeleteOccurrencesFromDate);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -76,6 +103,33 @@ export function CalendarItemDetailModal({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  function handleSkip() {
+    if (!eventId || !occurrenceDate || !onSkipOccurrence) return;
+    if (!window.confirm(`Skip this occurrence on ${formatLongDate(displayDate)}?`)) return;
+    onSkipOccurrence(eventId, occurrenceDate);
+    onClose();
+  }
+
+  function handleDeleteFuture() {
+    if (!eventId || !occurrenceDate || !onDeleteOccurrencesFromDate) return;
+    if (
+      !window.confirm(
+        `Delete this occurrence and all future occurrences starting ${formatLongDate(displayDate)}?`
+      )
+    ) {
+      return;
+    }
+    onDeleteOccurrencesFromDate(eventId, displayDate);
+    onClose();
+  }
+
+  function handleMove() {
+    if (!eventId || !occurrenceDate || !onMoveOccurrence || !moveTargetDate) return;
+    if (moveTargetDate === displayDate) return;
+    onMoveOccurrence(eventId, occurrenceDate, moveTargetDate);
+    onClose();
+  }
 
   return (
     <div
@@ -124,30 +178,77 @@ export function CalendarItemDetailModal({
         </div>
 
         {canEditSeries ? (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {onEditEntireSeries ? (
-              <button
-                type="button"
-                style={styles.smallBtn}
-                onClick={() => {
-                  onEditEntireSeries(eventId!, occurrenceDate);
-                  onClose();
-                }}
-              >
-                Edit entire series
-              </button>
-            ) : null}
-            {onEditThisAndFuture ? (
-              <button
-                type="button"
-                style={styles.smallBtn}
-                onClick={() => {
-                  onEditThisAndFuture(eventId!, occurrenceDate);
-                  onClose();
-                }}
-              >
-                Edit this and future
-              </button>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {onEditEntireSeries ? (
+                <button
+                  type="button"
+                  style={styles.smallBtn}
+                  onClick={() => {
+                    onEditEntireSeries(eventId!, occurrenceDate!);
+                    onClose();
+                  }}
+                >
+                  Edit entire series
+                </button>
+              ) : null}
+              {onEditThisAndFuture ? (
+                <button
+                  type="button"
+                  style={styles.smallBtn}
+                  onClick={() => {
+                    onEditThisAndFuture(eventId!, displayDate);
+                    onClose();
+                  }}
+                >
+                  Edit this and future
+                </button>
+              ) : null}
+              {onEditThisOccurrenceOnly ? (
+                <button
+                  type="button"
+                  style={styles.smallBtn}
+                  onClick={() => {
+                    onEditThisOccurrenceOnly(eventId!, occurrenceDate!);
+                    onClose();
+                  }}
+                >
+                  Edit this occurrence only
+                </button>
+              ) : null}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {onSkipOccurrence ? (
+                <button type="button" style={styles.smallBtn} onClick={handleSkip}>
+                  Skip this occurrence
+                </button>
+              ) : null}
+              {onDeleteOccurrencesFromDate ? (
+                <button type="button" style={styles.smallBtn} onClick={handleDeleteFuture}>
+                  Delete this and future
+                </button>
+              ) : null}
+            </div>
+            {onMoveOccurrence ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <label style={{ ...styles.label, flex: 1, minWidth: 140 }}>
+                  Move to date
+                  <input
+                    type="date"
+                    value={moveTargetDate}
+                    onChange={(e) => setMoveTargetDate(e.target.value)}
+                    style={styles.input}
+                  />
+                </label>
+                <button
+                  type="button"
+                  style={styles.smallBtn}
+                  onClick={handleMove}
+                  disabled={!moveTargetDate || moveTargetDate === displayDate}
+                >
+                  Move
+                </button>
+              </div>
             ) : null}
           </div>
         ) : (

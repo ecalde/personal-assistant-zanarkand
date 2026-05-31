@@ -45,7 +45,14 @@ import ReviewPage from "./pages/ReviewPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SkillsPage from "./pages/SkillsPage";
 import {
+  detachOccurrenceAsOneTimeEvent,
+  moveOccurrenceAtDate,
+  skipOccurrenceAtDate,
+  truncateRecurringEventBeforeDate,
+} from "./core/eventOccurrences";
+import {
   splitEventSeriesAtDate,
+  isRecurringLifeEvent,
   type EventSeriesEditScope,
 } from "./core/eventSeries";
 import type { Page } from "./pages/types";
@@ -444,6 +451,88 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, events } });
   }
 
+  function replaceEventInPayload(eventId: string, nextEvent: LifeEvent) {
+    if (!app) return;
+
+    const events = (app.payload.events ?? []).map((event) =>
+      event.id === eventId ? nextEvent : event
+    );
+    commit({ ...app, payload: { ...app.payload, events } });
+  }
+
+  function skipEventOccurrence(eventId: string, occurrenceDate: string) {
+    if (!app) return;
+
+    const original = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!original) return;
+
+    const updated = skipOccurrenceAtDate(original, occurrenceDate, new Date().toISOString());
+    replaceEventInPayload(eventId, updated);
+  }
+
+  function moveEventOccurrence(
+    eventId: string,
+    occurrenceDate: string,
+    overrideDate: string
+  ) {
+    if (!app) return;
+
+    const original = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!original) return;
+
+    const updated = moveOccurrenceAtDate(
+      original,
+      occurrenceDate,
+      overrideDate,
+      new Date().toISOString()
+    );
+    replaceEventInPayload(eventId, updated);
+  }
+
+  function deleteEventOccurrencesFromDate(eventId: string, fromDate: string) {
+    if (!app) return;
+
+    const original = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!original) return;
+
+    const truncated = truncateRecurringEventBeforeDate(
+      original,
+      fromDate,
+      new Date().toISOString()
+    );
+    if (truncated === null) {
+      deleteEvent(eventId);
+      return;
+    }
+
+    replaceEventInPayload(eventId, truncated);
+  }
+
+  function detachEventOccurrence(
+    eventId: string,
+    occurrenceDate: string,
+    edited: LifeEvent
+  ) {
+    if (!app) return;
+
+    const original = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!original) return;
+
+    const { parentEvent, detachedEvent } = detachOccurrenceAsOneTimeEvent({
+      parent: original,
+      occurrenceDate,
+      editedEvent: edited,
+      detachedId: id(),
+      nowIso: new Date().toISOString(),
+    });
+
+    const withoutOriginal = (app.payload.events ?? []).filter((event) => event.id !== eventId);
+    commit({
+      ...app,
+      payload: { ...app.payload, events: [...withoutOriginal, parentEvent, detachedEvent] },
+    });
+  }
+
   function updateEventSeries(
     scope: EventSeriesEditScope,
     splitDate: string,
@@ -453,6 +542,11 @@ export default function App({ userId, onSignOut }: AppProps) {
 
     if (scope === "entire") {
       updateEvent(updated);
+      return;
+    }
+
+    if (scope === "thisOccurrenceOnly") {
+      detachEventOccurrence(updated.id, splitDate, updated);
       return;
     }
 
@@ -486,6 +580,32 @@ export default function App({ userId, onSignOut }: AppProps) {
     setSeriesEditIntent({ eventId, scope, splitDate });
     setSeriesEditKey((current) => current + 1);
     setPage("events");
+  }
+
+  function rescheduleLifeEvent(
+    eventId: string,
+    date: string,
+    startTime: string,
+    endTime?: string
+  ) {
+    if (!app) return;
+
+    const existing = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!existing || isRecurringLifeEvent(existing)) return;
+
+    const updated: LifeEvent = {
+      ...existing,
+      date,
+      startTime,
+      updatedAtIso: new Date().toISOString(),
+    };
+    if (endTime) {
+      updated.endTime = endTime;
+    } else {
+      delete updated.endTime;
+    }
+
+    replaceEventInPayload(eventId, updated);
   }
 
   const handleSeriesEditConsumed = useCallback(() => {
@@ -1104,6 +1224,10 @@ export default function App({ userId, onSignOut }: AppProps) {
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
           onEditOccurrence={openSeriesEdit}
+          onSkipOccurrence={skipEventOccurrence}
+          onMoveOccurrence={moveEventOccurrence}
+          onDeleteOccurrencesFromDate={deleteEventOccurrencesFromDate}
+          onRescheduleItem={rescheduleLifeEvent}
         />
       )}
 

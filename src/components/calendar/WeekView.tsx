@@ -6,8 +6,9 @@ import {
   splitDayItems,
 } from "../../core/calendarView";
 import { styles } from "../../ui/appStyles";
-import { CalendarEventBlock } from "./CalendarEventBlock";
+import { CalendarDragGhostBlock, CalendarEventBlock } from "./CalendarEventBlock";
 import { CalendarItemPill } from "./CalendarItemPill";
+import { useCalendarItemDrag } from "./useCalendarItemDrag";
 
 export type WeekViewProps = {
   anchorKey: string;
@@ -15,6 +16,12 @@ export type WeekViewProps = {
   itemsByDate: Map<string, CalendarItem[]>;
   preferences?: CalendarColorPreferences;
   onSelectItem: (item: CalendarItem) => void;
+  onRescheduleItem?: (
+    eventId: string,
+    date: string,
+    startTime: string,
+    endTime?: string
+  ) => void;
   /** Current time in minutes-from-midnight for the indicator line. */
   nowMinutes?: number;
 };
@@ -29,9 +36,16 @@ export function WeekView({
   itemsByDate,
   preferences,
   onSelectItem,
+  onRescheduleItem,
   nowMinutes,
 }: WeekViewProps) {
   const columns = buildWeekGrid(anchorKey, todayKey);
+  const columnDateKeys = columns.map((column) => column.dateKey);
+  const { getItemDragBindings, ghost } = useCalendarItemDrag({
+    columnDateKeys,
+    pixelsPerMinute: PIXELS_PER_MINUTE,
+    onRescheduleItem,
+  });
 
   return (
     <div style={styles.calendarWeekGrid}>
@@ -77,16 +91,19 @@ export function WeekView({
         ))}
       </div>
 
-      {/* Day columns with timed blocks */}
       {columns.map((column) => {
         const { timed } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
         const showNowLine = column.isToday && nowMinutes !== undefined;
+        const showGhost = ghost?.dateKey === column.dateKey;
         return (
           <div
             key={`col-${column.dateKey}`}
+            data-calendar-day-column="true"
+            data-date-key={column.dateKey}
             style={{
               ...styles.calendarWeekDayColumn,
               ...(column.isToday ? styles.calendarWeekDayColumnToday : {}),
+              position: "relative",
             }}
           >
             {HOURS.map((hour) => (
@@ -100,8 +117,19 @@ export function WeekView({
                 preferences={preferences}
                 pixelsPerMinute={PIXELS_PER_MINUTE}
                 onSelect={onSelectItem}
+                drag={getItemDragBindings(item, column.dateKey)}
               />
             ))}
+
+            {showGhost ? (
+              <CalendarDragGhostBlock
+                item={ghost.item}
+                preferences={preferences}
+                topMinutes={ghost.topMinutes}
+                durationMinutes={ghost.durationMinutes}
+                pixelsPerMinute={PIXELS_PER_MINUTE}
+              />
+            ) : null}
 
             {showNowLine ? (
               <div

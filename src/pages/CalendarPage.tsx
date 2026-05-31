@@ -27,6 +27,19 @@ export type CalendarPageProps = {
     scope: EventSeriesEditScope,
     splitDate: string
   ) => void;
+  onSkipOccurrence?: (eventId: string, occurrenceDate: string) => void;
+  onMoveOccurrence?: (
+    eventId: string,
+    occurrenceDate: string,
+    overrideDate: string
+  ) => void;
+  onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
+  onRescheduleItem?: (
+    eventId: string,
+    date: string,
+    startTime: string,
+    endTime?: string
+  ) => void;
 };
 
 export default function CalendarPage({
@@ -38,6 +51,10 @@ export default function CalendarPage({
   calendarPreferences,
   onSaveCalendarPreferences,
   onEditOccurrence,
+  onSkipOccurrence,
+  onMoveOccurrence,
+  onDeleteOccurrencesFromDate,
+  onRescheduleItem,
 }: CalendarPageProps) {
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
@@ -84,6 +101,7 @@ export default function CalendarPage({
                 itemsByDate={calendar.itemsByDate}
                 preferences={calendarPreferences}
                 onSelectItem={calendar.setSelectedItem}
+                onRescheduleItem={onRescheduleItem}
                 nowMinutes={nowMinutes}
               />
             )}
@@ -113,6 +131,15 @@ export default function CalendarPage({
                     onEditOccurrence(eventId, "thisAndFuture", splitDate)
                 : undefined
             }
+            onEditThisOccurrenceOnly={
+              onEditOccurrence
+                ? (eventId, occurrenceDate) =>
+                    onEditOccurrence(eventId, "thisOccurrenceOnly", occurrenceDate)
+                : undefined
+            }
+            onSkipOccurrence={onSkipOccurrence}
+            onMoveOccurrence={onMoveOccurrence}
+            onDeleteOccurrencesFromDate={onDeleteOccurrencesFromDate}
           />
         ) : null}
       </div>

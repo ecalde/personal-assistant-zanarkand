@@ -222,7 +222,9 @@ export default function EventsPage({
     if (initialDraft) return formFromDraft(initialDraft);
     if (initialSeriesEdit) {
       const event = events.find((entry) => entry.id === initialSeriesEdit.eventId);
-      if (event) return formFromEvent(event);
+      if (event) {
+        return { ...formFromEvent(event), date: initialSeriesEdit.splitDate };
+      }
     }
     return emptyFormState();
   });
@@ -402,7 +404,15 @@ export default function EventsPage({
           setFormError("Split date is required for this-and-future edits.");
           return;
         }
-        onUpdateEventSeries(seriesScope, seriesSplitDate, merged);
+        if (seriesScope === "thisOccurrenceOnly" && !initialSeriesEdit?.splitDate) {
+          setFormError("Occurrence date is required for this-occurrence-only edits.");
+          return;
+        }
+        const splitDate =
+          seriesScope === "thisOccurrenceOnly"
+            ? initialSeriesEdit!.splitDate
+            : seriesSplitDate;
+        onUpdateEventSeries(seriesScope, splitDate, merged);
       } else {
         onUpdate(merged);
       }
@@ -528,6 +538,17 @@ export default function EventsPage({
                   />
                   This and future
                 </label>
+                {initialSeriesEdit?.splitDate ? (
+                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name={`event-series-scope-${editingId}`}
+                      checked={seriesScope === "thisOccurrenceOnly"}
+                      onChange={() => setSeriesScope("thisOccurrenceOnly")}
+                    />
+                    This occurrence only
+                  </label>
+                ) : null}
                 {seriesScope === "thisAndFuture" ? (
                   <label style={styles.label}>
                     Split from date
@@ -542,6 +563,9 @@ export default function EventsPage({
                 <p style={{ ...styles.helpText, margin: 0 }}>
                   Entire series updates every occurrence. This and future keeps past
                   occurrences unchanged and starts a new series from the split date.
+                  {initialSeriesEdit?.splitDate
+                    ? " This occurrence only changes one date and leaves the rest of the series unchanged."
+                    : null}
                 </p>
               </fieldset>
             ) : null}

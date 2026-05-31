@@ -7,6 +7,7 @@ import {
   computeTimedItemLayout,
   formatItemTimeLabel,
 } from "../../core/calendarView";
+import type { CalendarItemDragBindings } from "./useCalendarItemDrag";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarEventBlockProps = {
@@ -15,6 +16,7 @@ export type CalendarEventBlockProps = {
   /** Pixels per minute used to position the block in the hour timeline. */
   pixelsPerMinute: number;
   onSelect: (item: CalendarItem) => void;
+  drag?: CalendarItemDragBindings;
 };
 
 /** Outlook-style timed block, absolutely positioned within a day column. */
@@ -23,16 +25,21 @@ export function CalendarEventBlock({
   preferences,
   pixelsPerMinute,
   onSelect,
+  drag,
 }: CalendarEventBlockProps) {
   const color = resolveCalendarItemColor(item, preferences);
   const layout = computeTimedItemLayout(item);
   const timeLabel = formatItemTimeLabel(item);
+  const draggable = drag?.draggable ?? false;
 
   return (
     <button
       type="button"
       onClick={() => onSelect(item)}
-      title={item.title}
+      onClickCapture={drag?.onClickCapture}
+      onPointerDown={drag?.onPointerDown}
+      title={drag?.title ?? item.title}
+      aria-grabbed={drag?.isDragging ? true : undefined}
       style={{
         ...styles.calendarTimedBlock,
         top: layout.topMinutes * pixelsPerMinute,
@@ -40,6 +47,8 @@ export function CalendarEventBlock({
         background: color.background,
         color: color.foreground,
         borderColor: color.border,
+        cursor: draggable ? "grab" : undefined,
+        opacity: drag?.isDimmed ? 0.45 : 1,
       }}
     >
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -47,5 +56,48 @@ export function CalendarEventBlock({
       </div>
       {timeLabel ? <div style={{ opacity: 0.85 }}>{timeLabel}</div> : null}
     </button>
+  );
+}
+
+export type CalendarDragGhostBlockProps = {
+  item: CalendarItem;
+  preferences?: CalendarColorPreferences;
+  topMinutes: number;
+  durationMinutes: number;
+  pixelsPerMinute: number;
+};
+
+export function CalendarDragGhostBlock({
+  item,
+  preferences,
+  topMinutes,
+  durationMinutes,
+  pixelsPerMinute,
+}: CalendarDragGhostBlockProps) {
+  const color = resolveCalendarItemColor(item, preferences);
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        ...styles.calendarTimedBlock,
+        position: "absolute",
+        left: 4,
+        right: 4,
+        pointerEvents: "none",
+        opacity: 0.85,
+        zIndex: 3,
+        top: topMinutes * pixelsPerMinute,
+        height: Math.max(16, durationMinutes * pixelsPerMinute - 2),
+        background: color.background,
+        color: color.foreground,
+        borderColor: color.border,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      }}
+    >
+      <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {item.title}
+      </div>
+    </div>
   );
 }

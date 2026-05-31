@@ -31,11 +31,11 @@ Core domains and experiences:
 | **Daily Focus** | Ranked cross-domain recommendations (not persisted; actionable CTAs) |
 | **Daily Briefing** | Deterministic narrative summary of the day (not persisted) |
 | **Weekly Review** | Monday–Sunday cross-domain recap (not persisted) |
-| **Calendar** | Unified `CalendarItem` view (month/week), category filters, read-only detail |
+| **Calendar** | Unified `CalendarItem` view (month/week), category filters, occurrence editing, week-view drag reschedule (`CalendarPage`) |
 | **Recurrence** | Pure expansion engine + event recurrence persistence + Events UI |
 | **Future AI planning** | Optional summaries, suggestions, and agentic schedule help—**only after** deterministic systems are stable (see [rules](#6-rules-for-future-phases)) |
 
-Long-term direction: calendar-centered planning, scheduled workouts, series editing, gamification, reminders, analytics, then AI insight and agentic planning—without breaking backward compatibility for stored payloads.
+Long-term direction: calendar-centered planning (including expanded drag/editing), scheduled workouts, gamification, reminders, analytics, then AI insight and agentic planning—without breaking backward compatibility for stored payloads.
 
 ---
 
@@ -68,8 +68,10 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 31 | **Calendar color settings UI** | Collapsible settings on `CalendarPage` to edit category/subcategory colors + aliases; `setCalendarPreferences` commit path; live "used by" labels. |
 | 32 | **Dashboard calendar centerpiece** | Desktop-first three-column dashboard (left do-now rail / center read-only calendar widget / right briefing rail) + mobile stack; shared `useCalendarController`; persisted dashboard view mode; `CalendarPreviewSection` deprecated. |
 | 33 | **Series editing (events)** | Entire-series and this-and-future split for recurring life events; `eventSeries.ts` + Events scope selector + interactive calendar detail modal; `seriesId` via existing columns. |
+| 34A | **Occurrence editing (events)** | Skip/move/delete-from-date/detach-this-occurrence for recurring events via `eventOccurrences.ts`; calendar modal quick actions + Events **This occurrence only** scope; no schema changes. |
+| 34B | **Calendar drag foundations** | Week-view pointer drag for one-time timed life events; `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`; no new dependencies. |
 
-**Not yet shipped** (called out in architecture): single-occurrence edit/skip, recurrence exceptions UI, calendar drag-and-drop, gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
+**Not yet shipped** (called out in architecture): exception list editor on Events form, full DnD expansion (month, resize, skills/workouts), gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
 
 ---
 
@@ -130,7 +132,10 @@ flowchart TB
 - [`calendar.ts`](../../src/core/calendar.ts) — `CalendarItem[]` for a date range (skills, expanded events, birthdays, fitness history).
 - [`calendarView.ts`](../../src/core/calendarView.ts) — month/week grids, layout, filters.
 - [`calendarColors.ts`](../../src/core/calendarColors.ts) — color/label resolution from preferences + defaults.
+- [`calendarDrag.ts`](../../src/core/calendarDrag.ts) — week-view drag snap/reschedule math (Phase 34B).
 - [`recurrence.ts`](../../src/core/recurrence.ts) — rule expansion (events; reusable for fitness later).
+- [`eventSeries.ts`](../../src/core/eventSeries.ts) — recurring life-event series splits (Phase 33).
+- [`eventOccurrences.ts`](../../src/core/eventOccurrences.ts) — skip/move/truncate/detach occurrence helpers (Phase 34A).
 - [`skillSeries.ts`](../../src/core/skillSeries.ts) — when a skill’s weekly template is active.
 
 ### Narrative / summary layers
@@ -158,27 +163,9 @@ flowchart TB
 
 Ordered backlog. Each phase should stay **scoped** (one domain or one vertical slice). Create a plan under `.cursor/plans/` before large work.
 
-### Phase 27 — Workout Scheduling Foundation
+### Phase 27–30 — Workout Scheduling ✅ (shipped)
 
-- Design how `WorkoutPlan`s become schedulable entities.
-- Decide **recurrence rule** vs **schedule-series** model (mirror skills: weekday template + bounds vs full `RecurrenceRule`).
-- Plan the relationship between **scheduled workout** (planned) and **completed `WorkoutSession`** (actual): linking, completion, missed/skipped semantics.
-- **Deliverable:** plan doc + pure helper sketches/tests only—no schema yet unless the design is frozen.
-
-### Phase 28 — Workout Scheduling Persistence
-
-- Add model fields, migration, mappers, sync, and `normalizePayload` handling for workout schedules.
-- Preserve backward compatibility for existing plans/sessions.
-
-### Phase 29 — Workout Scheduling UI
-
-- Fitness (or dedicated) UI to schedule plans: one-time, recurring, date range, indefinite.
-- Validation via pure normalizers (same pattern as skills/events).
-
-### Phase 30 — Workout Calendar Integration
-
-- Scheduled workouts appear as `CalendarItem`s (`sourceType: fitness` or dedicated subtype).
-- Dashboard preview, briefing, review, focus, and timeline consume scheduled (not only completed) workouts.
+- Schedulable `WorkoutPlan` weekday blocks + bounds; calendar `workoutScheduleBlock` items; focus/briefing/review/dashboard consume scheduled workouts.
 
 ### Phase 31 — Calendar Color Settings UI ✅ (shipped)
 
@@ -198,32 +185,42 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Pure `splitEventSeriesAtDate` in `eventSeries.ts`; `updateEventSeries` in `App.tsx`; scope selector on Events edit form; calendar detail modal actions on `CalendarPage`.
 - Shared `seriesId` on split halves; no schema changes.
 
-### Phase 34 — Drag-and-Drop Calendar Editing
+### Phase 34A — Occurrence Editing ✅ (shipped)
 
-- Move items, resize timed blocks, create items from calendar grid.
-- Mutations routed through `App.tsx` `commit`—views stay presentational.
+- Skip, move, delete-this-and-future, and edit-this-occurrence-only for recurring life events.
+- Pure `eventOccurrences.ts`; calendar modal quick actions; Events **This occurrence only** scope when opened from an occurrence.
+- Edit-this-occurrence-only = skip on parent + new one-time event; exceptions persist via existing `recurrence.exceptions`.
 
-### Phase 35 — Gamification / XP Dashboard
+### Phase 34B — Calendar Drag Foundations ✅ (shipped)
+
+- Week view pointer drag for **one-time timed life events** only; native events (no new dependencies).
+- Pure `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`.
+
+### Phase 35 — Drag-and-Drop Expansion
+
+- Resize handles, month view, skills/workouts, recurring occurrence drag flows.
+
+### Phase 36 — Gamification / XP Dashboard
 
 - Richer RPG-style levels and category axes (Mind, Body, Career, Social, Creative).
 - Quests, achievements, streaks beyond current linear XP bands.
 
-### Phase 36 — Notifications / Reminders
+### Phase 37 — Notifications / Reminders
 
 - Browser reminders for events, birthdays, workouts, focus items.
 - Respect user permission and privacy rules; no secret leakage in logs.
 
-### Phase 37 — Analytics / Trends
+### Phase 38 — Analytics / Trends
 
 - Skill minutes over time, workout duration by week, event load, career pipeline health, people follow-up health, focus feedback patterns.
 - Prefer pure aggregation helpers + read-only charts/tables.
 
-### Phase 38 — AI Insight Layer
+### Phase 39 — AI Insight Layer
 
 - Optional AI summaries, priority suggestions, reflection prompts.
 - Must consume stable derived DTOs (`DailyFocusSummary`, `WeeklyReview`, calendar range)—not raw DB rows.
 
-### Phase 39 — Agentic Planning Layer
+### Phase 40 — Agentic Planning Layer
 
 - AI proposes schedule changes, rebalancing, what to move/skip/prioritize.
 - Human-in-the-loop approval; no silent writes to `AppPayload`.
@@ -249,14 +246,13 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 6. Current next action
 
-**Current recommended next phase: [Phase 34 — Drag-and-Drop Calendar Editing](#phase-34--drag-and-drop-calendar-editing).**
+**Current recommended next phase: [Phase 35 — Drag-and-Drop Expansion](#phase-35--drag-and-drop-expansion)** or **[Phase 36 — Gamification / XP Dashboard](#phase-36--gamification--xp-dashboard)** (product priority).
 
-Before building grid interactions:
+Before expanding drag:
 
-1. Read [`CalendarPage`](../src/pages/CalendarPage.tsx) and [`useCalendarController`](../src/components/calendar/useCalendarController.ts).
-2. Decide mutation callbacks per item type (skills, events, workouts) routed through `App.tsx` `commit`.
-3. Keep views presentational; defer single-occurrence recurrence edits until after DnD foundation if needed.
+1. Decide whether Phase 35 targets resize handles + month view, or gamification first.
+2. Keep mutations routed through `App.tsx` `commit`; recurring items should continue using occurrence actions (Phase 34A).
 
 ---
 
-*Last updated: 2026-05-30 — through Phase 33 (Series editing).*
+*Last updated: 2026-05-30 — through Phase 34B (Calendar drag foundations).*

@@ -13,7 +13,7 @@ import {
   type RecurrenceRule,
 } from "./recurrence";
 
-export type EventSeriesEditScope = "entire" | "thisAndFuture";
+export type EventSeriesEditScope = "entire" | "thisAndFuture" | "thisOccurrenceOnly";
 
 export type SplitEventSeriesInput = {
   original: LifeEvent;
