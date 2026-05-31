@@ -45,6 +45,17 @@ export function useCalendarItemResize({
 }: UseCalendarItemResizeOptions) {
   const [activeResize, setActiveResize] = useState<ActiveResize | null>(null);
   const activeResizeRef = useRef<ActiveResize | null>(null);
+  const pixelsPerMinuteRef = useRef(pixelsPerMinute);
+  const onResizeItemRef = useRef(onResizeItem);
+  const isResizeActive = activeResize !== null;
+
+  useEffect(() => {
+    pixelsPerMinuteRef.current = pixelsPerMinute;
+  }, [pixelsPerMinute]);
+
+  useEffect(() => {
+    onResizeItemRef.current = onResizeItem;
+  }, [onResizeItem]);
 
   const setResize = useCallback((next: ActiveResize | null) => {
     activeResizeRef.current = next;
@@ -57,16 +68,16 @@ export function useCalendarItemResize({
 
   const commitResize = useCallback(() => {
     const resize = activeResizeRef.current;
-    if (!resize || !resize.moved || !resize.target || !onResizeItem) {
+    if (!resize || !resize.moved || !resize.target || !onResizeItemRef.current) {
       cancelResize();
       return;
     }
     const eventId = eventIdFromCalendarItem(resize.item);
     if (eventId) {
-      onResizeItem(eventId, resize.target.endTime);
+      onResizeItemRef.current(eventId, resize.target.endTime);
     }
     cancelResize();
-  }, [cancelResize, onResizeItem]);
+  }, [cancelResize]);
 
   useEffect(() => {
     if (!activeResize) return;
@@ -77,7 +88,7 @@ export function useCalendarItemResize({
 
       const deltaY = event.clientY - resize.startY;
       const moved = resize.moved || Math.abs(deltaY) >= DRAG_MOVE_THRESHOLD_PX;
-      const deltaYMinutes = minutesFromPointerDelta(deltaY, pixelsPerMinute);
+      const deltaYMinutes = minutesFromPointerDelta(deltaY, pixelsPerMinuteRef.current);
       const target = computeResizeTarget({
         item: resize.item,
         originEndMinutes: resize.originEndMinutes,
@@ -105,7 +116,7 @@ export function useCalendarItemResize({
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeResize, cancelResize, commitResize, pixelsPerMinute, setResize]);
+  }, [isResizeActive, cancelResize, commitResize, setResize]);
 
   const getResizeBindings = useCallback(
     (item: CalendarItem, dateKey: string): CalendarItemResizeBindings => {

@@ -41,6 +41,11 @@ export function CalendarEventBlock({
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
   const resizable = resize?.resizable ?? false;
+  const isDragging = drag?.isDragging ?? false;
+  const isDimmed = drag?.isDimmed ?? false;
+  const showRaised = isRaised && !isDragging && !isDimmed;
+  const baseZIndex = Math.max(resolvedLayout.zIndex, 5);
+  const blockZIndex = isDragging || isDimmed ? 100 : showRaised ? baseZIndex + 10 : baseZIndex;
 
   return (
     <button
@@ -53,7 +58,7 @@ export function CalendarEventBlock({
       onFocus={() => setIsRaised(true)}
       onBlur={() => setIsRaised(false)}
       title={drag?.title ?? item.title}
-      aria-grabbed={drag?.isDragging ? true : undefined}
+      aria-grabbed={isDragging ? true : undefined}
       style={{
         ...styles.calendarTimedBlock,
         top: resolvedLayout.topMinutes * pixelsPerMinute,
@@ -61,13 +66,14 @@ export function CalendarEventBlock({
         left: `${resolvedLayout.leftPercent}%`,
         width: `${resolvedLayout.widthPercent}%`,
         right: "auto",
-        zIndex: isRaised ? resolvedLayout.zIndex + 10 : resolvedLayout.zIndex,
+        zIndex: blockZIndex,
         background: color.background,
         color: color.foreground,
         borderColor: color.border,
-        cursor: draggable ? "grab" : undefined,
-        opacity: drag?.isDimmed ? 0.45 : 1,
-        boxShadow: isRaised ? "0 2px 8px rgba(0,0,0,0.18)" : undefined,
+        cursor: draggable ? (isDragging ? "grabbing" : "grab") : undefined,
+        touchAction: draggable ? "none" : undefined,
+        opacity: isDimmed ? 0.45 : 1,
+        boxShadow: showRaised ? "0 2px 8px rgba(0,0,0,0.18)" : undefined,
       }}
     >
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -123,7 +129,7 @@ export function CalendarDragGhostBlock({
         right: 4,
         pointerEvents: "none",
         opacity: 0.85,
-        zIndex: 3,
+        zIndex: 101,
         top: topMinutes * pixelsPerMinute,
         height: Math.max(16, durationMinutes * pixelsPerMinute - 2),
         background: color.background,

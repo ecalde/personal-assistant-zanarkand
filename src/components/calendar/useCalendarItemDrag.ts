@@ -66,6 +66,18 @@ export function useCalendarItemDrag({
 }: UseCalendarItemDragOptions) {
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const activeDragRef = useRef<ActiveDrag | null>(null);
+  const suppressClickRef = useRef(false);
+  const pixelsPerMinuteRef = useRef(pixelsPerMinute);
+  const onRescheduleItemRef = useRef(onRescheduleItem);
+  const isDragActive = activeDrag !== null;
+
+  useEffect(() => {
+    pixelsPerMinuteRef.current = pixelsPerMinute;
+  }, [pixelsPerMinute]);
+
+  useEffect(() => {
+    onRescheduleItemRef.current = onRescheduleItem;
+  }, [onRescheduleItem]);
 
   const setDrag = useCallback((next: ActiveDrag | null) => {
     activeDragRef.current = next;
@@ -73,12 +85,15 @@ export function useCalendarItemDrag({
   }, []);
 
   const cancelDrag = useCallback(() => {
+    if (activeDragRef.current?.moved) {
+      suppressClickRef.current = true;
+    }
     setDrag(null);
   }, [setDrag]);
 
   const commitDrag = useCallback(() => {
     const drag = activeDragRef.current;
-    if (!drag || !drag.moved || !drag.target || !onRescheduleItem) {
+    if (!drag || !drag.moved || !drag.target || !onRescheduleItemRef.current) {
       cancelDrag();
       return;
     }
@@ -89,14 +104,15 @@ export function useCalendarItemDrag({
       return;
     }
 
-    onRescheduleItem(
+    suppressClickRef.current = true;
+    onRescheduleItemRef.current(
       eventId,
       drag.target.dateKey,
       drag.target.startTime,
       drag.target.endTime
     );
     cancelDrag();
-  }, [cancelDrag, onRescheduleItem]);
+  }, [cancelDrag]);
 
   useEffect(() => {
     if (!activeDrag) return;
@@ -114,7 +130,7 @@ export function useCalendarItemDrag({
 
       const targetDateKey =
         resolveDateKeyFromPointer(event.clientX, event.clientY) ?? drag.originDateKey;
-      const deltaYMinutes = minutesFromPointerDelta(deltaY, pixelsPerMinute);
+      const deltaYMinutes = minutesFromPointerDelta(deltaY, pixelsPerMinuteRef.current);
       const target = computeRescheduleTarget({
         item: drag.item,
         originDateKey: drag.originDateKey,
@@ -148,7 +164,7 @@ export function useCalendarItemDrag({
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeDrag, cancelDrag, commitDrag, pixelsPerMinute, setDrag]);
+  }, [isDragActive, cancelDrag, commitDrag, setDrag]);
 
   const getItemDragBindings = useCallback(
     (item: CalendarItem, dateKey: string): CalendarItemDragBindings => {
@@ -169,6 +185,7 @@ export function useCalendarItemDrag({
             : undefined,
         onPointerDown: (event) => {
           if (!draggable || event.button !== 0) return;
+          event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
           setDrag({
             item,
@@ -182,9 +199,10 @@ export function useCalendarItemDrag({
           });
         },
         onClickCapture: (event) => {
-          if (activeDragRef.current?.moved) {
+          if (suppressClickRef.current || activeDragRef.current?.moved) {
             event.preventDefault();
             event.stopPropagation();
+            suppressClickRef.current = false;
           }
         },
       };

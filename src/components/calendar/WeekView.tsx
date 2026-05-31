@@ -159,6 +159,7 @@ export function WeekView({
                 style={{
                   ...styles.calendarNowLine,
                   top: nowMinutes! * PIXELS_PER_MINUTE,
+                  pointerEvents: "none",
                 }}
                 aria-hidden="true"
               />
