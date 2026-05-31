@@ -9,7 +9,7 @@ export const fullViewportCenter: CSSProperties = {
 };
 
 export const styles: Record<string, CSSProperties> = {
-  shell: { padding: "1.5rem", maxWidth: 980, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" },
+  shell: { padding: "1.5rem", maxWidth: 1600, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" },
   header: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 },
   title: { fontSize: 28, fontWeight: 800 },
   sub: { opacity: 0.8 },
@@ -63,28 +63,32 @@ export const styles: Record<string, CSSProperties> = {
     gap: 10,
     gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
   },
+  /** Single-column stat stack for dashboard side rails on desktop. */
+  dashboardRailStatGrid: {
+    display: "grid",
+    gap: 8,
+    gridTemplateColumns: "1fr",
+  },
   // ---------- Dashboard layout (Phase 32) ----------
   dashboardLayout: {
-    display: "flex",
+    display: "grid",
     gap: 12,
-    alignItems: "flex-start",
+    alignItems: "start",
+    gridTemplateColumns: "minmax(240px, 320px) minmax(480px, 1fr) minmax(240px, 340px)",
   },
   dashboardLeftRail: {
-    flex: "0 0 280px",
     minWidth: 0,
     display: "grid",
     gap: 12,
     alignContent: "start",
   },
   dashboardCenter: {
-    flex: "1 1 520px",
     minWidth: 0,
     display: "grid",
     gap: 12,
     alignContent: "start",
   },
   dashboardRightRail: {
-    flex: "0 0 320px",
     minWidth: 0,
     display: "grid",
     gap: 12,

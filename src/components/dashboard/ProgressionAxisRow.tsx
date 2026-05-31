@@ -8,15 +8,17 @@ import { ProgressBar } from "./ProgressBar";
 
 export type ProgressionAxisRowProps = {
   axes: Record<ProgressionAxis, LevelState>;
+  layout?: "wide" | "compact";
 };
 
-export function ProgressionAxisRow({ axes }: ProgressionAxisRowProps) {
+export function ProgressionAxisRow({ axes, layout = "wide" }: ProgressionAxisRowProps) {
   return (
     <div
       style={{
         display: "grid",
         gap: 8,
-        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+        gridTemplateColumns:
+          layout === "compact" ? "1fr" : "repeat(auto-fit, minmax(120px, 1fr))",
       }}
       aria-label="Axis levels"
     >

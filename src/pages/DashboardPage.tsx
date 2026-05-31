@@ -479,6 +479,7 @@ export default function DashboardPage({
       axes={progressionSnapshot.axes}
       xpToday={progressionSnapshot.xpToday}
       milestones={progressionSnapshot.milestones}
+      layout={isDesktop ? "compact" : "wide"}
     />
   ) : null;
 
@@ -541,49 +542,52 @@ export default function DashboardPage({
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
 
       {levelUpToast}
-      {progressionPanel}
 
       {isDesktop ? (
-        <div style={styles.dashboardStack}>
-          {todayStrip}
-          <div style={styles.dashboardLayout}>
-            <div style={styles.dashboardLeftRail}>
-              {dailyFocus}
-              {questsCard}
-              {categoryFilters}
-              {quickActions}
-            </div>
-            <div style={styles.dashboardCenter}>{calendarWidget}</div>
-            <div style={styles.dashboardRightRail}>
-              {achievementShowcase}
-              {dailyBriefingBlock}
-              {weeklyReviewSection}
-              {upcomingEvents}
-              {careerAlerts}
-              {fitnessAlerts}
-              {peopleAlerts}
-            </div>
+        <div style={styles.dashboardLayout}>
+          <div style={styles.dashboardLeftRail}>
+            {progressionPanel}
+            {dailyFocus}
+            {questsCard}
+            {categoryFilters}
+            {quickActions}
+          </div>
+          <div style={styles.dashboardCenter}>
+            {calendarWidget}
+            {detailsBand}
+          </div>
+          <div style={styles.dashboardRightRail}>
+            <TodayHero rows={rows} totalMinutesToday={todayTotalMinutes} layout="compact" />
+            {dailyBriefingBlock}
+            {weeklyReviewSection}
+            {upcomingEvents}
+            {achievementShowcase}
+            {careerAlerts}
+            {fitnessAlerts}
+            {peopleAlerts}
           </div>
         </div>
       ) : (
-        <div style={styles.dashboardStack}>
-          {todayStrip}
-          {calendarWidget}
-          {dailyFocus}
-          {questsCard}
-          {achievementShowcase}
-          {dailyBriefingBlock}
-          {weeklyReviewSection}
-          {upcomingEvents}
-          {categoryFilters}
-          {quickActions}
-          {careerAlerts}
-          {fitnessAlerts}
-          {peopleAlerts}
-        </div>
+        <>
+          {progressionPanel}
+          <div style={styles.dashboardStack}>
+            {todayStrip}
+            {calendarWidget}
+            {dailyFocus}
+            {questsCard}
+            {achievementShowcase}
+            {dailyBriefingBlock}
+            {weeklyReviewSection}
+            {upcomingEvents}
+            {categoryFilters}
+            {quickActions}
+            {careerAlerts}
+            {fitnessAlerts}
+            {peopleAlerts}
+          </div>
+          {detailsBand}
+        </>
       )}
-
-      {detailsBand}
     </div>
   );
 }

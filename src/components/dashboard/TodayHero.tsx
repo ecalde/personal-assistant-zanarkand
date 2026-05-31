@@ -6,9 +6,12 @@ import { ProgressBar } from "./ProgressBar";
 export type TodayHeroProps = {
   rows: SkillDayRow[];
   totalMinutesToday: number;
+  /** `compact` stacks stats vertically for the desktop right rail; `wide` is the full-width mobile layout. */
+  layout?: "wide" | "compact";
 };
 
-export function TodayHero({ rows, totalMinutesToday }: TodayHeroProps) {
+export function TodayHero({ rows, totalMinutesToday, layout = "wide" }: TodayHeroProps) {
+  const isCompact = layout === "compact";
   if (rows.length === 0) {
     return (
       <section style={{ ...styles.dashboardSection, marginBottom: 12 }} aria-label="Today">
@@ -29,10 +32,18 @@ export function TodayHero({ rows, totalMinutesToday }: TodayHeroProps) {
       : `Today: ${formatMinutes(totalMinutesToday)} logged (no daily targets set)`;
 
   return (
-    <section style={{ ...styles.dashboardSection, marginBottom: 12, display: "grid", gap: 12 }} aria-label="Today">
+    <section
+      style={{
+        ...styles.dashboardSection,
+        marginBottom: isCompact ? 0 : 12,
+        display: "grid",
+        gap: 12,
+      }}
+      aria-label="Today"
+    >
       <h2 style={{ fontWeight: 800, margin: 0, fontSize: 18 }}>Today</h2>
 
-      <div style={styles.dashboardGrid}>
+      <div style={isCompact ? styles.dashboardRailStatGrid : styles.dashboardGrid}>
         <div style={styles.statCard}>
           <div style={styles.statValue}>{formatMinutes(totalMinutesToday)}</div>
           <div style={styles.statLabel}>Logged today</div>

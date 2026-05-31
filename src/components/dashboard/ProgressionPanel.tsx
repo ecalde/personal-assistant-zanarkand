@@ -15,9 +15,18 @@ export type ProgressionPanelProps = {
   axes: Record<ProgressionAxis, LevelState>;
   xpToday: number;
   milestones: MilestoneHighlight[];
+  /** `compact` stacks stats vertically for the desktop left rail; `wide` is the full-width mobile layout. */
+  layout?: "wide" | "compact";
 };
 
-export function ProgressionPanel({ global, axes, xpToday, milestones }: ProgressionPanelProps) {
+export function ProgressionPanel({
+  global,
+  axes,
+  xpToday,
+  milestones,
+  layout = "wide",
+}: ProgressionPanelProps) {
+  const isCompact = layout === "compact";
   const { level, totalXp, xpIntoLevel, xpToNextLevel, streak } = global;
   const title = globalLevelTitle(level);
 
@@ -30,10 +39,24 @@ export function ProgressionPanel({ global, axes, xpToday, milestones }: Progress
 
   return (
     <section
-      style={{ ...styles.dashboardSection, marginBottom: 12, display: "grid", gap: 12 }}
+      style={{
+        ...styles.dashboardSection,
+        marginBottom: isCompact ? 0 : 12,
+        display: "grid",
+        gap: 12,
+      }}
       aria-label="Progression"
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: isCompact ? "flex-start" : "space-between",
+          alignItems: isCompact ? "flex-start" : "baseline",
+          flexDirection: isCompact ? "column" : "row",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
           <h2 style={{ fontWeight: 800, margin: "0 0 4px 0", fontSize: 18 }}>Progression</h2>
           <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>{title}</p>
@@ -52,7 +75,7 @@ export function ProgressionPanel({ global, axes, xpToday, milestones }: Progress
         </div>
       </div>
 
-      <div style={styles.dashboardGrid}>
+      <div style={isCompact ? styles.dashboardRailStatGrid : styles.dashboardGrid}>
         <div style={styles.statCard}>
           <div style={styles.statValue}>{formatXp(totalXp)}</div>
           <div style={styles.statLabel}>Total XP</div>
@@ -74,7 +97,7 @@ export function ProgressionPanel({ global, axes, xpToday, milestones }: Progress
         variant="xp"
       />
 
-      <ProgressionAxisRow axes={axes} />
+      <ProgressionAxisRow axes={axes} layout={isCompact ? "compact" : "wide"} />
 
       {nextMilestone && (
         <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>
