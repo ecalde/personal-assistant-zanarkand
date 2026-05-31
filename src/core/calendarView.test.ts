@@ -10,14 +10,18 @@ import {
   buildWeekGrid,
   computeMonthVisibleRange,
   computeTimedItemLayout,
+  computeTimedOverlapLayouts,
   computeWeekRange,
   filterItemsByHiddenCategories,
   formatHourLabel,
+  laneGeometry,
   limitDayItems,
   monthAnchorFromKey,
   shiftMonth,
   shiftWeek,
   splitDayItems,
+  timedItemsOverlapMinutes,
+  TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
 } from "./calendarView";
 import type { CalendarCategoryKey } from "./calendarColors";
 import type { LifeEvent, Skill, WeeklySchedule } from "./model";
@@ -146,6 +150,8 @@ describe("day item layout", () => {
     const layout = computeTimedItemLayout(startOnly);
     expect(layout.topMinutes).toBe(480);
     expect(layout.durationMinutes).toBeGreaterThanOrEqual(30);
+    expect(layout.laneCount).toBe(1);
+    expect(layout.widthPercent).toBe(100 - TIMED_BLOCK_HORIZONTAL_INSET_PERCENT * 2);
 
     const ranged = makeEventItem({
       id: "r",
@@ -153,7 +159,113 @@ describe("day item layout", () => {
       startTime: "09:00",
       endTime: "10:30",
     });
-    expect(computeTimedItemLayout(ranged)).toEqual({ topMinutes: 540, durationMinutes: 90 });
+    expect(computeTimedItemLayout(ranged)).toEqual({
+      topMinutes: 540,
+      durationMinutes: 90,
+      laneIndex: 0,
+      laneCount: 1,
+      leftPercent: TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
+      widthPercent: 100 - TIMED_BLOCK_HORIZONTAL_INSET_PERCENT * 2,
+      zIndex: 1,
+    });
+  });
+});
+
+describe("timed overlap layout", () => {
+  function timed(
+    id: string,
+    startTime: string,
+    endTime: string
+  ): CalendarItem {
+    return makeEventItem({ id, isTimed: true, startTime, endTime });
+  }
+
+  function layoutFor(items: CalendarItem[], id: string): ReturnType<typeof computeTimedItemLayout> {
+    const layouts = computeTimedOverlapLayouts(items);
+    const layout = layouts.get(id);
+    expect(layout).toBeDefined();
+    return layout!;
+  }
+
+  it("detects overlap with exclusive end boundaries", () => {
+    expect(timedItemsOverlapMinutes(540, 600, 600, 660)).toBe(false);
+    expect(timedItemsOverlapMinutes(540, 601, 600, 660)).toBe(true);
+  });
+
+  it("gives non-overlapping timed events full width", () => {
+    const items = [timed("a", "09:00", "10:00"), timed("b", "10:00", "11:00")];
+    const layoutA = layoutFor(items, "a");
+    const layoutB = layoutFor(items, "b");
+
+    expect(layoutA.laneCount).toBe(1);
+    expect(layoutB.laneCount).toBe(1);
+    expect(layoutA.widthPercent).toBe(100 - TIMED_BLOCK_HORIZONTAL_INSET_PERCENT * 2);
+    expect(layoutB.widthPercent).toBe(100 - TIMED_BLOCK_HORIZONTAL_INSET_PERCENT * 2);
+  });
+
+  it("splits two overlapping events into two lanes", () => {
+    const items = [timed("a", "09:00", "10:30"), timed("b", "10:00", "11:00")];
+    const layoutA = layoutFor(items, "a");
+    const layoutB = layoutFor(items, "b");
+
+    expect(layoutA.laneCount).toBe(2);
+    expect(layoutB.laneCount).toBe(2);
+    expect(layoutA.laneIndex).toBe(0);
+    expect(layoutB.laneIndex).toBe(1);
+    expect(layoutA.leftPercent).toBeLessThan(layoutB.leftPercent);
+    expect(layoutA.widthPercent + layoutB.widthPercent).toBeLessThan(100);
+  });
+
+  it("splits three overlapping events into three lanes", () => {
+    const items = [
+      timed("a", "09:00", "10:00"),
+      timed("b", "09:30", "10:30"),
+      timed("c", "09:45", "10:15"),
+    ];
+    const layouts = computeTimedOverlapLayouts(items);
+
+    expect(layouts.get("a")!.laneCount).toBe(3);
+    expect(layouts.get("b")!.laneCount).toBe(3);
+    expect(layouts.get("c")!.laneCount).toBe(3);
+    expect(new Set([...layouts.values()].map((l) => l.laneIndex))).toEqual(new Set([0, 1, 2]));
+  });
+
+  it("keeps partial overlap groups side-by-side without covering", () => {
+    const items = [
+      timed("early", "08:00", "09:00"),
+      timed("mid", "09:00", "10:00"),
+      timed("late", "09:30", "10:30"),
+    ];
+    const layoutEarly = layoutFor(items, "early");
+    const layoutMid = layoutFor(items, "mid");
+    const layoutLate = layoutFor(items, "late");
+
+    expect(layoutEarly.laneCount).toBe(1);
+    expect(layoutMid.laneCount).toBe(2);
+    expect(layoutLate.laneCount).toBe(2);
+    expect(layoutEarly.widthPercent).toBe(100 - TIMED_BLOCK_HORIZONTAL_INSET_PERCENT * 2);
+    expect(layoutMid.laneIndex).not.toBe(layoutLate.laneIndex);
+  });
+
+  it("produces deterministic layouts regardless of input order", () => {
+    const ordered = [timed("a", "09:00", "10:30"), timed("b", "10:00", "11:00")];
+    const reversed = [...ordered].reverse();
+
+    const orderedLayouts = computeTimedOverlapLayouts(ordered);
+    const reversedLayouts = computeTimedOverlapLayouts(reversed);
+
+    expect(orderedLayouts.get("a")).toEqual(reversedLayouts.get("a"));
+    expect(orderedLayouts.get("b")).toEqual(reversedLayouts.get("b"));
+  });
+
+  it("computes lane geometry with a horizontal gap between lanes", () => {
+    const single = laneGeometry(0, 1);
+    const left = laneGeometry(0, 2);
+    const right = laneGeometry(1, 2);
+
+    expect(single.widthPercent).toBeGreaterThan(left.widthPercent);
+    expect(right.leftPercent).toBeGreaterThan(left.leftPercent);
+    expect(left.widthPercent).toBe(right.widthPercent);
   });
 });
 

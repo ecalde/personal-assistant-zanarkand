@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CalendarItem } from "../../core/calendar";
 import {
   resolveCalendarItemColor,
@@ -6,6 +7,7 @@ import {
 import {
   computeTimedItemLayout,
   formatItemTimeLabel,
+  type TimedItemLayout,
 } from "../../core/calendarView";
 import type { CalendarItemDragBindings } from "./useCalendarItemDrag";
 import type { CalendarItemResizeBindings } from "./useCalendarItemResize";
@@ -16,6 +18,8 @@ export type CalendarEventBlockProps = {
   preferences?: CalendarColorPreferences;
   /** Pixels per minute used to position the block in the hour timeline. */
   pixelsPerMinute: number;
+  /** Optional precomputed overlap layout from {@link computeTimedOverlapLayouts}. */
+  layout?: TimedItemLayout;
   onSelect: (item: CalendarItem) => void;
   drag?: CalendarItemDragBindings;
   resize?: CalendarItemResizeBindings;
@@ -26,12 +30,14 @@ export function CalendarEventBlock({
   item,
   preferences,
   pixelsPerMinute,
+  layout,
   onSelect,
   drag,
   resize,
 }: CalendarEventBlockProps) {
+  const [isRaised, setIsRaised] = useState(false);
   const color = resolveCalendarItemColor(item, preferences);
-  const layout = computeTimedItemLayout(item);
+  const resolvedLayout = layout ?? computeTimedItemLayout(item);
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
   const resizable = resize?.resizable ?? false;
@@ -42,17 +48,26 @@ export function CalendarEventBlock({
       onClick={() => onSelect(item)}
       onClickCapture={drag?.onClickCapture}
       onPointerDown={drag?.onPointerDown}
+      onMouseEnter={() => setIsRaised(true)}
+      onMouseLeave={() => setIsRaised(false)}
+      onFocus={() => setIsRaised(true)}
+      onBlur={() => setIsRaised(false)}
       title={drag?.title ?? item.title}
       aria-grabbed={drag?.isDragging ? true : undefined}
       style={{
         ...styles.calendarTimedBlock,
-        top: layout.topMinutes * pixelsPerMinute,
-        height: Math.max(16, layout.durationMinutes * pixelsPerMinute - 2),
+        top: resolvedLayout.topMinutes * pixelsPerMinute,
+        height: Math.max(16, resolvedLayout.durationMinutes * pixelsPerMinute - 2),
+        left: `${resolvedLayout.leftPercent}%`,
+        width: `${resolvedLayout.widthPercent}%`,
+        right: "auto",
+        zIndex: isRaised ? resolvedLayout.zIndex + 10 : resolvedLayout.zIndex,
         background: color.background,
         color: color.foreground,
         borderColor: color.border,
         cursor: draggable ? "grab" : undefined,
         opacity: drag?.isDimmed ? 0.45 : 1,
+        boxShadow: isRaised ? "0 2px 8px rgba(0,0,0,0.18)" : undefined,
       }}
     >
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

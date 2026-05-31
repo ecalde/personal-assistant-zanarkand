@@ -2,6 +2,7 @@ import type { CalendarItem } from "../../core/calendar";
 import type { CalendarColorPreferences } from "../../core/calendarColors";
 import {
   buildWeekGrid,
+  computeTimedOverlapLayouts,
   formatHourLabel,
   splitDayItems,
 } from "../../core/calendarView";
@@ -101,6 +102,7 @@ export function WeekView({
 
       {columns.map((column) => {
         const { timed } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
+        const overlapLayouts = computeTimedOverlapLayouts(timed);
         const showNowLine = column.isToday && nowMinutes !== undefined;
         const showGhost = ghost?.dateKey === column.dateKey;
         const showResizeGhost = resizeGhost?.dateKey === column.dateKey;
@@ -123,6 +125,7 @@ export function WeekView({
               <CalendarEventBlock
                 key={item.id}
                 item={item}
+                layout={overlapLayouts.get(item.id)}
                 preferences={preferences}
                 pixelsPerMinute={PIXELS_PER_MINUTE}
                 onSelect={onSelectItem}
