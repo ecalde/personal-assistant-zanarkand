@@ -58,9 +58,6 @@ export function CalendarCategorySidebar({
           </button>
         );
       })}
-      <p style={{ ...styles.helpText, marginTop: 4 }}>
-        Toggling only changes what is shown. Nothing is saved.
-      </p>
     </aside>
   );
 }

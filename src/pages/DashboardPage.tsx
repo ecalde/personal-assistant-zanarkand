@@ -549,10 +549,10 @@ export default function DashboardPage({
             {progressionPanel}
             {dailyFocus}
             {questsCard}
-            {categoryFilters}
             {quickActions}
           </div>
           <div style={styles.dashboardCenter}>
+            {categoryFilters}
             {calendarWidget}
             {detailsBand}
           </div>
@@ -572,6 +572,7 @@ export default function DashboardPage({
           {progressionPanel}
           <div style={styles.dashboardStack}>
             {todayStrip}
+            {categoryFilters}
             {calendarWidget}
             {dailyFocus}
             {questsCard}
@@ -579,7 +580,6 @@ export default function DashboardPage({
             {dailyBriefingBlock}
             {weeklyReviewSection}
             {upcomingEvents}
-            {categoryFilters}
             {quickActions}
             {careerAlerts}
             {fitnessAlerts}
