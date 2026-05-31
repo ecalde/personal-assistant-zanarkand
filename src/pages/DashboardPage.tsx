@@ -410,6 +410,7 @@ export default function DashboardPage({
       hiddenCategories={calendar.hiddenCategories}
       onToggleCategory={calendar.toggleCategory}
       preferences={calendarPreferences}
+      layout="horizontal"
     />
   );
 
