@@ -44,6 +44,7 @@ import EventsPage, {
 import FitnessPage from "./pages/FitnessPage";
 import ReviewPage from "./pages/ReviewPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
+import SettingsPage from "./pages/SettingsPage";
 import SkillsPage from "./pages/SkillsPage";
 import {
   detachOccurrenceAsOneTimeEvent,
@@ -63,6 +64,7 @@ import type {
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
 import { formatLocal } from "./ui/format";
+import { useAppearanceTheme } from "./ui/useAppearanceTheme";
 
 const REMOTE_DEBOUNCE_MS = 400;
 
@@ -104,6 +106,7 @@ export default function App({ userId, onSignOut }: AppProps) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncPending, setSyncPending] = useState(false);
 
+  const appearance = useAppearanceTheme();
   const [page, setPage] = useState<Page>("dashboard");
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
   const [eventDraftKey, setEventDraftKey] = useState(0);
@@ -1449,6 +1452,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           onDeleteSession={deleteWorkoutSession}
         />
       )}
+
+      {page === "settings" && <SettingsPage appearance={appearance} />}
     </AppShell>
   );
 }

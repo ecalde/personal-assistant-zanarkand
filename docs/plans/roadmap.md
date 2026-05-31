@@ -72,6 +72,7 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 34B | **Calendar drag foundations** | Week-view pointer drag for one-time timed life events; `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`; no new dependencies. |
 | 35 | **Gamification / XP dashboard** | RPG-style progression (global / axis / per-skill levels, achievements, quests) on pure engines; `GamificationState` ack singleton; dashboard progression surfaces. |
 | 36 | **Calendar drag expansion** | Month-view date drag, week-view resize (end edge), click empty month day → Events draft, and an ephemeral undo snackbar; extended pure `calendarDrag.ts` helpers; `moveLifeEventDate` / `resizeLifeEvent` / `openCalendarEventDraft` / `applyCalendarEventUndo` in `App.tsx`; dashboard calendar stays read-only; no schema or dependency changes. Recurring-occurrence drag (36.1) and skill/workout drag (36.2) deferred. |
+| 37A | **Settings page foundation / Aether Profiles** | New Settings tab; dark fantasy-futuristic Settings UI (sidebar + Appearance section, others "Coming Soon"); six **Aether Profiles** (Azure default / Emerald / Violet / Crimson / Amber / Obsidian); accent intensity (Soft/Balanced/Vibrant); interface-effect toggles; live preview; future-systems cards. Pure token system `theme.ts` (CSS `--aether-*` variables) with tests; preferences persisted to **`localStorage`** (`pa.appearance.v1`, no Supabase migration); CSS variables applied globally on `:root` for gradual adoption while existing pages stay unchanged. No new dependencies, no AI/notification/account behavior. |
 
 **Not yet shipped** (called out in architecture): exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), dashboard customization, notifications, analytics, AI layers.
 
@@ -213,6 +214,15 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - `App.tsx` adds `moveLifeEventDate`, `resizeLifeEvent`, `openCalendarEventDraft`, `applyCalendarEventUndo` (returns undo payloads; stays orchestration-only). Dashboard calendar remains read-only.
 - **Deferred:** recurring-occurrence drag + scope picker (Phase 36.1), week click-drag create-selection bands, skill/workout schedule drag (Phase 36.2).
 
+### Phase 37A — Settings Page Foundation / Aether Profiles ✅ (shipped)
+
+- New **Settings** nav tab and page in the fantasy-futuristic / holographic art direction (deep navy, cyan/teal accents, soft glassmorphism, thin glowing borders) as a **self-contained** surface — the rest of the app (currently light-themed) is intentionally unchanged.
+- Left category sidebar: **Appearance** active; **Notifications / Calendar / Skills / Data & Backup / Privacy / Advanced** marked **Coming Soon**.
+- **Aether Profiles** theme system: six crystal profiles (Azure default, Emerald, Violet, Crimson, Amber, Obsidian) + **Accent Intensity** (Soft/Balanced/Vibrant) + **Interface Effects** toggles (Ambient Particles, Animated Borders, Magical Energy Trails, Floating Runes) + **Live Preview** + inactive **Future Systems** cards.
+- **Token architecture**: pure, tested [`theme.ts`](../../src/core/theme.ts) resolves profile + intensity into `ThemeTokens` exposed as `--aether-*` CSS variables (accent, secondary, glow, panel border/glow, progress gradient, button glow). `useAppearanceTheme` applies them on `:root` so existing components can adopt `var(--aether-*)` gradually; the Settings page consumes them immediately.
+- **Persistence decision**: preferences stored in **`localStorage`** (`pa.appearance.v1`) — a per-device UI preference like the dashboard view mode. **No Supabase migration** and no change to calendar preferences. **Future cloud sync:** an `appearance_preferences` singleton mirroring `calendar_preferences` could follow users across devices (normalization already guards the shape, so it is non-breaking).
+- Mobile: sidebar becomes a horizontal strip and panels stack (`useIsDesktopViewport`); dashboard mobile behavior untouched. Accessibility: radio/switch roles, non-color selected indicator, `prefers-reduced-motion` respected. No new dependencies; no AI/notification/account behavior.
+
 ### Phase 37 — Notifications / Reminders
 
 - Browser reminders for events, birthdays, workouts, focus items.
@@ -263,4 +273,4 @@ Before the next drag slice (Phase 36.1 recurring-occurrence drag):
 
 ---
 
-*Last updated: 2026-05-31 — through Phase 36 (Calendar drag expansion: month drag, week resize, create draft, undo).*
+*Last updated: 2026-05-31 — through Phase 37A (Settings page foundation / Aether Profiles theme customization).*

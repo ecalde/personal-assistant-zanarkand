@@ -62,8 +62,9 @@ src/
     calendarDrag.ts     # Week-view drag snap/reschedule math (Phase 34B)
     skillSeries.ts      # Pure skill schedule-series bounds — active-date filtering
   lib/                  # Supabase client (VITE_* env only)
-  pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review)
+  pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review, Settings)
     DashboardPage.tsx   # Composes dashboard sections from props
+    SettingsPage.tsx    # Settings foundation — Aether Profiles theme customization (local)
     CalendarPage.tsx    # Outlook-style month/week calendar (occurrence edits + week-view drag on CalendarPage)
     ReviewPage.tsx      # Full weekly review breakdown (read-only)
     EventsPage.tsx      # Life events CRUD
@@ -78,6 +79,7 @@ src/
     career/             # Career page forms, cards, skill picker
     fitness/            # Fitness page forms, cards, exercise editor
     skills/             # SkillEditor, GoalInput
+    settings/           # Settings UI — sidebar, Aether profile cards, preview, intensity, effects, styles
   ui/                   # Shared styles and display helpers
 ```
 
@@ -276,6 +278,18 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 - Deleting a plan clears `planId` on linked sessions in the same `commit` (mirrors person unlink on events).
 - Future phases (not implemented): calorie tracker, supplement tracker, biweekly/monthly `RecurrenceRule` on plans, series exception UI, PR analytics.
 
+### Settings page / Aether Profiles (theme foundation)
+
+The Settings page is the foundation for future settings categories and ships **local theme customization only** — no Supabase schema, no AI/notification/account behavior. It introduces the **fantasy-futuristic / holographic** art direction (deep navy base, thin glowing accent borders, soft glassmorphism) as a **self-contained** surface; the rest of the app (currently light-themed) is intentionally left unchanged this phase.
+
+- **Pure theme tokens** ([`theme.ts`](../src/core/theme.ts), tested in [`theme.test.ts`](../src/core/theme.test.ts)): dependency-free, total functions that never throw or mutate. Defines `AetherProfileId` (six profiles: `azure` default, `emerald`, `violet`, `crimson`, `amber`, `obsidian`), `AccentIntensity` (`soft` | `balanced` | `vibrant`), `InterfaceEffectKey` (`ambientParticles`, `animatedBorders`, `energyTrails`, `floatingRunes`), and `AppearancePreferences`. `normalizeAppearancePreferences` coerces untrusted/legacy input back to a valid shape (unknown profile/intensity → defaults, per-key effect flags, unknown keys dropped). `resolveThemeTokens` derives ready-to-apply `ThemeTokens` (accent, secondary, soft fill, shared navy background, panel border/glow, button glow, progress gradient, text colors) — the shared deep-navy base is constant across profiles; only accents/glow change, with glow strength scaled by intensity. `themeTokensToCssVars` maps tokens to the `--aether-*` CSS custom properties.
+- **Persistence** ([`appearanceStorage.ts`](../src/core/appearanceStorage.ts)): appearance is a per-device UI preference (like the dashboard calendar view mode), so it is stored in **`localStorage`** under `pa.appearance.v1` — **not** in the user-scoped synced `AppPayload` and with **no Supabase migration**. Reads normalize through `theme.ts`, so corrupt/legacy values fall back to defaults. **Future cloud sync:** an `appearance_preferences` singleton (mirroring `calendar_preferences`) could follow a user across devices; because normalization already guards the shape, adopting it later is non-breaking.
+- **React glue** ([`useAppearanceTheme.ts`](../src/ui/useAppearanceTheme.ts)): loads preferences, resolves tokens, and applies them as **global CSS variables on `:root`** (`--aether-*`) plus `data-aether-profile` / `data-aether-intensity` attributes. Setting global variables is safe today because existing (light) dashboard/calendar styles do not yet reference them — the Settings page consumes them immediately, and other surfaces can adopt `var(--aether-*)` gradually **without a theme rewrite**. The hook is called once in [`App.tsx`](../src/App.tsx) (orchestration-only) and passed to `SettingsPage`.
+- **UI** ([`SettingsPage.tsx`](../src/pages/SettingsPage.tsx) + [`components/settings/`](../src/components/settings/)): left category sidebar (`SettingsSidebar` — Appearance active; Notifications, Calendar, Skills, Data & Backup, Privacy, Advanced marked **Coming Soon** / disabled), header (“Settings” / “Customize your personal assistant experience.”), **Aether Profiles** crystal-card grid (`AetherProfileGrid`), **Live Preview** (`ThemePreviewCard` — sample event, XP/progress bar, buttons, widget; consumes resolved tokens directly so it updates instantly), **Accent Intensity** segmented control, **Interface Effects** fantasy toggles (`InterfaceEffectsToggles`), and an inactive **Future Systems** grid (`FutureSystemsSection`). Icons are inline SVG glyphs ([`SettingsGlyph.tsx`](../src/components/settings/SettingsGlyph.tsx)) — **no new icon dependency**. Dark-fantasy styling lives in [`settingsStyles.ts`](../src/components/settings/settingsStyles.ts) (CSS-variable values with literal fallbacks).
+- **Mobile**: the sidebar becomes a horizontal scroll strip below the desktop breakpoint (`useIsDesktopViewport`, ≥1024px); panels stack. The existing dashboard mobile behavior is untouched.
+- **Accessibility**: profile/intensity use `role="radiogroup"`/`radio` with `aria-checked`; effects use `role="switch"`; the selected profile shows a non-color ✓ badge + “Active” label; disabled categories use `aria-disabled`; effect animations respect `prefers-reduced-motion: reduce`.
+- **Constraints honored**: no new dependencies, no Supabase schema change, no change to calendar preferences or unrelated pages, and no AI/notification/account behavior.
+
 ## Data flow
 
 ```mermaid
@@ -299,7 +313,7 @@ sequenceDiagram
 
 ## Navigation
 
-Internal tab state only (`useState<Page>` in `App`); no React Router yet. `AppShell` renders nav buttons (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review); `App` switches page children inside `<main>`.
+Internal tab state only (`useState<Page>` in `App`); no React Router yet. `AppShell` renders nav buttons (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review, Settings); `App` switches page children inside `<main>`.
 
 To add a section later: extend `Page` in [`src/pages/types.ts`](../src/pages/types.ts), add a page component, wire nav in `AppShell`, and add mutations in `App` that use `commit`.
 
@@ -337,5 +351,5 @@ No Vite config or `React.lazy` changes in the current phase; revisit when adding
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`, `skillSeries.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`, `skillSeries.test.ts`, `theme.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes
