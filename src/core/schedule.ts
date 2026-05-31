@@ -19,6 +19,16 @@ export function parseHHMMToMinutes(hhmm: string): number {
   return hh * 60 + mm;
 }
 
+/** Display label for stored HH:MM values, e.g. 19:15 → "7:15pm". */
+export function formatHHMMToDisplayTime(hhmm: string): string {
+  const minutes = parseHHMMToMinutes(hhmm);
+  const hours24 = Math.floor(minutes / 60) % 24;
+  const mins = minutes % 60;
+  const period = hours24 < 12 ? "am" : "pm";
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${hours12}:${String(mins).padStart(2, "0")}${period}`;
+}
+
 export function addMinutesToHHMM(hhmm: string, add: number): string {
   const start = parseHHMMToMinutes(hhmm);
   const end = Math.max(0, start + add);

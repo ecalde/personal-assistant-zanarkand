@@ -6,7 +6,7 @@
 import type { CalendarItem } from "./calendar";
 import { calendarTimeSortTier } from "./calendar";
 import type { CalendarCategoryKey } from "./calendarColors";
-import { parseHHMMToMinutes } from "./schedule";
+import { formatHHMMToDisplayTime, parseHHMMToMinutes } from "./schedule";
 import { formatLocalDateKey } from "./timeline";
 
 export type CalendarViewMode = "month" | "week";
@@ -450,8 +450,9 @@ export function formatHourLabel(hour: number): string {
 
 export function formatItemTimeLabel(item: CalendarItem): string | undefined {
   if (!item.isTimed || !item.startTime) return undefined;
-  if (item.endTime) return `${item.startTime} – ${item.endTime}`;
-  return item.startTime;
+  const start = formatHHMMToDisplayTime(item.startTime);
+  if (item.endTime) return `${start} – ${formatHHMMToDisplayTime(item.endTime)}`;
+  return start;
 }
 
 /** Stable display label for a calendar source type (for the read-only detail). */

@@ -452,13 +452,15 @@ export const styles: Record<string, CSSProperties> = {
     minHeight: 24,
   },
   calendarTimeGutterCell: {
+    boxSizing: "border-box",
     fontSize: 10,
     opacity: 0.6,
     textAlign: "right",
     paddingRight: 6,
+    paddingTop: 2,
+    lineHeight: 1,
     height: 48,
     borderTop: "1px solid #f4f4f4",
-    transform: "translateY(-6px)",
   },
   calendarWeekDayColumn: {
     position: "relative",
@@ -468,6 +470,7 @@ export const styles: Record<string, CSSProperties> = {
     background: "#f8fbfe",
   },
   calendarHourLine: {
+    boxSizing: "border-box",
     height: 48,
     borderTop: "1px solid #f4f4f4",
   },
@@ -475,6 +478,7 @@ export const styles: Record<string, CSSProperties> = {
     position: "absolute",
     left: 2,
     right: 2,
+    margin: 0,
     borderRadius: 6,
     border: "1px solid transparent",
     padding: "2px 5px",
@@ -483,6 +487,7 @@ export const styles: Record<string, CSSProperties> = {
     overflow: "hidden",
     cursor: "pointer",
     boxSizing: "border-box",
+    appearance: "none",
   },
   calendarNowLine: {
     position: "absolute",

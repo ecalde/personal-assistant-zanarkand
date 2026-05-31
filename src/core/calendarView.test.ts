@@ -14,6 +14,7 @@ import {
   computeWeekRange,
   filterItemsByHiddenCategories,
   formatHourLabel,
+  formatItemTimeLabel,
   laneGeometry,
   limitDayItems,
   monthAnchorFromKey,
@@ -276,6 +277,27 @@ describe("labels", () => {
     expect(formatHourLabel(12)).toBe("12 PM");
     expect(formatHourLabel(13)).toBe("1 PM");
     expect(formatHourLabel(23)).toBe("11 PM");
+  });
+
+  it("formats item time labels in 12-hour clock", () => {
+    expect(
+      formatItemTimeLabel(
+        makeEventItem({ id: "e1", isTimed: true, startTime: "19:15", endTime: "22:00" })
+      )
+    ).toBe("7:15pm – 10:00pm");
+    expect(
+      formatItemTimeLabel(
+        makeEventItem({ id: "e2", isTimed: true, startTime: "06:00", endTime: "06:10" })
+      )
+    ).toBe("6:00am – 6:10am");
+    expect(
+      formatItemTimeLabel(
+        makeEventItem({ id: "e3", isTimed: true, startTime: "12:00", endTime: "13:00" })
+      )
+    ).toBe("12:00pm – 1:00pm");
+    expect(
+      formatItemTimeLabel(makeEventItem({ id: "e4", isTimed: true, startTime: "00:30" }))
+    ).toBe("12:30am");
   });
 });
 
