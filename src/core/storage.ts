@@ -3,6 +3,7 @@
 import type { AppPayload } from "./model";
 import { sanitizeEventReferences } from "./events";
 import { sanitizeSkillReferences } from "./sessions";
+import { normalizeGamificationState } from "./progressionModel";
 import { defaultPayload } from "./state";
 
 export type AppData = {
@@ -63,6 +64,7 @@ export function normalizePayload(payload: unknown): AppPayload {
             !Array.isArray(p.calendarPreferences)
                 ? (p.calendarPreferences as AppPayload["calendarPreferences"])
                 : undefined,
+        gamificationState: normalizeGamificationState(p.gamificationState),
     };
 
     return sanitizeEventReferences(sanitizeSkillReferences(normalized));

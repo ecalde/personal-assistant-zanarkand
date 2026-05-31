@@ -9,6 +9,7 @@ import {
   calendarPreferencesToRow,
   careerTargetToRow,
   eventToRow,
+  gamificationStateToRow,
   isUuid,
   jobApplicationToRow,
   overrideToRow,
@@ -21,6 +22,7 @@ import {
   workoutSessionToRow,
   validatePayloadForUpload,
   type CalendarPreferencesRow,
+  type GamificationStateRow,
   type CareerTargetRow,
   type EventRow,
   type JobApplicationRow,
@@ -44,7 +46,8 @@ type AppTable =
   | "workout_plans"
   | "workout_sessions"
   | "focus_feedback"
-  | "calendar_preferences";
+  | "calendar_preferences"
+  | "gamification_state";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -225,10 +228,31 @@ async function replaceCalendarPreferences(
   throwOnSupabaseError(error, "calendar_preferences");
 }
 
+// gamification_state is a user_id-keyed singleton (no id column): upsert the
+// single row when present, otherwise delete the user's row.
+async function replaceGamificationState(
+  userId: string,
+  row: GamificationStateRow | null
+): Promise<void> {
+  if (row) {
+    const { error } = await supabase
+      .from("gamification_state")
+      .upsert(row, { onConflict: "user_id" });
+    throwOnSupabaseError(error, "gamification_state");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("gamification_state")
+    .delete()
+    .eq("user_id", userId);
+  throwOnSupabaseError(error, "gamification_state");
+}
+
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, focusFeedbackResult, calendarPreferencesResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -241,6 +265,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("workout_sessions").select("*").eq("user_id", userId),
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
     supabase.from("calendar_preferences").select("*").eq("user_id", userId),
+    supabase.from("gamification_state").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -254,6 +279,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(workoutSessionsResult.error, "workout_sessions");
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
   throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
+  throwOnSupabaseError(gamificationStateResult.error, "gamification_state");
 
   try {
     return payloadFromRows(
@@ -267,7 +293,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<WorkoutPlanRow>(workoutPlansResult.data),
       asRows<WorkoutSessionRow>(workoutSessionsResult.data),
       asRows<FocusFeedbackRow>(focusFeedbackResult.data),
-      asRows<CalendarPreferencesRow>(calendarPreferencesResult.data)
+      asRows<CalendarPreferencesRow>(calendarPreferencesResult.data),
+      asRows<GamificationStateRow>(gamificationStateResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -306,6 +333,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const calendarPreferencesRow = payload.calendarPreferences
     ? calendarPreferencesToRow(payload.calendarPreferences, userId)
     : null;
+  const gamificationStateRow = payload.gamificationState
+    ? gamificationStateToRow(payload.gamificationState, userId)
+    : null;
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
@@ -341,6 +371,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
 
   await replaceCalendarPreferences(userId, calendarPreferencesRow);
+  await replaceGamificationState(userId, gamificationStateRow);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -355,7 +386,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.workoutPlans.length > 0 ||
     payload.workoutSessions.length > 0 ||
     payload.focusFeedback.length > 0 ||
-    payload.calendarPreferences !== undefined
+    payload.calendarPreferences !== undefined ||
+    payload.gamificationState !== undefined
   );
 }
 

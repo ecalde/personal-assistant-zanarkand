@@ -17,7 +17,8 @@ import {
   buildTimelineItems,
   totalMinutesToday,
 } from "../core/dashboardStats";
-import { buildGlobalProgression, buildSkillProgressions } from "../core/progression";
+import { buildSkillProgressions } from "../core/progression";
+import { buildProgressionSnapshot } from "../core/progressionSnapshot";
 import { buildWeeklyReview } from "../core/review";
 import { buildUpcomingEventItems } from "../core/events";
 import {
@@ -40,7 +41,10 @@ import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySec
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
-import { ProgressionHero } from "../components/dashboard/ProgressionHero";
+import { ProgressionPanel } from "../components/dashboard/ProgressionPanel";
+import { ActiveQuestsCard } from "../components/dashboard/ActiveQuestsCard";
+import { AchievementShowcase } from "../components/dashboard/AchievementShowcase";
+import { LevelUpToast } from "../components/dashboard/LevelUpToast";
 import { SkillProgressSection } from "../components/dashboard/SkillProgressSection";
 import { TimelineSection } from "../components/dashboard/TimelineSection";
 import {
@@ -52,9 +56,11 @@ import { WeeklyPreviewSection } from "../components/dashboard/WeeklyPreviewSecti
 import { WeeklyReviewSection } from "../components/dashboard/WeeklyReviewSection";
 import { useIsDesktopViewport } from "../ui/useMediaQuery";
 import type {
+  AppPayload,
   CalendarColorPreferences,
   CareerTarget,
   FocusFeedback,
+  GamificationState,
   JobApplication,
   LifeEvent,
   Person,
@@ -102,6 +108,9 @@ export type DashboardPageProps = {
   onOpenReview?: () => void;
   onOpenCalendar?: () => void;
   calendarPreferences?: CalendarColorPreferences;
+  gamificationState?: GamificationState;
+  onAcknowledgeGlobalLevel?: (level: number) => void;
+  onDismissAchievement?: (definitionId: string) => void;
 };
 
 export default function DashboardPage({
@@ -128,6 +137,9 @@ export default function DashboardPage({
   onOpenReview,
   onOpenCalendar,
   calendarPreferences,
+  gamificationState,
+  onAcknowledgeGlobalLevel,
+  onDismissAchievement,
 }: DashboardPageProps) {
   const today = formatLocalDateKey(new Date());
   const isDesktop = useIsDesktopViewport();
@@ -178,10 +190,33 @@ export default function DashboardPage({
     return map;
   }, [legacyTimelineItems]);
 
-  const globalProgression = useMemo(
-    () => buildGlobalProgression(skills, sessions),
-    [skills, sessions]
-  );
+  const progressionSnapshot = useMemo(() => {
+    const payload: AppPayload = {
+      skills,
+      sessions,
+      overrides: [],
+      events,
+      people,
+      jobApplications,
+      careerTarget,
+      workoutPlans,
+      workoutSessions,
+      focusFeedback,
+      gamificationState,
+    };
+    return buildProgressionSnapshot(payload, gamificationState);
+  }, [
+    skills,
+    sessions,
+    events,
+    people,
+    jobApplications,
+    careerTarget,
+    workoutPlans,
+    workoutSessions,
+    focusFeedback,
+    gamificationState,
+  ]);
 
   const progressionsBySkillId = useMemo(() => {
     const progressions = buildSkillProgressions(skills, sessions);
@@ -429,6 +464,40 @@ export default function DashboardPage({
     />
   );
 
+  const showProgression =
+    skills.length > 0 || progressionSnapshot.global.totalXp > 0;
+
+  const pendingLevelUp = progressionSnapshot.pendingLevelUps[0];
+  const levelUpToast =
+    pendingLevelUp && onAcknowledgeGlobalLevel ? (
+      <LevelUpToast notification={pendingLevelUp} onAcknowledge={onAcknowledgeGlobalLevel} />
+    ) : null;
+
+  const progressionPanel = showProgression ? (
+    <ProgressionPanel
+      global={progressionSnapshot.global}
+      axes={progressionSnapshot.axes}
+      xpToday={progressionSnapshot.xpToday}
+      milestones={progressionSnapshot.milestones}
+    />
+  ) : null;
+
+  const questsCard = showProgression ? (
+    <ActiveQuestsCard
+      daily={progressionSnapshot.quests.daily}
+      weekly={progressionSnapshot.quests.weekly}
+    />
+  ) : null;
+
+  const achievementShowcase = showProgression ? (
+    <AchievementShowcase
+      unlocked={progressionSnapshot.achievements.unlocked}
+      newlyUnlocked={progressionSnapshot.achievements.newlyUnlocked}
+      inProgress={progressionSnapshot.achievements.inProgress}
+      onDismissAchievement={onDismissAchievement}
+    />
+  ) : null;
+
   const detailsBand = (
     <div style={styles.dashboardDetails}>
       {USE_UNIFIED_TIMELINE && (
@@ -471,7 +540,8 @@ export default function DashboardPage({
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
 
-      {skills.length > 0 && <ProgressionHero progression={globalProgression} />}
+      {levelUpToast}
+      {progressionPanel}
 
       {isDesktop ? (
         <div style={styles.dashboardStack}>
@@ -479,11 +549,13 @@ export default function DashboardPage({
           <div style={styles.dashboardLayout}>
             <div style={styles.dashboardLeftRail}>
               {dailyFocus}
+              {questsCard}
               {categoryFilters}
               {quickActions}
             </div>
             <div style={styles.dashboardCenter}>{calendarWidget}</div>
             <div style={styles.dashboardRightRail}>
+              {achievementShowcase}
               {dailyBriefingBlock}
               {weeklyReviewSection}
               {upcomingEvents}
@@ -498,6 +570,8 @@ export default function DashboardPage({
           {todayStrip}
           {calendarWidget}
           {dailyFocus}
+          {questsCard}
+          {achievementShowcase}
           {dailyBriefingBlock}
           {weeklyReviewSection}
           {upcomingEvents}

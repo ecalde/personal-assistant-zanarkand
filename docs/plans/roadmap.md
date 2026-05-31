@@ -71,7 +71,7 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 34A | **Occurrence editing (events)** | Skip/move/delete-from-date/detach-this-occurrence for recurring events via `eventOccurrences.ts`; calendar modal quick actions + Events **This occurrence only** scope; no schema changes. |
 | 34B | **Calendar drag foundations** | Week-view pointer drag for one-time timed life events; `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`; no new dependencies. |
 
-**Not yet shipped** (called out in architecture): exception list editor on Events form, full DnD expansion (month, resize, skills/workouts), gamification redesign / XP dashboard, dashboard customization, notifications, analytics, AI layers.
+**Not yet shipped** (called out in architecture): exception list editor on Events form, full DnD expansion (month, resize, skills/workouts), dashboard customization, notifications, analytics, AI layers. (Gamification / XP dashboard shipped in Phase 35.)
 
 ---
 
@@ -177,7 +177,7 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Calendar-centered dashboard: desktop-first three columns (left do-now rail / center read-only calendar widget / right briefing rail) with a stacked mobile fallback.
 - Left rail: Daily Focus → category filters → quick actions. Right rail: briefing → upcoming → weekly review → career/fitness/people alerts.
 - Shared `useCalendarController` between `CalendarPage` and `DashboardCalendarWidget`; persisted dashboard month/week view mode (localStorage, not synced).
-- `ProgressionHero` left unchanged (XP integration deferred to the gamification phase); `CalendarPreviewSection` deprecated and slated for later removal.
+- `ProgressionHero` left unchanged at the time (XP integration deferred to the gamification phase); replaced by `ProgressionPanel` in Phase 35. `CalendarPreviewSection` deprecated and slated for later removal.
 
 ### Phase 33 — Series Editing ✅ (shipped)
 
@@ -196,14 +196,17 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Week view pointer drag for **one-time timed life events** only; native events (no new dependencies).
 - Pure `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`.
 
-### Phase 35 — Drag-and-Drop Expansion
+### Phase 35 — Gamification / XP Dashboard ✅ (shipped)
+
+- RPG-style progression on top of existing domain data: global, five axis (Mind/Body/Career/Social/Creative), and per-skill levels.
+- Pure engines first (`progressionContext`, `rewardCalculation`, `progressionEngine`, `achievementEngine`, `questEngine`, `progressionSnapshot`) with static `achievementCatalog` / `questCatalog` / `milestoneTables`; XP/levels/achievements/quests recomputed, only `GamificationState` acks persisted (`gamification_state` Supabase singleton).
+- Bonus XP for goals, streak milestones, workouts, career actions, people follow-ups, and a v1 event-attendance proxy; per-day bonus cap and deterministic grant ids.
+- Dashboard surfaces: `ProgressionPanel` (replaces `ProgressionHero`), `ProgressionAxisRow`, `ActiveQuestsCard`, `AchievementShowcase`, `LevelUpToast`; `App.tsx` adds `acknowledgeGlobalLevel` / `dismissAchievementNotification` and stays orchestration-only.
+- Plan: [phase_35_gamification](../../.cursor/plans/phase_35_gamification_d85381a0.plan.md).
+
+### Phase 36 — Drag-and-Drop Expansion
 
 - Resize handles, month view, skills/workouts, recurring occurrence drag flows.
-
-### Phase 36 — Gamification / XP Dashboard
-
-- Richer RPG-style levels and category axes (Mind, Body, Career, Social, Creative).
-- Quests, achievements, streaks beyond current linear XP bands.
 
 ### Phase 37 — Notifications / Reminders
 
@@ -246,11 +249,11 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 6. Current next action
 
-**Current recommended next phase: [Phase 35 — Drag-and-Drop Expansion](#phase-35--drag-and-drop-expansion)** or **[Phase 36 — Gamification / XP Dashboard](#phase-36--gamification--xp-dashboard)** (product priority).
+**Current recommended next phase: [Phase 36 — Drag-and-Drop Expansion](#phase-36--drag-and-drop-expansion)** (gamification shipped in Phase 35).
 
 Before expanding drag:
 
-1. Decide whether Phase 35 targets resize handles + month view, or gamification first.
+1. Decide whether Phase 36 targets resize handles + month view first.
 2. Keep mutations routed through `App.tsx` `commit`; recurring items should continue using occurrence actions (Phase 34A).
 
 ---

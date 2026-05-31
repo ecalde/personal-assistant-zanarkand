@@ -4,6 +4,7 @@ import type {
   CalendarColorPreferences,
   CareerTarget,
   FocusFeedback,
+  GamificationState,
   JobApplication,
   LifeEvent,
   Person,
@@ -913,6 +914,31 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: nextPayload });
   }
 
+  function acknowledgeGlobalLevel(level: number) {
+    if (!app) return;
+    const current = app.payload.gamificationState ?? {};
+    if ((current.lastAcknowledgedGlobalLevel ?? 0) >= level) return;
+    const next: GamificationState = {
+      ...current,
+      lastAcknowledgedGlobalLevel: level,
+      updatedAtIso: nowIso(),
+    };
+    commit({ ...app, payload: { ...app.payload, gamificationState: next } });
+  }
+
+  function dismissAchievementNotification(definitionId: string) {
+    if (!app) return;
+    const current = app.payload.gamificationState ?? {};
+    const dismissed = current.dismissedAchievementIds ?? [];
+    if (dismissed.includes(definitionId)) return;
+    const next: GamificationState = {
+      ...current,
+      dismissedAchievementIds: [...dismissed, definitionId],
+      updatedAtIso: nowIso(),
+    };
+    commit({ ...app, payload: { ...app.payload, gamificationState: next } });
+  }
+
   // ---------- FITNESS ----------
   function addWorkoutPlan(
     input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">
@@ -1197,6 +1223,9 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutSessions={app.payload.workoutSessions ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
           calendarPreferences={app.payload.calendarPreferences}
+          gamificationState={app.payload.gamificationState}
+          onAcknowledgeGlobalLevel={acknowledgeGlobalLevel}
+          onDismissAchievement={dismissAchievementNotification}
           onAddSession={addSession}
           onDismissFocusItem={dismissFocusItem}
           onSnoozeFocusItem={snoozeFocusItem}

@@ -11,6 +11,12 @@ import type { CalendarColorPreferences } from "./calendarColors";
 export type { RecurrenceRule } from "./recurrence";
 import type { RecurrenceRule } from "./recurrence";
 
+// Re-exported so AppPayload can carry the persisted gamification UX state
+// without depending on the progression engines. Type-only cross-import:
+// progressionModel.ts imports ApplicationStatus from here (types erase).
+export type { GamificationState } from "./progressionModel";
+import type { GamificationState } from "./progressionModel";
+
 export type Priority = 1 | 2 | 3 | 4;
 
 export type Weekday =
@@ -234,4 +240,5 @@ export type AppPayload = {
   workoutSessions: WorkoutSession[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
+  gamificationState?: GamificationState;
 };

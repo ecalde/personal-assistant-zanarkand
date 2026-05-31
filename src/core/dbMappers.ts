@@ -20,10 +20,13 @@ import {
 import {
   normalizeSkillScheduleSeries,
 } from "./skillSeries";
+import { ACHIEVEMENT_CATALOG } from "./achievementCatalog";
+import { isGamificationStateAllowedKey } from "./progressionModel";
 import type {
   AppPayload,
   ApplicationStatus,
   CareerTarget,
+  GamificationState,
   EventType,
   ExerciseEntry,
   JobApplication,
@@ -225,6 +228,12 @@ export type FocusFeedbackRow = {
 export type CalendarPreferencesRow = {
   user_id: string;
   preferences: unknown;
+  updated_at: string;
+};
+
+export type GamificationStateRow = {
+  user_id: string;
+  state: unknown;
   updated_at: string;
 };
 
@@ -1782,6 +1791,98 @@ export function calendarPreferencesFromRow(
   );
 }
 
+const KNOWN_ACHIEVEMENT_IDS = new Set(ACHIEVEMENT_CATALOG.map((def) => def.id));
+
+/**
+ * Validates untrusted gamification state and returns a canonical object:
+ * allowlisted keys, integer level >= 1, dismissed ids limited to known
+ * achievements, ISO timestamp preserved. Throws MapperError on invalid shape.
+ */
+export function parseGamificationState(
+  raw: unknown,
+  field = "gamificationState"
+): GamificationState {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+
+  for (const key of Object.keys(raw)) {
+    if (!isGamificationStateAllowedKey(key)) {
+      throw new MapperError(`Invalid ${field}: unknown field "${key}"`, field);
+    }
+  }
+
+  const state: GamificationState = {};
+
+  if (raw.lastAcknowledgedGlobalLevel !== undefined) {
+    const level = raw.lastAcknowledgedGlobalLevel;
+    if (typeof level !== "number" || !Number.isInteger(level) || level < 1) {
+      throw new MapperError(
+        `Invalid ${field}.lastAcknowledgedGlobalLevel`,
+        `${field}.lastAcknowledgedGlobalLevel`
+      );
+    }
+    state.lastAcknowledgedGlobalLevel = level;
+  }
+
+  if (raw.dismissedAchievementIds !== undefined) {
+    if (!Array.isArray(raw.dismissedAchievementIds)) {
+      throw new MapperError(
+        `Invalid ${field}.dismissedAchievementIds: expected array`,
+        `${field}.dismissedAchievementIds`
+      );
+    }
+    const ids: string[] = [];
+    for (const id of raw.dismissedAchievementIds) {
+      if (typeof id !== "string") {
+        throw new MapperError(
+          `Invalid ${field}.dismissedAchievementIds: expected string ids`,
+          `${field}.dismissedAchievementIds`
+        );
+      }
+      if (KNOWN_ACHIEVEMENT_IDS.has(id) && !ids.includes(id)) ids.push(id);
+    }
+    if (ids.length > 0) state.dismissedAchievementIds = ids;
+  }
+
+  if (raw.updatedAtIso !== undefined) {
+    if (typeof raw.updatedAtIso !== "string") {
+      throw new MapperError(`Invalid ${field}.updatedAtIso`, `${field}.updatedAtIso`);
+    }
+    assertIsoTimestamp(raw.updatedAtIso, `${field}.updatedAtIso`);
+    state.updatedAtIso = raw.updatedAtIso;
+  }
+
+  return state;
+}
+
+export function assertValidGamificationState(state: GamificationState): void {
+  parseGamificationState(state);
+}
+
+export function gamificationStateToRow(
+  state: GamificationState,
+  userId: string
+): GamificationStateRow {
+  assertUuid(userId, "userId");
+  const canonical = parseGamificationState(state);
+
+  return {
+    user_id: userId,
+    state: canonical,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function gamificationStateFromRow(
+  row: GamificationStateRow
+): GamificationState {
+  assertUuid(row.user_id, "gamification_state.user_id");
+  assertIsoTimestamp(row.updated_at, "gamification_state.updated_at");
+
+  return parseGamificationState(row.state, "gamification_state.state");
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -1879,7 +1980,8 @@ export function payloadFromRows(
   workoutPlanRows: WorkoutPlanRow[] = [],
   workoutSessionRows: WorkoutSessionRow[] = [],
   focusFeedbackRows: FocusFeedbackRow[] = [],
-  calendarPreferencesRows: CalendarPreferencesRow[] = []
+  calendarPreferencesRows: CalendarPreferencesRow[] = [],
+  gamificationStateRows: GamificationStateRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -1907,6 +2009,14 @@ export function payloadFromRows(
     calendarPreferences = calendarPreferencesFromRow(sorted[0]!);
   }
 
+  let gamificationState: GamificationState | undefined;
+  if (gamificationStateRows.length > 0) {
+    const sorted = [...gamificationStateRows].sort((a, b) =>
+      b.updated_at.localeCompare(a.updated_at)
+    );
+    gamificationState = gamificationStateFromRow(sorted[0]!);
+  }
+
   const payload: AppPayload = {
     skills,
     sessions,
@@ -1919,6 +2029,7 @@ export function payloadFromRows(
     workoutSessions,
     focusFeedback,
     calendarPreferences,
+    gamificationState,
   };
   validatePayloadForUpload(payload);
   return payload;
@@ -2054,5 +2165,9 @@ export function validatePayloadForUpload(payload: AppPayload): void {
 
   if (payload.calendarPreferences !== undefined) {
     assertValidCalendarPreferences(payload.calendarPreferences);
+  }
+
+  if (payload.gamificationState !== undefined) {
+    assertValidGamificationState(payload.gamificationState);
   }
 }
