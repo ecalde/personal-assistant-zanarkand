@@ -56,6 +56,10 @@ import {
   isRecurringLifeEvent,
   type EventSeriesEditScope,
 } from "./core/eventSeries";
+import type {
+  CalendarEventDraftSeed,
+  CalendarEventUndoPayload,
+} from "./core/calendarDrag";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
 import { formatLocal } from "./ui/format";
@@ -588,11 +592,18 @@ export default function App({ userId, onSignOut }: AppProps) {
     date: string,
     startTime: string,
     endTime?: string
-  ) {
-    if (!app) return;
+  ): CalendarEventUndoPayload | null {
+    if (!app) return null;
 
     const existing = (app.payload.events ?? []).find((event) => event.id === eventId);
-    if (!existing || isRecurringLifeEvent(existing)) return;
+    if (!existing || isRecurringLifeEvent(existing)) return null;
+
+    const undo: CalendarEventUndoPayload = {
+      eventId,
+      date: existing.date,
+      startTime: existing.startTime,
+      endTime: existing.endTime,
+    };
 
     const updated: LifeEvent = {
       ...existing,
@@ -607,6 +618,96 @@ export default function App({ userId, onSignOut }: AppProps) {
     }
 
     replaceEventInPayload(eventId, updated);
+    return undo;
+  }
+
+  function moveLifeEventDate(
+    eventId: string,
+    date: string
+  ): CalendarEventUndoPayload | null {
+    if (!app) return null;
+
+    const existing = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!existing || isRecurringLifeEvent(existing)) return null;
+
+    const undo: CalendarEventUndoPayload = {
+      eventId,
+      date: existing.date,
+      startTime: existing.startTime,
+      endTime: existing.endTime,
+    };
+
+    const updated: LifeEvent = {
+      ...existing,
+      date,
+      updatedAtIso: new Date().toISOString(),
+    };
+
+    replaceEventInPayload(eventId, updated);
+    return undo;
+  }
+
+  function resizeLifeEvent(
+    eventId: string,
+    endTime: string
+  ): CalendarEventUndoPayload | null {
+    if (!app) return null;
+
+    const existing = (app.payload.events ?? []).find((event) => event.id === eventId);
+    if (!existing || isRecurringLifeEvent(existing) || !existing.startTime) return null;
+
+    const undo: CalendarEventUndoPayload = {
+      eventId,
+      date: existing.date,
+      startTime: existing.startTime,
+      endTime: existing.endTime,
+    };
+
+    const updated: LifeEvent = {
+      ...existing,
+      endTime,
+      updatedAtIso: new Date().toISOString(),
+    };
+
+    replaceEventInPayload(eventId, updated);
+    return undo;
+  }
+
+  function applyCalendarEventUndo(payload: CalendarEventUndoPayload) {
+    if (!app) return;
+
+    const existing = (app.payload.events ?? []).find(
+      (event) => event.id === payload.eventId
+    );
+    if (!existing || isRecurringLifeEvent(existing)) return;
+
+    const updated: LifeEvent = {
+      ...existing,
+      date: payload.date,
+      updatedAtIso: new Date().toISOString(),
+    };
+    if (payload.startTime) {
+      updated.startTime = payload.startTime;
+    } else {
+      delete updated.startTime;
+    }
+    if (payload.endTime) {
+      updated.endTime = payload.endTime;
+    } else {
+      delete updated.endTime;
+    }
+
+    replaceEventInPayload(payload.eventId, updated);
+  }
+
+  function openCalendarEventDraft(seed: CalendarEventDraftSeed) {
+    setEventDraft({
+      date: seed.date,
+      startTime: seed.startTime,
+      endTime: seed.endTime,
+    });
+    setEventDraftKey((current) => current + 1);
+    setPage("events");
   }
 
   const handleSeriesEditConsumed = useCallback(() => {
@@ -1257,6 +1358,10 @@ export default function App({ userId, onSignOut }: AppProps) {
           onMoveOccurrence={moveEventOccurrence}
           onDeleteOccurrencesFromDate={deleteEventOccurrencesFromDate}
           onRescheduleItem={rescheduleLifeEvent}
+          onMoveEventDate={moveLifeEventDate}
+          onResizeItem={resizeLifeEvent}
+          onOpenEventDraft={openCalendarEventDraft}
+          onUndoCalendarEvent={applyCalendarEventUndo}
         />
       )}
 

@@ -8,6 +8,7 @@ import {
   formatItemTimeLabel,
 } from "../../core/calendarView";
 import type { CalendarItemDragBindings } from "./useCalendarItemDrag";
+import type { CalendarItemResizeBindings } from "./useCalendarItemResize";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarEventBlockProps = {
@@ -17,6 +18,7 @@ export type CalendarEventBlockProps = {
   pixelsPerMinute: number;
   onSelect: (item: CalendarItem) => void;
   drag?: CalendarItemDragBindings;
+  resize?: CalendarItemResizeBindings;
 };
 
 /** Outlook-style timed block, absolutely positioned within a day column. */
@@ -26,11 +28,13 @@ export function CalendarEventBlock({
   pixelsPerMinute,
   onSelect,
   drag,
+  resize,
 }: CalendarEventBlockProps) {
   const color = resolveCalendarItemColor(item, preferences);
   const layout = computeTimedItemLayout(item);
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
+  const resizable = resize?.resizable ?? false;
 
   return (
     <button
@@ -55,6 +59,24 @@ export function CalendarEventBlock({
         {item.title}
       </div>
       {timeLabel ? <div style={{ opacity: 0.85 }}>{timeLabel}</div> : null}
+
+      {resizable && resize ? (
+        <div
+          role="separator"
+          aria-label="Resize end time"
+          aria-orientation="horizontal"
+          onPointerDown={resize.onPointerDown}
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 8,
+            cursor: "ns-resize",
+          }}
+        />
+      ) : null}
     </button>
   );
 }

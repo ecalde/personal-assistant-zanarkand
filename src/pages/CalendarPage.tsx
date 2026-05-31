@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   CalendarColorPreferences,
 } from "../core/calendarColors";
@@ -8,11 +8,19 @@ import { CalendarCategorySidebar } from "../components/calendar/CalendarCategory
 import { CalendarItemDetailModal } from "../components/calendar/CalendarItemDetailModal";
 import { CalendarSettingsSection } from "../components/calendar/CalendarSettingsSection";
 import { CalendarToolbar } from "../components/calendar/CalendarToolbar";
+import { CalendarUndoSnackbar } from "../components/calendar/CalendarUndoSnackbar";
 import { MonthView } from "../components/calendar/MonthView";
 import { WeekView } from "../components/calendar/WeekView";
 import { useCalendarController } from "../components/calendar/useCalendarController";
+import {
+  buildEventDraftFromCalendarSelection,
+  type CalendarEventDraftSeed,
+  type CalendarEventUndoPayload,
+} from "../core/calendarDrag";
 import type { EventSeriesEditScope } from "../core/eventSeries";
 import { styles } from "../ui/appStyles";
+
+const UNDO_TIMEOUT_MS = 8000;
 
 export type CalendarPageProps = {
   skills: Skill[];
@@ -39,7 +47,11 @@ export type CalendarPageProps = {
     date: string,
     startTime: string,
     endTime?: string
-  ) => void;
+  ) => CalendarEventUndoPayload | null;
+  onMoveEventDate?: (eventId: string, date: string) => CalendarEventUndoPayload | null;
+  onResizeItem?: (eventId: string, endTime: string) => CalendarEventUndoPayload | null;
+  onOpenEventDraft?: (seed: CalendarEventDraftSeed) => void;
+  onUndoCalendarEvent?: (payload: CalendarEventUndoPayload) => void;
 };
 
 export default function CalendarPage({
@@ -55,6 +67,10 @@ export default function CalendarPage({
   onMoveOccurrence,
   onDeleteOccurrencesFromDate,
   onRescheduleItem,
+  onMoveEventDate,
+  onResizeItem,
+  onOpenEventDraft,
+  onUndoCalendarEvent,
 }: CalendarPageProps) {
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
@@ -68,6 +84,83 @@ export default function CalendarPage({
     workoutPlans,
     todayKey,
   });
+
+  const [pendingUndo, setPendingUndo] = useState<CalendarEventUndoPayload | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearUndoTimer = useCallback(() => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  }, []);
+
+  const showUndo = useCallback(
+    (payload: CalendarEventUndoPayload | null) => {
+      if (!payload) return;
+      clearUndoTimer();
+      setPendingUndo(payload);
+      undoTimerRef.current = setTimeout(() => {
+        setPendingUndo(null);
+        undoTimerRef.current = null;
+      }, UNDO_TIMEOUT_MS);
+    },
+    [clearUndoTimer]
+  );
+
+  useEffect(() => clearUndoTimer, [clearUndoTimer]);
+
+  const handleUndo = useCallback(() => {
+    if (pendingUndo) onUndoCalendarEvent?.(pendingUndo);
+    clearUndoTimer();
+    setPendingUndo(null);
+  }, [pendingUndo, onUndoCalendarEvent, clearUndoTimer]);
+
+  const handleDismissUndo = useCallback(() => {
+    clearUndoTimer();
+    setPendingUndo(null);
+  }, [clearUndoTimer]);
+
+  const handleReschedule = useMemo(
+    () =>
+      onRescheduleItem
+        ? (eventId: string, date: string, startTime: string, endTime?: string) => {
+            showUndo(onRescheduleItem(eventId, date, startTime, endTime));
+          }
+        : undefined,
+    [onRescheduleItem, showUndo]
+  );
+
+  const handleResize = useMemo(
+    () =>
+      onResizeItem
+        ? (eventId: string, endTime: string) => {
+            showUndo(onResizeItem(eventId, endTime));
+          }
+        : undefined,
+    [onResizeItem, showUndo]
+  );
+
+  const handleMoveEventDate = useMemo(
+    () =>
+      onMoveEventDate
+        ? (eventId: string, date: string) => {
+            showUndo(onMoveEventDate(eventId, date));
+          }
+        : undefined,
+    [onMoveEventDate, showUndo]
+  );
+
+  const handleCreateDraftFromDate = useMemo(
+    () =>
+      onOpenEventDraft
+        ? (dateKey: string) => {
+            const seed = buildEventDraftFromCalendarSelection({ dateKey });
+            if (seed) onOpenEventDraft(seed);
+          }
+        : undefined,
+    [onOpenEventDraft]
+  );
 
   return (
     <div style={{ display: "grid", gap: 0 }}>
@@ -93,6 +186,8 @@ export default function CalendarPage({
                 preferences={calendarPreferences}
                 onSelectItem={calendar.setSelectedItem}
                 onSelectDay={calendar.handleSelectDay}
+                onMoveItem={handleMoveEventDate}
+                onCreateDraftFromDate={handleCreateDraftFromDate}
               />
             ) : (
               <WeekView
@@ -101,7 +196,8 @@ export default function CalendarPage({
                 itemsByDate={calendar.itemsByDate}
                 preferences={calendarPreferences}
                 onSelectItem={calendar.setSelectedItem}
-                onRescheduleItem={onRescheduleItem}
+                onRescheduleItem={handleReschedule}
+                onResizeItem={handleResize}
                 nowMinutes={nowMinutes}
               />
             )}
@@ -149,6 +245,14 @@ export default function CalendarPage({
         preferences={calendarPreferences}
         onSave={onSaveCalendarPreferences}
       />
+
+      {pendingUndo ? (
+        <CalendarUndoSnackbar
+          message="Event updated"
+          onUndo={handleUndo}
+          onDismiss={handleDismissUndo}
+        />
+      ) : null}
     </div>
   );
 }

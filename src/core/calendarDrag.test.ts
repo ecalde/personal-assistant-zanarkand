@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { CalendarItem } from "./calendar";
 import {
+  buildEventDraftFromCalendarSelection,
   canDragCalendarItem,
+  canDragCalendarItemInMonth,
+  canResizeCalendarItem,
+  computeMonthDropTarget,
   computeRescheduleTarget,
+  computeResizeTarget,
   minutesFromPointerDelta,
+  originEndMinutesForItem,
   originStartMinutesForItem,
   snapMinutes,
 } from "./calendarDrag";
@@ -121,5 +127,167 @@ describe("computeRescheduleTarget", () => {
         deltaYMinutes: 30,
       })
     ).toBeNull();
+  });
+});
+
+function makeRecurringItem(): CalendarItem {
+  return makeTimedEventItem({
+    id: "event:e1:2026-05-28",
+    sourceMeta: {
+      kind: "lifeEvent",
+      eventId: "e1",
+      eventType: "other",
+      reminder: false,
+      recurrenceDate: "2026-05-28",
+    },
+  });
+}
+
+function makeSkillItem(): CalendarItem {
+  return makeTimedEventItem({
+    sourceType: "skill",
+    sourceMeta: {
+      kind: "skillScheduleBlock",
+      skillId: "s1",
+      blockId: "b1",
+      skillName: "Math",
+      plannedMinutes: 60,
+    },
+  });
+}
+
+describe("canDragCalendarItemInMonth", () => {
+  it("allows one-time timed life events", () => {
+    expect(canDragCalendarItemInMonth(makeTimedEventItem())).toBe(true);
+  });
+
+  it("allows one-time all-day life events", () => {
+    expect(
+      canDragCalendarItemInMonth(
+        makeTimedEventItem({ isTimed: false, allDay: true, startTime: undefined, endTime: undefined })
+      )
+    ).toBe(true);
+  });
+
+  it("rejects recurring occurrences, skills, and workouts", () => {
+    expect(canDragCalendarItemInMonth(makeRecurringItem())).toBe(false);
+    expect(canDragCalendarItemInMonth(makeSkillItem())).toBe(false);
+  });
+});
+
+describe("computeMonthDropTarget", () => {
+  it("returns the new date for an eligible move", () => {
+    expect(
+      computeMonthDropTarget({
+        item: makeTimedEventItem(),
+        originDateKey: "2026-05-28",
+        targetDateKey: "2026-06-02",
+      })
+    ).toEqual({ dateKey: "2026-06-02" });
+  });
+
+  it("returns null when dropping on the same date", () => {
+    expect(
+      computeMonthDropTarget({
+        item: makeTimedEventItem(),
+        originDateKey: "2026-05-28",
+        targetDateKey: "2026-05-28",
+      })
+    ).toBeNull();
+  });
+
+  it("returns null for recurring occurrences", () => {
+    expect(
+      computeMonthDropTarget({
+        item: makeRecurringItem(),
+        originDateKey: "2026-05-28",
+        targetDateKey: "2026-06-02",
+      })
+    ).toBeNull();
+  });
+});
+
+describe("canResizeCalendarItem", () => {
+  it("mirrors week drag eligibility", () => {
+    expect(canResizeCalendarItem(makeTimedEventItem())).toBe(true);
+    expect(canResizeCalendarItem(makeRecurringItem())).toBe(false);
+    expect(canResizeCalendarItem(makeSkillItem())).toBe(false);
+  });
+});
+
+describe("originEndMinutesForItem", () => {
+  it("reads the end time", () => {
+    expect(originEndMinutesForItem(makeTimedEventItem())).toBe(600);
+  });
+
+  it("falls back to start + minimum duration when end is missing", () => {
+    expect(originEndMinutesForItem(makeTimedEventItem({ endTime: undefined }))).toBe(540 + 15);
+  });
+});
+
+describe("computeResizeTarget", () => {
+  it("snaps the end time and keeps the start fixed", () => {
+    const item = makeTimedEventItem();
+    expect(
+      computeResizeTarget({
+        item,
+        originEndMinutes: originEndMinutesForItem(item),
+        deltaYMinutes: 38,
+      })
+    ).toEqual({ endTime: "10:45" });
+  });
+
+  it("returns null when the new end would not be after the start", () => {
+    const item = makeTimedEventItem();
+    expect(
+      computeResizeTarget({
+        item,
+        originEndMinutes: originEndMinutesForItem(item),
+        deltaYMinutes: -120,
+      })
+    ).toBeNull();
+  });
+
+  it("returns null for recurring items", () => {
+    const item = makeRecurringItem();
+    expect(
+      computeResizeTarget({
+        item,
+        originEndMinutes: originEndMinutesForItem(item),
+        deltaYMinutes: 30,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("buildEventDraftFromCalendarSelection", () => {
+  it("builds a date-only seed", () => {
+    expect(buildEventDraftFromCalendarSelection({ dateKey: "2026-05-28" })).toEqual({
+      date: "2026-05-28",
+    });
+  });
+
+  it("snaps and validates a time range", () => {
+    expect(
+      buildEventDraftFromCalendarSelection({
+        dateKey: "2026-05-28",
+        startMinutes: 547,
+        endMinutes: 597,
+      })
+    ).toEqual({ date: "2026-05-28", startTime: "09:00", endTime: "10:00" });
+  });
+
+  it("enforces a minimum span when the range is too small", () => {
+    expect(
+      buildEventDraftFromCalendarSelection({
+        dateKey: "2026-05-28",
+        startMinutes: 540,
+        endMinutes: 540,
+      })
+    ).toEqual({ date: "2026-05-28", startTime: "09:00", endTime: "09:15" });
+  });
+
+  it("returns null without a date key", () => {
+    expect(buildEventDraftFromCalendarSelection({ dateKey: "" })).toBeNull();
   });
 });

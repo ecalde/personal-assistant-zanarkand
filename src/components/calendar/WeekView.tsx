@@ -9,6 +9,7 @@ import { styles } from "../../ui/appStyles";
 import { CalendarDragGhostBlock, CalendarEventBlock } from "./CalendarEventBlock";
 import { CalendarItemPill } from "./CalendarItemPill";
 import { useCalendarItemDrag } from "./useCalendarItemDrag";
+import { useCalendarItemResize } from "./useCalendarItemResize";
 
 export type WeekViewProps = {
   anchorKey: string;
@@ -22,6 +23,8 @@ export type WeekViewProps = {
     startTime: string,
     endTime?: string
   ) => void;
+  /** Resize a one-time timed life event's end time (drag bottom edge). */
+  onResizeItem?: (eventId: string, endTime: string) => void;
   /** Current time in minutes-from-midnight for the indicator line. */
   nowMinutes?: number;
 };
@@ -37,6 +40,7 @@ export function WeekView({
   preferences,
   onSelectItem,
   onRescheduleItem,
+  onResizeItem,
   nowMinutes,
 }: WeekViewProps) {
   const columns = buildWeekGrid(anchorKey, todayKey);
@@ -45,6 +49,10 @@ export function WeekView({
     columnDateKeys,
     pixelsPerMinute: PIXELS_PER_MINUTE,
     onRescheduleItem,
+  });
+  const { getResizeBindings, ghost: resizeGhost } = useCalendarItemResize({
+    pixelsPerMinute: PIXELS_PER_MINUTE,
+    onResizeItem,
   });
 
   return (
@@ -95,6 +103,7 @@ export function WeekView({
         const { timed } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
         const showNowLine = column.isToday && nowMinutes !== undefined;
         const showGhost = ghost?.dateKey === column.dateKey;
+        const showResizeGhost = resizeGhost?.dateKey === column.dateKey;
         return (
           <div
             key={`col-${column.dateKey}`}
@@ -118,6 +127,7 @@ export function WeekView({
                 pixelsPerMinute={PIXELS_PER_MINUTE}
                 onSelect={onSelectItem}
                 drag={getItemDragBindings(item, column.dateKey)}
+                resize={getResizeBindings(item, column.dateKey)}
               />
             ))}
 
@@ -127,6 +137,16 @@ export function WeekView({
                 preferences={preferences}
                 topMinutes={ghost.topMinutes}
                 durationMinutes={ghost.durationMinutes}
+                pixelsPerMinute={PIXELS_PER_MINUTE}
+              />
+            ) : null}
+
+            {showResizeGhost ? (
+              <CalendarDragGhostBlock
+                item={resizeGhost.item}
+                preferences={preferences}
+                topMinutes={resizeGhost.topMinutes}
+                durationMinutes={resizeGhost.durationMinutes}
                 pixelsPerMinute={PIXELS_PER_MINUTE}
               />
             ) : null}

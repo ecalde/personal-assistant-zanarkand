@@ -70,8 +70,10 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 33 | **Series editing (events)** | Entire-series and this-and-future split for recurring life events; `eventSeries.ts` + Events scope selector + interactive calendar detail modal; `seriesId` via existing columns. |
 | 34A | **Occurrence editing (events)** | Skip/move/delete-from-date/detach-this-occurrence for recurring events via `eventOccurrences.ts`; calendar modal quick actions + Events **This occurrence only** scope; no schema changes. |
 | 34B | **Calendar drag foundations** | Week-view pointer drag for one-time timed life events; `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`; no new dependencies. |
+| 35 | **Gamification / XP dashboard** | RPG-style progression (global / axis / per-skill levels, achievements, quests) on pure engines; `GamificationState` ack singleton; dashboard progression surfaces. |
+| 36 | **Calendar drag expansion** | Month-view date drag, week-view resize (end edge), click empty month day → Events draft, and an ephemeral undo snackbar; extended pure `calendarDrag.ts` helpers; `moveLifeEventDate` / `resizeLifeEvent` / `openCalendarEventDraft` / `applyCalendarEventUndo` in `App.tsx`; dashboard calendar stays read-only; no schema or dependency changes. Recurring-occurrence drag (36.1) and skill/workout drag (36.2) deferred. |
 
-**Not yet shipped** (called out in architecture): exception list editor on Events form, full DnD expansion (month, resize, skills/workouts), dashboard customization, notifications, analytics, AI layers. (Gamification / XP dashboard shipped in Phase 35.)
+**Not yet shipped** (called out in architecture): exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), dashboard customization, notifications, analytics, AI layers.
 
 ---
 
@@ -204,9 +206,12 @@ Ordered backlog. Each phase should stay **scoped** (one domain or one vertical s
 - Dashboard surfaces: `ProgressionPanel` (replaces `ProgressionHero`), `ProgressionAxisRow`, `ActiveQuestsCard`, `AchievementShowcase`, `LevelUpToast`; `App.tsx` adds `acknowledgeGlobalLevel` / `dismissAchievementNotification` and stays orchestration-only.
 - Plan: [phase_35_gamification](../../.cursor/plans/phase_35_gamification_d85381a0.plan.md).
 
-### Phase 36 — Drag-and-Drop Expansion
+### Phase 36 — Drag-and-Drop Expansion ✅ (shipped)
 
-- Resize handles, month view, skills/workouts, recurring occurrence drag flows.
+- Month-view date drag for one-time life events (date only; preserves times), week-view resize of one-time timed events (end edge, grid-snapped, validated `end > start`), click empty month day → prefilled Events draft, and a lightweight ephemeral undo snackbar.
+- Pure helpers in [`calendarDrag.ts`](../../src/core/calendarDrag.ts): `canDragCalendarItemInMonth`, `computeMonthDropTarget`, `canResizeCalendarItem`, `computeResizeTarget`, `buildEventDraftFromCalendarSelection`, `CalendarEventUndoPayload`. New hooks `useCalendarMonthItemDrag` / `useCalendarItemResize`; `CalendarUndoSnackbar`.
+- `App.tsx` adds `moveLifeEventDate`, `resizeLifeEvent`, `openCalendarEventDraft`, `applyCalendarEventUndo` (returns undo payloads; stays orchestration-only). Dashboard calendar remains read-only.
+- **Deferred:** recurring-occurrence drag + scope picker (Phase 36.1), week click-drag create-selection bands, skill/workout schedule drag (Phase 36.2).
 
 ### Phase 37 — Notifications / Reminders
 
@@ -249,13 +254,13 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 6. Current next action
 
-**Current recommended next phase: [Phase 36 — Drag-and-Drop Expansion](#phase-36--drag-and-drop-expansion)** (gamification shipped in Phase 35).
+**Current recommended next phase: [Phase 37 — Notifications / Reminders](#phase-37--notifications--reminders)** (Phase 36 calendar drag expansion shipped).
 
-Before expanding drag:
+Before the next drag slice (Phase 36.1 recurring-occurrence drag):
 
-1. Decide whether Phase 36 targets resize handles + month view first.
-2. Keep mutations routed through `App.tsx` `commit`; recurring items should continue using occurrence actions (Phase 34A).
+1. Design the scope picker (this occurrence / this and future / entire series) reusing `EventSeriesEditScope` and the Phase 34A occurrence helpers; require explicit scope confirmation before any commit to avoid accidental series mutation.
+2. Keep mutations routed through `App.tsx` `commit`; skill/workout schedule blocks remain non-draggable (template-derived) until per-date overrides are designed (Phase 36.2).
 
 ---
 
-*Last updated: 2026-05-30 — through Phase 34B (Calendar drag foundations).*
+*Last updated: 2026-05-31 — through Phase 36 (Calendar drag expansion: month drag, week resize, create draft, undo).*
