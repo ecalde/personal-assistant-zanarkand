@@ -65,6 +65,8 @@ import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
 import { formatLocal } from "./ui/format";
 import { useAppearanceTheme } from "./ui/useAppearanceTheme";
+import { GlobalEffectStyles } from "./components/effects/GlobalEffectStyles";
+import { ThemeEffectsLayer } from "./components/effects/ThemeEffectsLayer";
 
 const REMOTE_DEBOUNCE_MS = 400;
 
@@ -1300,7 +1302,10 @@ export default function App({ userId, onSignOut }: AppProps) {
   }
 
   return (
-    <AppShell
+    <>
+      <GlobalEffectStyles />
+      <ThemeEffectsLayer preferences={appearance.preferences} />
+      <AppShell
       lastSavedLabel={lastSavedLabel}
       syncPending={syncPending}
       onSignOut={onSignOut}
@@ -1454,6 +1459,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       )}
 
       {page === "settings" && <SettingsPage appearance={appearance} />}
-    </AppShell>
+      </AppShell>
+    </>
   );
 }

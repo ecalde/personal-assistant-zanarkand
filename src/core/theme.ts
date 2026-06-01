@@ -42,6 +42,21 @@ export type InterfaceEffectKey =
 
 export type InterfaceEffects = Record<InterfaceEffectKey, boolean>;
 
+/**
+ * Global visual-effects performance tier (Phase 37D). Scales particle/rune
+ * density and gates heavier effects. `low` disables particles/runes/trails and
+ * makes animated borders static; `high` is full density. Optional + backward
+ * compatible (default {@link DEFAULT_EFFECT_PERFORMANCE}).
+ */
+export type EffectPerformance = "low" | "medium" | "high";
+
+/**
+ * Explicit reduced-motion preference (Phase 37D). `system` follows
+ * `prefers-reduced-motion`; `on`/`off` override it. Optional + backward
+ * compatible (default {@link DEFAULT_REDUCED_MOTION}).
+ */
+export type ReducedMotionSetting = "system" | "on" | "off";
+
 export type AppearancePreferences = {
   profileId: AetherProfileId;
   accentIntensity: AccentIntensity;
@@ -52,6 +67,17 @@ export type AppearancePreferences = {
    */
   themeMode?: ThemeMode;
   effects: InterfaceEffects;
+  /**
+   * Global effects performance tier (Phase 37D). Optional for backward
+   * compatibility: older preferences normalize to
+   * {@link DEFAULT_EFFECT_PERFORMANCE}.
+   */
+  effectPerformance?: EffectPerformance;
+  /**
+   * Reduced-motion preference (Phase 37D). Optional for backward
+   * compatibility: older preferences normalize to {@link DEFAULT_REDUCED_MOTION}.
+   */
+  reducedMotion?: ReducedMotionSetting;
 };
 
 /** Static metadata for one selectable Aether Profile (crystal card). */
@@ -159,6 +185,32 @@ export const DEFAULT_ACCENT_INTENSITY: AccentIntensity = "balanced";
  */
 export const DEFAULT_THEME_MODE: ThemeMode = "system";
 
+/** Default effects performance tier (Phase 37D): balanced density. */
+export const DEFAULT_EFFECT_PERFORMANCE: EffectPerformance = "medium";
+
+/** Default reduced-motion preference (Phase 37D): follow the OS. */
+export const DEFAULT_REDUCED_MOTION: ReducedMotionSetting = "system";
+
+export const EFFECT_PERFORMANCE_OPTIONS: readonly {
+  id: EffectPerformance;
+  label: string;
+  description: string;
+}[] = [
+  { id: "low", label: "Low", description: "Minimal effects for best performance." },
+  { id: "medium", label: "Medium", description: "Balanced density (recommended)." },
+  { id: "high", label: "High", description: "Full ambient density." },
+] as const;
+
+export const REDUCED_MOTION_OPTIONS: readonly {
+  id: ReducedMotionSetting;
+  label: string;
+  description: string;
+}[] = [
+  { id: "system", label: "System", description: "Follow your device setting." },
+  { id: "on", label: "Reduce", description: "Minimize motion everywhere." },
+  { id: "off", label: "Allow", description: "Always allow effect motion." },
+] as const;
+
 export const THEME_MODE_OPTIONS: readonly {
   id: ThemeMode;
   label: string;
@@ -215,6 +267,12 @@ const INTENSITY_IDS: ReadonlySet<string> = new Set(
 );
 const THEME_MODE_IDS: ReadonlySet<string> = new Set(
   THEME_MODE_OPTIONS.map((o) => o.id)
+);
+const EFFECT_PERFORMANCE_IDS: ReadonlySet<string> = new Set(
+  EFFECT_PERFORMANCE_OPTIONS.map((o) => o.id)
+);
+const REDUCED_MOTION_IDS: ReadonlySet<string> = new Set(
+  REDUCED_MOTION_OPTIONS.map((o) => o.id)
 );
 const EFFECT_KEYS: readonly InterfaceEffectKey[] = INTERFACE_EFFECT_OPTIONS.map(
   (o) => o.id
@@ -283,6 +341,16 @@ export function isThemeMode(value: unknown): value is ThemeMode {
   return typeof value === "string" && THEME_MODE_IDS.has(value);
 }
 
+export function isEffectPerformance(value: unknown): value is EffectPerformance {
+  return typeof value === "string" && EFFECT_PERFORMANCE_IDS.has(value);
+}
+
+export function isReducedMotionSetting(
+  value: unknown
+): value is ReducedMotionSetting {
+  return typeof value === "string" && REDUCED_MOTION_IDS.has(value);
+}
+
 /**
  * Resolve a (possibly `system`) {@link ThemeMode} into a concrete light/dark
  * palette choice. Pure: the caller supplies `systemPrefersDark` (the React glue
@@ -316,6 +384,8 @@ export function defaultAppearancePreferences(): AppearancePreferences {
     accentIntensity: DEFAULT_ACCENT_INTENSITY,
     themeMode: DEFAULT_THEME_MODE,
     effects: defaultInterfaceEffects(),
+    effectPerformance: DEFAULT_EFFECT_PERFORMANCE,
+    reducedMotion: DEFAULT_REDUCED_MOTION,
   };
 }
 
@@ -341,6 +411,12 @@ export function normalizeAppearancePreferences(
     ? raw.accentIntensity
     : base.accentIntensity;
   const themeMode = isThemeMode(raw.themeMode) ? raw.themeMode : base.themeMode;
+  const effectPerformance = isEffectPerformance(raw.effectPerformance)
+    ? raw.effectPerformance
+    : base.effectPerformance;
+  const reducedMotion = isReducedMotionSetting(raw.reducedMotion)
+    ? raw.reducedMotion
+    : base.reducedMotion;
 
   const effects = defaultInterfaceEffects();
   const rawEffects =
@@ -353,7 +429,14 @@ export function normalizeAppearancePreferences(
     }
   }
 
-  return { profileId, accentIntensity, themeMode, effects };
+  return {
+    profileId,
+    accentIntensity,
+    themeMode,
+    effects,
+    effectPerformance,
+    reducedMotion,
+  };
 }
 
 function clamp01(n: number): number {

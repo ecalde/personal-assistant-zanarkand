@@ -539,7 +539,7 @@ export default function DashboardPage({
   );
 
   return (
-    <div style={styles.card}>
+    <div className="aether-animated-border" style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Today</h1>
 
       {levelUpToast}

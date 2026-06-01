@@ -62,7 +62,7 @@ src/
     calendarDrag.ts     # Week-view drag snap/reschedule math (Phase 34B)
     skillSeries.ts      # Pure skill schedule-series bounds — active-date filtering
     theme.ts            # Aether Theme — profiles, tokens, normalization (Phase 37A); mode-aware LIGHT/DARK base palette + theme modes (Phase 37C)
-    themeEffects.ts     # (planned Phase 37D) Pure effect-resolution helpers — performance/mobile/reduced-motion density
+    themeEffects.ts     # Pure global-effects resolver (Phase 37D) — accent-density/performance/mobile/reduced-motion decision logic
     appearanceStorage.ts # Aether appearance localStorage (Phase 37A; cloud sync Phase 37E)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review, Settings)
@@ -101,6 +101,7 @@ src/
 | `src/components/fitness` | Fitness-specific UI building blocks |
 | `src/components/skills` | Skills-specific UI building blocks |
 | `src/components/settings` | Settings / Aether theme UI (theme-aware) |
+| `src/components/effects` | Global visual-effects engine (Phase 37D) — `ThemeEffectsLayer`, particle/rune/trail layers, `GlobalEffectStyles`, `AnimatedBorderSystem`; mounted once in `App.tsx` |
 | `src/ui` | `appStyles` (shared light base + Aether accent tokens), `useAppearanceTheme`, `format` helpers (no domain rules) |
 
 ## Architecture boundaries
@@ -342,12 +343,15 @@ Settings now follows Light / Dark / System like the rest of the app (fixes the i
 - **[`ThemePreviewCard`](../src/components/settings/ThemePreviewCard.tsx)** preview inset reads resolved `tokens.surfaceSunken` / `tokens.border` so the live preview matches the active mode.
 - **Tests**: `theme.test.ts` Phase 37C.1 block — `panelBackground` flips by mode and maps to `--aether-panel-bg`.
 
-#### Phase 37D — planned (Global Visual Effects)
+#### Phase 37D — shipped (Global Visual Effects)
 
-Promotes the four effects from **Settings-local** code (currently inline keyframes + particle/rune arrays in [`SettingsPage.tsx`](../src/pages/SettingsPage.tsx)) into a **single centralized engine**. Full plan: [aether-theme-modes-and-effects.md](plans/aether-theme-modes-and-effects.md).
+Promotes the four effects from **Settings-local** code (formerly inline keyframes + particle/rune arrays in `SettingsPage.tsx`) into a **single centralized engine**. Full plan: [phase-37d-global-visual-effects.md](plans/phase-37d-global-visual-effects.md).
 
-- **Pure resolver** `themeEffects.ts` (`resolveEffectSettings(prefs, env)`) decides which effects render and at what density given reduced-motion / mobile / performance tier; optional `effectPerformance` + `reducedMotion` preference fields (backward compatible).
-- **Centralized renderer** `src/components/effects/` — `GlobalEffectStyles` (keyframes once), `AetherEffectsLayer` (single `aria-hidden`, `pointer-events:none` overlay mounted once in `App.tsx`), reusable floating-rune wrapper for dashboard widgets, a shared animated-border style, and a new **Magical Energy Trails** micro-interaction layer (page-transition shimmer driven by `App.tsx` `page` state + shared press ripple class). No duplicated implementations; `App.tsx` stays orchestration-only; no new dependencies.
+- **Pure resolver** [`themeEffects.ts`](../src/core/themeEffects.ts) — `resolveEffectSettings(prefs, env)` is the single source of truth for which effects render and at what density given reduced-motion / mobile / touch / performance tier; `resolveReducedMotion(setting, systemPrefersReduced)` resolves the explicit-or-system reduced-motion preference. New **optional** `AppearancePreferences` fields `effectPerformance` (`low`/`medium`/`high`, default `medium`) and `reducedMotion` (`system`/`on`/`off`, default `system`), coerced by `normalizeAppearancePreferences` so older `pa.appearance.v1` blobs stay valid.
+- **Density rules**: ambient particle density is driven by **Accent Intensity** (`soft < balanced < vibrant`) then scaled by performance tier and mobile; floating runes scale by tier (static under reduced motion); the cursor energy trail is desktop + precise-pointer only (disabled on touch/mobile/low/reduced-motion); animated borders render static (no animation) under reduced motion or the `low` tier.
+- **Centralized renderer** [`src/components/effects/`](../src/components/effects/): `GlobalEffectStyles` (drift/float/pulse/border keyframes, the reusable `.aether-animated-border` class, and the `prefers-reduced-motion` kill-switch — injected once); `ThemeEffectsLayer` (a single `aria-hidden`, `pointer-events:none` overlay mounted once in `App.tsx`) composing `AmbientParticlesLayer` + `FloatingRunesLayer` (behind content, `z-index:-1`), `EnergyTrailLayer` (above content; a fixed-size DOM-node pool followed via one throttled `requestAnimationFrame`), and `AnimatedBorderSystem` (sets the root `data-aether-borders` flag — `on`/`static`/absent). Effects read only `--aether-*` variables, so they follow the active mode + profile + intensity.
+- **Settings**: new `EffectPerformanceControl` + `ReducedMotionControl` segmented controls; `SettingsPage` no longer paints its own particles/runes (single implementation). `App.tsx` stays orchestration-only; no new dependencies, schema, or layout redesign.
+- **Tests**: `themeEffects.test.ts` (reduced-motion off-switch, mobile/touch degradation, performance tiers, accent-intensity particle density, per-toggle gating) + `theme.test.ts` Phase 37D normalization block.
 
 #### Phase 37E — planned (Appearance Cloud Sync)
 

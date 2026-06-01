@@ -11,7 +11,9 @@ import {
   type AccentIntensity,
   type AetherProfileId,
   type AppearancePreferences,
+  type EffectPerformance,
   type InterfaceEffectKey,
+  type ReducedMotionSetting,
   type ResolvedThemeMode,
   type ThemeMode,
   type ThemeTokens,
@@ -27,6 +29,8 @@ export type AppearanceThemeController = {
   setAccentIntensity: (intensity: AccentIntensity) => void;
   setThemeMode: (mode: ThemeMode) => void;
   toggleEffect: (effect: InterfaceEffectKey) => void;
+  setEffectPerformance: (performance: EffectPerformance) => void;
+  setReducedMotion: (setting: ReducedMotionSetting) => void;
 };
 
 /**
@@ -113,6 +117,25 @@ export function useAppearanceTheme(): AppearanceThemeController {
     });
   }, []);
 
+  const setEffectPerformance = useCallback(
+    (effectPerformance: EffectPerformance) => {
+      setPreferences((prev) => {
+        const next = { ...prev, effectPerformance };
+        saveAppearancePreferences(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const setReducedMotion = useCallback((reducedMotion: ReducedMotionSetting) => {
+    setPreferences((prev) => {
+      const next = { ...prev, reducedMotion };
+      saveAppearancePreferences(next);
+      return next;
+    });
+  }, []);
+
   return {
     preferences,
     tokens,
@@ -121,5 +144,7 @@ export function useAppearanceTheme(): AppearanceThemeController {
     setAccentIntensity,
     setThemeMode,
     toggleEffect,
+    setEffectPerformance,
+    setReducedMotion,
   };
 }

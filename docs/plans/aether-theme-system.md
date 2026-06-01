@@ -41,6 +41,7 @@ The theme system is **token-first**: components consume CSS custom properties (`
 | Rest of app consumes theme tokens | ✅ Shipped (Phase 37B) — shared chrome/widgets/domain pages read accent tokens via `appStyles.ts` |
 | Light / Dark / System theme modes | ✅ Shipped (Phase 37C) — mode-aware base palette + surface/text/border tokens; `system` follows `prefers-color-scheme`; accent stays profile-derived |
 | Settings participates in Theme Mode | ✅ Shipped (Phase 37C.1) — `settingsStyles.ts` uses mode-aware `--aether-*` tokens; `--aether-panel-bg` flips with mode |
+| Global visual effects engine | ✅ Shipped (Phase 37D) — four effects centralized into `themeEffects.ts` + `src/components/effects/`, mounted once in `App.tsx`; performance tiers, mobile/touch degradation, reduced-motion ready |
 
 **Important:** Selecting an Aether Profile now retints the **shared chrome app-wide** (nav active state, buttons, progress/XP bars, panel & section borders, level badges, calendar today highlights) across the Dashboard, Calendar, and domain pages, in addition to the Settings page + live preview. The deep-navy base background and primary text are intentionally **shared across all profiles**, so the app keeps its legible light base — profiles swap accents, not the whole palette (full dark-mode reskin is out of scope for the adoption layer).
 
@@ -149,15 +150,15 @@ Full detail: **[aether-theme-modes-and-effects.md §4.1](./aether-theme-modes-an
 
 ---
 
-### Phase 37D — Global Visual Effects · Planned (next)
+### Phase 37D — Global Visual Effects · ✅ Shipped
 
 **Goal:** Centralize the four effects (Ambient Particles, Animated Borders, Magical Energy Trails, Floating Runes) into one engine — global, performance-aware, mobile-graceful, reduced-motion ready, no duplication.
 
-Full detail: **[aether-theme-modes-and-effects.md §5](./aether-theme-modes-and-effects.md#5-phase-37d--global-visual-effects)**. Summary: pure `themeEffects.ts` resolver + tests; `src/components/effects/` (`GlobalEffectStyles`, `AetherEffectsLayer`, reusable runes); new energy-trails micro-interaction layer; optional `effectPerformance` / `reducedMotion` fields; mounted once in `App.tsx`.
+Full detail: **[phase-37d-global-visual-effects.md](./phase-37d-global-visual-effects.md)** (also [aether-theme-modes-and-effects.md §5](./aether-theme-modes-and-effects.md#5-phase-37d--global-visual-effects)). Delivered: pure `themeEffects.ts` resolver (`resolveEffectSettings`/`resolveReducedMotion`) + tests; `src/components/effects/` (`GlobalEffectStyles`, `ThemeEffectsLayer`, `AmbientParticlesLayer`, `FloatingRunesLayer`, `EnergyTrailLayer`, `AnimatedBorderSystem`); new cursor energy-trail layer (desktop/precise-pointer only); optional backward-compatible `effectPerformance` (`low`/`medium`/`high`) + `reducedMotion` (`system`/`on`/`off`) fields; Settings Effect Performance + Reduced Motion controls; mounted once in `App.tsx`. Particle density is driven by Accent Intensity; effects read `--aether-*` tokens so they follow the active mode + profile.
 
 ---
 
-### Phase 37E — Appearance Cloud Sync · Planned
+### Phase 37E — Appearance Cloud Sync · Planned (next)
 
 **Goal:** Synchronize appearance preferences across devices (renumbered from 37C; sequenced after modes + effects so the synced shape is finalized first).
 
@@ -208,11 +209,11 @@ These remain separate from the Aether track:
 | 37B | ✅ `theme.test.ts` "adoption token contract" — distinct per-profile accent / progress-gradient / panel-border / accent-soft CSS vars + stable shared base; no behavior change to pure core (visual recolor verified manually) |
 | 37C | ✅ `theme.test.ts` Phase 37C block — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, `themeMode` normalization, contrast sanity |
 | 37C.1 | ✅ `theme.test.ts` Phase 37C.1 block — mode-aware `panelBackground`, `--aether-panel-bg` mapping |
-| 37D | `themeEffects.test.ts` — reduced-motion off-switch, mobile density, performance tiers, per-toggle gating, `effectPerformance`/`reducedMotion` normalization |
+| 37D | ✅ `themeEffects.test.ts` — reduced-motion off-switch, mobile/touch degradation, performance tiers, accent-intensity particle density, per-toggle gating; `theme.test.ts` Phase 37D block — `effectPerformance`/`reducedMotion` normalization |
 | 37E | `dbMappers` parse tests for appearance JSON (enum + unknown-key validation); sync-merge policy tests |
 
 Always run `npm test`, `npm run lint`, `npm run build` before merge.
 
 ---
 
-*Last updated: 2026-05-31 — Phase 37A + 37B + 37C + 37C.1 shipped (Settings now follows Theme Mode). Next: 37D (Global Visual Effects) → 37E (Appearance Cloud Sync). Detail: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).*
+*Last updated: 2026-05-31 — Phase 37A + 37B + 37C + 37C.1 + 37D shipped (global visual effects centralized). Next: 37E (Appearance Cloud Sync). Detail: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md), [phase-37d-global-visual-effects.md](./phase-37d-global-visual-effects.md).*

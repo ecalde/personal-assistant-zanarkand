@@ -12,37 +12,14 @@ import { ThemePreviewCard } from "../components/settings/ThemePreviewCard";
 import { ThemeModeControl } from "../components/settings/ThemeModeControl";
 import { AccentIntensityControl } from "../components/settings/AccentIntensityControl";
 import { InterfaceEffectsToggles } from "../components/settings/InterfaceEffectsToggles";
+import { EffectPerformanceControl } from "../components/settings/EffectPerformanceControl";
+import { ReducedMotionControl } from "../components/settings/ReducedMotionControl";
 import { FutureSystemsSection } from "../components/settings/FutureSystemsSection";
-
-const EFFECT_KEYFRAMES = `
-@keyframes aether-pulse {
-  0%, 100% { box-shadow: 0 0 8px var(--aether-accent-soft, rgba(70,198,255,0.16)); }
-  50% { box-shadow: var(--aether-glow, 0 0 20px rgba(70,198,255,0.4)); }
-}
-@keyframes aether-drift {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 0.5; }
-  100% { transform: translateY(-40px); opacity: 0; }
-}
-@keyframes aether-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-aether-animated] { animation: none !important; }
-}
-`;
-
-const PARTICLES = [
-  { left: "8%", bottom: "10%", size: 5, delay: "0s", duration: "7s" },
-  { left: "24%", bottom: "4%", size: 3, delay: "1.4s", duration: "9s" },
-  { left: "47%", bottom: "8%", size: 4, delay: "2.6s", duration: "8s" },
-  { left: "68%", bottom: "2%", size: 3, delay: "0.8s", duration: "10s" },
-  { left: "82%", bottom: "12%", size: 5, delay: "3.2s", duration: "7.5s" },
-  { left: "92%", bottom: "6%", size: 3, delay: "2s", duration: "9.5s" },
-];
-
-const RUNES = ["✦", "✧", "❖", "✶"];
+import { ANIMATED_BORDER_CLASS } from "../components/effects/effectsConfig";
+import {
+  DEFAULT_EFFECT_PERFORMANCE,
+  DEFAULT_REDUCED_MOTION,
+} from "../core/theme";
 
 export type SettingsPageProps = {
   appearance: AppearanceThemeController;
@@ -57,6 +34,8 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
     setAccentIntensity,
     setThemeMode,
     toggleEffect,
+    setEffectPerformance,
+    setReducedMotion,
   } = appearance;
   const isDesktop = useIsDesktopViewport();
   const [activeCategory, setActiveCategory] =
@@ -65,50 +44,15 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
   const profile = getAetherProfile(preferences.profileId);
   const { effects } = preferences;
   const themeMode = preferences.themeMode ?? "system";
+  const effectPerformance =
+    preferences.effectPerformance ?? DEFAULT_EFFECT_PERFORMANCE;
+  const reducedMotion = preferences.reducedMotion ?? DEFAULT_REDUCED_MOTION;
 
+  // The global effects layer (mounted in App.tsx) now renders ambient particles
+  // and floating runes app-wide, so the Settings page no longer paints its own
+  // copies — there is a single implementation.
   return (
     <section style={s.page} aria-label="Settings">
-      <style>{EFFECT_KEYFRAMES}</style>
-
-      <div style={s.effectLayer} aria-hidden>
-        {effects.ambientParticles &&
-          PARTICLES.map((p, i) => (
-            <span
-              key={i}
-              data-aether-animated
-              style={{
-                position: "absolute",
-                left: p.left,
-                bottom: p.bottom,
-                width: p.size,
-                height: p.size,
-                borderRadius: "50%",
-                background: "var(--aether-accent, #46c6ff)",
-                boxShadow: "var(--aether-glow, 0 0 20px rgba(70,198,255,0.4))",
-                animation: `aether-drift ${p.duration} ease-in ${p.delay} infinite`,
-              }}
-            />
-          ))}
-        {effects.floatingRunes &&
-          RUNES.map((rune, i) => (
-            <span
-              key={i}
-              data-aether-animated
-              style={{
-                position: "absolute",
-                top: `${12 + i * 22}%`,
-                right: i % 2 === 0 ? "4%" : "auto",
-                left: i % 2 === 0 ? "auto" : "3%",
-                fontSize: 20,
-                color: "var(--aether-accent-soft, rgba(70,198,255,0.16))",
-                animation: `aether-float ${6 + i}s ease-in-out infinite`,
-              }}
-            >
-              {rune}
-            </span>
-          ))}
-      </div>
-
       <div style={s.content}>
         <header style={s.header}>
           <h1 style={s.title}>Settings</h1>
@@ -158,7 +102,11 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
               />
             </section>
 
-            <section style={s.panel} aria-labelledby="preview-heading">
+            <section
+              className={ANIMATED_BORDER_CLASS}
+              style={s.panel}
+              aria-labelledby="preview-heading"
+            >
               <div style={s.panelHeader}>
                 <h2 id="preview-heading" style={s.panelTitle}>
                   Live Preview
@@ -194,11 +142,44 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
                   Interface Effects
                 </h2>
                 <p style={s.panelSubtitle}>
-                  Toggle ambient enchantments. These are saved as preferences and
-                  reflected in the preview.
+                  Toggle ambient enchantments. These now render across the whole
+                  app, not just this page.
                 </p>
               </div>
               <InterfaceEffectsToggles effects={effects} onToggle={toggleEffect} />
+            </section>
+
+            <section style={s.panel} aria-labelledby="performance-heading">
+              <div style={s.panelHeader}>
+                <h2 id="performance-heading" style={s.panelTitle}>
+                  Effect Performance
+                </h2>
+                <p style={s.panelSubtitle}>
+                  Scale ambient effect density. Lower tiers reduce particles and
+                  runes; Low disables motion effects entirely.
+                </p>
+              </div>
+              <EffectPerformanceControl
+                value={effectPerformance}
+                onChange={setEffectPerformance}
+              />
+            </section>
+
+            <section style={s.panel} aria-labelledby="reduced-motion-heading">
+              <div style={s.panelHeader}>
+                <h2 id="reduced-motion-heading" style={s.panelTitle}>
+                  Reduced Motion
+                </h2>
+                <p style={s.panelSubtitle}>
+                  Follow your device's reduced-motion setting, or force it on or
+                  off. When reduced, particles and trails are disabled and borders
+                  and runes become static.
+                </p>
+              </div>
+              <ReducedMotionControl
+                value={reducedMotion}
+                onChange={setReducedMotion}
+              />
             </section>
 
             <section style={s.panel} aria-labelledby="future-heading">

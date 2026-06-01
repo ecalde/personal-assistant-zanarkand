@@ -2,7 +2,7 @@
 
 This document is the **detailed phase plan** for completing the Aether Theme System into a true theming system **before** appearance cloud sync. It extends the canonical [Aether Theme System plan](./aether-theme-system.md) and the high-level [roadmap](./roadmap.md), and the implementation reference in [architecture.md](../architecture.md).
 
-> **Status:** Phases **37C** and **37C.1** are shipped; **37D (Global Visual Effects)** and **37E (Appearance Cloud Sync)** remain planned. **Do not implement** the remaining phases until each is explicitly started.
+> **Status:** Phases **37C**, **37C.1**, and **37D (Global Visual Effects)** are shipped; **37E (Appearance Cloud Sync)** remains planned. **Do not implement** the remaining phase until it is explicitly started. The 37D implementation plan lives in [phase-37d-global-visual-effects.md](./phase-37d-global-visual-effects.md).
 
 ---
 
@@ -27,7 +27,7 @@ The user proposed bundling modes + effects into one phase. They are large and in
 |-------|------|------------------------|
 | **37C** ✅ | **Theme Modes (Light / Dark / System)** — *shipped* | Establishes the base-palette axis and the surface-token migration in `appStyles.ts`. Everything visual depends on a stable mode model. |
 | **37C.1** ✅ | **Settings Theme Mode Participation** — *shipped* | Settings page follows the same mode-aware tokens; completes the 37C user-facing deliverable. |
-| **37D** | **Global Visual Effects** | Centralizes effects on top of the now-complete token system; effects read mode + accent tokens, so modes must exist first. |
+| **37D** ✅ | **Global Visual Effects** — *shipped* | Centralizes effects on top of the now-complete token system; effects read mode + accent tokens, so modes must exist first. |
 | **37E** | **Appearance Cloud Sync** | Persists the **final** `AppearancePreferences` shape (profile + intensity + **mode** + **effects** + **performance**) to Supabase. Doing it last avoids a second migration when the shape grows. |
 
 > This **renumbers** the previously-planned "Phase 37C — Appearance Cloud Sync" to **Phase 37E**. The roadmap and architecture docs are updated to match. Names are chosen to read cleanly in the existing `37x` Aether track; alternatives ("Phase 37C — Theme Modes", "Phase 37D — Effects Engine") are equivalent.
@@ -154,7 +154,9 @@ Global effects centralization (37D), cloud sync (37E), redesigning component lay
 
 ---
 
-## 5. Phase 37D — Global Visual Effects
+## 5. Phase 37D — Global Visual Effects · ✅ Shipped
+
+> **Implemented.** As-built notes vs. the original sketch below: performance tiers are named **`low` / `medium` / `high`** (default `medium`) per the requirement (not `low/balanced/high`); **Magical Energy Trails** ship as a **desktop/precise-pointer-only cursor-follow trail** (auto-disabled on touch) rather than a page-transition shimmer; **ambient particle density is driven by Accent Intensity** (then scaled by tier/mobile); **animated borders** use a reusable opt-in `.aether-animated-border` class applied to a **curated set** of panels (dashboard main card + Settings preview) to avoid excessive repainting, controlled globally by a single root `data-aether-borders` flag. The container component is named `ThemeEffectsLayer`. Full standalone plan: [phase-37d-global-visual-effects.md](./phase-37d-global-visual-effects.md).
 
 ### Goal
 
@@ -259,7 +261,7 @@ A signed-in user's theme — profile, intensity, mode, and effects — follows t
 |-------|-------|
 | 37C | ✅ `theme.test.ts` — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, normalization of `themeMode`, contrast sanity |
 | 37C.1 | ✅ `theme.test.ts` — mode-aware `panelBackground`, `--aether-panel-bg` mapping |
-| 37D | `themeEffects.test.ts` — reduced-motion off-switch, mobile density, performance tiers, per-toggle gating, normalization of `effectPerformance`/`reducedMotion` |
+| 37D | ✅ `themeEffects.test.ts` — reduced-motion off-switch, mobile/touch degradation, performance tiers, accent-intensity particle density, per-toggle gating; `theme.test.ts` Phase 37D block — normalization of `effectPerformance`/`reducedMotion` |
 | 37E | `dbMappers` appearance parse/round-trip + enum/unknown-key validation; optional sync-merge policy tests |
 
 Always run `npm test`, `npm run lint`, `npm run build` before merge.
@@ -284,4 +286,4 @@ Added to the existing contract in [aether-theme-system.md](./aether-theme-system
 
 ---
 
-*Created: 2026-05-31 — Planning for Phase 37C (Theme Modes), 37D (Global Visual Effects), 37E (Appearance Cloud Sync). Updated 2026-05-31 — Phase 37C + 37C.1 shipped; 37D/37E remain planned.*
+*Created: 2026-05-31 — Planning for Phase 37C (Theme Modes), 37D (Global Visual Effects), 37E (Appearance Cloud Sync). Updated 2026-05-31 — Phase 37C + 37C.1 + 37D shipped; 37E remains planned.*

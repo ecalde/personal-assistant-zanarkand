@@ -31,3 +31,17 @@ export function useMediaQuery(query: string): boolean {
 export function useIsDesktopViewport(): boolean {
   return useMediaQuery(`(min-width: ${DESKTOP_MIN_WIDTH_PX}px)`);
 }
+
+/** True when the OS requests reduced motion (`prefers-reduced-motion: reduce`). */
+export function usePrefersReducedMotion(): boolean {
+  return useMediaQuery("(prefers-reduced-motion: reduce)");
+}
+
+/**
+ * True when the primary pointer is coarse / hover is unavailable (touch). Used
+ * by Phase 37D to disable cursor-based energy trails on touch devices.
+ */
+export function useIsTouchDevice(): boolean {
+  const precise = useMediaQuery("(hover: hover) and (pointer: fine)");
+  return !precise;
+}

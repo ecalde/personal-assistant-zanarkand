@@ -11,6 +11,8 @@ import {
   getAetherProfile,
   isAccentIntensity,
   isAetherProfileId,
+  isEffectPerformance,
+  isReducedMotionSetting,
   isThemeMode,
   normalizeAppearancePreferences,
   resolveEffectiveThemeMode,
@@ -119,6 +121,8 @@ describe("normalizeAppearancePreferences", () => {
         energyTrails: false,
         floatingRunes: false,
       },
+      effectPerformance: "medium",
+      reducedMotion: "system",
     });
     expect("extra" in result).toBe(false);
   });
@@ -442,5 +446,57 @@ describe("Phase 37C.1 settings panel background", () => {
     expect(vars[THEME_CSS_VARS.panelBackground]).toBe(
       resolveThemeTokens(prefs, "light").panelBackground
     );
+  });
+});
+
+/**
+ * Phase 37D (Global Visual Effects) — new optional preference fields
+ * (`effectPerformance`, `reducedMotion`) must normalize with safe defaults and
+ * keep older blobs (without the fields) backward compatible.
+ */
+describe("Phase 37D effects preferences normalization", () => {
+  it("defaults include the new effect fields", () => {
+    const d = defaultAppearancePreferences();
+    expect(d.effectPerformance).toBe("medium");
+    expect(d.reducedMotion).toBe("system");
+  });
+
+  it("type guards accept valid values and reject others", () => {
+    expect(isEffectPerformance("high")).toBe(true);
+    expect(isEffectPerformance("balanced")).toBe(false);
+    expect(isReducedMotionSetting("on")).toBe(true);
+    expect(isReducedMotionSetting("always")).toBe(false);
+  });
+
+  it("coerces invalid/missing values to defaults and passes valid through", () => {
+    const invalid = normalizeAppearancePreferences({
+      profileId: "emerald",
+      accentIntensity: "vibrant",
+      effects: defaultInterfaceEffects(),
+      effectPerformance: "ultra",
+      reducedMotion: 3,
+    });
+    expect(invalid.effectPerformance).toBe("medium");
+    expect(invalid.reducedMotion).toBe("system");
+
+    const valid = normalizeAppearancePreferences({
+      profileId: "emerald",
+      accentIntensity: "vibrant",
+      effects: defaultInterfaceEffects(),
+      effectPerformance: "low",
+      reducedMotion: "on",
+    });
+    expect(valid.effectPerformance).toBe("low");
+    expect(valid.reducedMotion).toBe("on");
+  });
+
+  it("normalizes older blobs without the new fields (backward compatible)", () => {
+    const legacy = normalizeAppearancePreferences({
+      profileId: "violet",
+      accentIntensity: "soft",
+      effects: defaultInterfaceEffects(),
+    });
+    expect(legacy.effectPerformance).toBe("medium");
+    expect(legacy.reducedMotion).toBe("system");
   });
 });
