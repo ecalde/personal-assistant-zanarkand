@@ -120,7 +120,7 @@ export function WorkoutPlanScheduleSection({
 
       <div>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>Weekly workout times</div>
-        <div style={{ opacity: 0.8, marginBottom: 10, fontSize: 13 }}>
+        <div style={{ ...styles.textMuted, marginBottom: 10, fontSize: 13 }}>
           Add blocks on days you plan to run this workout. Leave all days empty to keep this plan
           as a template only.
         </div>
@@ -140,7 +140,7 @@ export function WorkoutPlanScheduleSection({
                   }}
                 >
                   {blocks.length === 0 ? (
-                    <span style={{ opacity: 0.7 }}>No blocks</span>
+                    <span style={{ ...styles.textDisabled }}>No blocks</span>
                   ) : (
                     blocks.map((block) => (
                       <div key={block.id} style={styles.blockChip}>
@@ -161,7 +161,7 @@ export function WorkoutPlanScheduleSection({
                           }}
                           style={styles.minInput}
                         />
-                        <span style={{ opacity: 0.8 }}>min</span>
+                        <span style={{ ...styles.textMuted }}>min</span>
                         <button
                           type="button"
                           disabled={disabled}

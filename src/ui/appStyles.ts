@@ -1,73 +1,146 @@
 import type { CSSProperties } from "react";
 
+/** Semantic Aether text tokens (Phase 37C.2). Prefer these over opacity dimming. */
+export const AETHER_TEXT = {
+  primary: "var(--aether-text-primary, var(--aether-text, #1a2233))",
+  secondary: "var(--aether-text-secondary, #3d4d66)",
+  muted: "var(--aether-text-muted, #5a6b85)",
+  disabled: "var(--aether-text-disabled, #8a97ad)",
+  onAccent: "var(--aether-text-on-accent, #04101f)",
+} as const;
+
 export const fullViewportCenter: CSSProperties = {
   minHeight: "100vh",
   display: "grid",
   placeItems: "center",
   fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
-  color: "#333",
+  color: AETHER_TEXT.primary,
 };
 
 export const styles: Record<string, CSSProperties> = {
-  shell: { padding: "1.5rem", maxWidth: 1600, margin: "0 auto", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" },
+  shell: {
+    padding: "1.5rem",
+    maxWidth: 1600,
+    margin: "0 auto",
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
+    color: AETHER_TEXT.primary,
+  },
   header: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 },
-  title: { fontSize: 28, fontWeight: 800 },
-  sub: { opacity: 0.8 },
+  title: { fontSize: 28, fontWeight: 800, color: AETHER_TEXT.primary },
+  sub: { color: AETHER_TEXT.secondary },
   actions: { display: "flex", gap: 8, flexWrap: "wrap" },
   nav: { display: "flex", gap: 8, margin: "14px 0" },
-  navBtn: { padding: "8px 12px", borderRadius: 10, border: "1px solid var(--aether-border, #ddd)", background: "var(--aether-surface, white)" },
+  navBtn: {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "1px solid var(--aether-border, #ddd)",
+    background: "var(--aether-surface, white)",
+    color: AETHER_TEXT.primary,
+    cursor: "pointer",
+  },
   navBtnActive: {
     border: "1px solid var(--aether-accent, #999)",
     background: "var(--aether-accent-soft, transparent)",
+    color: AETHER_TEXT.primary,
     fontWeight: 700,
   },
   main: { display: "grid", gap: 14 },
-  card: { background: "var(--aether-surface-raised, #f6f6f6)", padding: 16, borderRadius: 14 },
-  cardTitle: { fontSize: 18, fontWeight: 800, marginBottom: 10 },
+  card: {
+    background: "var(--aether-surface-raised, #f6f6f6)",
+    padding: 16,
+    borderRadius: 14,
+    color: AETHER_TEXT.primary,
+  },
+  cardTitle: { fontSize: 18, fontWeight: 800, marginBottom: 10, color: AETHER_TEXT.primary },
+  // Semantic text hierarchy (Phase 37C.2) — spread into inline styles instead of opacity.
+  textPrimary: { color: AETHER_TEXT.primary },
+  textSecondary: { color: AETHER_TEXT.secondary },
+  textMuted: { color: AETHER_TEXT.muted },
+  textDisabled: { color: AETHER_TEXT.disabled },
+  textOnAccent: { color: AETHER_TEXT.onAccent },
+  metaText: { fontSize: 13, color: AETHER_TEXT.muted, lineHeight: 1.45 },
+  captionText: { fontSize: 12, color: AETHER_TEXT.muted, lineHeight: 1.35 },
+  sectionLead: { margin: "0 0 12px 0", color: AETHER_TEXT.muted },
+  ghostBtn: {
+    fontSize: 12,
+    padding: "4px 10px",
+    border: "1px solid var(--aether-border, #ccc)",
+    borderRadius: 6,
+    background: "transparent",
+    color: AETHER_TEXT.primary,
+    cursor: "pointer",
+  },
+  /** Default themed button for unstyled native `<button>` replacements (Phase 37C.2). */
+  actionBtn: {
+    padding: "6px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--aether-panel-border, #ddd)",
+    background: "var(--aether-surface, white)",
+    color: AETHER_TEXT.primary,
+    cursor: "pointer",
+    fontSize: 14,
+  },
   // Semantic danger surface: fixed light red bg + dark red text stays readable in
   // both light and dark mode (documented exception — not accent/mode tinted).
   errorBox: { background: "#ffe6e6", color: "#8a1c1c", padding: 12, borderRadius: 12, marginBottom: 10 },
   errorInline: { marginTop: 10, background: "#ffe6e6", color: "#8a1c1c", padding: 10, borderRadius: 12 },
-  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", minWidth: 280, background: "var(--aether-surface, white)", color: "var(--aether-text, inherit)" },
-  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: "var(--aether-text, inherit)" },
-  label: { display: "grid", gap: 6 },
-  listRow: { background: "var(--aether-surface, white)", padding: 12, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)" },
-  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "var(--aether-surface, white)", padding: 10, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)" },
-  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface-sunken, #fafafa)" },
-  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: "var(--aether-text, inherit)" },
-  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", textAlign: "right", background: "var(--aether-surface, white)", color: "var(--aether-text, inherit)" },
-  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: "var(--aether-text, inherit)" },
+  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", minWidth: 280, background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
+  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
+  label: { display: "grid", gap: 6, color: AETHER_TEXT.primary },
+  listRow: { background: "var(--aether-surface, white)", padding: 12, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
+  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "var(--aether-surface, white)", padding: 10, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
+  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface-sunken, #fafafa)", color: AETHER_TEXT.primary },
+  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
+  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", textAlign: "right", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
+  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary, cursor: "pointer" },
   statusPill: {
     padding: "6px 10px",
     borderRadius: 999,
     border: "1px solid var(--aether-panel-border, #ddd)",
     background: "var(--aether-surface, white)",
+    color: AETHER_TEXT.primary,
     fontSize: 12,
     fontWeight: 700,
     whiteSpace: "nowrap",
   },
-  // Semantic status chips keep their conventional green/red on a fixed light
-  // fill (documented exception); a fixed dark text color keeps them legible in
-  // both light and dark mode.
+  // Mode-aware semantic status chips (Phase 37C.2): tints flip with theme mode.
   statusOnTrack: {
-    border: "1px solid #b9e6c7",
-    background: "#ecfff1",
-    color: "#1b5e20",
+    border: "1px solid var(--aether-chip-success-border, #b9e6c7)",
+    background: "var(--aether-chip-success-bg, #ecfff1)",
+    color: "var(--aether-chip-success-text, #1b5e20)",
   },
   statusOverdue: {
-    border: "1px solid #f2b8b8",
-    background: "#ffecec",
-    color: "#8a1c1c",
+    border: "1px solid var(--aether-chip-danger-border, #f2b8b8)",
+    background: "var(--aether-chip-danger-bg, #ffecec)",
+    color: "var(--aether-chip-danger-text, #8a1c1c)",
   },
   statusIdle: {
     border: "1px solid var(--aether-border, #ddd)",
     background: "var(--aether-surface-sunken, #f8f8f8)",
+    color: AETHER_TEXT.secondary,
+  },
+  statusWarning: {
+    border: "1px solid var(--aether-chip-warning-border, #f0d9a8)",
+    background: "var(--aether-chip-warning-bg, #fff8e8)",
+    color: "var(--aether-chip-warning-text, #7a5b12)",
+  },
+  /** Mode-aware briefing/review section tints (Phase 37C.2). */
+  briefingToneSuccess: {
+    borderColor: "var(--aether-chip-success-border, #b9e6c7)",
+    background: "var(--aether-chip-success-bg, #ecfff1)",
+    color: "var(--aether-chip-success-text, #1b5e20)",
+  },
+  briefingToneWarm: {
+    borderColor: "var(--aether-chip-warning-border, #f0d9a8)",
+    background: "var(--aether-chip-warning-bg, #fff8e8)",
+    color: "var(--aether-chip-warning-text, #7a5b12)",
   },
   dashboardSection: {
     background: "var(--aether-surface, white)",
     border: "1px solid var(--aether-panel-border, #e5e5e5)",
     padding: 12,
     borderRadius: 12,
+    color: AETHER_TEXT.primary,
   },
   dashboardGrid: {
     display: "grid",
@@ -139,7 +212,7 @@ export const styles: Record<string, CSSProperties> = {
     borderRadius: 10,
     border: "1px solid var(--aether-panel-border, #ddd)",
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     cursor: "pointer",
     fontSize: 13,
   },
@@ -150,15 +223,17 @@ export const styles: Record<string, CSSProperties> = {
     padding: "12px 14px",
     display: "grid",
     gap: 4,
+    color: AETHER_TEXT.primary,
   },
   statValue: {
     fontSize: 22,
     fontWeight: 800,
     lineHeight: 1.2,
+    color: AETHER_TEXT.primary,
   },
   statLabel: {
     fontSize: 13,
-    opacity: 0.8,
+    color: AETHER_TEXT.secondary,
   },
   progressTrack: {
     width: "100%",
@@ -187,18 +262,17 @@ export const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     border: "1px solid var(--aether-panel-border, #c5d9e8)",
     background: "var(--aether-accent-soft, #eef6fc)",
+    color: AETHER_TEXT.primary,
     fontSize: 12,
     fontWeight: 800,
     whiteSpace: "nowrap",
   },
-  // Celebratory streak palette (gold) is intentionally profile/mode-independent
-  // (documented exception); fixed dark text keeps it legible on the light fill.
   streakPill: {
     padding: "4px 10px",
     borderRadius: 999,
-    border: "1px solid #f0d9a8",
-    background: "#fff8e8",
-    color: "#7a5b12",
+    border: "1px solid var(--aether-chip-warning-border, #f0d9a8)",
+    background: "var(--aether-chip-warning-bg, #fff8e8)",
+    color: "var(--aether-chip-warning-text, #7a5b12)",
     fontSize: 12,
     fontWeight: 700,
     whiteSpace: "nowrap",
@@ -208,10 +282,10 @@ export const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     border: "1px solid var(--aether-border, #ddd)",
     background: "var(--aether-surface-sunken, #f8f8f8)",
+    color: AETHER_TEXT.muted,
     fontSize: 12,
     fontWeight: 600,
     whiteSpace: "nowrap",
-    opacity: 0.9,
   },
   timelineRow: {
     background: "var(--aether-surface, white)",
@@ -225,6 +299,7 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     borderLeftWidth: 4,
     borderLeftStyle: "solid",
+    color: AETHER_TEXT.primary,
   },
   timelineAccentDone: {
     borderLeftColor: "#6fcf97",
@@ -250,23 +325,21 @@ export const styles: Record<string, CSSProperties> = {
   timelineAccentConflict: {
     borderLeftColor: "#e65100",
   },
-  // Semantic item-type chips (event/marker/all-day): fixed light fills with a
-  // fixed dark text color so they stay legible in both modes (documented
-  // exception — item-type meaning preserved, not accent/mode tinted).
+  // Mode-aware item-type chips (Phase 37C.2).
   statusEvent: {
-    border: "1px solid #90caf9",
-    background: "#e3f2fd",
-    color: "#0d47a1",
+    border: "1px solid var(--aether-chip-info-border, #90caf9)",
+    background: "var(--aether-chip-info-bg, #e3f2fd)",
+    color: "var(--aether-chip-info-text, #0d47a1)",
   },
   statusMarker: {
-    border: "1px solid #ce93d8",
-    background: "#f3e5f5",
-    color: "#6a1b9a",
+    border: "1px solid var(--aether-chip-marker-border, #ce93d8)",
+    background: "var(--aether-chip-marker-bg, #f3e5f5)",
+    color: "var(--aether-chip-marker-text, #6a1b9a)",
   },
   statusAllDay: {
-    border: "1px solid #cfd8dc",
-    background: "#eceff1",
-    color: "#37474f",
+    border: "1px solid var(--aether-chip-neutral-border, #cfd8dc)",
+    background: "var(--aether-chip-neutral-bg, #eceff1)",
+    color: "var(--aether-chip-neutral-text, #37474f)",
   },
   categoryPill: {
     padding: "2px 8px",
@@ -279,7 +352,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   helpText: {
     fontSize: 12,
-    opacity: 0.75,
+    color: AETHER_TEXT.muted,
     lineHeight: 1.35,
   },
 
@@ -352,12 +425,13 @@ export const styles: Record<string, CSSProperties> = {
     padding: "6px 12px",
     border: "none",
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     cursor: "pointer",
     fontSize: 13,
   },
   calendarToggleBtnActive: {
     background: "var(--aether-accent-soft, #eef6fc)",
+    color: AETHER_TEXT.primary,
     fontWeight: 700,
   },
   calendarWeekdayHeader: {
@@ -366,7 +440,7 @@ export const styles: Record<string, CSSProperties> = {
     gap: 4,
     fontSize: 12,
     fontWeight: 700,
-    opacity: 0.7,
+    color: AETHER_TEXT.muted,
     textAlign: "center",
   },
   calendarMonthGrid: {
@@ -398,6 +472,7 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     alignSelf: "flex-end",
+    color: AETHER_TEXT.primary,
   },
   // Solid badge with fixed white text: keep a high-contrast fill rather than an
   // accent that could be light (amber/obsidian) and fail white-on-light contrast.
@@ -431,7 +506,7 @@ export const styles: Record<string, CSSProperties> = {
     background: "transparent",
     fontSize: 11,
     fontWeight: 700,
-    opacity: 0.7,
+    color: AETHER_TEXT.muted,
     cursor: "pointer",
     textAlign: "left",
     padding: "1px 4px",
@@ -453,10 +528,8 @@ export const styles: Record<string, CSSProperties> = {
     borderLeft: "1px solid var(--aether-border, #f2f2f2)",
   },
   calendarWeekColHeaderToday: {
-    // Soft fill responds to the profile; text stays a fixed readable blue so it
-    // keeps contrast on the light tint across all profiles.
     background: "var(--aether-accent-soft, #f3f9fd)",
-    color: "#1d4ed8",
+    color: "var(--aether-accent, #1d4ed8)",
   },
   calendarAllDayRow: {
     display: "grid",
@@ -467,7 +540,7 @@ export const styles: Record<string, CSSProperties> = {
   calendarAllDayLabel: {
     fontSize: 10,
     fontWeight: 700,
-    opacity: 0.6,
+    color: AETHER_TEXT.disabled,
     padding: "4px 6px",
     textTransform: "uppercase",
   },
@@ -481,7 +554,7 @@ export const styles: Record<string, CSSProperties> = {
   calendarTimeGutterCell: {
     boxSizing: "border-box",
     fontSize: 10,
-    opacity: 0.6,
+    color: AETHER_TEXT.disabled,
     textAlign: "right",
     paddingRight: 6,
     paddingTop: 2,
@@ -532,7 +605,7 @@ export const styles: Record<string, CSSProperties> = {
     border: "1px solid var(--aether-border, #eee)",
     borderRadius: 8,
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     padding: "6px 8px",
     cursor: "pointer",
     fontSize: 13,
@@ -545,14 +618,14 @@ export const styles: Record<string, CSSProperties> = {
     border: "1px solid var(--aether-border, #eee)",
     borderRadius: 8,
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     padding: "4px 10px",
     cursor: "pointer",
     fontSize: 13,
     whiteSpace: "nowrap",
   },
   calendarCategoryToggleHidden: {
-    opacity: 0.45,
+    color: AETHER_TEXT.disabled,
   },
   calendarCategorySwatch: {
     width: 12,
@@ -572,7 +645,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarModalCard: {
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     borderRadius: 14,
     padding: 18,
     maxWidth: 420,
@@ -586,9 +659,10 @@ export const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "84px 1fr",
     gap: 8,
     fontSize: 13,
+    color: AETHER_TEXT.primary,
   },
   calendarModalLabel: {
-    opacity: 0.6,
+    color: AETHER_TEXT.muted,
     fontWeight: 600,
   },
   calendarSettingsSection: {
@@ -642,7 +716,7 @@ export const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     border: "1px solid var(--aether-panel-border, #ddd)",
     background: "var(--aether-surface, white)",
-    color: "var(--aether-text, inherit)",
+    color: AETHER_TEXT.primary,
     fontSize: 13,
   },
   calendarSettingsActions: {
@@ -695,7 +769,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarColorUsageText: {
     fontSize: 12,
-    opacity: 0.75,
+    color: AETHER_TEXT.muted,
     margin: 0,
   },
 };

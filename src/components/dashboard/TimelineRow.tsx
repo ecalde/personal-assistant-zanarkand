@@ -42,7 +42,7 @@ export function TimelineRow({ item, onAddSession }: TimelineRowProps) {
         <div style={{ fontWeight: 800 }}>
           {startTime}–{endTime} · {priorityEmoji(skill.priority)} {skill.name}
         </div>
-        <div style={{ opacity: 0.8, fontSize: 13 }}>
+        <div style={{ ...styles.textMuted, fontSize: 13 }}>
           Block: <b>{formatMinutes(block.minutes)}</b> · Logged so far:{" "}
           <b>{formatMinutes(loggedSoFar)}</b>
         </div>

@@ -500,3 +500,42 @@ describe("Phase 37D effects preferences normalization", () => {
     expect(legacy.reducedMotion).toBe("system");
   });
 });
+
+/**
+ * Phase 37C.2 (Text Token Adoption) — semantic text hierarchy + mode-aware
+ * semantic chips for dark-mode readability.
+ */
+describe("Phase 37C.2 text token hierarchy", () => {
+  const prefs = defaultAppearancePreferences();
+
+  it("maps the full text hierarchy to CSS variables", () => {
+    const vars = themeTokensToCssVars(resolveThemeTokens(prefs, "dark"));
+    expect(vars[THEME_CSS_VARS.textPrimary]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.textSecondary]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.textMuted]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.textDisabled]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.textOnAccent]).toBeDefined();
+    // Backward-compatible alias mirrors primary.
+    expect(vars[THEME_CSS_VARS.text]).toBe(vars[THEME_CSS_VARS.textPrimary]);
+  });
+
+  it("text tokens flip between light and dark with strong contrast pairing", () => {
+    const light = resolveThemeTokens(prefs, "light");
+    const dark = resolveThemeTokens(prefs, "dark");
+    expect(light.textPrimary).not.toBe(dark.textPrimary);
+    expect(light.textMuted).not.toBe(dark.textMuted);
+    // Light: dark text on light surfaces; Dark: light text (not pure white).
+    expect(light.textPrimary).toMatch(/^#/);
+    expect(dark.textPrimary).toBe("#e8f1ff");
+    expect(dark.textPrimary).not.toBe("#ffffff");
+  });
+
+  it("semantic chip tokens are mode-aware", () => {
+    const light = themeTokensToCssVars(resolveThemeTokens(prefs, "light"));
+    const dark = themeTokensToCssVars(resolveThemeTokens(prefs, "dark"));
+    expect(light[THEME_CSS_VARS.chipInfoText]).not.toBe(
+      dark[THEME_CSS_VARS.chipInfoText]
+    );
+    expect(dark[THEME_CSS_VARS.chipInfoText]).toBe("#93c5fd");
+  });
+});

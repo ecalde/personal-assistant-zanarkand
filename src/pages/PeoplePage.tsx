@@ -132,7 +132,7 @@ export default function PeoplePage({
             </button>
           )}
         </div>
-        <div style={{ opacity: 0.85 }}>
+        <div style={{ ...styles.textSecondary }}>
           Track friends and family — birthdays, preferences, gift ideas, and check-in reminders.
         </div>
       </div>

@@ -35,24 +35,12 @@ export type DailyFocusSectionProps = {
 
 const URGENCY_PILL_STYLES: Record<FocusPriority, CSSProperties> = {
   critical: styles.statusOverdue,
-  high: {
-    border: "1px solid #f0c674",
-    background: "#fff8e6",
-    color: "#7a5b12",
-  },
+  high: styles.statusWarning,
   medium: styles.statusOnTrack,
   low: styles.statusIdle,
 };
 
-const SECONDARY_BUTTON_STYLE: CSSProperties = {
-  fontSize: 12,
-  padding: "4px 10px",
-  border: "1px solid #ccc",
-  borderRadius: 6,
-  background: "transparent",
-  opacity: 0.85,
-  cursor: "pointer",
-};
+const SECONDARY_BUTTON_STYLE: CSSProperties = styles.ghostBtn;
 
 function resolveFocusActionHandler(
   actionType: FocusActionType,
@@ -130,7 +118,7 @@ function FocusItemRow({
       >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{item.title}</div>
-          <p style={{ margin: "4px 0 0 0", opacity: 0.8, fontSize: 14 }}>{item.description}</p>
+          <p style={{ margin: "4px 0 0 0", fontSize: 14, ...styles.textMuted }}>{item.description}</p>
           <div
             style={{
               display: "flex",
@@ -138,7 +126,7 @@ function FocusItemRow({
               gap: 8,
               marginTop: 6,
               fontSize: 12,
-              opacity: 0.75,
+              ...styles.textMuted,
             }}
           >
             <span>{formatFocusCategory(item.category)}</span>
@@ -241,7 +229,7 @@ function HiddenFocusFeedbackRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>{titleLine}</div>
         {descriptionLine && (
-          <p style={{ margin: "4px 0 0 0", opacity: 0.8, fontSize: 13 }}>{descriptionLine}</p>
+          <p style={{ margin: "4px 0 0 0", fontSize: 13, ...styles.textMuted }}>{descriptionLine}</p>
         )}
         <div
           style={{
@@ -250,7 +238,7 @@ function HiddenFocusFeedbackRow({
             gap: 8,
             marginTop: 6,
             fontSize: 12,
-            opacity: 0.75,
+            ...styles.textMuted,
           }}
         >
           <span>
@@ -322,11 +310,11 @@ export function DailyFocusSection({
       )}
 
       {contextLine && summary.items.length > 0 && (
-        <p style={{ margin: "0 0 12px 0", opacity: 0.75, fontSize: 13 }}>{contextLine}</p>
+        <p style={{ margin: "0 0 12px 0", fontSize: 13, ...styles.textMuted }}>{contextLine}</p>
       )}
 
       {summary.items.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>
+        <p style={{ margin: 0, ...styles.textMuted }}>
           You&apos;re caught up — no urgent focus items today.
         </p>
       ) : (
@@ -359,7 +347,7 @@ export function DailyFocusSection({
             gap: 8,
             marginTop: 12,
             fontSize: 12,
-            opacity: 0.75,
+            ...styles.textMuted,
           }}
         >
           <span>
@@ -412,7 +400,7 @@ export function DailyFocusSection({
         </div>
       )}
 
-      <p style={{ margin: "12px 0 0 0", fontSize: 12, opacity: 0.65 }}>
+      <p style={{ margin: "12px 0 0 0", fontSize: 12, ...styles.textDisabled }}>
         Hidden items may reappear when conditions change.
       </p>
     </section>

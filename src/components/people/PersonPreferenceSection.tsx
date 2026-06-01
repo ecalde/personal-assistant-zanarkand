@@ -11,7 +11,7 @@ export function PersonPreferenceSection({ title, content }: PersonPreferenceSect
   return (
     <div style={{ ...styles.dashboardSection, minWidth: 0 }}>
       <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>{title}</div>
-      <div style={{ fontSize: 13, opacity: 0.9, whiteSpace: "pre-wrap" }}>{content}</div>
+      <div style={{ fontSize: 13, ...styles.textSecondary, whiteSpace: "pre-wrap" }}>{content}</div>
     </div>
   );
 }

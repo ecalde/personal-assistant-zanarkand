@@ -190,14 +190,14 @@ export function SkillEditor({
         <div>
           <div style={{ fontSize: 18 }}>
             <b>{skill.name}</b>{" "}
-            <span style={{ opacity: 0.8 }}>
+            <span style={{ ...styles.textMuted }}>
               {priorityEmoji(skill.priority)} {skill.priority ?? "—"}
             </span>
           </div>
-          <div style={{ opacity: 0.7, fontSize: 13 }}>
+          <div style={{ ...styles.textDisabled, fontSize: 13 }}>
             Updated: {formatLocal(skill.updatedAtIso)}
           </div>
-          <div style={{ opacity: 0.75, fontSize: 13, marginTop: 4 }}>
+          <div style={{ ...styles.textMuted, fontSize: 13, marginTop: 4 }}>
             {formatSkillScheduleSeriesLabel(skill)}
           </div>
         </div>
@@ -229,12 +229,12 @@ export function SkillEditor({
 
       <hr style={{ margin: "14px 0", opacity: 0.2 }} />
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ opacity: 0.85 }}>
+        <div style={{ ...styles.textSecondary }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div>
               <div style={{ fontWeight: 700 }}>Today</div>
               <div>{todayMinutes} min</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
+              <div style={{ fontSize: 12, ...styles.textMuted }}>
                 Expected by now: {completion.expectedByNow} min
               </div>
             </div>
@@ -271,7 +271,7 @@ export function SkillEditor({
             placeholder="e.g., 20"
             style={{ ...styles.input, minWidth: 140 }}
           />
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Whole minutes only</div>
+          <div style={{ fontSize: 12, ...styles.textDisabled }}>Whole minutes only</div>
         </label>
 
         <button
@@ -292,7 +292,7 @@ export function SkillEditor({
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Today’s sessions</div>
 
         {todaySessions.length === 0 ? (
-          <div style={{ opacity: 0.75 }}>No sessions logged today.</div>
+          <div style={{ ...styles.textMuted }}>No sessions logged today.</div>
         ) : (
           <div style={{ display: "grid", gap: 6 }}>
             {todaySessions.map((ss) => (
@@ -310,7 +310,7 @@ export function SkillEditor({
               >
                 <div>
                   <b>{ss.minutes} min</b>{" "}
-                  <span style={{ opacity: 0.75 }}>· {formatTimeOnly(ss.startedAtIso)}</span>
+                  <span style={{ ...styles.textMuted }}>· {formatTimeOnly(ss.startedAtIso)}</span>
                 </div>
 
                 <button
@@ -352,7 +352,7 @@ export function SkillEditor({
       </div>
 
       <div style={{ marginTop: 14, fontWeight: 600 }}>Weekly schedule template</div>
-      <div style={{ opacity: 0.8, marginBottom: 10 }}>
+      <div style={{ ...styles.textMuted, marginBottom: 10 }}>
         Add planned blocks (we’ll later support exceptions + multiple blocks/day on the dashboard timeline).
       </div>
 
@@ -365,7 +365,7 @@ export function SkillEditor({
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", flex: 1 }}>
                 {blocks.length === 0 ? (
-                  <span style={{ opacity: 0.7 }}>No blocks</span>
+                  <span style={{ ...styles.textDisabled }}>No blocks</span>
                 ) : (
                   blocks.map((b) => (
                     <div key={b.id} style={styles.blockChip}>
@@ -384,7 +384,7 @@ export function SkillEditor({
                         }}
                         style={styles.minInput}
                       />
-                      <span style={{ opacity: 0.8 }}>min</span>
+                      <span style={{ ...styles.textMuted }}>min</span>
                       <button onClick={() => deleteBlock(day, b.id)} style={styles.smallBtn}>
                         ✕
                       </button>

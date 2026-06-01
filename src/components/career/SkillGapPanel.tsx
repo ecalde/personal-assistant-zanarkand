@@ -16,7 +16,7 @@ export function SkillGapPanel({ skills, careerTarget }: SkillGapPanelProps) {
     return (
       <section style={styles.dashboardSection} aria-label="Skill gap summary">
         <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Skill focus</h2>
-        <p style={{ margin: 0, opacity: 0.8 }}>
+        <p style={{ margin: 0, ...styles.textMuted }}>
           Add required skills to your dream job target to see what to focus on.
         </p>
       </section>
@@ -26,7 +26,7 @@ export function SkillGapPanel({ skills, careerTarget }: SkillGapPanelProps) {
   return (
     <section style={styles.dashboardSection} aria-label="Skill gap summary">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Skill focus</h2>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         Priority skills for your dream role — tracked skills first, then additional requirements.
       </p>
 
@@ -37,13 +37,13 @@ export function SkillGapPanel({ skills, careerTarget }: SkillGapPanelProps) {
               <span>
                 <strong>{item.skillName}</strong>
                 {item.skillPriority !== undefined && (
-                  <span style={{ opacity: 0.75, fontSize: 13 }}> · priority {item.skillPriority}</span>
+                  <span style={{ ...styles.textMuted, fontSize: 13 }}> · priority {item.skillPriority}</span>
                 )}
               </span>
             ) : (
               <span>
                 {item.label}
-                <span style={{ opacity: 0.75, fontSize: 13 }}> · not yet in tracker</span>
+                <span style={{ ...styles.textMuted, fontSize: 13 }}> · not yet in tracker</span>
               </span>
             )}
           </li>

@@ -67,7 +67,7 @@ function UpcomingEventRow({
             gap: 8,
             flexWrap: "wrap",
             alignItems: "center",
-            opacity: 0.85,
+            ...styles.textSecondary,
             fontSize: 13,
           }}
         >
@@ -95,10 +95,10 @@ export function UpcomingEventsSection({
   return (
     <section style={styles.dashboardSection} aria-label="Upcoming events">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Upcoming events</h2>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>Next {windowDays} days.</p>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>Next {windowDays} days.</p>
 
       {items.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>No upcoming events.</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>No upcoming events.</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {items.map((item) => (

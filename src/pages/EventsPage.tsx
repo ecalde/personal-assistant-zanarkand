@@ -179,12 +179,12 @@ function EventRow({
             <strong>{event.title}</strong>
             {event.reminder && <span style={styles.streakPill}>Reminder</span>}
           </div>
-          <div style={{ opacity: 0.85 }}>{formatEventSchedule(event)}</div>
+          <div style={{ ...styles.textSecondary }}>{formatEventSchedule(event)}</div>
           {event.recurrence?.frequency && (
-            <div style={{ opacity: 0.85 }}>{formatEventRecurrenceLabel(event.recurrence)}</div>
+            <div style={{ ...styles.textSecondary }}>{formatEventRecurrenceLabel(event.recurrence)}</div>
           )}
           {personLabel && <div>With {personLabel}</div>}
-          {event.notes && <div style={{ opacity: 0.85 }}>{event.notes}</div>}
+          {event.notes && <div style={{ ...styles.textSecondary }}>{event.notes}</div>}
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "start" }}>
@@ -442,7 +442,7 @@ export default function EventsPage({
             </button>
           )}
         </div>
-        <div style={{ opacity: 0.85 }}>
+        <div style={{ ...styles.textSecondary }}>
           Track birthdays, hangouts, trips, holidays, deadlines, and other important dates.
         </div>
       </div>

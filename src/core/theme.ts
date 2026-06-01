@@ -125,10 +125,18 @@ export type ThemeTokens = {
   buttonGlow: string;
   /** Progress / XP bar fill gradient. */
   progressGradient: string;
-  /** Primary readable text color. */
-  text: string;
-  /** Muted/secondary text color. */
+  /** Primary body/heading text (alias: {@link text}). */
+  textPrimary: string;
+  /** Secondary labels, descriptions one step below primary. */
+  textSecondary: string;
+  /** Muted/helper/meta text (captions, hints, timestamps). */
   textMuted: string;
+  /** Disabled or very low-emphasis text. */
+  textDisabled: string;
+  /** Readable text on bright accent fills (buttons, badges). */
+  textOnAccent: string;
+  /** @deprecated Use {@link textPrimary}; kept for backward compatibility. */
+  text: string;
 };
 
 export const AETHER_PROFILES: readonly AetherProfile[] = [
@@ -292,8 +300,42 @@ type BasePalette = {
   /** Glass panel fill for Settings / preview widgets (Phase 37C.1). */
   panelBackground: string;
   border: string;
-  text: string;
+  /** Primary body/heading text (Phase 37C.2). */
+  textPrimary: string;
+  /** Secondary labels and descriptions. */
+  textSecondary: string;
+  /** Muted/helper/meta text. */
   textMuted: string;
+  /** Disabled or very low-emphasis text. */
+  textDisabled: string;
+  /** Text on bright accent fills (profile-independent). */
+  textOnAccent: string;
+  /** Semantic success chip (on-track). */
+  chipSuccessText: string;
+  chipSuccessBg: string;
+  chipSuccessBorder: string;
+  /** Semantic danger chip (overdue/error). */
+  chipDangerText: string;
+  chipDangerBg: string;
+  chipDangerBorder: string;
+  /** Semantic warning chip (high urgency, streak). */
+  chipWarningText: string;
+  chipWarningBg: string;
+  chipWarningBorder: string;
+  /** Semantic info chip (timed events). */
+  chipInfoText: string;
+  chipInfoBg: string;
+  chipInfoBorder: string;
+  /** Semantic marker chip (time markers). */
+  chipMarkerText: string;
+  chipMarkerBg: string;
+  chipMarkerBorder: string;
+  /** Neutral/all-day chip. */
+  chipNeutralText: string;
+  chipNeutralBg: string;
+  chipNeutralBorder: string;
+  /** @deprecated Alias for textPrimary (backward compat). */
+  text: string;
 };
 
 const LIGHT_BASE: BasePalette = {
@@ -303,8 +345,30 @@ const LIGHT_BASE: BasePalette = {
   surfaceSunken: "#fafafa",
   panelBackground: "rgba(255, 255, 255, 0.78)",
   border: "#e5e5e5",
-  text: "#1a2233",
+  textPrimary: "#1a2233",
+  textSecondary: "#3d4d66",
   textMuted: "#5a6b85",
+  textDisabled: "#8a97ad",
+  textOnAccent: "#04101f",
+  chipSuccessText: "#1b5e20",
+  chipSuccessBg: "#ecfff1",
+  chipSuccessBorder: "#b9e6c7",
+  chipDangerText: "#8a1c1c",
+  chipDangerBg: "#ffecec",
+  chipDangerBorder: "#f2b8b8",
+  chipWarningText: "#7a5b12",
+  chipWarningBg: "#fff8e8",
+  chipWarningBorder: "#f0d9a8",
+  chipInfoText: "#0d47a1",
+  chipInfoBg: "#e3f2fd",
+  chipInfoBorder: "#90caf9",
+  chipMarkerText: "#6a1b9a",
+  chipMarkerBg: "#f3e5f5",
+  chipMarkerBorder: "#ce93d8",
+  chipNeutralText: "#37474f",
+  chipNeutralBg: "#eceff1",
+  chipNeutralBorder: "#cfd8dc",
+  text: "#1a2233",
 };
 
 const DARK_BASE: BasePalette = {
@@ -314,8 +378,30 @@ const DARK_BASE: BasePalette = {
   surfaceSunken: "rgba(8, 16, 34, 0.7)",
   panelBackground: "rgba(14, 26, 50, 0.55)",
   border: "rgba(120, 160, 220, 0.18)",
-  text: "#e8f1ff",
+  textPrimary: "#e8f1ff",
+  textSecondary: "#c5d4ea",
   textMuted: "#9fb3d1",
+  textDisabled: "#6b7f99",
+  textOnAccent: "#04101f",
+  chipSuccessText: "#86efac",
+  chipSuccessBg: "rgba(27, 94, 32, 0.28)",
+  chipSuccessBorder: "rgba(134, 239, 172, 0.35)",
+  chipDangerText: "#fca5a5",
+  chipDangerBg: "rgba(138, 28, 28, 0.28)",
+  chipDangerBorder: "rgba(252, 165, 165, 0.35)",
+  chipWarningText: "#fcd34d",
+  chipWarningBg: "rgba(122, 91, 18, 0.28)",
+  chipWarningBorder: "rgba(252, 211, 77, 0.35)",
+  chipInfoText: "#93c5fd",
+  chipInfoBg: "rgba(13, 71, 161, 0.28)",
+  chipInfoBorder: "rgba(147, 197, 253, 0.35)",
+  chipMarkerText: "#d8b4fe",
+  chipMarkerBg: "rgba(106, 27, 154, 0.28)",
+  chipMarkerBorder: "rgba(216, 180, 254, 0.35)",
+  chipNeutralText: "#b0bec5",
+  chipNeutralBg: "rgba(55, 71, 79, 0.35)",
+  chipNeutralBorder: "rgba(176, 190, 197, 0.3)",
+  text: "#e8f1ff",
 };
 
 function basePaletteForMode(mode: ResolvedThemeMode): BasePalette {
@@ -513,8 +599,12 @@ export function resolveThemeTokens(
     glow: glowShadow(accent, 20, 0.45, mult),
     buttonGlow: glowShadow(accent, 16, 0.55, mult),
     progressGradient: `linear-gradient(90deg, ${accentSecondary}, ${accent})`,
-    text: palette.text,
+    textPrimary: palette.textPrimary,
+    textSecondary: palette.textSecondary,
     textMuted: palette.textMuted,
+    textDisabled: palette.textDisabled,
+    textOnAccent: palette.textOnAccent,
+    text: palette.textPrimary,
   };
 }
 
@@ -534,12 +624,37 @@ export const THEME_CSS_VARS = {
   glow: "--aether-glow",
   buttonGlow: "--aether-button-glow",
   progressGradient: "--aether-progress-gradient",
-  text: "--aether-text",
+  /** Primary body/heading text (Phase 37C.2). */
+  textPrimary: "--aether-text-primary",
+  textSecondary: "--aether-text-secondary",
   textMuted: "--aether-text-muted",
+  textDisabled: "--aether-text-disabled",
+  textOnAccent: "--aether-text-on-accent",
+  /** Backward-compatible alias for textPrimary. */
+  text: "--aether-text",
+  chipSuccessText: "--aether-chip-success-text",
+  chipSuccessBg: "--aether-chip-success-bg",
+  chipSuccessBorder: "--aether-chip-success-border",
+  chipDangerText: "--aether-chip-danger-text",
+  chipDangerBg: "--aether-chip-danger-bg",
+  chipDangerBorder: "--aether-chip-danger-border",
+  chipWarningText: "--aether-chip-warning-text",
+  chipWarningBg: "--aether-chip-warning-bg",
+  chipWarningBorder: "--aether-chip-warning-border",
+  chipInfoText: "--aether-chip-info-text",
+  chipInfoBg: "--aether-chip-info-bg",
+  chipInfoBorder: "--aether-chip-info-border",
+  chipMarkerText: "--aether-chip-marker-text",
+  chipMarkerBg: "--aether-chip-marker-bg",
+  chipMarkerBorder: "--aether-chip-marker-border",
+  chipNeutralText: "--aether-chip-neutral-text",
+  chipNeutralBg: "--aether-chip-neutral-bg",
+  chipNeutralBorder: "--aether-chip-neutral-border",
 } as const;
 
 /** Map resolved tokens to the CSS custom-property name/value pairs. */
 export function themeTokensToCssVars(tokens: ThemeTokens): Record<string, string> {
+  const palette = basePaletteForMode(tokens.themeMode);
   return {
     [THEME_CSS_VARS.accent]: tokens.accent,
     [THEME_CSS_VARS.accentSecondary]: tokens.accentSecondary,
@@ -555,7 +670,30 @@ export function themeTokensToCssVars(tokens: ThemeTokens): Record<string, string
     [THEME_CSS_VARS.glow]: tokens.glow,
     [THEME_CSS_VARS.buttonGlow]: tokens.buttonGlow,
     [THEME_CSS_VARS.progressGradient]: tokens.progressGradient,
-    [THEME_CSS_VARS.text]: tokens.text,
+    [THEME_CSS_VARS.textPrimary]: tokens.textPrimary,
+    [THEME_CSS_VARS.textSecondary]: tokens.textSecondary,
     [THEME_CSS_VARS.textMuted]: tokens.textMuted,
+    [THEME_CSS_VARS.textDisabled]: tokens.textDisabled,
+    [THEME_CSS_VARS.textOnAccent]: tokens.textOnAccent,
+    // Backward-compatible alias: --aether-text mirrors primary.
+    [THEME_CSS_VARS.text]: tokens.textPrimary,
+    [THEME_CSS_VARS.chipSuccessText]: palette.chipSuccessText,
+    [THEME_CSS_VARS.chipSuccessBg]: palette.chipSuccessBg,
+    [THEME_CSS_VARS.chipSuccessBorder]: palette.chipSuccessBorder,
+    [THEME_CSS_VARS.chipDangerText]: palette.chipDangerText,
+    [THEME_CSS_VARS.chipDangerBg]: palette.chipDangerBg,
+    [THEME_CSS_VARS.chipDangerBorder]: palette.chipDangerBorder,
+    [THEME_CSS_VARS.chipWarningText]: palette.chipWarningText,
+    [THEME_CSS_VARS.chipWarningBg]: palette.chipWarningBg,
+    [THEME_CSS_VARS.chipWarningBorder]: palette.chipWarningBorder,
+    [THEME_CSS_VARS.chipInfoText]: palette.chipInfoText,
+    [THEME_CSS_VARS.chipInfoBg]: palette.chipInfoBg,
+    [THEME_CSS_VARS.chipInfoBorder]: palette.chipInfoBorder,
+    [THEME_CSS_VARS.chipMarkerText]: palette.chipMarkerText,
+    [THEME_CSS_VARS.chipMarkerBg]: palette.chipMarkerBg,
+    [THEME_CSS_VARS.chipMarkerBorder]: palette.chipMarkerBorder,
+    [THEME_CSS_VARS.chipNeutralText]: palette.chipNeutralText,
+    [THEME_CSS_VARS.chipNeutralBg]: palette.chipNeutralBg,
+    [THEME_CSS_VARS.chipNeutralBorder]: palette.chipNeutralBorder,
   };
 }

@@ -8,16 +8,8 @@ export type DailyBriefingSectionProps = {
 
 const TONE_SECTION_STYLES: Record<BriefingTone, CSSProperties> = {
   neutral: {},
-  encouraging: {
-    borderColor: "#b9e6c7",
-    background: "#fafffb",
-    color: "#1b3a2a",
-  },
-  warning: {
-    borderColor: "#e8c98a",
-    background: "#fffaf0",
-    color: "#5a4a1e",
-  },
+  encouraging: styles.briefingToneSuccess,
+  warning: styles.briefingToneWarm,
 };
 
 function splitSummaryLines(summary: string): string[] {
@@ -52,10 +44,10 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
             {line}
           </p>
         ))}
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.45 }}>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, ...styles.textSecondary }}>
           {briefing.workloadSummary}
         </p>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.45 }}>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, ...styles.textSecondary }}>
           {briefing.focusSummary}
         </p>
       </div>
@@ -73,14 +65,14 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
               fontWeight: 600,
               margin: "0 0 6px 0",
               fontSize: 13,
-              opacity: 0.75,
+              ...styles.textMuted,
             }}
           >
             More ideas (beyond Today&apos;s focus)
           </h3>
           <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
             {briefing.recommendations.map((recommendation) => (
-              <li key={recommendation} style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.4 }}>
+              <li key={recommendation} style={{ fontSize: 13, lineHeight: 1.4, ...styles.textSecondary }}>
                 {recommendation}
               </li>
             ))}
@@ -95,7 +87,7 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
               fontWeight: 600,
               margin: "0 0 6px 0",
               fontSize: 13,
-              opacity: 0.8,
+              ...styles.textMuted,
             }}
           >
             Heads up
@@ -115,9 +107,7 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
                 key={flag}
                 style={{
                   ...styles.statusPill,
-                  border: "1px solid #e8c98a",
-                  background: "#fff8e6",
-                  color: "#7a5b12",
+                  ...styles.statusWarning,
                   fontSize: 12,
                   fontWeight: 600,
                 }}

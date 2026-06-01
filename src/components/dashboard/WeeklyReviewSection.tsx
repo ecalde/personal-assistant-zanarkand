@@ -9,16 +9,8 @@ export type WeeklyReviewSectionProps = {
 
 const TONE_SECTION_STYLES: Record<ReviewTone, CSSProperties> = {
   neutral: {},
-  encouraging: {
-    borderColor: "#b9e6c7",
-    background: "#fafffb",
-    color: "#1b3a2a",
-  },
-  warning: {
-    borderColor: "#e8c98a",
-    background: "#fffaf0",
-    color: "#5a4a1e",
-  },
+  encouraging: styles.briefingToneSuccess,
+  warning: styles.briefingToneWarm,
 };
 
 function splitSummaryLines(summary: string): string[] {
@@ -66,7 +58,7 @@ export function WeeklyReviewSection({ review, onOpenReview }: WeeklyReviewSectio
         )}
       </div>
 
-      <p style={{ margin: "0 0 4px 0", fontSize: 12, opacity: 0.7 }}>
+      <p style={{ margin: "0 0 4px 0", fontSize: 12, ...styles.textDisabled }}>
         {review.week.weekKey} · {formatWeekRange(review.week.weekStartKey, review.week.weekEndKey)}
       </p>
 
@@ -98,7 +90,7 @@ export function WeeklyReviewSection({ review, onOpenReview }: WeeklyReviewSectio
               fontWeight: 600,
               margin: "0 0 6px 0",
               fontSize: 13,
-              opacity: 0.75,
+              ...styles.textMuted,
             }}
           >
             Wins
@@ -120,14 +112,14 @@ export function WeeklyReviewSection({ review, onOpenReview }: WeeklyReviewSectio
               fontWeight: 600,
               margin: "0 0 6px 0",
               fontSize: 13,
-              opacity: 0.8,
+              ...styles.textMuted,
             }}
           >
             Risks for next week
           </h3>
           <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
             {topRisks.map((risk) => (
-              <li key={risk} style={{ fontSize: 13, lineHeight: 1.4, color: "#8a5a00" }}>
+              <li key={risk} style={{ fontSize: 13, lineHeight: 1.4, color: "var(--aether-chip-warning-text)" }}>
                 {risk}
               </li>
             ))}

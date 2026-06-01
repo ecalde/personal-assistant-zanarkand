@@ -55,6 +55,12 @@ const GLOBAL_EFFECT_CSS = `
     0 0 8px var(--aether-accent-soft, rgba(70,198,255,0.16));
 }
 
+/* Buttons do not inherit color by default (UA stylesheet); inherit the themed
+   ancestor color so unstyled button labels stay readable in dark mode. */
+button {
+  color: inherit;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-aether-animated] { animation: none !important; }
   :root[data-aether-borders="on"] .aether-animated-border { animation: none !important; }

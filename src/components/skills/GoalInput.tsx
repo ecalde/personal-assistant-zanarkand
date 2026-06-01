@@ -21,7 +21,7 @@ export function GoalInput({ label, defaultValue, hint, onCommit }: GoalInputProp
         placeholder={hint}
         style={styles.input}
       />
-      <div style={{ fontSize: 12, opacity: 0.7 }}>{hint}</div>
+      <div style={{ fontSize: 12, ...styles.textDisabled }}>{hint}</div>
     </label>
   );
 }

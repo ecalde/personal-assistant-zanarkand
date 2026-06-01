@@ -23,10 +23,11 @@ const PANEL_GLOW = "var(--aether-panel-glow, 0 0 24px rgba(70,198,255,0.14))";
 const BUTTON_GLOW = "var(--aether-button-glow, 0 0 14px rgba(70,198,255,0.4))";
 const PROGRESS_GRADIENT =
   "var(--aether-progress-gradient, linear-gradient(90deg, #7b9bff, #46c6ff))";
-const TEXT = "var(--aether-text, #1a2233)";
+const TEXT = "var(--aether-text-primary, var(--aether-text, #1a2233))";
 const TEXT_MUTED = "var(--aether-text-muted, #5a6b85)";
+const TEXT_ON_ACCENT = "var(--aether-text-on-accent, #04101f)";
 /** High-contrast label on accent-filled controls (profile badge, preview CTA). */
-const ON_ACCENT_TEXT = "#04101f";
+const ON_ACCENT_TEXT = TEXT_ON_ACCENT;
 
 export const settingsStyles: Record<string, CSSProperties> = {
   page: {

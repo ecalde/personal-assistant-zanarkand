@@ -37,7 +37,7 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
         opacity: drag?.isDimmed ? 0.45 : 1,
       }}
     >
-      {timeLabel ? <span style={{ opacity: 0.85 }}>{timeLabel} </span> : null}
+      {timeLabel ? <span style={{ ...styles.textSecondary }}>{timeLabel} </span> : null}
       {item.title}
     </button>
   );

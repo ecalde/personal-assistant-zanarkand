@@ -16,7 +16,7 @@ export function TodayHero({ rows, totalMinutesToday, layout = "wide" }: TodayHer
     return (
       <section style={{ ...styles.dashboardSection, marginBottom: 12 }} aria-label="Today">
         <h2 style={{ fontWeight: 800, margin: "0 0 8px 0", fontSize: 18 }}>Today</h2>
-        <p style={{ margin: 0, opacity: 0.8 }}>Add skills to track your daily progress.</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>Add skills to track your daily progress.</p>
       </section>
     );
   }

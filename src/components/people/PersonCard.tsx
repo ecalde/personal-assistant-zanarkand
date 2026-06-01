@@ -72,7 +72,7 @@ export function PersonCard({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
           <strong>{person.name}</strong>
           {person.nickname && (
-            <span style={{ opacity: 0.85, fontSize: 13 }}>({person.nickname})</span>
+            <span style={{ ...styles.textSecondary, fontSize: 13 }}>({person.nickname})</span>
           )}
           {person.relationship && (
             <span style={styles.statusPill}>{person.relationship}</span>
@@ -103,7 +103,7 @@ export function PersonCard({
           </div>
         )}
 
-        <div style={{ opacity: 0.85, fontSize: 13 }}>{summaryLine}</div>
+        <div style={{ ...styles.textSecondary, fontSize: 13 }}>{summaryLine}</div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" onClick={onToggleExpand}>

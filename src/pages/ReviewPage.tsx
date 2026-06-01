@@ -42,16 +42,8 @@ export type ReviewPageProps = {
 
 const TONE_CARD_STYLES: Record<WeeklyReview["tone"], CSSProperties> = {
   neutral: {},
-  encouraging: {
-    borderColor: "#b9e6c7",
-    background: "#fafffb",
-    color: "#1b3a2a",
-  },
-  warning: {
-    borderColor: "#e8c98a",
-    background: "#fffaf0",
-    color: "#5a4a1e",
-  },
+  encouraging: styles.briefingToneSuccess,
+  warning: styles.briefingToneWarm,
 };
 
 const ATTENTION_REASON_LABELS: Record<ApplicationAttentionReason, string> = {
@@ -149,7 +141,7 @@ export default function ReviewPage({
   return (
     <div style={styles.card}>
       <h1 style={{ ...styles.cardTitle, margin: "0 0 4px 0" }}>Weekly review</h1>
-      <p style={{ margin: "0 0 12px 0", fontSize: 13, opacity: 0.75 }}>
+      <p style={{ margin: "0 0 12px 0", fontSize: 13, ...styles.textMuted }}>
         {formatWeekRange(review.week.weekStartKey, review.week.weekEndKey)}
       </p>
 
@@ -172,7 +164,7 @@ export default function ReviewPage({
       <SectionBlock title="Risks for next week" hiddenWhenEmpty isEmpty={!isRisksSectionVisible(review)}>
         <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
           {review.risks.map((risk) => (
-            <li key={risk} style={{ fontSize: 14, lineHeight: 1.45, color: "#8a5a00" }}>
+            <li key={risk} style={{ fontSize: 14, lineHeight: 1.45, color: "var(--aether-chip-warning-text)" }}>
               {risk}
             </li>
           ))}
@@ -184,13 +176,13 @@ export default function ReviewPage({
         hiddenWhenEmpty
         isEmpty={!isSkillsSectionVisible(review.skills)}
       >
-        <p style={{ margin: "0 0 10px 0", opacity: 0.85 }}>
+        <p style={{ margin: "0 0 10px 0", ...styles.textSecondary }}>
           {formatMinutes(review.skills.totalMinutes)} logged this week.
         </p>
 
         {review.skills.topConsistent.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Strongest consistency
             </h3>
             <ul style={{ margin: "0 0 12px 0", paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -206,7 +198,7 @@ export default function ReviewPage({
 
         {review.skills.missedOrOverdue.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Missed or overdue
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -226,7 +218,7 @@ export default function ReviewPage({
       <SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
         <p style={{ margin: 0, fontSize: 14 }}>{review.fitness.summaryLine}</p>
         {review.fitness.totalDurationMinutes > 0 && (
-          <p style={{ margin: "6px 0 0 0", fontSize: 13, opacity: 0.85 }}>
+          <p style={{ margin: "6px 0 0 0", fontSize: 13, ...styles.textSecondary }}>
             Total duration: {formatMinutes(review.fitness.totalDurationMinutes)}
           </p>
         )}
@@ -239,7 +231,7 @@ export default function ReviewPage({
       >
         {review.career.updatedThisWeek.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Updated this week
             </h3>
             <ul style={{ margin: "0 0 12px 0", paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -254,7 +246,7 @@ export default function ReviewPage({
 
         {review.career.stillNeedingAttention.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Still needing attention
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -278,7 +270,7 @@ export default function ReviewPage({
       >
         {review.people.followedUpThisWeek.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Followed up this week
             </h3>
             <ul style={{ margin: "0 0 12px 0", paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -293,7 +285,7 @@ export default function ReviewPage({
 
         {review.people.stillNeedingFollowUp.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Still needing follow-up
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -314,7 +306,7 @@ export default function ReviewPage({
       >
         {review.events.completedThisWeek.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Completed this week
             </h3>
             <ul style={{ margin: "0 0 12px 0", paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -329,7 +321,7 @@ export default function ReviewPage({
 
         {review.events.upcomingNextWeek.length > 0 && (
           <>
-            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+            <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
               Upcoming next week
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
@@ -348,11 +340,11 @@ export default function ReviewPage({
         hiddenWhenEmpty
         isEmpty={!isFocusFeedbackSectionVisible(review.focusFeedback)}
       >
-        <p style={{ margin: "0 0 10px 0", fontSize: 13, opacity: 0.85 }}>
+        <p style={{ margin: "0 0 10px 0", fontSize: 13, ...styles.textSecondary }}>
           {review.focusFeedback.totalDismissed} dismissed, {review.focusFeedback.totalSnoozed}{" "}
           snoozed this week.
         </p>
-        <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, opacity: 0.8 }}>
+        <h3 style={{ fontWeight: 600, margin: "0 0 6px 0", fontSize: 13, ...styles.textMuted }}>
           Most hidden focus items
         </h3>
         <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>

@@ -31,7 +31,7 @@ export function SkillRequirementPicker({
       <div>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Required skills (from tracker)</div>
         {skills.length === 0 ? (
-          <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>
+          <p style={{ margin: 0, ...styles.textMuted, fontSize: 13 }}>
             No skills in your tracker yet. Add skills on the Skills page, or list requirements below.
           </p>
         ) : (

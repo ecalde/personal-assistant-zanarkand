@@ -33,7 +33,7 @@ export function ProgressionHero({ progression }: ProgressionHeroProps) {
     >
       <div>
         <h2 style={{ fontWeight: 800, margin: "0 0 4px 0", fontSize: 18 }}>Progression</h2>
-        <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>
+        <p style={{ margin: 0, ...styles.textMuted, fontSize: 13 }}>
           Streak days count when you hit your daily goal, or any practice if no goal is set.
         </p>
       </div>
@@ -74,7 +74,7 @@ export function ProgressionHero({ progression }: ProgressionHeroProps) {
         label={levelBarLabel}
         variant="xp"
       />
-      <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>{levelLabel}</p>
+      <p style={{ margin: 0, fontSize: 13, ...styles.textMuted }}>{levelLabel}</p>
     </section>
   );
 }

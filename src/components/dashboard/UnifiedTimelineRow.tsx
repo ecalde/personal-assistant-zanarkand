@@ -146,7 +146,7 @@ export function UnifiedTimelineRow({
           </div>
         </div>
 
-        <div style={{ opacity: 0.8, fontSize: 13 }}>
+        <div style={{ ...styles.textMuted, fontSize: 13 }}>
           {isSchedule ? (
             <>
               Block: <b>{formatMinutes(item.plannedMinutes)}</b>

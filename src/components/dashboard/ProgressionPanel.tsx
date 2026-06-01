@@ -59,7 +59,7 @@ export function ProgressionPanel({
       >
         <div>
           <h2 style={{ fontWeight: 800, margin: "0 0 4px 0", fontSize: 18 }}>Progression</h2>
-          <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>{title}</p>
+          <p style={{ margin: 0, ...styles.textMuted, fontSize: 13 }}>{title}</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={styles.levelBadge}>{formatLevel(level)}</span>
@@ -100,7 +100,7 @@ export function ProgressionPanel({
       <ProgressionAxisRow axes={axes} layout={isCompact ? "compact" : "wide"} />
 
       {nextMilestone && (
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>
+        <p style={{ margin: 0, fontSize: 13, ...styles.textMuted }}>
           Next milestone: {nextMilestone.label} ({nextMilestone.current.toLocaleString()} /{" "}
           {nextMilestone.target.toLocaleString()})
         </p>

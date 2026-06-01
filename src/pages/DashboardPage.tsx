@@ -516,7 +516,7 @@ export default function DashboardPage({
           is retained for now but no longer mounted on the dashboard. */}
 
       {skills.length === 0 ? (
-        <div style={{ opacity: 0.8 }}>
+        <div style={{ ...styles.textMuted }}>
           No skills yet. Go to Skills and add “Learn SQL”, “Blender”, etc.
         </div>
       ) : (

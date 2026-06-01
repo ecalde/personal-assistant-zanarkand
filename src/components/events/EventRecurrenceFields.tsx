@@ -133,7 +133,7 @@ export function EventRecurrenceFields({
       )}
 
       {state.mode === "yearly" && (
-        <div style={{ marginTop: 10, opacity: 0.85, fontSize: 13 }}>
+        <div style={{ marginTop: 10, ...styles.textSecondary, fontSize: 13 }}>
           Repeats on the same month and day as the event date.
         </div>
       )}

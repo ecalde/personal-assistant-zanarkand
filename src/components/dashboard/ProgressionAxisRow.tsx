@@ -5,6 +5,7 @@ import {
   type ProgressionAxis,
 } from "../../core/progressionModel";
 import { ProgressBar } from "./ProgressBar";
+import { styles } from "../../ui/appStyles";
 
 export type ProgressionAxisRowProps = {
   axes: Record<ProgressionAxis, LevelState>;
@@ -28,7 +29,7 @@ export function ProgressionAxisRow({ axes, layout = "wide" }: ProgressionAxisRow
           <div key={axis} style={{ display: "grid", gap: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
               <span style={{ fontWeight: 700 }}>{PROGRESSION_AXIS_LABELS[axis]}</span>
-              <span style={{ opacity: 0.7 }}>Lv {level.level}</span>
+              <span style={{ ...styles.textDisabled }}>Lv {level.level}</span>
             </div>
             <ProgressBar
               value={level.xpIntoLevel}

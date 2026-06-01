@@ -28,7 +28,7 @@ export function SkillProgressSection({ rows, progressionsBySkillId }: SkillProgr
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>All skills today</h2>
 
       {sortedRows.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>No skills to show.</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>No skills to show.</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {sortedRows.map((row) => (

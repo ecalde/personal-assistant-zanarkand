@@ -233,12 +233,12 @@ export function CalendarSettingsSection({
         </section>
 
         {error ? (
-          <p role="alert" style={{ color: "#b91c1c", margin: 0, fontSize: 13 }}>
+          <p role="alert" style={{ ...styles.textMuted, color: "var(--aether-chip-danger-text, #8a1c1c)", margin: 0, fontSize: 13 }}>
             {error}
           </p>
         ) : null}
         {savedNotice ? (
-          <p style={{ color: "#15803d", margin: 0, fontSize: 13 }}>{savedNotice}</p>
+          <p style={{ color: "var(--aether-chip-success-text, #1b5e20)", margin: 0, fontSize: 13 }}>{savedNotice}</p>
         ) : null}
 
         <div style={styles.calendarSettingsActions}>

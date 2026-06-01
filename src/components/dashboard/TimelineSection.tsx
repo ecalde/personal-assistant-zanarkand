@@ -11,12 +11,12 @@ export function TimelineSection({ timelineItems, onAddSession }: TimelineSection
   return (
     <section style={styles.dashboardSection} aria-label="Today's timeline">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Today’s timeline</h2>
-      <p style={{ margin: "0 0 10px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 10px 0", ...styles.textMuted }}>
         Your scheduled blocks for today, sorted by time (based on your weekly template).
       </p>
 
       {timelineItems.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>No schedule blocks for today.</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>No schedule blocks for today.</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {timelineItems.map((item) => (

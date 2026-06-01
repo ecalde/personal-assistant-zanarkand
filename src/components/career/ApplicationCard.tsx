@@ -74,7 +74,7 @@ export function ApplicationCard({
         >
           <div style={{ minWidth: 0 }}>
             <strong>{application.company}</strong>
-            <div style={{ opacity: 0.9 }}>{application.roleTitle}</div>
+            <div style={{ ...styles.textSecondary }}>{application.roleTitle}</div>
           </div>
           <ApplicationStatusBadge status={application.status} attention={attention} />
         </div>
@@ -98,7 +98,7 @@ export function ApplicationCard({
         )}
 
         {summaryParts.length > 0 && (
-          <div style={{ opacity: 0.85, fontSize: 13 }}>{summaryParts.join(" · ")}</div>
+          <div style={{ ...styles.textSecondary, fontSize: 13 }}>{summaryParts.join(" · ")}</div>
         )}
 
         <ApplicationQuickActions status={application.status} onQuickAction={onQuickAction} />
@@ -120,7 +120,7 @@ export function ApplicationCard({
             {application.notes && (
               <div>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Notes</div>
-                <p style={{ margin: 0, whiteSpace: "pre-wrap", opacity: 0.9 }}>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap", ...styles.textSecondary }}>
                   {application.notes}
                 </p>
               </div>
@@ -151,7 +151,7 @@ export function ApplicationCard({
                   </div>
                 )}
                 {application.requiredSkillsText && (
-                  <p style={{ margin: 0, opacity: 0.85, fontSize: 13, whiteSpace: "pre-wrap" }}>
+                  <p style={{ margin: 0, ...styles.textSecondary, fontSize: 13, whiteSpace: "pre-wrap" }}>
                     {application.requiredSkillsText}
                   </p>
                 )}
@@ -162,7 +162,7 @@ export function ApplicationCard({
               !application.url &&
               skillSummary.linkedRequirements.length === 0 &&
               !application.requiredSkillsText && (
-                <p style={{ margin: 0, opacity: 0.75, fontSize: 13 }}>
+                <p style={{ margin: 0, ...styles.textMuted, fontSize: 13 }}>
                   No extra details yet. Edit to add notes, a link, or required skills.
                 </p>
               )}

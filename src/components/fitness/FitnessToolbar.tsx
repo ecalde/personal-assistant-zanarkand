@@ -47,7 +47,7 @@ export function FitnessToolbar(props: FitnessToolbarProps) {
 
   return (
     <div style={{ display: "grid", gap: 10, marginBottom: 12 }}>
-      <div style={{ opacity: 0.85 }}>
+      <div style={{ ...styles.textSecondary }}>
         Showing {props.visibleCount} of {props.totalCount}
       </div>
 

@@ -26,7 +26,7 @@ export function NeedsAttentionSection({
   return (
     <section style={styles.dashboardSection} aria-label="Applications needing attention">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Needs attention</h2>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         Saved roles, stale applications, and interview stages that may need a follow-up.
       </p>
       <div style={{ display: "grid", gap: 8 }}>

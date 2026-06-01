@@ -47,7 +47,7 @@ export function UnifiedTimelineSection({
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>
         Today&apos;s timeline
       </h2>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         Scheduled skill blocks and life events merged chronologically.
       </p>
 
@@ -105,7 +105,7 @@ export function UnifiedTimelineSection({
       </div>
 
       {items.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>
+        <p style={{ margin: 0, ...styles.textMuted }}>
           No schedule blocks or events for today.
         </p>
       ) : (

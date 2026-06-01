@@ -22,7 +22,7 @@ export function InterviewStageSummaryBar({ jobApplications }: InterviewStageSumm
   return (
     <section style={styles.dashboardSection} aria-label="Interview pipeline">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Interview pipeline</h2>
-      <p style={{ margin: 0, opacity: 0.85 }}>
+      <p style={{ margin: 0, ...styles.textSecondary }}>
         {summary.count} active interview stage{summary.count === 1 ? "" : "s"}
         {parts.length > 0 ? `: ${parts.join(" · ")}` : ""}
       </p>

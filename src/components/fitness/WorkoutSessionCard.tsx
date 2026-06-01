@@ -41,14 +41,14 @@ export function WorkoutSessionCard({
           <WorkoutFocusBadge focus={session.focus} />
         </div>
 
-        <div style={{ opacity: 0.85, fontSize: 13 }}>
+        <div style={{ ...styles.textSecondary, fontSize: 13 }}>
           {session.exercises.length} exercise{session.exercises.length === 1 ? "" : "s"}
           {durationLabel ? ` · ${durationLabel}` : ""}
           {planName ? ` · from ${planName}` : ""}
         </div>
 
         {!expanded && (
-          <div style={{ opacity: 0.85, fontSize: 13 }}>
+          <div style={{ ...styles.textSecondary, fontSize: 13 }}>
             {session.exercises.slice(0, 2).map((entry) => formatExerciseSummary(entry)).join(" · ")}
             {session.exercises.length > 2 ? " …" : ""}
           </div>
@@ -57,17 +57,17 @@ export function WorkoutSessionCard({
         {expanded && (
           <div style={{ display: "grid", gap: 6 }}>
             {session.exercises.map((entry) => (
-              <div key={entry.id} style={{ fontSize: 13, opacity: 0.9 }}>
+              <div key={entry.id} style={{ fontSize: 13, ...styles.textSecondary }}>
                 {formatExerciseSummary(entry)}
               </div>
             ))}
             {session.notes && (
-              <div style={{ fontSize: 13, opacity: 0.85, whiteSpace: "pre-wrap" }}>
+              <div style={{ fontSize: 13, ...styles.textSecondary, whiteSpace: "pre-wrap" }}>
                 {session.notes}
               </div>
             )}
             {session.completedAtIso && (
-              <div style={{ fontSize: 13, opacity: 0.75 }}>
+              <div style={{ fontSize: 13, ...styles.textMuted }}>
                 Logged {new Date(session.completedAtIso).toLocaleString()}
               </div>
             )}

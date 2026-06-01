@@ -89,7 +89,7 @@ export function AchievementShowcase({
             return (
               <div
                 key={item.definitionId}
-                style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, opacity: 0.85 }}
+                style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, ...styles.textSecondary }}
               >
                 <span>{def.title}</span>
                 <span style={{ whiteSpace: "nowrap" }}>

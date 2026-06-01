@@ -27,18 +27,18 @@ export function WorkoutPlanCard({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <strong>{plan.name}</strong>
           <WorkoutFocusBadge focus={plan.focus} />
-          <span style={{ opacity: 0.8, fontSize: 13 }}>
+          <span style={{ ...styles.textMuted, fontSize: 13 }}>
             {plan.exercises.length} exercise{plan.exercises.length === 1 ? "" : "s"}
           </span>
           {isPlanSchedulable(plan) && (
-            <span style={{ opacity: 0.75, fontSize: 12 }}>
+            <span style={{ ...styles.textMuted, fontSize: 12 }}>
               {formatWorkoutScheduleSeriesLabel(plan)}
             </span>
           )}
         </div>
 
         {!expanded && (
-          <div style={{ opacity: 0.85, fontSize: 13 }}>
+          <div style={{ ...styles.textSecondary, fontSize: 13 }}>
             {plan.exercises.slice(0, 2).map((entry) => formatExerciseSummary(entry)).join(" · ")}
             {plan.exercises.length > 2 ? " …" : ""}
           </div>
@@ -47,12 +47,12 @@ export function WorkoutPlanCard({
         {expanded && (
           <div style={{ display: "grid", gap: 6 }}>
             {plan.exercises.map((entry) => (
-              <div key={entry.id} style={{ fontSize: 13, opacity: 0.9 }}>
+              <div key={entry.id} style={{ fontSize: 13, ...styles.textSecondary }}>
                 {formatExerciseSummary(entry)}
               </div>
             ))}
             {plan.notes && (
-              <div style={{ fontSize: 13, opacity: 0.85, whiteSpace: "pre-wrap" }}>
+              <div style={{ fontSize: 13, ...styles.textSecondary, whiteSpace: "pre-wrap" }}>
                 {plan.notes}
               </div>
             )}

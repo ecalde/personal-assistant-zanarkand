@@ -343,6 +343,17 @@ Settings now follows Light / Dark / System like the rest of the app (fixes the i
 - **[`ThemePreviewCard`](../src/components/settings/ThemePreviewCard.tsx)** preview inset reads resolved `tokens.surfaceSunken` / `tokens.border` so the live preview matches the active mode.
 - **Tests**: `theme.test.ts` Phase 37C.1 block — `panelBackground` flips by mode and maps to `--aether-panel-bg`.
 
+#### Phase 37C.2 — shipped (Text Token Adoption: Dark Mode Readability)
+
+Fixes dark-mode text readability without one-off patches. Full detail in roadmap Phase 37C.2 section.
+
+- **Text hierarchy** in [`theme.ts`](../../src/core/theme.ts): `--aether-text-primary`, `--aether-text-secondary`, `--aether-text-muted`, `--aether-text-disabled`, `--aether-text-on-accent`; `--aether-text` remains a backward-compatible alias for primary.
+- **Mode-aware semantic chips**: `--aether-chip-success/danger/warning/info/marker/neutral-{text,bg,border}` flip tints between light and dark so status/event/category pills stay readable.
+- **Centralized adoption** in [`appStyles.ts`](../../src/ui/appStyles.ts): shared `textPrimary`/`textSecondary`/`textMuted`/`textDisabled`/`ghostBtn`/`metaText`/`sectionLead` styles; status chips read chip CSS vars; opacity-based text dimming removed from the shared registry.
+- **App-wide migration**: ~50 component/page files migrated from `opacity: 0.X` text dimming to semantic tokens; [`GlobalEffectStyles`](../../src/components/effects/GlobalEffectStyles.tsx) adds `button { color: inherit }` so unstyled buttons inherit themed ancestor color.
+- **Tests**: `theme.test.ts` Phase 37C.2 block — text hierarchy CSS mapping, light/dark flips, chip token mode-awareness.
+- **Documented exceptions (unchanged)**: semantic error/danger surfaces (`errorBox`), auth screen, native header action buttons.
+
 #### Phase 37D — shipped (Global Visual Effects)
 
 Promotes the four effects from **Settings-local** code (formerly inline keyframes + particle/rune arrays in `SettingsPage.tsx`) into a **single centralized engine**. Full plan: [phase-37d-global-visual-effects.md](plans/phase-37d-global-visual-effects.md).

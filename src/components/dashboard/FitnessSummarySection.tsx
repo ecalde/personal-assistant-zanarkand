@@ -66,7 +66,7 @@ export function FitnessSummarySection({
         )}
       </div>
 
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         {weekSummary.count} session{weekSummary.count === 1 ? "" : "s"} logged this week
         {weekSummary.totalDurationMinutes > 0
           ? ` · ${weekSummary.totalDurationMinutes} min total`
@@ -78,13 +78,13 @@ export function FitnessSummarySection({
       </p>
 
       {pendingToday.length > 0 && (
-        <p style={{ margin: "0 0 12px 0", opacity: 0.9 }}>
+        <p style={{ margin: "0 0 12px 0", ...styles.textSecondary }}>
           Scheduled today: {pendingToday.map((o) => o.planName).join(", ")}
         </p>
       )}
 
       {lastSession && (
-        <p style={{ margin: "0 0 12px 0", opacity: 0.9 }}>
+        <p style={{ margin: "0 0 12px 0", ...styles.textSecondary }}>
           Last workout: {formatWorkoutDate(lastSession.date)}
           {lastSession.focus ? ` · ${formatWorkoutFocus(lastSession.focus)}` : ""}
           {(() => {
@@ -97,7 +97,7 @@ export function FitnessSummarySection({
       )}
 
       {recentSessions.length > 0 && (
-        <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.9 }}>
+        <ul style={{ margin: 0, paddingLeft: 18, ...styles.textSecondary }}>
           {recentSessions.map((session) => (
             <li key={session.id} style={{ marginBottom: 6 }}>
               {formatWorkoutDate(session.date)} — {formatSessionHeadline(session)}

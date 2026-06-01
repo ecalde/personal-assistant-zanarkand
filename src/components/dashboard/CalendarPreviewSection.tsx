@@ -101,10 +101,10 @@ export function CalendarPreviewSection({
           </button>
         ) : null}
       </div>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>Next {PREVIEW_DAYS} days.</p>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>Next {PREVIEW_DAYS} days.</p>
 
       {!hasAnyItems ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>Nothing scheduled in the next week.</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>Nothing scheduled in the next week.</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {days.map((dateKey) => {
@@ -141,14 +141,14 @@ export function CalendarPreviewSection({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {timeLabel ? <span style={{ opacity: 0.7 }}>{timeLabel} · </span> : null}
+                          {timeLabel ? <span style={{ ...styles.textDisabled }}>{timeLabel} · </span> : null}
                           {item.title}
                         </span>
                       </div>
                     );
                   })}
                   {overflow > 0 ? (
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>+{overflow} more</div>
+                    <div style={{ fontSize: 12, ...styles.textDisabled }}>+{overflow} more</div>
                   ) : null}
                 </div>
               </div>

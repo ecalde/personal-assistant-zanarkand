@@ -29,7 +29,7 @@ export function PeopleRemindersSection({
   return (
     <section style={styles.dashboardSection} aria-label="People reminders">
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>People reminders</h2>
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         Birthdays in the next {birthdayWindowDays} days and contacts to follow up with.
       </p>
 
@@ -47,7 +47,7 @@ export function PeopleRemindersSection({
                       gap: 8,
                       flexWrap: "wrap",
                       alignItems: "center",
-                      opacity: 0.85,
+                      ...styles.textSecondary,
                       fontSize: 13,
                     }}
                   >
@@ -71,7 +71,7 @@ export function PeopleRemindersSection({
               <div key={item.person.id} style={styles.listRow}>
                 <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
                   <strong>{item.person.name}</strong>
-                  <div style={{ opacity: 0.85, fontSize: 13 }}>
+                  <div style={{ ...styles.textSecondary, fontSize: 13 }}>
                     Last contact {item.daysSinceContact} days ago · every {item.cadenceDays} days
                   </div>
                 </div>

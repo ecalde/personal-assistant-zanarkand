@@ -54,7 +54,7 @@ export function CalendarCategorySidebar({
           aria-hidden="true"
         />
         <span style={isHorizontal ? undefined : { flex: 1 }}>{label}</span>
-        <span aria-hidden="true" style={{ fontSize: 11, opacity: 0.7 }}>
+        <span aria-hidden="true" style={{ fontSize: 11, ...styles.textDisabled }}>
           {hidden ? "Off" : "On"}
         </span>
       </button>

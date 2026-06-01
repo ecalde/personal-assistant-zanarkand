@@ -40,7 +40,7 @@ export function WeeklyPreviewSection({ rows, sessions }: WeeklyPreviewSectionPro
   return (
     <section style={styles.dashboardSection} aria-label="Weekly preview">
       <h2 style={{ fontWeight: 800, margin: "0 0 4px 0", fontSize: 16 }}>Weekly preview</h2>
-      <p style={{ margin: "0 0 10px 0", fontSize: 13, opacity: 0.8 }}>Logged this week</p>
+      <p style={{ margin: "0 0 10px 0", fontSize: 13, ...styles.textMuted }}>Logged this week</p>
 
       <div style={{ display: "grid", gap: 8 }}>
         {weeklyRows.map((row) => {
@@ -55,7 +55,7 @@ export function WeeklyPreviewSection({ rows, sessions }: WeeklyPreviewSectionPro
                 {priorityEmoji(skill.priority)} <b>{skill.name}</b>
               </div>
 
-              <p style={{ opacity: 0.8, margin: "0 0 10px 0", fontSize: 13 }}>
+              <p style={{ ...styles.textMuted, margin: "0 0 10px 0", fontSize: 13 }}>
                 Logged this week: <b>{formatMinutes(loggedThisWeek)}</b> /{" "}
                 <b>{formatMinutes(weeklyGoal)}</b>
               </p>

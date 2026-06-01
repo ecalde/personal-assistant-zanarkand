@@ -16,7 +16,7 @@ function QuestRow({ quest }: { quest: QuestInstance }) {
           {quest.completed ? "✓ " : ""}
           {quest.definition.title}
         </span>
-        <span style={{ opacity: 0.7, whiteSpace: "nowrap" }}>+{quest.definition.rewardXp} XP</span>
+        <span style={{ ...styles.textDisabled, whiteSpace: "nowrap" }}>+{quest.definition.rewardXp} XP</span>
       </div>
       <ProgressBar
         value={quest.progress.current}

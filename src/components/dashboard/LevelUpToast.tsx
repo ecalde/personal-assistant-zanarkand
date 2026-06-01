@@ -1,5 +1,6 @@
 import type { LevelUpNotification } from "../../core/progressionModel";
 import { globalLevelTitle } from "../../core/milestoneTables";
+import { styles } from "../../ui/appStyles";
 
 export type LevelUpToastProps = {
   notification: LevelUpNotification;
@@ -21,14 +22,14 @@ export function LevelUpToast({ notification, onAcknowledge }: LevelUpToastProps)
         marginBottom: 12,
         padding: "12px 16px",
         borderRadius: 12,
-        border: "1px solid #f0d9a8",
-        background: "linear-gradient(135deg, #fff8e8, #ffeec2)",
-        color: "#5a4a1e",
+        border: "1px solid var(--aether-chip-warning-border, #f0d9a8)",
+        background: "linear-gradient(135deg, var(--aether-chip-warning-bg, #fff8e8), #ffeec2)",
+        color: "var(--aether-chip-warning-text)",
       }}
     >
       <div style={{ display: "grid", gap: 2 }}>
         <strong style={{ fontSize: 15 }}>🎉 Level up! You reached level {newLevel}</strong>
-        <span style={{ fontSize: 13, opacity: 0.8 }}>{globalLevelTitle(newLevel)}</span>
+        <span style={{ fontSize: 13, ...styles.textMuted }}>{globalLevelTitle(newLevel)}</span>
       </div>
       <button
         type="button"
@@ -36,7 +37,7 @@ export function LevelUpToast({ notification, onAcknowledge }: LevelUpToastProps)
         style={{
           padding: "6px 14px",
           borderRadius: 10,
-          border: "1px solid #d8b766",
+          border: "1px solid var(--aether-chip-warning-border, #d8b766)",
           background: "white",
           cursor: "pointer",
           fontWeight: 700,

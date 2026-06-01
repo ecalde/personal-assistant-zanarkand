@@ -70,7 +70,7 @@ export function CareerActionsSection({
         )}
       </div>
 
-      <p style={{ margin: "0 0 12px 0", opacity: 0.8 }}>
+      <p style={{ margin: "0 0 12px 0", ...styles.textMuted }}>
         {summary.activeCount} active application{summary.activeCount === 1 ? "" : "s"} of{" "}
         {summary.total} total.
       </p>
@@ -114,7 +114,7 @@ export function CareerActionsSection({
                   <strong>
                     {item.application.company} — {item.application.roleTitle}
                   </strong>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 13, opacity: 0.85 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 13, ...styles.textSecondary }}>
                     {item.reasons.map((reason) => (
                       <span key={reason} style={{ ...styles.statusPill, ...styles.statusOverdue }}>
                         {formatAttentionReasonLabel(reason, item)}
@@ -129,7 +129,7 @@ export function CareerActionsSection({
       )}
 
       {interviewSummary.count > 0 && (
-        <p style={{ margin: "0 0 12px 0", opacity: 0.85, fontSize: 13 }}>
+        <p style={{ margin: "0 0 12px 0", ...styles.textSecondary, fontSize: 13 }}>
           Interview pipeline: {interviewSummary.byStage.screening} screening ·{" "}
           {interviewSummary.byStage.technical} technical · {interviewSummary.byStage.onsite} onsite
         </p>
@@ -152,7 +152,7 @@ export function CareerActionsSection({
                       gap: 8,
                       flexWrap: "wrap",
                       alignItems: "center",
-                      opacity: 0.85,
+                      ...styles.textSecondary,
                       fontSize: 13,
                     }}
                   >

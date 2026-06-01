@@ -20,7 +20,7 @@ export function OverdueBehindSection({ rows, onAddSession }: OverdueBehindSectio
       <h2 style={{ fontWeight: 800, margin: "0 0 6px 0", fontSize: 16 }}>Overdue right now</h2>
 
       {overdue.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>Nothing overdue 🎉</p>
+        <p style={{ margin: 0, ...styles.textMuted }}>Nothing overdue 🎉</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {overdue.map((r) => (
@@ -40,7 +40,7 @@ export function OverdueBehindSection({ rows, onAddSession }: OverdueBehindSectio
                 <span style={{ ...styles.statusPill, ...styles.statusOverdue }}>🔴 Overdue</span>
               </div>
 
-              <p style={{ opacity: 0.8, margin: "4px 0 0 0" }}>
+              <p style={{ ...styles.textMuted, margin: "4px 0 0 0" }}>
                 Today: <b>{formatMinutes(r.todayMinutes)}</b> · Expected by now:{" "}
                 <b>{formatMinutes(r.expectedByNow)}</b>
               </p>

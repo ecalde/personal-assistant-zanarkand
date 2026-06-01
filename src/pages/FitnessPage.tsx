@@ -207,7 +207,7 @@ export default function FitnessPage({
     <div style={{ display: "grid", gap: 14 }}>
       <div style={styles.card}>
         <div style={styles.cardTitle}>Fitness</div>
-        <div style={{ opacity: 0.85 }}>
+        <div style={{ ...styles.textSecondary }}>
           Track workout plans and log completed sessions with sets, reps, and weight.
         </div>
       </div>

@@ -71,15 +71,15 @@ export function SkillProgressRow({ row, progression }: SkillProgressRowProps) {
       </div>
 
       {progression !== undefined && (
-        <p style={{ opacity: 0.8, margin: "6px 0 0 0", fontSize: 13 }}>
+        <p style={{ ...styles.textMuted, margin: "6px 0 0 0", fontSize: 13 }}>
           {formatXp(progression.totalXp)} lifetime
           {!progression.streakActiveToday && progression.currentStreak > 0 && (
-            <> · <span style={{ opacity: 0.85 }}>Log today to extend streak</span></>
+            <> · <span style={{ ...styles.textSecondary }}>Log today to extend streak</span></>
           )}
         </p>
       )}
 
-      <p style={{ opacity: 0.8, margin: "4px 0 0 0" }}>
+      <p style={{ ...styles.textMuted, margin: "4px 0 0 0" }}>
         Today: <b>{formatMinutes(todayMinutes)}</b> · Expected by now:{" "}
         <b>{formatMinutes(expectedByNow)}</b> · Goal: <b>{goalLabel}</b>
       </p>

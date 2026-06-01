@@ -79,7 +79,7 @@ export function CalendarEventBlock({
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {item.title}
       </div>
-      {timeLabel ? <div style={{ opacity: 0.85 }}>{timeLabel}</div> : null}
+      {timeLabel ? <div style={{ ...styles.textSecondary }}>{timeLabel}</div> : null}
 
       {resizable && resize ? (
         <div

@@ -60,7 +60,7 @@ export function PeopleToolbar({
         </label>
       </div>
 
-      <div style={{ fontSize: 13, opacity: 0.8 }}>
+      <div style={{ fontSize: 13, ...styles.textMuted }}>
         {visibleCount} of {totalCount} {totalCount === 1 ? "person" : "people"}
       </div>
     </div>

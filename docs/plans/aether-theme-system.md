@@ -41,6 +41,7 @@ The theme system is **token-first**: components consume CSS custom properties (`
 | Rest of app consumes theme tokens | ✅ Shipped (Phase 37B) — shared chrome/widgets/domain pages read accent tokens via `appStyles.ts` |
 | Light / Dark / System theme modes | ✅ Shipped (Phase 37C) — mode-aware base palette + surface/text/border tokens; `system` follows `prefers-color-scheme`; accent stays profile-derived |
 | Settings participates in Theme Mode | ✅ Shipped (Phase 37C.1) — `settingsStyles.ts` uses mode-aware `--aether-*` tokens; `--aether-panel-bg` flips with mode |
+| Text token hierarchy (dark-mode readability) | ✅ Shipped (Phase 37C.2) — `--aether-text-primary/secondary/muted/disabled/on-accent` + mode-aware semantic chip tokens; opacity dimming replaced app-wide |
 | Global visual effects engine | ✅ Shipped (Phase 37D) — four effects centralized into `themeEffects.ts` + `src/components/effects/`, mounted once in `App.tsx`; performance tiers, mobile/touch degradation, reduced-motion ready |
 
 **Important:** Selecting an Aether Profile now retints the **shared chrome app-wide** (nav active state, buttons, progress/XP bars, panel & section borders, level badges, calendar today highlights) across the Dashboard, Calendar, and domain pages, in addition to the Settings page + live preview. The deep-navy base background and primary text are intentionally **shared across all profiles**, so the app keeps its legible light base — profiles swap accents, not the whole palette (full dark-mode reskin is out of scope for the adoption layer).
@@ -67,6 +68,18 @@ Variables are set on `document.documentElement` by `useAppearanceTheme`. New UI 
 | `--aether-text-muted` | Secondary text |
 
 `data-aether-profile` and `data-aether-intensity` attributes on `:root` are available for selectors or debugging. **Phase 37C** (shipped) added `data-aether-mode` (`light`/`dark`) plus mode-driven surface vars (`--aether-surface`, `--aether-surface-raised`, `--aether-surface-sunken`, `--aether-border`) and made `--aether-bg` / `--aether-text` / `--aether-text-muted` mode-dependent — see [aether-theme-modes-and-effects.md §8](./aether-theme-modes-and-effects.md#8-updated-css-variable-contract-additions-in-37c).
+
+**Phase 37C.2** (shipped) extended the text contract with a semantic hierarchy and mode-aware chip tokens:
+
+| Variable | Purpose | Mode-dependent? |
+|----------|---------|-----------------|
+| `--aether-text-primary` | Body, headings, primary labels | Yes |
+| `--aether-text-secondary` | Secondary descriptions, stat labels | Yes |
+| `--aether-text-muted` | Meta/captions, helper text, timestamps | Yes |
+| `--aether-text-disabled` | Very low emphasis, disabled toggles | Yes |
+| `--aether-text-on-accent` | Text on bright accent fills | No (fixed dark for contrast) |
+| `--aether-text` | Alias for `--aether-text-primary` (backward compat) | Yes |
+| `--aether-chip-*-{text,bg,border}` | Semantic status/event chips (success, danger, warning, info, marker, neutral) | Yes |
 
 **Calendar note:** Category/event colors remain governed by [`calendarColors.ts`](../../src/core/calendarColors.ts) and `calendarPreferences`. Phase 37B tinted calendar chrome (borders, today highlight, toolbar) with Aether tokens; it must **not** replace the user-configurable calendar palette unless explicitly designed.
 
@@ -150,6 +163,14 @@ Full detail: **[aether-theme-modes-and-effects.md §4.1](./aether-theme-modes-an
 
 ---
 
+### Phase 37C.2 — Text Token Adoption (Dark Mode Readability) · ✅ Shipped
+
+**Goal:** Fix dark-mode text readability systematically — replace hardcoded hex text and opacity-based dimming with semantic Aether text tokens.
+
+**Delivered:** Text hierarchy in `theme.ts` + `appStyles.ts` centralized migration; ~50 files; `theme.test.ts` Phase 37C.2 block. See roadmap Phase 37C.2 section.
+
+---
+
 ### Phase 37D — Global Visual Effects · ✅ Shipped
 
 **Goal:** Centralize the four effects (Ambient Particles, Animated Borders, Magical Energy Trails, Floating Runes) into one engine — global, performance-aware, mobile-graceful, reduced-motion ready, no duplication.
@@ -209,6 +230,7 @@ These remain separate from the Aether track:
 | 37B | ✅ `theme.test.ts` "adoption token contract" — distinct per-profile accent / progress-gradient / panel-border / accent-soft CSS vars + stable shared base; no behavior change to pure core (visual recolor verified manually) |
 | 37C | ✅ `theme.test.ts` Phase 37C block — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, `themeMode` normalization, contrast sanity |
 | 37C.1 | ✅ `theme.test.ts` Phase 37C.1 block — mode-aware `panelBackground`, `--aether-panel-bg` mapping |
+| 37C.2 | ✅ `theme.test.ts` Phase 37C.2 block — text hierarchy CSS mapping, light/dark text flips, mode-aware chip tokens |
 | 37D | ✅ `themeEffects.test.ts` — reduced-motion off-switch, mobile/touch degradation, performance tiers, accent-intensity particle density, per-toggle gating; `theme.test.ts` Phase 37D block — `effectPerformance`/`reducedMotion` normalization |
 | 37E | `dbMappers` parse tests for appearance JSON (enum + unknown-key validation); sync-merge policy tests |
 

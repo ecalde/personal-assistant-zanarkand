@@ -119,7 +119,7 @@ export default function CareerPage({
     <div style={{ display: "grid", gap: 16 }}>
       <header>
         <h1 style={{ fontWeight: 900, margin: "0 0 6px 0" }}>Career</h1>
-        <p style={{ margin: 0, opacity: 0.8 }}>
+        <p style={{ margin: 0, ...styles.textMuted }}>
           Track job applications, salaries, and skills needed for your dream role.
         </p>
       </header>

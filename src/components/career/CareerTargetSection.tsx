@@ -81,7 +81,7 @@ export function CareerTargetSection({
       </div>
 
       {!careerTarget && !editing && (
-        <p style={{ margin: 0, opacity: 0.8 }}>
+        <p style={{ margin: 0, ...styles.textMuted }}>
           Set a dream job target to see which skills to focus on.
         </p>
       )}
@@ -91,11 +91,11 @@ export function CareerTargetSection({
           <div>
             <strong>{careerTarget.roleTitle}</strong>
             {careerTarget.company && (
-              <span style={{ opacity: 0.85 }}> at {careerTarget.company}</span>
+              <span style={{ ...styles.textSecondary }}> at {careerTarget.company}</span>
             )}
           </div>
           {careerTarget.notes && (
-            <p style={{ margin: 0, opacity: 0.85, whiteSpace: "pre-wrap" }}>{careerTarget.notes}</p>
+            <p style={{ margin: 0, ...styles.textSecondary, whiteSpace: "pre-wrap" }}>{careerTarget.notes}</p>
           )}
         </div>
       )}

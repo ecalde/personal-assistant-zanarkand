@@ -20,7 +20,7 @@ export function PersonLinkedEvents({ linkedEvents }: PersonLinkedEventsProps) {
     <div style={{ ...styles.dashboardSection, minWidth: 0 }}>
       <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>Linked events</div>
       {linkedEvents.length === 0 ? (
-        <div style={{ fontSize: 13, opacity: 0.85 }}>
+        <div style={{ fontSize: 13, ...styles.textSecondary }}>
           No linked events. Use Add event to plan a hangout or birthday.
         </div>
       ) : (
