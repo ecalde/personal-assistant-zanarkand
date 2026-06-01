@@ -303,7 +303,7 @@ export function SkillEditor({
                   justifyContent: "space-between",
                   alignItems: "center",
                   background: "white",
-                  border: "1px solid #e5e5e5",
+                  border: "1px solid var(--aether-panel-border, #e5e5e5)",
                   padding: "8px 10px",
                   borderRadius: 12,
                 }}

@@ -112,7 +112,7 @@ export function WeeklyReviewSection({ review, onOpenReview }: WeeklyReviewSectio
       )}
 
       {topRisks.length > 0 && (
-        <div style={{ paddingTop: topWins.length > 0 ? 10 : 0, borderTop: topWins.length > 0 ? "1px solid #ececec" : undefined }}>
+        <div style={{ paddingTop: topWins.length > 0 ? 10 : 0, borderTop: topWins.length > 0 ? "1px solid var(--aether-panel-border, #ececec)" : undefined }}>
           <h3
             style={{
               fontWeight: 600,

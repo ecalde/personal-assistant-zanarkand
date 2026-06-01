@@ -16,25 +16,29 @@ export const styles: Record<string, CSSProperties> = {
   actions: { display: "flex", gap: 8, flexWrap: "wrap" },
   nav: { display: "flex", gap: 8, margin: "14px 0" },
   navBtn: { padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", background: "white" },
-  navBtnActive: { border: "1px solid #999", fontWeight: 700 },
+  navBtnActive: {
+    border: "1px solid var(--aether-accent, #999)",
+    background: "var(--aether-accent-soft, transparent)",
+    fontWeight: 700,
+  },
   main: { display: "grid", gap: 14 },
   card: { background: "#f6f6f6", padding: 16, borderRadius: 14 },
   cardTitle: { fontSize: 18, fontWeight: 800, marginBottom: 10 },
   errorBox: { background: "#ffe6e6", padding: 12, borderRadius: 12, marginBottom: 10 },
   errorInline: { marginTop: 10, background: "#ffe6e6", padding: 10, borderRadius: 12 },
-  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", minWidth: 280 },
-  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid #ddd" },
+  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", minWidth: 280 },
+  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)" },
   label: { display: "grid", gap: 6 },
-  listRow: { background: "white", padding: 12, borderRadius: 12, border: "1px solid #e5e5e5" },
-  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "white", padding: 10, borderRadius: 12, border: "1px solid #e5e5e5" },
-  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid #ddd", background: "#fafafa" },
-  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd" },
-  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid #ddd", textAlign: "right" },
-  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid #ddd", background: "white" },
+  listRow: { background: "white", padding: 12, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)" },
+  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "white", padding: 10, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)" },
+  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid var(--aether-panel-border, #ddd)", background: "#fafafa" },
+  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)" },
+  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", textAlign: "right" },
+  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "white" },
   statusPill: {
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid #ddd",
+    border: "1px solid var(--aether-panel-border, #ddd)",
     background: "white",
     fontSize: 12,
     fontWeight: 700,
@@ -54,7 +58,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   dashboardSection: {
     background: "white",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     padding: 12,
     borderRadius: 12,
   },
@@ -105,7 +109,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   dashboardCalendarCard: {
     background: "white",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     borderRadius: 12,
     padding: 12,
     display: "grid",
@@ -126,14 +130,14 @@ export const styles: Record<string, CSSProperties> = {
   dashboardQuickActionBtn: {
     padding: "6px 10px",
     borderRadius: 10,
-    border: "1px solid #ddd",
+    border: "1px solid var(--aether-panel-border, #ddd)",
     background: "white",
     cursor: "pointer",
     fontSize: 13,
   },
   statCard: {
     background: "#fafafa",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     borderRadius: 12,
     padding: "12px 14px",
     display: "grid",
@@ -159,22 +163,22 @@ export const styles: Record<string, CSSProperties> = {
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    background: "#6fcf97",
+    background: "var(--aether-accent, #6fcf97)",
     minWidth: 0,
     transition: "width 0.2s ease",
   },
   progressFillXp: {
     height: "100%",
     borderRadius: 999,
-    background: "#7eb8da",
+    background: "var(--aether-progress-gradient, #7eb8da)",
     minWidth: 0,
     transition: "width 0.2s ease",
   },
   levelBadge: {
     padding: "4px 10px",
     borderRadius: 999,
-    border: "1px solid #c5d9e8",
-    background: "#eef6fc",
+    border: "1px solid var(--aether-panel-border, #c5d9e8)",
+    background: "var(--aether-accent-soft, #eef6fc)",
     fontSize: 12,
     fontWeight: 800,
     whiteSpace: "nowrap",
@@ -200,7 +204,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   timelineRow: {
     background: "white",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     padding: 10,
     borderRadius: 12,
     display: "flex",
@@ -278,7 +282,7 @@ export const styles: Record<string, CSSProperties> = {
   calendarSidebar: {
     flex: "0 0 180px",
     background: "white",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     borderRadius: 12,
     padding: 12,
     display: "grid",
@@ -287,7 +291,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarCategoryBar: {
     background: "white",
-    border: "1px solid #e5e5e5",
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
     borderRadius: 12,
     padding: "10px 12px",
     display: "flex",
@@ -323,7 +327,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarToggle: {
     display: "inline-flex",
-    border: "1px solid #ddd",
+    border: "1px solid var(--aether-panel-border, #ddd)",
     borderRadius: 10,
     overflow: "hidden",
   },
@@ -335,7 +339,7 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: 13,
   },
   calendarToggleBtnActive: {
-    background: "#eef6fc",
+    background: "var(--aether-accent-soft, #eef6fc)",
     fontWeight: 700,
   },
   calendarWeekdayHeader: {
@@ -369,14 +373,17 @@ export const styles: Record<string, CSSProperties> = {
     opacity: 0.6,
   },
   calendarDayCellToday: {
-    border: "1px solid #7eb8da",
-    background: "#f3f9fd",
+    border: "1px solid var(--aether-accent, #7eb8da)",
+    background: "var(--aether-accent-soft, #f3f9fd)",
   },
   calendarDayNumber: {
     fontSize: 12,
     fontWeight: 700,
     alignSelf: "flex-end",
   },
+  // Solid badge with fixed white text: keep a high-contrast fill rather than an
+  // accent that could be light (amber/obsidian) and fail white-on-light contrast.
+  // The today *cell* (border + soft fill) carries the profile accent instead.
   calendarDayNumberToday: {
     background: "#3b82f6",
     color: "white",
@@ -428,7 +435,9 @@ export const styles: Record<string, CSSProperties> = {
     borderLeft: "1px solid #f2f2f2",
   },
   calendarWeekColHeaderToday: {
-    background: "#f3f9fd",
+    // Soft fill responds to the profile; text stays a fixed readable blue so it
+    // keeps contrast on the light tint across all profiles.
+    background: "var(--aether-accent-soft, #f3f9fd)",
     color: "#1d4ed8",
   },
   calendarAllDayRow: {
@@ -467,7 +476,7 @@ export const styles: Record<string, CSSProperties> = {
     borderLeft: "1px solid #f2f2f2",
   },
   calendarWeekDayColumnToday: {
-    background: "#f8fbfe",
+    background: "var(--aether-accent-soft, #f8fbfe)",
   },
   calendarHourLine: {
     boxSizing: "border-box",
@@ -563,7 +572,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarSettingsSection: {
     marginTop: 16,
-    border: "1px solid #eee",
+    border: "1px solid var(--aether-panel-border, #eee)",
     borderRadius: 12,
     padding: "12px 14px",
     background: "white",
@@ -658,7 +667,7 @@ export const styles: Record<string, CSSProperties> = {
     padding: 0,
   },
   calendarPaletteSwatchSelected: {
-    border: "2px solid #111827",
+    border: "2px solid var(--aether-accent, #111827)",
     boxShadow: "0 0 0 1px white inset",
   },
   calendarColorUsageText: {

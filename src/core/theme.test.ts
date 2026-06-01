@@ -200,3 +200,82 @@ describe("themeTokensToCssVars", () => {
     );
   });
 });
+
+/**
+ * Phase 37B (Theme Adoption Layer) relies on a small set of accent-derived
+ * tokens being applied app-wide through `appStyles.ts` (nav active state,
+ * buttons, progress bars, panel/section borders, today highlights, badges).
+ * The user-visible deliverable is: "selecting a different Aether Profile
+ * visibly changes the appearance of the application." These tests pin the
+ * contract that each profile yields *distinct* values for the tokens the
+ * adoption layer consumes, so a profile switch is guaranteed to recolor the
+ * shared chrome rather than silently resolving to the same color.
+ */
+describe("Phase 37B adoption token contract", () => {
+  const ADOPTION_VARS = [
+    THEME_CSS_VARS.accent,
+    THEME_CSS_VARS.accentSoft,
+    THEME_CSS_VARS.panelBorder,
+    THEME_CSS_VARS.progressGradient,
+  ] as const;
+
+  it("derives the panel border and soft fill from the active accent", () => {
+    const tokens = resolveThemeTokens({
+      profileId: "violet",
+      accentIntensity: "balanced",
+      effects: defaultInterfaceEffects(),
+    });
+    // panelBorder / accentSoft are translucent forms of the accent so borders
+    // and highlights tint with the chosen profile.
+    expect(tokens.panelBorder).toBe(withAlpha(tokens.accent, 0.28));
+    expect(tokens.accentSoft).toBe(withAlpha(tokens.accent, 0.16));
+  });
+
+  it("gives every profile a distinct accent + progress gradient", () => {
+    const accents = new Set<string>();
+    const gradients = new Set<string>();
+    for (const profile of AETHER_PROFILES) {
+      const tokens = resolveThemeTokens({
+        profileId: profile.id,
+        accentIntensity: "balanced",
+        effects: defaultInterfaceEffects(),
+      });
+      accents.add(tokens.accent);
+      gradients.add(tokens.progressGradient);
+    }
+    expect(accents.size).toBe(AETHER_PROFILES.length);
+    expect(gradients.size).toBe(AETHER_PROFILES.length);
+  });
+
+  it("produces distinct adoption CSS variables for each profile", () => {
+    for (const variable of ADOPTION_VARS) {
+      const values = new Set<string>();
+      for (const profile of AETHER_PROFILES) {
+        const vars = themeTokensToCssVars(
+          resolveThemeTokens({
+            profileId: profile.id,
+            accentIntensity: "balanced",
+            effects: defaultInterfaceEffects(),
+          })
+        );
+        values.add(vars[variable]);
+      }
+      // Each profile must map this adoption variable to a unique value.
+      expect(values.size).toBe(AETHER_PROFILES.length);
+    }
+  });
+
+  it("keeps the shared light-base background stable across profiles (so adoption only swaps accents, not the legible base)", () => {
+    const backgrounds = new Set<string>();
+    for (const profile of AETHER_PROFILES) {
+      backgrounds.add(
+        resolveThemeTokens({
+          profileId: profile.id,
+          accentIntensity: "balanced",
+          effects: defaultInterfaceEffects(),
+        }).background
+      );
+    }
+    expect(backgrounds.size).toBe(1);
+  });
+});

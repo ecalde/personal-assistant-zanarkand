@@ -10,8 +10,9 @@ This document tracks **what is done**, **how the system is layered**, and **what
 - [PROJECT_RULES.md](../../PROJECT_RULES.md) — code quality, testing, workflow
 - [SECURITY_RULES.md](../../SECURITY_RULES.md) — secrets, input validation, logging
 - [Vercel + Supabase auth/storage plan](./vercel-supabase-auth-storage.md) — early infra phases
+- [Aether Theme System plan](./aether-theme-system.md) — theme token contract, adoption track (37B/37C), UI development rule
 
-**Phase plans** (historical detail) live under [`.cursor/plans/`](../../.cursor/plans/). Update this roadmap when a phase ships; link new plan files there when created.
+**Phase plans** (historical detail) live under [`.cursor/plans/`](../../.cursor/plans/) and [`docs/plans/`](./). Update this roadmap when a phase ships; link new plan files there when created.
 
 ---
 
@@ -33,6 +34,7 @@ Core domains and experiences:
 | **Weekly Review** | Monday–Sunday cross-domain recap (not persisted) |
 | **Calendar** | Unified `CalendarItem` view (month/week), category filters, occurrence editing, week-view drag reschedule (`CalendarPage`) |
 | **Recurrence** | Pure expansion engine + event recurrence persistence + Events UI |
+| **Aether Theme** | Token-based fantasy-futuristic UI (`--aether-*` CSS variables, Aether Profiles, Settings Appearance) — see [Aether Theme System Roadmap](#4-aether-theme-system-roadmap) |
 | **Future AI planning** | Optional summaries, suggestions, and agentic schedule help—**only after** deterministic systems are stable (see [rules](#6-rules-for-future-phases)) |
 
 Long-term direction: calendar-centered planning (including expanded drag/editing), scheduled workouts, gamification, reminders, analytics, then AI insight and agentic planning—without breaking backward compatibility for stored payloads.
@@ -73,8 +75,9 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 35 | **Gamification / XP dashboard** | RPG-style progression (global / axis / per-skill levels, achievements, quests) on pure engines; `GamificationState` ack singleton; dashboard progression surfaces. |
 | 36 | **Calendar drag expansion** | Month-view date drag, week-view resize (end edge), click empty month day → Events draft, and an ephemeral undo snackbar; extended pure `calendarDrag.ts` helpers; `moveLifeEventDate` / `resizeLifeEvent` / `openCalendarEventDraft` / `applyCalendarEventUndo` in `App.tsx`; dashboard calendar stays read-only; no schema or dependency changes. Recurring-occurrence drag (36.1) and skill/workout drag (36.2) deferred. |
 | 37A | **Settings page foundation / Aether Profiles** | New Settings tab; dark fantasy-futuristic Settings UI (sidebar + Appearance section, others "Coming Soon"); six **Aether Profiles** (Azure default / Emerald / Violet / Crimson / Amber / Obsidian); accent intensity (Soft/Balanced/Vibrant); interface-effect toggles; live preview; future-systems cards. Pure token system `theme.ts` (CSS `--aether-*` variables) with tests; preferences persisted to **`localStorage`** (`pa.appearance.v1`, no Supabase migration); CSS variables applied globally on `:root` for gradual adoption while existing pages stay unchanged. No new dependencies, no AI/notification/account behavior. |
+| 37B | **Aether theme adoption layer** | Migrated shared chrome, dashboard, calendar chrome, and domain pages from hardcoded colors to `var(--aether-*)` **accent-derived tokens** centrally in [`appStyles.ts`](../../src/ui/appStyles.ts) (plus a few inline dashboard/skills/events borders). Active nav, buttons, progress/XP bars, panel & section borders, level badges, form-field/list borders, and calendar today highlights now retint when the Aether Profile changes; the shared deep-navy base + text stay constant (so no dark-on-dark) and semantic colors (error/overdue red, on-track green, level-up/streak gold, current-time line) plus the user calendar palette are intentionally preserved. Literal `var()` fallbacks kept everywhere; `theme.test.ts` adds an adoption-token contract block. No redesigns, layout changes, schema changes, or new dependencies. |
 
-**Not yet shipped** (called out in architecture): exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), dashboard customization, notifications, analytics, AI layers.
+**Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37C), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 
 ---
 
@@ -152,7 +155,8 @@ flowchart TB
 - [`App.tsx`](../../src/App.tsx) — sync lifecycle, `commit`, CRUD handlers, page routing only.
 - [`src/pages/*`](../../src/pages/) — presentational; props in, callbacks out.
 - [`src/components/*`](../../src/components/) — dashboard, calendar, domain forms/cards.
-- [`AppShell`](../../src/components/layout/AppShell.tsx) — nav (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review).
+- [`AppShell`](../../src/components/layout/AppShell.tsx) — nav (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review, Settings).
+- **Aether Theme** ([`theme.ts`](../../src/core/theme.ts), [`useAppearanceTheme.ts`](../../src/ui/useAppearanceTheme.ts)) — pure tokens + global `--aether-*` CSS variables; consumed by the Settings page and (since Phase 37B) by shared chrome/widgets/domain pages via accent tokens in [`appStyles.ts`](../../src/ui/appStyles.ts). Canonical plan: [aether-theme-system.md](./aether-theme-system.md).
 
 ### Supabase sync layer
 
@@ -162,90 +166,93 @@ flowchart TB
 
 ---
 
-## 4. Recommended next phases
+## 4. Aether Theme System Roadmap
 
-Ordered backlog. Each phase should stay **scoped** (one domain or one vertical slice). Create a plan under `.cursor/plans/` before large work.
+First-class track for the fantasy-futuristic visual layer. Full token contract, adoption order, and development rule: **[aether-theme-system.md](./aether-theme-system.md)**.
 
-### Phase 27–30 — Workout Scheduling ✅ (shipped)
+| Phase | Status | Summary |
+|-------|--------|---------|
+| **37A** | ✅ Shipped | Settings foundation — Aether Profiles, intensity, interface effects, live preview, pure `theme.ts`, global `--aether-*` on `:root`, `localStorage` (`pa.appearance.v1`). Settings + preview are theme-aware; **most app pages still use hardcoded colors in `appStyles.ts`**. |
+| **37B** | ✅ Shipped | **Theme Adoption Layer** — migrated app shell, nav, dashboard, calendar chrome, domain pages, progress bars, buttons, borders, and status indicators to `var(--aether-*)` accent tokens centrally in `appStyles.ts`. No redesigns or layout changes. **Deliverable met:** selecting a profile (Azure/Emerald/Violet/Crimson/Amber/Obsidian) retints the shared chrome across the app. |
+| **37C** | Planned | **Appearance Cloud Sync** — `appearance_preferences` Supabase singleton; sync profile, intensity, effects; local fallback + backward compatibility for existing localStorage users. **Deliverable:** theme follows the account across devices. |
 
-- Schedulable `WorkoutPlan` weekday blocks + bounds; calendar `workoutScheduleBlock` items; focus/briefing/review/dashboard consume scheduled workouts.
+### Phase 37A — Settings Page Foundation ✅ (shipped)
 
-### Phase 31 — Calendar Color Settings UI ✅ (shipped)
+- Settings tab; Appearance section active; other categories **Coming Soon**
+- Six Aether Profiles (Azure default, Emerald, Violet, Crimson, Amber, Obsidian)
+- Accent intensity (Soft / Balanced / Vibrant); interface effect toggles; live preview
+- [`theme.ts`](../../src/core/theme.ts) + [`theme.test.ts`](../../src/core/theme.test.ts); [`useAppearanceTheme`](../../src/ui/useAppearanceTheme.ts)
 
-- Collapsible settings on `CalendarPage` to edit category/subcategory colors and display aliases.
-- `setCalendarPreferences` through `App.tsx` `commit`; live “used by” labels from `buildColorUsageIndex`.
+### Phase 37B — Theme Adoption Layer · ✅ Shipped
 
-### Phase 32 — Dashboard Calendar Centerpiece ✅ (shipped)
+**Goal:** Migrate the application from hardcoded colors to Aether theme tokens.
 
-- Calendar-centered dashboard: desktop-first three columns (left do-now rail / center read-only calendar widget / right briefing rail) with a stacked mobile fallback.
-- Left rail: Daily Focus → category filters → quick actions. Right rail: briefing → upcoming → weekly review → career/fitness/people alerts.
-- Shared `useCalendarController` between `CalendarPage` and `DashboardCalendarWidget`; persisted dashboard month/week view mode (localStorage, not synced).
-- `ProgressionHero` left unchanged at the time (XP integration deferred to the gamification phase); replaced by `ProgressionPanel` in Phase 35. `CalendarPreviewSection` deprecated and slated for later removal.
+**Scope (delivered):** App shell · navigation · dashboard widgets · calendar widgets · Skills · Events · People · Career · Fitness · Review · progress bars · buttons · borders · status indicators · calendar today/chrome (not user palette swatches).
 
-### Phase 33 — Series Editing ✅ (shipped)
+**Approach:** centralized in [`appStyles.ts`](../../src/ui/appStyles.ts) — the shared style registry consumed by every page/component. Because the deep-navy base background + text are shared across all six profiles, only the **accent-derived tokens** (`--aether-accent`, `--aether-accent-soft`, `--aether-panel-border`, `--aether-progress-gradient`) were adopted, keeping the legible light base (no dark-on-dark) while making profile switches visibly recolor chrome app-wide. Literal `var()` fallbacks retained throughout.
 
-- **Entire series** and **this and future** edit scopes for recurring life events.
-- Pure `splitEventSeriesAtDate` in `eventSeries.ts`; `updateEventSeries` in `App.tsx`; scope selector on Events edit form; calendar detail modal actions on `CalendarPage`.
-- Shared `seriesId` on split halves; no schema changes.
+**Requirements honored:** No redesigns · no layout changes · theme tokens only · backward compatibility · no schema or dependency changes · semantic + calendar-palette colors preserved.
 
-### Phase 34A — Occurrence Editing ✅ (shipped)
+**Deliverable met:** Selecting an Aether Profile visibly changes the appearance across the Dashboard and core chrome.
 
-- Skip, move, delete-this-and-future, and edit-this-occurrence-only for recurring life events.
-- Pure `eventOccurrences.ts`; calendar modal quick actions; Events **This occurrence only** scope when opened from an occurrence.
-- Edit-this-occurrence-only = skip on parent + new one-time event; exceptions persist via existing `recurrence.exceptions`.
+### Phase 37C — Appearance Cloud Sync · Planned
 
-### Phase 34B — Calendar Drag Foundations ✅ (shipped)
+**Goal:** Synchronize appearance preferences across devices.
 
-- Week view pointer drag for **one-time timed life events** only; native events (no new dependencies).
-- Pure `calendarDrag.ts` + `useCalendarItemDrag`; `rescheduleLifeEvent` in `App.tsx`.
+**Scope:** `appearance_preferences` persistence model · sync profile / intensity / effects · local fallback · backward compatibility with localStorage-only users.
 
-### Phase 35 — Gamification / XP Dashboard ✅ (shipped)
-
-- RPG-style progression on top of existing domain data: global, five axis (Mind/Body/Career/Social/Creative), and per-skill levels.
-- Pure engines first (`progressionContext`, `rewardCalculation`, `progressionEngine`, `achievementEngine`, `questEngine`, `progressionSnapshot`) with static `achievementCatalog` / `questCatalog` / `milestoneTables`; XP/levels/achievements/quests recomputed, only `GamificationState` acks persisted (`gamification_state` Supabase singleton).
-- Bonus XP for goals, streak milestones, workouts, career actions, people follow-ups, and a v1 event-attendance proxy; per-day bonus cap and deterministic grant ids.
-- Dashboard surfaces: `ProgressionPanel` (replaces `ProgressionHero`), `ProgressionAxisRow`, `ActiveQuestsCard`, `AchievementShowcase`, `LevelUpToast`; `App.tsx` adds `acknowledgeGlobalLevel` / `dismissAchievementNotification` and stays orchestration-only.
-- Plan: [phase_35_gamification](../../.cursor/plans/phase_35_gamification_d85381a0.plan.md).
-
-### Phase 36 — Drag-and-Drop Expansion ✅ (shipped)
-
-- Month-view date drag for one-time life events (date only; preserves times), week-view resize of one-time timed events (end edge, grid-snapped, validated `end > start`), click empty month day → prefilled Events draft, and a lightweight ephemeral undo snackbar.
-- Pure helpers in [`calendarDrag.ts`](../../src/core/calendarDrag.ts): `canDragCalendarItemInMonth`, `computeMonthDropTarget`, `canResizeCalendarItem`, `computeResizeTarget`, `buildEventDraftFromCalendarSelection`, `CalendarEventUndoPayload`. New hooks `useCalendarMonthItemDrag` / `useCalendarItemResize`; `CalendarUndoSnackbar`.
-- `App.tsx` adds `moveLifeEventDate`, `resizeLifeEvent`, `openCalendarEventDraft`, `applyCalendarEventUndo` (returns undo payloads; stays orchestration-only). Dashboard calendar remains read-only.
-- **Deferred:** recurring-occurrence drag + scope picker (Phase 36.1), week click-drag create-selection bands, skill/workout schedule drag (Phase 36.2).
-
-### Phase 37A — Settings Page Foundation / Aether Profiles ✅ (shipped)
-
-- New **Settings** nav tab and page in the fantasy-futuristic / holographic art direction (deep navy, cyan/teal accents, soft glassmorphism, thin glowing borders) as a **self-contained** surface — the rest of the app (currently light-themed) is intentionally unchanged.
-- Left category sidebar: **Appearance** active; **Notifications / Calendar / Skills / Data & Backup / Privacy / Advanced** marked **Coming Soon**.
-- **Aether Profiles** theme system: six crystal profiles (Azure default, Emerald, Violet, Crimson, Amber, Obsidian) + **Accent Intensity** (Soft/Balanced/Vibrant) + **Interface Effects** toggles (Ambient Particles, Animated Borders, Magical Energy Trails, Floating Runes) + **Live Preview** + inactive **Future Systems** cards.
-- **Token architecture**: pure, tested [`theme.ts`](../../src/core/theme.ts) resolves profile + intensity into `ThemeTokens` exposed as `--aether-*` CSS variables (accent, secondary, glow, panel border/glow, progress gradient, button glow). `useAppearanceTheme` applies them on `:root` so existing components can adopt `var(--aether-*)` gradually; the Settings page consumes them immediately.
-- **Persistence decision**: preferences stored in **`localStorage`** (`pa.appearance.v1`) — a per-device UI preference like the dashboard view mode. **No Supabase migration** and no change to calendar preferences. **Future cloud sync:** an `appearance_preferences` singleton mirroring `calendar_preferences` could follow users across devices (normalization already guards the shape, so it is non-breaking).
-- Mobile: sidebar becomes a horizontal strip and panels stack (`useIsDesktopViewport`); dashboard mobile behavior untouched. Accessibility: radio/switch roles, non-color selected indicator, `prefers-reduced-motion` respected. No new dependencies; no AI/notification/account behavior.
-
-### Phase 37 — Notifications / Reminders
-
-- Browser reminders for events, birthdays, workouts, focus items.
-- Respect user permission and privacy rules; no secret leakage in logs.
-
-### Phase 38 — Analytics / Trends
-
-- Skill minutes over time, workout duration by week, event load, career pipeline health, people follow-up health, focus feedback patterns.
-- Prefer pure aggregation helpers + read-only charts/tables.
-
-### Phase 39 — AI Insight Layer
-
-- Optional AI summaries, priority suggestions, reflection prompts.
-- Must consume stable derived DTOs (`DailyFocusSummary`, `WeeklyReview`, calendar range)—not raw DB rows.
-
-### Phase 40 — Agentic Planning Layer
-
-- AI proposes schedule changes, rebalancing, what to move/skip/prioritize.
-- Human-in-the-loop approval; no silent writes to `AppPayload`.
+**Deliverable:** User theme preferences follow the account across devices.
 
 ---
 
-## 5. Rules for future phases
+## 5. Product roadmap
+
+Ordered backlog after the Aether adoption track (or in parallel where UI is new — see [theme development rule](#6-rules-for-future-phases)). Create a plan under `.cursor/plans/` or `docs/plans/` before large work.
+
+### Deferred calendar slices
+
+| Slice | Summary |
+|-------|---------|
+| **36.1** | Recurring-occurrence drag + scope picker (this occurrence / this and future / entire series) |
+| **36.2** | Skill/workout schedule drag (requires per-date override design) |
+
+### Phase 38 — Notifications & Reminders · Planned
+
+**Goal:** Introduce proactive assistant behavior.
+
+**Examples:** Event reminders · birthday reminders · workout reminders · skill reminders · weekly review reminders.
+
+**Settings integration:** Notifications category becomes functional (currently **Coming Soon**).
+
+**Requirements:** Browser permission UX · privacy-safe logging · respect user toggles.
+
+### Phase 39 — Analytics & Trends · Planned
+
+**Goal:** Historical insight dashboards.
+
+**Examples:** Skill trends · workout consistency · XP progression · goal completion rates · career pipeline trends.
+
+**Approach:** Pure aggregation helpers first + read-only charts/tables; new UI must use Aether tokens.
+
+### Phase 40 — AI Insight Layer · Planned
+
+**Goal:** Generate observations from user behavior.
+
+**Examples:** Missed habits · schedule patterns · workout consistency insights · relationship maintenance suggestions · productivity recommendations.
+
+**Constraint:** Consume stable derived DTOs (`DailyFocusSummary`, `WeeklyReview`, calendar range)—not raw DB rows. No AI until deterministic layers are trustworthy.
+
+### Phase 41 — Agentic Planning Layer · Planned
+
+**Goal:** Allow the assistant to proactively build plans and recommendations.
+
+**Examples:** Weekly planning suggestions · schedule optimization · focus recommendations · goal prioritization.
+
+**Constraint:** Human-in-the-loop approval; no silent writes to `AppPayload`.
+
+---
+
+## 6. Rules for future phases
 
 Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](../../SECURITY_RULES.md).
 
@@ -259,18 +266,18 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 8. **Do not add AI until deterministic systems are stable** — Focus, briefing, review, calendar, and scheduling must be trustworthy without LLMs first.
 9. **Validate untrusted input** — DB JSON, backups, and imports go through `dbMappers` parsers ([architecture](../architecture.md)).
 10. **Document behavior changes** — Update `architecture.md` and this roadmap when a phase ships.
+11. **Theme-aware UI (mandatory after Phase 37A)** — Any new UI component must consume Aether theme tokens (`var(--aether-*)` or `resolveThemeTokens`) instead of introducing new hardcoded colors, unless there is a **documented exception** in [aether-theme-system.md](./aether-theme-system.md).
 
 ---
 
-## 6. Current next action
+## 7. Current next action
 
-**Current recommended next phase: [Phase 37 — Notifications / Reminders](#phase-37--notifications--reminders)** (Phase 36 calendar drag expansion shipped).
+**Recommended next phase: [Phase 37C — Appearance Cloud Sync](#phase-37c--appearance-cloud-sync--planned)** — add an `appearance_preferences` Supabase singleton (mirror `calendar_preferences`/`gamification_state`) so the now-app-wide theme follows the account across devices, with localStorage fallback and backward compatibility.
 
-Before the next drag slice (Phase 36.1 recurring-occurrence drag):
+**Parallel / later:** Phase 38 (Notifications) after Settings Notifications category has a home. Optional 37B follow-ups: tokenize remaining semantic status colors and tint native header action buttons if desired.
 
-1. Design the scope picker (this occurrence / this and future / entire series) reusing `EventSeriesEditScope` and the Phase 34A occurrence helpers; require explicit scope confirmation before any commit to avoid accidental series mutation.
-2. Keep mutations routed through `App.tsx` `commit`; skill/workout schedule blocks remain non-draggable (template-derived) until per-date overrides are designed (Phase 36.2).
+**Deferred calendar (36.1):** Before recurring-occurrence drag, design the scope picker reusing `EventSeriesEditScope` and Phase 34A helpers; require explicit scope confirmation before commit.
 
 ---
 
-*Last updated: 2026-05-31 — through Phase 37A (Settings page foundation / Aether Profiles theme customization).*
+*Last updated: 2026-05-31 — Phase 37B (Aether Theme Adoption Layer) shipped: shared chrome/dashboard/calendar/domain pages now consume `var(--aether-*)` accent tokens via `appStyles.ts`. 37C (cloud sync) next; product phases 38–41.*

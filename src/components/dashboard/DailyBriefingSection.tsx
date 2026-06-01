@@ -63,7 +63,7 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
           style={{
             marginBottom: briefing.riskFlags.length > 0 ? 12 : 0,
             paddingTop: 10,
-            borderTop: "1px solid #ececec",
+            borderTop: "1px solid var(--aether-panel-border, #ececec)",
           }}
         >
           <h3
@@ -87,7 +87,7 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
       )}
 
       {briefing.riskFlags.length > 0 && (
-        <div style={{ paddingTop: 10, borderTop: "1px solid #ececec" }}>
+        <div style={{ paddingTop: 10, borderTop: "1px solid var(--aether-panel-border, #ececec)" }}>
           <h3
             style={{
               fontWeight: 600,

@@ -28,14 +28,14 @@ const weekdayPillBase: CSSProperties = {
   ...styles.statusPill,
   cursor: "pointer",
   userSelect: "none",
-  border: "1px solid #ddd",
+  border: "1px solid var(--aether-panel-border, #ddd)",
   background: "white",
 };
 
 const weekdayPillSelected: CSSProperties = {
   ...weekdayPillBase,
-  border: "1px solid #b9e6c7",
-  background: "#ecfff1",
+  border: "1px solid var(--aether-accent, #b9e6c7)",
+  background: "var(--aether-accent-soft, #ecfff1)",
 };
 
 const modes: { value: EventRecurrenceUiMode; label: string }[] = [

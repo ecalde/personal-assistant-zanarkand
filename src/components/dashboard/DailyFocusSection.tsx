@@ -394,7 +394,7 @@ export function DailyFocusSection({
             marginTop: 10,
             padding: 10,
             borderRadius: 12,
-            border: "1px solid #e5e5e5",
+            border: "1px solid var(--aether-panel-border, #e5e5e5)",
             background: "#fafafa",
             display: "grid",
             gap: 8,

@@ -61,6 +61,8 @@ src/
     eventOccurrences.ts # Life-event occurrence skip/move/truncate/detach (Phase 34A)
     calendarDrag.ts     # Week-view drag snap/reschedule math (Phase 34B)
     skillSeries.ts      # Pure skill schedule-series bounds — active-date filtering
+    theme.ts            # Aether Theme — profiles, tokens, normalization (Phase 37A)
+    appearanceStorage.ts # Aether appearance localStorage (Phase 37A; cloud sync Phase 37C)
   lib/                  # Supabase client (VITE_* env only)
   pages/                # Route-like screens (Dashboard, Calendar, Skills, Events, People, Career, Fitness, Review, Settings)
     DashboardPage.tsx   # Composes dashboard sections from props
@@ -80,7 +82,9 @@ src/
     fitness/            # Fitness page forms, cards, exercise editor
     skills/             # SkillEditor, GoalInput
     settings/           # Settings UI — sidebar, Aether profile cards, preview, intensity, effects, styles
-  ui/                   # Shared styles and display helpers
+  ui/                   # Shared styles, theme hook, display helpers
+    appStyles.ts        # Shared styles — light base + Aether accent tokens (var(--aether-*) adopted in Phase 37B)
+    useAppearanceTheme.ts # Applies --aether-* CSS variables on :root
 ```
 
 | Path | Responsibility |
@@ -95,7 +99,8 @@ src/
 | `src/components/career` | Career-specific UI building blocks |
 | `src/components/fitness` | Fitness-specific UI building blocks |
 | `src/components/skills` | Skills-specific UI building blocks |
-| `src/ui` | `appStyles`, `format` helpers (no domain rules) |
+| `src/components/settings` | Settings / Aether theme UI (theme-aware) |
+| `src/ui` | `appStyles` (shared light base + Aether accent tokens), `useAppearanceTheme`, `format` helpers (no domain rules) |
 
 ## Architecture boundaries
 
@@ -107,7 +112,8 @@ src/
 
 ### App (`src/App.tsx`)
 
-- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `calendar` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `review`)
+- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `calendar` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `review` \| `settings`)
+- Calls [`useAppearanceTheme`](../src/ui/useAppearanceTheme.ts) once to apply global `--aether-*` CSS variables (Settings foundation; full app adoption in Phase 37B)
 - Runs `initialSync` on mount; guards mutations with `syncReadyRef`
 - All writes go through `commit` → `saveAppData(userId)` → debounced remote persist
 - Defines CRUD handlers passed to pages as callbacks
@@ -278,14 +284,52 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 - Deleting a plan clears `planId` on linked sessions in the same `commit` (mirrors person unlink on events).
 - Future phases (not implemented): calorie tracker, supplement tracker, biweekly/monthly `RecurrenceRule` on plans, series exception UI, PR analytics.
 
-### Settings page / Aether Profiles (theme foundation)
+### Aether Theme System
 
-The Settings page is the foundation for future settings categories and ships **local theme customization only** — no Supabase schema, no AI/notification/account behavior. It introduces the **fantasy-futuristic / holographic** art direction (deep navy base, thin glowing accent borders, soft glassmorphism) as a **self-contained** surface; the rest of the app (currently light-themed) is intentionally left unchanged this phase.
+First-class visual layer for the fantasy-futuristic / holographic art direction. **Canonical roadmap and token contract:** [docs/plans/aether-theme-system.md](plans/aether-theme-system.md). **Living summary:** [roadmap §4](plans/roadmap.md#4-aether-theme-system-roadmap).
 
-- **Pure theme tokens** ([`theme.ts`](../src/core/theme.ts), tested in [`theme.test.ts`](../src/core/theme.test.ts)): dependency-free, total functions that never throw or mutate. Defines `AetherProfileId` (six profiles: `azure` default, `emerald`, `violet`, `crimson`, `amber`, `obsidian`), `AccentIntensity` (`soft` | `balanced` | `vibrant`), `InterfaceEffectKey` (`ambientParticles`, `animatedBorders`, `energyTrails`, `floatingRunes`), and `AppearancePreferences`. `normalizeAppearancePreferences` coerces untrusted/legacy input back to a valid shape (unknown profile/intensity → defaults, per-key effect flags, unknown keys dropped). `resolveThemeTokens` derives ready-to-apply `ThemeTokens` (accent, secondary, soft fill, shared navy background, panel border/glow, button glow, progress gradient, text colors) — the shared deep-navy base is constant across profiles; only accents/glow change, with glow strength scaled by intensity. `themeTokensToCssVars` maps tokens to the `--aether-*` CSS custom properties.
-- **Persistence** ([`appearanceStorage.ts`](../src/core/appearanceStorage.ts)): appearance is a per-device UI preference (like the dashboard calendar view mode), so it is stored in **`localStorage`** under `pa.appearance.v1` — **not** in the user-scoped synced `AppPayload` and with **no Supabase migration**. Reads normalize through `theme.ts`, so corrupt/legacy values fall back to defaults. **Future cloud sync:** an `appearance_preferences` singleton (mirroring `calendar_preferences`) could follow a user across devices; because normalization already guards the shape, adopting it later is non-breaking.
-- **React glue** ([`useAppearanceTheme.ts`](../src/ui/useAppearanceTheme.ts)): loads preferences, resolves tokens, and applies them as **global CSS variables on `:root`** (`--aether-*`) plus `data-aether-profile` / `data-aether-intensity` attributes. Setting global variables is safe today because existing (light) dashboard/calendar styles do not yet reference them — the Settings page consumes them immediately, and other surfaces can adopt `var(--aether-*)` gradually **without a theme rewrite**. The hook is called once in [`App.tsx`](../src/App.tsx) (orchestration-only) and passed to `SettingsPage`.
-- **UI** ([`SettingsPage.tsx`](../src/pages/SettingsPage.tsx) + [`components/settings/`](../src/components/settings/)): left category sidebar (`SettingsSidebar` — Appearance active; Notifications, Calendar, Skills, Data & Backup, Privacy, Advanced marked **Coming Soon** / disabled), header (“Settings” / “Customize your personal assistant experience.”), **Aether Profiles** crystal-card grid (`AetherProfileGrid`), **Live Preview** (`ThemePreviewCard` — sample event, XP/progress bar, buttons, widget; consumes resolved tokens directly so it updates instantly), **Accent Intensity** segmented control, **Interface Effects** fantasy toggles (`InterfaceEffectsToggles`), and an inactive **Future Systems** grid (`FutureSystemsSection`). Icons are inline SVG glyphs ([`SettingsGlyph.tsx`](../src/components/settings/SettingsGlyph.tsx)) — **no new icon dependency**. Dark-fantasy styling lives in [`settingsStyles.ts`](../src/components/settings/settingsStyles.ts) (CSS-variable values with literal fallbacks).
+#### Phase 37A — shipped (foundation)
+
+The Settings page is the foundation for future settings categories and ships **local theme customization only** — no Supabase schema, no AI/notification/account behavior. It introduces the dark Aether aesthetic as a **self-contained** Settings surface; **most of the app still uses hardcoded light colors** in [`appStyles.ts`](../src/ui/appStyles.ts) until Phase 37B.
+
+- **Pure theme tokens** ([`theme.ts`](../src/core/theme.ts), tested in [`theme.test.ts`](../src/core/theme.test.ts)): dependency-free, total functions that never throw or mutate. Defines `AetherProfileId` (six profiles: `azure` default, `emerald`, `violet`, `crimson`, `amber`, `obsidian`), `AccentIntensity` (`soft` | `balanced` | `vibrant`), `InterfaceEffectKey` (`ambientParticles`, `animatedBorders`, `energyTrails`, `floatingRunes`), and `AppearancePreferences`. `normalizeAppearancePreferences` coerces untrusted/legacy input back to a valid shape. `resolveThemeTokens` derives `ThemeTokens` (accent, secondary, soft fill, shared navy background, panel border/glow, button glow, progress gradient, text colors). `themeTokensToCssVars` maps tokens to `--aether-*` CSS custom properties.
+- **Persistence** ([`appearanceStorage.ts`](../src/core/appearanceStorage.ts)): per-device **`localStorage`** under `pa.appearance.v1` — **not** in synced `AppPayload`. **Phase 37C** will add Supabase `appearance_preferences` cloud sync with local fallback.
+- **React glue** ([`useAppearanceTheme.ts`](../src/ui/useAppearanceTheme.ts)): loads preferences, resolves tokens, applies **global CSS variables on `:root`** plus `data-aether-profile` / `data-aether-intensity`. Called once in [`App.tsx`](../src/App.tsx); passed to `SettingsPage`.
+- **Settings UI** ([`SettingsPage.tsx`](../src/pages/SettingsPage.tsx) + [`components/settings/`](../src/components/settings/)): Appearance active; other categories **Coming Soon**. Aether profile grid, live preview, accent intensity, interface effects, future-systems cards. **Only Settings components consume `var(--aether-*)` today.**
+
+#### Adoption status (what is theme-aware today)
+
+| Surface | Theme-aware? | Notes |
+|---------|--------------|-------|
+| Settings page + live preview | Yes | `settingsStyles.ts`, preview card |
+| Global `:root` CSS variables | Set on every load | Available to all pages; consumed by `appStyles.ts` (Phase 37B) |
+| `appStyles.ts` shared chrome/widgets | Yes (Phase 37B) | Accent-derived tokens applied centrally — propagates to nav, buttons, progress bars, borders, badges, today highlights across every page that consumes `styles.*` |
+| Domain page accents (Skills/Events/People/Career/Fitness/Review) | Yes (Phase 37B) | Inherit themed borders, inputs, list rows, status-pill chrome from `appStyles.ts` |
+| Calendar chrome (today highlight, toggle, panel borders, palette selection ring) | Yes (Phase 37B) | Tinted with Aether accent tokens; **calendar item/category colors unchanged** |
+| Calendar item colors | Separate system | [`calendarColors.ts`](../src/core/calendarColors.ts) + user `calendarPreferences`; not replaced by Aether profiles |
+| Semantic status (error/overdue red, on-track green, streak/level-up gold, current-time line) | Intentionally not tinted | Semantic colors preserved per the documented exceptions |
+
+#### Phase 37B — shipped (Theme Adoption Layer)
+
+Migrated shared chrome and domain UI from hardcoded colors to `var(--aether-*, <literal-fallback>)` **without redesigns or layout changes**, done **centrally in [`appStyles.ts`](../src/ui/appStyles.ts)** (the single style registry consumed by `AppShell`, `NavButton`, `ProgressBar`, `TodayHero`, `ProgressionPanel`, dashboard sections/cards, calendar chrome, and every domain page) plus a few inline section borders in dashboard/skills/events components.
+
+- **Strategy:** the deep-navy base background and primary text are **shared across all six profiles** (`BASE` in [`theme.ts`](../src/core/theme.ts)), so they were left as the legible light base; the migration adopts the **accent-derived tokens** that actually differ per profile (`--aether-accent`, `--aether-accent-soft`, `--aether-panel-border`, `--aether-progress-gradient`). This keeps contrast safe (no dark-on-dark) while ensuring switching profiles (Azure / Emerald / Violet / Crimson / Amber / Obsidian) visibly recolors nav active state, buttons, progress/XP bars, panel & section borders, level badges, calendar today highlights, and form-field/list borders app-wide.
+- **Tokens applied:** active nav (`navBtnActive` accent border + soft fill), buttons (`smallBtn`, `dashboardQuickActionBtn`, calendar toggle active), progress bars (`progressFill` → accent, `progressFillXp` → progress gradient), borders (`dashboardSection`, `statCard`, `dashboardCalendarCard`, `listRow`, `dayRow`, `timelineRow`, `blockChip`, `input`/`select`/`timeInput`/`minInput`, `statusPill`, calendar sidebar/toggle/settings), `levelBadge` (accent-soft fill), and calendar today chrome (`calendarDayCellToday` border + soft fill, `calendarWeekColHeaderToday` / `calendarWeekDayColumnToday` soft fill, `calendarPaletteSwatchSelected` accent ring). The solid `calendarDayNumberToday` badge and the week-header label text keep a fixed high-contrast blue so white-on-fill / text-on-fill contrast holds for the lighter profiles (amber/obsidian) — the today *cell* still carries the profile accent.
+- **Fallbacks:** every token keeps its original literal as the `var()` fallback so the app stays usable if CSS variables are unset (pre-hydration / SSR).
+- **Tests:** [`theme.test.ts`](../src/core/theme.test.ts) adds a "Phase 37B adoption token contract" block asserting each profile yields distinct accent / progress-gradient / panel-border / accent-soft CSS variables and that the shared base background stays stable.
+- **Documented exceptions (not tinted):** semantic error/danger surfaces (`errorBox`, `errorInline`), on-track green (`statusOnTrack`), overdue red (`statusOverdue`), the celebratory level-up gold toast and streak pill, the calendar current-time red line, and the user-controlled calendar category palette. Native unstyled header action buttons (Save / Export / Import) have no `appStyles` entry and remain browser-default.
+
+#### Phase 37C — planned (Appearance Cloud Sync)
+
+`appearance_preferences` Supabase singleton (mirror `calendar_preferences`); sync profile, intensity, effects; preserve localStorage fallback and backward compatibility.
+
+#### UI development rule (mandatory for new work)
+
+> Any new UI component introduced after Phase 37A must consume Aether theme tokens (`var(--aether-*)` or values from `resolveThemeTokens`) instead of introducing new hardcoded colors, unless there is a **documented exception** in [aether-theme-system.md](plans/aether-theme-system.md).
+
+Documented exceptions include calendar palette swatches (user-controlled) and semantic status colors not yet tokenized.
+
+#### Settings page details (Phase 37A)
 - **Mobile**: the sidebar becomes a horizontal scroll strip below the desktop breakpoint (`useIsDesktopViewport`, ≥1024px); panels stack. The existing dashboard mobile behavior is untouched.
 - **Accessibility**: profile/intensity use `role="radiogroup"`/`radio` with `aria-checked`; effects use `role="switch"`; the selected profile shows a non-color ✓ badge + “Active” label; disabled categories use `aria-disabled`; effect animations respect `prefers-reduced-motion: reduce`.
 - **Constraints honored**: no new dependencies, no Supabase schema change, no change to calendar preferences or unrelated pages, and no AI/notification/account behavior.
