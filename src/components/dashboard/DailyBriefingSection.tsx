@@ -11,10 +11,12 @@ const TONE_SECTION_STYLES: Record<BriefingTone, CSSProperties> = {
   encouraging: {
     borderColor: "#b9e6c7",
     background: "#fafffb",
+    color: "#1b3a2a",
   },
   warning: {
     borderColor: "#e8c98a",
     background: "#fffaf0",
+    color: "#5a4a1e",
   },
 };
 
@@ -115,6 +117,7 @@ export function DailyBriefingSection({ briefing }: DailyBriefingSectionProps) {
                   ...styles.statusPill,
                   border: "1px solid #e8c98a",
                   background: "#fff8e6",
+                  color: "#7a5b12",
                   fontSize: 12,
                   fontWeight: 600,
                 }}

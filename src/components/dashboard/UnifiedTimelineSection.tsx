@@ -53,7 +53,7 @@ export function UnifiedTimelineSection({
 
       <div
         style={{
-          background: "#fafafa",
+          background: "var(--aether-surface-sunken, #fafafa)",
           border: "1px solid var(--aether-panel-border, #e5e5e5)",
           borderRadius: 12,
           padding: 12,

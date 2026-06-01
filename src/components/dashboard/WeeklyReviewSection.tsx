@@ -12,10 +12,12 @@ const TONE_SECTION_STYLES: Record<ReviewTone, CSSProperties> = {
   encouraging: {
     borderColor: "#b9e6c7",
     background: "#fafffb",
+    color: "#1b3a2a",
   },
   warning: {
     borderColor: "#e8c98a",
     background: "#fffaf0",
+    color: "#5a4a1e",
   },
 };
 

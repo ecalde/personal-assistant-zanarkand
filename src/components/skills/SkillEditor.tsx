@@ -302,7 +302,7 @@ export function SkillEditor({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  background: "white",
+                  background: "var(--aether-surface, white)",
                   border: "1px solid var(--aether-panel-border, #e5e5e5)",
                   padding: "8px 10px",
                   borderRadius: 12,

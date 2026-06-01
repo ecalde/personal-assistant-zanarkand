@@ -3,13 +3,17 @@ import {
   AETHER_PROFILES,
   DEFAULT_ACCENT_INTENSITY,
   DEFAULT_PROFILE_ID,
+  DEFAULT_THEME_MODE,
   THEME_CSS_VARS,
+  THEME_MODE_OPTIONS,
   defaultAppearancePreferences,
   defaultInterfaceEffects,
   getAetherProfile,
   isAccentIntensity,
   isAetherProfileId,
+  isThemeMode,
   normalizeAppearancePreferences,
+  resolveEffectiveThemeMode,
   resolveThemeTokens,
   themeTokensToCssVars,
   withAlpha,
@@ -108,6 +112,7 @@ describe("normalizeAppearancePreferences", () => {
     expect(result).toEqual({
       profileId: "amber",
       accentIntensity: "vibrant",
+      themeMode: DEFAULT_THEME_MODE,
       effects: {
         ambientParticles: false,
         animatedBorders: true,
@@ -277,5 +282,130 @@ describe("Phase 37B adoption token contract", () => {
       );
     }
     expect(backgrounds.size).toBe(1);
+  });
+});
+
+/**
+ * Phase 37C (Theme Modes) — a Light / Dark / System axis orthogonal to the
+ * Aether Profile. The profile controls the *accent*; the mode controls the
+ * *base palette* (surfaces + text). These tests pin: mode resolution semantics,
+ * mode/accent orthogonality (same accent across modes), mode-dependent
+ * surface/text tokens, normalization of the optional `themeMode` field, and a
+ * basic light-vs-dark contrast sanity check.
+ */
+describe("Phase 37C theme modes", () => {
+  const balancedEffects = defaultInterfaceEffects;
+
+  it("exposes Light / Dark / System options and a system default", () => {
+    expect(THEME_MODE_OPTIONS.map((o) => o.id)).toEqual([
+      "light",
+      "dark",
+      "system",
+    ]);
+    expect(DEFAULT_THEME_MODE).toBe("system");
+  });
+
+  it("recognizes valid theme modes", () => {
+    expect(isThemeMode("light")).toBe(true);
+    expect(isThemeMode("dark")).toBe(true);
+    expect(isThemeMode("system")).toBe(true);
+    expect(isThemeMode("midnight")).toBe(false);
+    expect(isThemeMode(null)).toBe(false);
+  });
+
+  it("resolves explicit modes directly and system via OS preference", () => {
+    expect(resolveEffectiveThemeMode("light", true)).toBe("light");
+    expect(resolveEffectiveThemeMode("dark", false)).toBe("dark");
+    expect(resolveEffectiveThemeMode("system", true)).toBe("dark");
+    expect(resolveEffectiveThemeMode("system", false)).toBe("light");
+  });
+
+  it("default preferences include the system theme mode", () => {
+    expect(defaultAppearancePreferences().themeMode).toBe("system");
+  });
+
+  it("normalizes the theme mode field (missing → default, invalid → default)", () => {
+    expect(
+      normalizeAppearancePreferences({
+        profileId: "azure",
+        accentIntensity: "balanced",
+        effects: {},
+      }).themeMode
+    ).toBe(DEFAULT_THEME_MODE);
+    expect(
+      normalizeAppearancePreferences({ themeMode: "nope" }).themeMode
+    ).toBe(DEFAULT_THEME_MODE);
+    expect(normalizeAppearancePreferences({ themeMode: "dark" }).themeMode).toBe(
+      "dark"
+    );
+  });
+
+  it("flips surfaces/text/background between light and dark, keeping accent identical", () => {
+    const prefs = {
+      profileId: "azure" as const,
+      accentIntensity: "balanced" as const,
+      effects: balancedEffects(),
+    };
+    const light = resolveThemeTokens(prefs, "light");
+    const dark = resolveThemeTokens(prefs, "dark");
+
+    expect(light.themeMode).toBe("light");
+    expect(dark.themeMode).toBe("dark");
+
+    // Base palette differs by mode.
+    expect(light.background).not.toBe(dark.background);
+    expect(light.surface).not.toBe(dark.surface);
+    expect(light.surfaceRaised).not.toBe(dark.surfaceRaised);
+    expect(light.surfaceSunken).not.toBe(dark.surfaceSunken);
+    expect(light.border).not.toBe(dark.border);
+    expect(light.text).not.toBe(dark.text);
+    expect(light.textMuted).not.toBe(dark.textMuted);
+
+    // Accent is profile-derived and mode-independent (Azure + Light/Dark match).
+    expect(light.accent).toBe(dark.accent);
+    expect(light.accentSecondary).toBe(dark.accentSecondary);
+    expect(light.accentSoft).toBe(dark.accentSoft);
+    expect(light.progressGradient).toBe(dark.progressGradient);
+  });
+
+  it("keeps accents distinct per profile within a single mode", () => {
+    const accents = new Set<string>();
+    for (const profile of AETHER_PROFILES) {
+      accents.add(
+        resolveThemeTokens(
+          {
+            profileId: profile.id,
+            accentIntensity: "balanced",
+            effects: balancedEffects(),
+          },
+          "dark"
+        ).accent
+      );
+    }
+    expect(accents.size).toBe(AETHER_PROFILES.length);
+  });
+
+  it("pairs dark text with light surfaces and light text with dark surfaces (contrast sanity)", () => {
+    const prefs = {
+      profileId: "azure" as const,
+      accentIntensity: "balanced" as const,
+      effects: balancedEffects(),
+    };
+    // Light mode: text darker than the (opaque) surface.
+    expect(resolveThemeTokens(prefs, "light").text).toBe("#1a2233");
+    expect(resolveThemeTokens(prefs, "light").surface).toBe("#ffffff");
+    // Dark mode: light text over the deep-navy base.
+    expect(resolveThemeTokens(prefs, "dark").text).toBe("#e8f1ff");
+    expect(resolveThemeTokens(prefs, "dark").background).toContain("#060c1a");
+  });
+
+  it("maps the new surface/border tokens to CSS variables", () => {
+    const vars = themeTokensToCssVars(
+      resolveThemeTokens(defaultAppearancePreferences(), "dark")
+    );
+    expect(vars[THEME_CSS_VARS.surface]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.surfaceRaised]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.surfaceSunken]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.border]).toBeDefined();
   });
 });

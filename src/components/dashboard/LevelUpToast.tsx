@@ -23,6 +23,7 @@ export function LevelUpToast({ notification, onAcknowledge }: LevelUpToastProps)
         borderRadius: 12,
         border: "1px solid #f0d9a8",
         background: "linear-gradient(135deg, #fff8e8, #ffeec2)",
+        color: "#5a4a1e",
       }}
     >
       <div style={{ display: "grid", gap: 2 }}>

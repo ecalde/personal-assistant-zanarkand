@@ -9,6 +9,7 @@ import {
 } from "../components/settings/SettingsSidebar";
 import { AetherProfileGrid } from "../components/settings/AetherProfileGrid";
 import { ThemePreviewCard } from "../components/settings/ThemePreviewCard";
+import { ThemeModeControl } from "../components/settings/ThemeModeControl";
 import { AccentIntensityControl } from "../components/settings/AccentIntensityControl";
 import { InterfaceEffectsToggles } from "../components/settings/InterfaceEffectsToggles";
 import { FutureSystemsSection } from "../components/settings/FutureSystemsSection";
@@ -48,14 +49,22 @@ export type SettingsPageProps = {
 };
 
 export default function SettingsPage({ appearance }: SettingsPageProps) {
-  const { preferences, tokens, setProfile, setAccentIntensity, toggleEffect } =
-    appearance;
+  const {
+    preferences,
+    tokens,
+    resolvedMode,
+    setProfile,
+    setAccentIntensity,
+    setThemeMode,
+    toggleEffect,
+  } = appearance;
   const isDesktop = useIsDesktopViewport();
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategoryId>("appearance");
 
   const profile = getAetherProfile(preferences.profileId);
   const { effects } = preferences;
+  const themeMode = preferences.themeMode ?? "system";
 
   return (
     <section style={s.page} aria-label="Settings">
@@ -114,6 +123,25 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
           />
 
           <div style={s.main}>
+            <section style={s.panel} aria-labelledby="mode-heading">
+              <div style={s.panelHeader}>
+                <h2 id="mode-heading" style={s.panelTitle}>
+                  Theme Mode
+                </h2>
+                <p style={s.panelSubtitle}>
+                  Choose Light, Dark, or follow your device. The Aether Profile
+                  sets the accent independently of the mode. Currently showing:{" "}
+                  <strong>
+                    {themeMode === "system"
+                      ? `System (${resolvedMode})`
+                      : resolvedMode}
+                  </strong>
+                  .
+                </p>
+              </div>
+              <ThemeModeControl value={themeMode} onChange={setThemeMode} />
+            </section>
+
             <section style={s.panel} aria-labelledby="appearance-heading">
               <div style={s.panelHeader}>
                 <h2 id="appearance-heading" style={s.panelTitle}>

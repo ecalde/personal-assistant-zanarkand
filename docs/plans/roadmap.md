@@ -10,7 +10,8 @@ This document tracks **what is done**, **how the system is layered**, and **what
 - [PROJECT_RULES.md](../../PROJECT_RULES.md) — code quality, testing, workflow
 - [SECURITY_RULES.md](../../SECURITY_RULES.md) — secrets, input validation, logging
 - [Vercel + Supabase auth/storage plan](./vercel-supabase-auth-storage.md) — early infra phases
-- [Aether Theme System plan](./aether-theme-system.md) — theme token contract, adoption track (37B/37C), UI development rule
+- [Aether Theme System plan](./aether-theme-system.md) — theme token contract, adoption track, UI development rule
+- [Aether Theme Modes & Effects plan](./aether-theme-modes-and-effects.md) — Phase 37C (theme modes) / 37D (global effects) / 37E (cloud sync) detail and ordering
 
 **Phase plans** (historical detail) live under [`.cursor/plans/`](../../.cursor/plans/) and [`docs/plans/`](./). Update this roadmap when a phase ships; link new plan files there when created.
 
@@ -76,8 +77,9 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 36 | **Calendar drag expansion** | Month-view date drag, week-view resize (end edge), click empty month day → Events draft, and an ephemeral undo snackbar; extended pure `calendarDrag.ts` helpers; `moveLifeEventDate` / `resizeLifeEvent` / `openCalendarEventDraft` / `applyCalendarEventUndo` in `App.tsx`; dashboard calendar stays read-only; no schema or dependency changes. Recurring-occurrence drag (36.1) and skill/workout drag (36.2) deferred. |
 | 37A | **Settings page foundation / Aether Profiles** | New Settings tab; dark fantasy-futuristic Settings UI (sidebar + Appearance section, others "Coming Soon"); six **Aether Profiles** (Azure default / Emerald / Violet / Crimson / Amber / Obsidian); accent intensity (Soft/Balanced/Vibrant); interface-effect toggles; live preview; future-systems cards. Pure token system `theme.ts` (CSS `--aether-*` variables) with tests; preferences persisted to **`localStorage`** (`pa.appearance.v1`, no Supabase migration); CSS variables applied globally on `:root` for gradual adoption while existing pages stay unchanged. No new dependencies, no AI/notification/account behavior. |
 | 37B | **Aether theme adoption layer** | Migrated shared chrome, dashboard, calendar chrome, and domain pages from hardcoded colors to `var(--aether-*)` **accent-derived tokens** centrally in [`appStyles.ts`](../../src/ui/appStyles.ts) (plus a few inline dashboard/skills/events borders). Active nav, buttons, progress/XP bars, panel & section borders, level badges, form-field/list borders, and calendar today highlights now retint when the Aether Profile changes; the shared deep-navy base + text stay constant (so no dark-on-dark) and semantic colors (error/overdue red, on-track green, level-up/streak gold, current-time line) plus the user calendar palette are intentionally preserved. Literal `var()` fallbacks kept everywhere; `theme.test.ts` adds an adoption-token contract block. No redesigns, layout changes, schema changes, or new dependencies. |
+| 37C | **Theme Modes (Light / Dark / System)** | True theme-mode axis orthogonal to Aether Profiles. Pure `theme.ts` gains `ThemeMode`, optional `themeMode` on `AppearancePreferences` (default `system`, backward compatible), `resolveEffectiveThemeMode`, mode-aware `LIGHT_BASE` / `DARK_BASE`, new mode-driven tokens/CSS vars (`--aether-surface`, `--aether-surface-raised`, `--aether-surface-sunken`, `--aether-border`, and now mode-dependent `--aether-bg` / `--aether-text` / `--aether-text-muted`); accent stays profile-derived and mode-independent. [`useAppearanceTheme`](../../src/ui/useAppearanceTheme.ts) subscribes to `prefers-color-scheme`, mirrors the base palette onto `body`, and sets `data-aether-mode`. [`appStyles.ts`](../../src/ui/appStyles.ts) surface/text/neutral-border colors migrated to the new tokens (literal fallbacks kept); semantic light-fill chips (briefing/review tones, focus urgency, status/streak/level-up) got fixed readable text for dark-mode legibility. Settings adds a Light/Dark/System segmented control. `theme.test.ts` adds a Phase 37C block (mode resolution, mode/accent orthogonality, surface/text flips, normalization, contrast sanity). No layout redesign, schema, or dependency changes; localStorage only (cloud sync is 37E). |
 
-**Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37C), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
+**Not yet shipped** (called out in architecture): global visual effects engine (Phase 37D), appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 
 ---
 
@@ -168,13 +170,15 @@ flowchart TB
 
 ## 4. Aether Theme System Roadmap
 
-First-class track for the fantasy-futuristic visual layer. Full token contract, adoption order, and development rule: **[aether-theme-system.md](./aether-theme-system.md)**.
+First-class track for the fantasy-futuristic visual layer. Full token contract, adoption order, and development rule: **[aether-theme-system.md](./aether-theme-system.md)**. Modes + effects + cloud-sync detail and ordering: **[aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md)**.
 
 | Phase | Status | Summary |
 |-------|--------|---------|
 | **37A** | ✅ Shipped | Settings foundation — Aether Profiles, intensity, interface effects, live preview, pure `theme.ts`, global `--aether-*` on `:root`, `localStorage` (`pa.appearance.v1`). Settings + preview are theme-aware; **most app pages still use hardcoded colors in `appStyles.ts`**. |
 | **37B** | ✅ Shipped | **Theme Adoption Layer** — migrated app shell, nav, dashboard, calendar chrome, domain pages, progress bars, buttons, borders, and status indicators to `var(--aether-*)` accent tokens centrally in `appStyles.ts`. No redesigns or layout changes. **Deliverable met:** selecting a profile (Azure/Emerald/Violet/Crimson/Amber/Obsidian) retints the shared chrome across the app. |
-| **37C** | Planned | **Appearance Cloud Sync** — `appearance_preferences` Supabase singleton; sync profile, intensity, effects; local fallback + backward compatibility for existing localStorage users. **Deliverable:** theme follows the account across devices. |
+| **37C** | ✅ Shipped | **Theme Modes (Light / Dark / System)** — true mode axis orthogonal to Aether Profiles; the deep-navy Settings aesthetic is the reference Dark Mode; mode-aware base palette + new surface/text/border tokens; `appStyles.ts` migrated to mode tokens; `prefers-color-scheme` subscription + `data-aether-mode`; Settings Light/Dark/System control. **Deliverable met:** `Azure + Light`, `Azure + Dark`, `Emerald + Light`, … render correctly app-wide; System follows the OS. |
+| **37D** | Planned (next) | **Global Visual Effects** — promote the four effects (Ambient Particles, Animated Borders, Magical Energy Trails, Floating Runes) from Settings-local code into one centralized engine mounted once in `App.tsx`; pure `themeEffects.ts` resolver; performance tiers; mobile degradation; reduced-motion ready; no duplicated implementations. **Deliverable:** effects render app-wide, configurable globally. |
+| **37E** | Planned | **Appearance Cloud Sync** — `appearance_preferences` Supabase singleton; sync profile, intensity, **mode**, **effects**, **performance**; local fallback + backward compatibility for existing localStorage users. **Deliverable:** theme follows the account across devices. (Previously numbered 37C; moved after modes + effects so the synced preference shape is finalized first.) |
 
 ### Phase 37A — Settings Page Foundation ✅ (shipped)
 
@@ -195,13 +199,33 @@ First-class track for the fantasy-futuristic visual layer. Full token contract, 
 
 **Deliverable met:** Selecting an Aether Profile visibly changes the appearance across the Dashboard and core chrome.
 
-### Phase 37C — Appearance Cloud Sync · Planned
+### Phase 37C — Theme Modes (Light / Dark / System) · ✅ Shipped
 
-**Goal:** Synchronize appearance preferences across devices.
+**Goal:** Add a true theme-mode axis orthogonal to Aether Profiles. The current Settings deep-navy aesthetic becomes the reference **Dark Mode**; today's app look becomes **Light Mode**; **System** follows `prefers-color-scheme`. Aether Profiles keep controlling **accent** independently of mode.
 
-**Scope:** `appearance_preferences` persistence model · sync profile / intensity / effects · local fallback · backward compatibility with localStorage-only users.
+**Delivered:** `ThemeMode` type + optional `themeMode` on `AppearancePreferences` (default `system`, backward compatible via `normalizeAppearancePreferences`) · pure `resolveEffectiveThemeMode(mode, systemPrefersDark)` · mode-aware base palette (`LIGHT_BASE` / `DARK_BASE`) selected by `resolveThemeTokens(prefs, resolvedMode?)` · new mode-driven tokens + CSS vars (`--aether-surface`, `--aether-surface-raised`, `--aether-surface-sunken`, `--aether-border`, and now mode-dependent `--aether-bg` / `--aether-text` / `--aether-text-muted`) · surface/text/neutral-border migration in [`appStyles.ts`](../../src/ui/appStyles.ts) (literal `var()` fallbacks kept; semantic light-fill chips given fixed readable text) · [`useAppearanceTheme`](../../src/ui/useAppearanceTheme.ts) subscribes to `prefers-color-scheme` (via `useMediaQuery`), mirrors the base palette onto `body`, sets `data-aether-mode`, and exposes `resolvedMode` + `setThemeMode` · Settings Light/Dark/System segmented control ([`ThemeModeControl`](../../src/components/settings/ThemeModeControl.tsx)) · `theme.test.ts` Phase 37C block.
 
-**Deliverable:** User theme preferences follow the account across devices.
+**Constraints honored:** Pure tokens first · tests before UI · `App.tsx` orchestration-only (controller already wired) · accent stays mode-independent · semantic colors + calendar palette preserved · literal `var()` fallbacks · backward compatible · no new dependencies.
+
+**Deliverable met:** `Azure + Light` / `Azure + Dark` / `Emerald + Light` / … all render correctly app-wide; mode is selectable and persisted locally (`pa.appearance.v1`). Settings page remains its own deep-navy surface (the Dark Mode reference); re-theming Settings to follow Light Mode is out of scope.
+
+### Phase 37D — Global Visual Effects · Planned
+
+**Goal:** Centralize the four interface effects into one engine mounted once, configurable globally, performance-aware, mobile-graceful, and reduced-motion ready.
+
+**Scope:** new pure `themeEffects.ts` (`resolveEffectSettings`) + tests · move keyframes/particle/rune data out of `SettingsPage` into `src/components/effects/` (`GlobalEffectStyles`, `AetherEffectsLayer`, reusable runes for dashboard widgets) · implement **Magical Energy Trails** (new) as centralized page-transition + press micro-interactions · optional `effectPerformance` and `reducedMotion` preference fields (backward compatible) · mobile density scaling via `useIsDesktopViewport` · mount once in `App.tsx` (orchestration only).
+
+**Constraints:** No duplicated implementations · centralized + globally configurable · respects performance settings · degrades on mobile · honors `prefers-reduced-motion` (and reserves explicit reduced-motion shape) · no new dependencies.
+
+**Deliverable:** Ambient particles, animated borders, energy trails, and floating runes render consistently app-wide from a single pure resolver.
+
+### Phase 37E — Appearance Cloud Sync · Planned
+
+**Goal:** Synchronize the complete appearance preferences across devices.
+
+**Scope:** `appearance_preferences` Supabase singleton (mirror `calendar_preferences` / `gamification_state`) · sync profile / intensity / **mode** / **effects** / **performance** · `dbMappers` strict `parseAppearancePreferences` · `remoteStorage` fetch + debounced upsert · local fallback (`pa.appearance.v1`) · backward compatibility with localStorage-only users · documented last-write-wins / first-upload conflict policy.
+
+**Deliverable:** User theme preferences follow the account across devices. (Sequenced last so the synced preference shape is finalized after modes + effects.)
 
 ---
 
@@ -272,7 +296,9 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 7. Current next action
 
-**Recommended next phase: [Phase 37C — Appearance Cloud Sync](#phase-37c--appearance-cloud-sync--planned)** — add an `appearance_preferences` Supabase singleton (mirror `calendar_preferences`/`gamification_state`) so the now-app-wide theme follows the account across devices, with localStorage fallback and backward compatibility.
+**Recommended next phase: [Phase 37D — Global Visual Effects](#phase-37d--global-visual-effects--planned)** — Phase 37C (Theme Modes) shipped, so the base palette is now mode-aware. Next, promote the four interface effects from Settings-local code into one centralized engine mounted once in `App.tsx` (pure `themeEffects.ts` resolver, performance tiers, mobile degradation, reduced-motion ready). Then **[Phase 37E — Appearance Cloud Sync](#phase-37e--appearance-cloud-sync--planned)**. Full detail and ordering rationale: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).
+
+**Ordering note:** cloud sync moved from 37C to **37E** so the synced `AppearancePreferences` shape (now including `themeMode`, `effects`, and `effectPerformance`) is finalized before it is committed to a Supabase table + strict parser — avoiding a second migration.
 
 **Parallel / later:** Phase 38 (Notifications) after Settings Notifications category has a home. Optional 37B follow-ups: tokenize remaining semantic status colors and tint native header action buttons if desired.
 
@@ -280,4 +306,4 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ---
 
-*Last updated: 2026-05-31 — Phase 37B (Aether Theme Adoption Layer) shipped: shared chrome/dashboard/calendar/domain pages now consume `var(--aether-*)` accent tokens via `appStyles.ts`. 37C (cloud sync) next; product phases 38–41.*
+*Last updated: 2026-05-31 — Phase 37C (Theme Modes: Light/Dark/System) shipped: mode-aware base palette + new surface/text/border tokens, `appStyles.ts` migrated, `prefers-color-scheme` + `data-aether-mode`, Settings mode control; accent stays profile-derived. Next: 37D (Global Visual Effects) → 37E (Appearance Cloud Sync). Detail in [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md). Product phases 38–41 unchanged.*

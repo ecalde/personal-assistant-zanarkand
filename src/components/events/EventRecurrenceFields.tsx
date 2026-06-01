@@ -29,7 +29,7 @@ const weekdayPillBase: CSSProperties = {
   cursor: "pointer",
   userSelect: "none",
   border: "1px solid var(--aether-panel-border, #ddd)",
-  background: "white",
+  background: "var(--aether-surface, white)",
 };
 
 const weekdayPillSelected: CSSProperties = {

@@ -38,6 +38,7 @@ const URGENCY_PILL_STYLES: Record<FocusPriority, CSSProperties> = {
   high: {
     border: "1px solid #f0c674",
     background: "#fff8e6",
+    color: "#7a5b12",
   },
   medium: styles.statusOnTrack,
   low: styles.statusIdle,
@@ -395,7 +396,7 @@ export function DailyFocusSection({
             padding: 10,
             borderRadius: 12,
             border: "1px solid var(--aether-panel-border, #e5e5e5)",
-            background: "#fafafa",
+            background: "var(--aether-surface-sunken, #fafafa)",
             display: "grid",
             gap: 8,
           }}
