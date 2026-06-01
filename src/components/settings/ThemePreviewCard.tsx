@@ -22,6 +22,7 @@ export function ThemePreviewCard({
       style={{
         ...s.previewSurface,
         borderColor: tokens.panelBorder,
+        background: tokens.surfaceSunken,
         boxShadow: animatedBorders ? tokens.panelGlow : undefined,
         animation: animatedBorders ? "aether-pulse 2.8s ease-in-out infinite" : undefined,
       }}
@@ -43,7 +44,13 @@ export function ThemePreviewCard({
           <span>Level 2 progress</span>
           <span>55 / 60 XP</span>
         </div>
-        <div style={s.previewProgressTrack}>
+        <div
+          style={{
+            ...s.previewProgressTrack,
+            background: tokens.surfaceRaised,
+            borderColor: tokens.border,
+          }}
+        >
           <div
             style={{
               ...s.previewProgressFill,

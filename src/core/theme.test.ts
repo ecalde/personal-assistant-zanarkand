@@ -358,6 +358,7 @@ describe("Phase 37C theme modes", () => {
     expect(light.surfaceRaised).not.toBe(dark.surfaceRaised);
     expect(light.surfaceSunken).not.toBe(dark.surfaceSunken);
     expect(light.border).not.toBe(dark.border);
+    expect(light.panelBackground).not.toBe(dark.panelBackground);
     expect(light.text).not.toBe(dark.text);
     expect(light.textMuted).not.toBe(dark.textMuted);
 
@@ -407,5 +408,39 @@ describe("Phase 37C theme modes", () => {
     expect(vars[THEME_CSS_VARS.surfaceRaised]).toBeDefined();
     expect(vars[THEME_CSS_VARS.surfaceSunken]).toBeDefined();
     expect(vars[THEME_CSS_VARS.border]).toBeDefined();
+    expect(vars[THEME_CSS_VARS.panelBackground]).toBeDefined();
+  });
+});
+
+/**
+ * Phase 37C.1 (Settings Theme Mode Participation) — glass panel fill used by
+ * Settings and the live preview must flip with the resolved theme mode.
+ */
+describe("Phase 37C.1 settings panel background", () => {
+  const prefs = {
+    profileId: "azure" as const,
+    accentIntensity: "balanced" as const,
+    effects: defaultInterfaceEffects(),
+  };
+
+  it("uses a light translucent glass panel in light mode", () => {
+    const light = resolveThemeTokens(prefs, "light");
+    expect(light.panelBackground).toContain("255");
+    expect(light.panelBackground).not.toBe(
+      resolveThemeTokens(prefs, "dark").panelBackground
+    );
+  });
+
+  it("uses the deep-navy glass panel in dark mode", () => {
+    expect(resolveThemeTokens(prefs, "dark").panelBackground).toBe(
+      "rgba(14, 26, 50, 0.55)"
+    );
+  });
+
+  it("maps panelBackground to --aether-panel-bg", () => {
+    const vars = themeTokensToCssVars(resolveThemeTokens(prefs, "light"));
+    expect(vars[THEME_CSS_VARS.panelBackground]).toBe(
+      resolveThemeTokens(prefs, "light").panelBackground
+    );
   });
 });

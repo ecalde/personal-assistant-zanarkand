@@ -54,7 +54,7 @@ export function AetherProfileGrid({
                 fontWeight: 800,
                 letterSpacing: "0.05em",
                 textTransform: "uppercase",
-                color: isSelected ? "var(--aether-accent, #46c6ff)" : "var(--aether-text-muted, #9fb3d1)",
+                color: isSelected ? "var(--aether-accent, #46c6ff)" : "var(--aether-text-muted, #5a6b85)",
               }}
             >
               {isSelected ? "Active" : "Select"}

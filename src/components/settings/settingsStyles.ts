@@ -1,26 +1,32 @@
 import type { CSSProperties } from "react";
 
 /**
- * Self-contained dark fantasy / holographic styling for the Settings page.
+ * Settings page styling — fantasy-futuristic chrome that participates in the
+ * global Theme Mode (Phase 37C.1).
  *
- * Colors that should respond to the selected Aether Profile are read from CSS
- * custom properties (`var(--aether-*)`) set on `:root` by `useAppearanceTheme`,
- * with literal fallbacks so the page renders sensibly even before the variables
- * are applied. The deep-navy base palette is intentionally local to Settings so
- * this phase does not restyle the rest of the (currently light) app.
+ * Base surfaces, text, and borders read from `--aether-*` CSS custom properties
+ * set on `:root` by `useAppearanceTheme`, with literal fallbacks (light-first,
+ * matching `LIGHT_BASE`) for pre-hydration. Accent-derived tokens (profile
+ * color, glow, panel border) still respond to the selected Aether Profile.
  */
 
 const ACCENT = "var(--aether-accent, #46c6ff)";
 const ACCENT_SOFT = "var(--aether-accent-soft, rgba(70,198,255,0.16))";
-const PANEL_BG = "var(--aether-panel-bg, rgba(14,26,50,0.55))";
+const BG =
+  "var(--aether-bg, linear-gradient(160deg, #f6f8fc 0%, #eef2f8 100%))";
+const SURFACE_RAISED = "var(--aether-surface-raised, #f6f6f6)";
+const SURFACE_SUNKEN = "var(--aether-surface-sunken, #fafafa)";
+const BORDER = "var(--aether-border, #e5e5e5)";
+const PANEL_BG = "var(--aether-panel-bg, rgba(255,255,255,0.78))";
 const PANEL_BORDER = "var(--aether-panel-border, rgba(70,198,255,0.28))";
 const PANEL_GLOW = "var(--aether-panel-glow, 0 0 24px rgba(70,198,255,0.14))";
 const BUTTON_GLOW = "var(--aether-button-glow, 0 0 14px rgba(70,198,255,0.4))";
 const PROGRESS_GRADIENT =
   "var(--aether-progress-gradient, linear-gradient(90deg, #7b9bff, #46c6ff))";
-const TEXT = "var(--aether-text, #e8f1ff)";
-const TEXT_MUTED = "var(--aether-text-muted, #9fb3d1)";
-const BG = "var(--aether-bg, linear-gradient(160deg, #060c1a 0%, #0a1530 55%, #0b1024 100%))";
+const TEXT = "var(--aether-text, #1a2233)";
+const TEXT_MUTED = "var(--aether-text-muted, #5a6b85)";
+/** High-contrast label on accent-filled controls (profile badge, preview CTA). */
+const ON_ACCENT_TEXT = "#04101f";
 
 export const settingsStyles: Record<string, CSSProperties> = {
   page: {
@@ -34,7 +40,6 @@ export const settingsStyles: Record<string, CSSProperties> = {
     overflow: "hidden",
     fontFamily: "system-ui, -apple-system, Segoe UI, Roboto",
   },
-  // Decorative overlays sit behind content.
   effectLayer: {
     position: "absolute",
     inset: 0,
@@ -139,7 +144,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     letterSpacing: "0.06em",
     textTransform: "uppercase",
     color: TEXT_MUTED,
-    border: `1px solid ${PANEL_BORDER}`,
+    border: `1px solid ${BORDER}`,
     borderRadius: 999,
     padding: "2px 6px",
   },
@@ -190,8 +195,8 @@ export const settingsStyles: Record<string, CSSProperties> = {
     textAlign: "center",
     padding: "16px 12px",
     borderRadius: 14,
-    border: "1px solid rgba(120,160,220,0.18)",
-    background: "rgba(8,16,34,0.5)",
+    border: `1px solid ${BORDER}`,
+    background: SURFACE_SUNKEN,
     color: TEXT,
     cursor: "pointer",
   },
@@ -204,7 +209,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     width: 52,
     height: 52,
     borderRadius: "50%",
-    border: "1px solid rgba(255,255,255,0.25)",
+    border: `1px solid ${BORDER}`,
   },
   profileName: {
     fontSize: 14,
@@ -221,7 +226,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     right: 8,
     fontSize: 10,
     fontWeight: 800,
-    color: TEXT,
+    color: ON_ACCENT_TEXT,
     background: ACCENT,
     borderRadius: 999,
     width: 18,
@@ -239,7 +244,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     padding: 14,
     borderRadius: 14,
     border: `1px solid ${PANEL_BORDER}`,
-    background: "rgba(6,12,26,0.6)",
+    background: SURFACE_SUNKEN,
   },
   previewEvent: {
     display: "flex",
@@ -266,9 +271,9 @@ export const settingsStyles: Record<string, CSSProperties> = {
     width: "100%",
     height: 10,
     borderRadius: 999,
-    background: "rgba(255,255,255,0.08)",
+    background: SURFACE_RAISED,
     overflow: "hidden",
-    border: "1px solid rgba(255,255,255,0.06)",
+    border: `1px solid ${BORDER}`,
   },
   previewProgressFill: {
     height: "100%",
@@ -287,7 +292,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     borderRadius: 10,
     border: "1px solid transparent",
     background: PROGRESS_GRADIENT,
-    color: "#04101f",
+    color: ON_ACCENT_TEXT,
     fontWeight: 800,
     fontSize: 13,
     cursor: "pointer",
@@ -324,13 +329,13 @@ export const settingsStyles: Record<string, CSSProperties> = {
     color: TEXT,
   },
 
-  // ---------- Accent intensity segmented control ----------
+  // ---------- Accent intensity / theme mode segmented controls ----------
   segmented: {
     display: "inline-flex",
     border: `1px solid ${PANEL_BORDER}`,
     borderRadius: 12,
     overflow: "hidden",
-    background: "rgba(6,12,26,0.6)",
+    background: SURFACE_SUNKEN,
   },
   segmentedBtn: {
     padding: "8px 18px",
@@ -360,8 +365,8 @@ export const settingsStyles: Record<string, CSSProperties> = {
     gap: 12,
     padding: "10px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(120,160,220,0.18)",
-    background: "rgba(8,16,34,0.5)",
+    border: `1px solid ${BORDER}`,
+    background: SURFACE_SUNKEN,
   },
   effectText: {
     display: "grid",
@@ -385,7 +390,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     height: 26,
     borderRadius: 999,
     border: `1px solid ${PANEL_BORDER}`,
-    background: "rgba(6,12,26,0.8)",
+    background: SURFACE_RAISED,
     cursor: "pointer",
     padding: 0,
     transition: "background 0.18s ease",
@@ -421,8 +426,8 @@ export const settingsStyles: Record<string, CSSProperties> = {
     gap: 6,
     padding: 14,
     borderRadius: 14,
-    border: "1px dashed rgba(120,160,220,0.3)",
-    background: "rgba(8,16,34,0.4)",
+    border: `1px dashed ${BORDER}`,
+    background: SURFACE_SUNKEN,
     opacity: 0.72,
   },
   futureCardTitle: {
@@ -442,7 +447,7 @@ export const settingsStyles: Record<string, CSSProperties> = {
     letterSpacing: "0.06em",
     textTransform: "uppercase",
     color: TEXT_MUTED,
-    border: "1px solid rgba(120,160,220,0.3)",
+    border: `1px solid ${BORDER}`,
     borderRadius: 999,
     padding: "2px 8px",
   },

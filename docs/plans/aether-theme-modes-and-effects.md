@@ -2,7 +2,7 @@
 
 This document is the **detailed phase plan** for completing the Aether Theme System into a true theming system **before** appearance cloud sync. It extends the canonical [Aether Theme System plan](./aether-theme-system.md) and the high-level [roadmap](./roadmap.md), and the implementation reference in [architecture.md](../architecture.md).
 
-> **Status:** Phase **37C (Theme Modes) is shipped**; **37D (Global Visual Effects)** and **37E (Appearance Cloud Sync)** remain planned. **Do not implement** the remaining phases until each is explicitly started. Phases ship in order.
+> **Status:** Phases **37C** and **37C.1** are shipped; **37D (Global Visual Effects)** and **37E (Appearance Cloud Sync)** remain planned. **Do not implement** the remaining phases until each is explicitly started.
 
 ---
 
@@ -26,6 +26,7 @@ The user proposed bundling modes + effects into one phase. They are large and in
 | Phase | Name | Rationale for position |
 |-------|------|------------------------|
 | **37C** ✅ | **Theme Modes (Light / Dark / System)** — *shipped* | Establishes the base-palette axis and the surface-token migration in `appStyles.ts`. Everything visual depends on a stable mode model. |
+| **37C.1** ✅ | **Settings Theme Mode Participation** — *shipped* | Settings page follows the same mode-aware tokens; completes the 37C user-facing deliverable. |
 | **37D** | **Global Visual Effects** | Centralizes effects on top of the now-complete token system; effects read mode + accent tokens, so modes must exist first. |
 | **37E** | **Appearance Cloud Sync** | Persists the **final** `AppearancePreferences` shape (profile + intensity + **mode** + **effects** + **performance**) to Supabase. Doing it last avoids a second migration when the shape grows. |
 
@@ -56,7 +57,7 @@ Aligned with [roadmap §6 rules](./roadmap.md#6-rules-for-future-phases):
 
 ## 4. Phase 37C — Theme Modes (Light / Dark / System) · ✅ Shipped
 
-> **Implemented as specified below.** Notable as-built decisions: `themeMode` is an **optional** field on `AppearancePreferences` (default `system`) for backward compatibility; `resolveThemeTokens` takes an **optional** `resolvedMode` second arg (defaults to deriving from `prefs.themeMode`) so existing single-arg callers keep working; the React glue **mirrors the base background + text onto `document.body`** so the page backdrop flips with the mode; and semantic light-fill chips received **fixed dark text** (contrast-fix exception) rather than token-driven text. The Settings page keeps its own deep-navy surface as the Dark Mode reference (not re-themed for Light Mode).
+> **Implemented as specified below.** Notable as-built decisions: `themeMode` is an **optional** field on `AppearancePreferences` (default `system`) for backward compatibility; `resolveThemeTokens` takes an **optional** `resolvedMode` second arg; the React glue **mirrors the base background + text onto `document.body`**; semantic light-fill chips received **fixed dark text** (contrast-fix exception). Settings page mode participation was deferred to **37C.1** (now shipped).
 
 ### Goal
 
@@ -134,7 +135,22 @@ Global effects centralization (37D), cloud sync (37E), redesigning component lay
 
 ### Deliverable
 
-`Azure + Light`, `Azure + Dark`, `Emerald + Light`, `Emerald + Dark`, … all render correctly app-wide; mode is selectable in Settings and persists in `localStorage`; System follows the OS.
+`Azure + Light`, `Azure + Dark`, `Emerald + Light`, `Emerald + Dark`, … all render correctly app-wide; mode is selectable in Settings and persists in `localStorage`; System follows the OS. Settings participation completed in **37C.1**.
+
+---
+
+## 4.1. Phase 37C.1 — Settings Theme Mode Participation · ✅ Shipped
+
+**Goal:** Make the Settings page follow Light / Dark / System using the same mode-aware Aether tokens as the rest of the application.
+
+**Delivered:**
+
+- **`panelBackground` mode-aware** in [`theme.ts`](../../src/core/theme.ts): light translucent glass (`rgba(255, 255, 255, 0.78)`); dark navy glass (`rgba(14, 26, 50, 0.55)`); mapped to `--aether-panel-bg`.
+- **[`settingsStyles.ts`](../../src/components/settings/settingsStyles.ts)** migrated from fixed dark rgba literals to `--aether-bg`, `--aether-surface-*`, `--aether-border`, `--aether-panel-bg`, `--aether-text*`, `--aether-panel-border`, and accent vars. Glassmorphism + accent glow preserved. On-accent controls use fixed `#04101f` text.
+- **[`ThemePreviewCard`](../../src/components/settings/ThemePreviewCard.tsx)** preview inset uses resolved `tokens.surfaceSunken` / `tokens.border`.
+- **Tests:** `theme.test.ts` Phase 37C.1 block.
+
+**Deliverable met:** Settings chrome matches the selected Theme Mode; Dark Mode preserves the deep-navy fantasy aesthetic; Light Mode is readable and consistent with the rest of the app.
 
 ---
 
@@ -241,7 +257,8 @@ A signed-in user's theme — profile, intensity, mode, and effects — follows t
 
 | Phase | Tests |
 |-------|-------|
-| 37C | `theme.test.ts` — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, normalization of `themeMode`, contrast sanity |
+| 37C | ✅ `theme.test.ts` — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, normalization of `themeMode`, contrast sanity |
+| 37C.1 | ✅ `theme.test.ts` — mode-aware `panelBackground`, `--aether-panel-bg` mapping |
 | 37D | `themeEffects.test.ts` — reduced-motion off-switch, mobile density, performance tiers, per-toggle gating, normalization of `effectPerformance`/`reducedMotion` |
 | 37E | `dbMappers` appearance parse/round-trip + enum/unknown-key validation; optional sync-merge policy tests |
 
@@ -260,10 +277,11 @@ Added to the existing contract in [aether-theme-system.md](./aether-theme-system
 | `--aether-surface-sunken` | Insets/chips | Yes |
 | `--aether-border` | Neutral (non-accent) borders | Yes |
 | `--aether-bg` | App backdrop | Yes (now) |
+| `--aether-panel-bg` | Glass panel fill (Settings / preview) | Yes (37C.1) |
 | `--aether-text` / `--aether-text-muted` | Text | Yes (now) |
 
 `data-aether-mode` (`light`/`dark`) is set on `:root` alongside `data-aether-profile` / `data-aether-intensity`.
 
 ---
 
-*Created: 2026-05-31 — Planning for Phase 37C (Theme Modes), 37D (Global Visual Effects), 37E (Appearance Cloud Sync). Updated 2026-05-31 — Phase 37C shipped; 37D/37E remain planned.*
+*Created: 2026-05-31 — Planning for Phase 37C (Theme Modes), 37D (Global Visual Effects), 37E (Appearance Cloud Sync). Updated 2026-05-31 — Phase 37C + 37C.1 shipped; 37D/37E remain planned.*

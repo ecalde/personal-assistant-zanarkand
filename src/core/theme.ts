@@ -231,6 +231,8 @@ type BasePalette = {
   surface: string;
   surfaceRaised: string;
   surfaceSunken: string;
+  /** Glass panel fill for Settings / preview widgets (Phase 37C.1). */
+  panelBackground: string;
   border: string;
   text: string;
   textMuted: string;
@@ -241,6 +243,7 @@ const LIGHT_BASE: BasePalette = {
   surface: "#ffffff",
   surfaceRaised: "#f6f6f6",
   surfaceSunken: "#fafafa",
+  panelBackground: "rgba(255, 255, 255, 0.78)",
   border: "#e5e5e5",
   text: "#1a2233",
   textMuted: "#5a6b85",
@@ -251,6 +254,7 @@ const DARK_BASE: BasePalette = {
   surface: "rgba(14, 26, 50, 0.66)",
   surfaceRaised: "rgba(20, 34, 62, 0.82)",
   surfaceSunken: "rgba(8, 16, 34, 0.7)",
+  panelBackground: "rgba(14, 26, 50, 0.55)",
   border: "rgba(120, 160, 220, 0.18)",
   text: "#e8f1ff",
   textMuted: "#9fb3d1",
@@ -420,7 +424,7 @@ export function resolveThemeTokens(
     surfaceRaised: palette.surfaceRaised,
     surfaceSunken: palette.surfaceSunken,
     border: palette.border,
-    panelBackground: "rgba(14, 26, 50, 0.55)",
+    panelBackground: palette.panelBackground,
     panelBorder: withAlpha(accent, 0.28),
     panelGlow: glowShadow(accent, 30, 0.18, mult),
     glow: glowShadow(accent, 20, 0.45, mult),

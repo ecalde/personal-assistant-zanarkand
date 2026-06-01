@@ -40,6 +40,7 @@ The theme system is **token-first**: components consume CSS custom properties (`
 | `localStorage` persistence (`pa.appearance.v1`) | ✅ Shipped |
 | Rest of app consumes theme tokens | ✅ Shipped (Phase 37B) — shared chrome/widgets/domain pages read accent tokens via `appStyles.ts` |
 | Light / Dark / System theme modes | ✅ Shipped (Phase 37C) — mode-aware base palette + surface/text/border tokens; `system` follows `prefers-color-scheme`; accent stays profile-derived |
+| Settings participates in Theme Mode | ✅ Shipped (Phase 37C.1) — `settingsStyles.ts` uses mode-aware `--aether-*` tokens; `--aether-panel-bg` flips with mode |
 
 **Important:** Selecting an Aether Profile now retints the **shared chrome app-wide** (nav active state, buttons, progress/XP bars, panel & section borders, level badges, calendar today highlights) across the Dashboard, Calendar, and domain pages, in addition to the Settings page + live preview. The deep-navy base background and primary text are intentionally **shared across all profiles**, so the app keeps its legible light base — profiles swap accents, not the whole palette (full dark-mode reskin is out of scope for the adoption layer).
 
@@ -136,7 +137,15 @@ Exceptions require:
 
 **Goal:** Add a true theme-mode axis orthogonal to Aether Profiles; the deep-navy Settings aesthetic becomes the reference Dark Mode.
 
-Full detail: **[aether-theme-modes-and-effects.md §4](./aether-theme-modes-and-effects.md#4-phase-37c--theme-modes-light--dark--system)**. Delivered: `ThemeMode` + optional `themeMode` on `AppearancePreferences` (default `system`, backward compatible); mode-aware `LIGHT_BASE` / `DARK_BASE` in `theme.ts`; pure `resolveEffectiveThemeMode`; new mode-driven surface/text/border CSS vars; surface migration in `appStyles.ts` (no redesign, literal fallbacks); `useAppearanceTheme` `prefers-color-scheme` subscription + body palette mirror + `data-aether-mode` + `resolvedMode`/`setThemeMode`; Settings `ThemeModeControl`; `theme.test.ts` Phase 37C block. Accent stays mode-independent. Settings page stays its own dark surface (Dark Mode reference).
+Full detail: **[aether-theme-modes-and-effects.md §4](./aether-theme-modes-and-effects.md#4-phase-37c--theme-modes-light--dark--system--shipped)**. Delivered: `ThemeMode` + optional `themeMode` on `AppearancePreferences` (default `system`, backward compatible); mode-aware `LIGHT_BASE` / `DARK_BASE` in `theme.ts`; pure `resolveEffectiveThemeMode`; new mode-driven surface/text/border CSS vars; surface migration in `appStyles.ts` (no redesign, literal fallbacks); `useAppearanceTheme` `prefers-color-scheme` subscription + body palette mirror + `data-aether-mode` + `resolvedMode`/`setThemeMode`; Settings `ThemeModeControl`; `theme.test.ts` Phase 37C block. Accent stays mode-independent.
+
+---
+
+### Phase 37C.1 — Settings Theme Mode Participation · ✅ Shipped
+
+**Goal:** Settings page follows Light / Dark / System like the rest of the app.
+
+Full detail: **[aether-theme-modes-and-effects.md §4.1](./aether-theme-modes-and-effects.md#41-phase-37c1--settings-theme-mode-participation--shipped)**. Delivered: mode-aware `panelBackground` in `theme.ts`; `settingsStyles.ts` migrated to mode-aware `--aether-*` tokens; glassmorphism + accent glow preserved; `theme.test.ts` Phase 37C.1 block.
 
 ---
 
@@ -198,6 +207,7 @@ These remain separate from the Aether track:
 | 37A | ✅ `theme.test.ts` — normalization, token resolution |
 | 37B | ✅ `theme.test.ts` "adoption token contract" — distinct per-profile accent / progress-gradient / panel-border / accent-soft CSS vars + stable shared base; no behavior change to pure core (visual recolor verified manually) |
 | 37C | ✅ `theme.test.ts` Phase 37C block — mode resolution, mode/accent orthogonality, mode-dependent surface/text tokens, `themeMode` normalization, contrast sanity |
+| 37C.1 | ✅ `theme.test.ts` Phase 37C.1 block — mode-aware `panelBackground`, `--aether-panel-bg` mapping |
 | 37D | `themeEffects.test.ts` — reduced-motion off-switch, mobile density, performance tiers, per-toggle gating, `effectPerformance`/`reducedMotion` normalization |
 | 37E | `dbMappers` parse tests for appearance JSON (enum + unknown-key validation); sync-merge policy tests |
 
@@ -205,4 +215,4 @@ Always run `npm test`, `npm run lint`, `npm run build` before merge.
 
 ---
 
-*Last updated: 2026-05-31 — Phase 37A + 37B + 37C shipped (accent adoption + Light/Dark/System theme modes via mode-aware `appStyles.ts` tokens). Next: 37D (Global Visual Effects) → 37E (Appearance Cloud Sync). Detail: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).*
+*Last updated: 2026-05-31 — Phase 37A + 37B + 37C + 37C.1 shipped (Settings now follows Theme Mode). Next: 37D (Global Visual Effects) → 37E (Appearance Cloud Sync). Detail: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).*

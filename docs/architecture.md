@@ -302,7 +302,7 @@ The Settings page is the foundation for future settings categories and ships **l
 
 | Surface | Theme-aware? | Notes |
 |---------|--------------|-------|
-| Settings page + live preview | Yes | `settingsStyles.ts`, preview card |
+| Settings page + live preview | Yes | `settingsStyles.ts` — participates in Theme Mode (37C.1); accent + mode via `--aether-*` |
 | Global `:root` CSS variables | Set on every load | Available to all pages; consumed by `appStyles.ts` (Phase 37B accent + Phase 37C surface/text/border) |
 | Light / Dark / System mode | Yes (Phase 37C) | Base palette (background, surfaces, text, neutral borders) flips by resolved mode; `system` follows `prefers-color-scheme`; accent stays profile-derived |
 | `appStyles.ts` shared chrome/widgets | Yes (Phase 37B + 37C) | Accent-derived tokens (37B) + mode-aware surface/text/border tokens (37C) applied centrally — propagates to nav, buttons, progress bars, borders, badges, today highlights, and page/card surfaces across every page that consumes `styles.*` |
@@ -330,8 +330,17 @@ Completes the Aether system into a **true theming system** before cloud sync. Fu
 - **New mode-driven CSS vars**: `--aether-surface`, `--aether-surface-raised`, `--aether-surface-sunken`, `--aether-border`, and (now mode-dependent) `--aether-bg` / `--aether-text` / `--aether-text-muted`. Accent vars (`--aether-accent*`, `--aether-panel-border`, glows, progress gradient) stay profile-derived and mode-independent.
 - **Surface migration** in [`appStyles.ts`](../src/ui/appStyles.ts): hardcoded white/`#f6f6f6`/`#fafafa`/text/neutral-border values moved to the new vars with literal `var()` fallbacks (same discipline as Phase 37B; no layout redesign). A few inline dashboard/skills/events surfaces were tokenized too; semantic **light-fill** chips (briefing/review tone panels, focus urgency pill, status/streak/level-up) were given a **fixed dark text color** so the conventional green/red/gold stays legible in both modes (documented contrast-fix exception).
 - **React glue** [`useAppearanceTheme`](../src/ui/useAppearanceTheme.ts): subscribes to `prefers-color-scheme` via [`useMediaQuery`](../src/ui/useMediaQuery.ts), resolves the effective mode, applies the expanded `--aether-*` vars on `:root`, **mirrors the base background + text onto `document.body`** (so the page backdrop and default text flip with the mode), sets `data-aether-mode`, and exposes `resolvedMode` + `setThemeMode` on the controller. `App.tsx` stays orchestration-only.
-- **Settings UI**: a Light/Dark/System segmented control ([`ThemeModeControl`](../src/components/settings/ThemeModeControl.tsx), `role="radiogroup"`) in the Appearance section. The Settings page keeps its own deep-navy surface as the Dark Mode reference (re-theming it for Light Mode is out of scope). Calendar item palette + semantic meanings unchanged.
+- **Settings UI**: a Light/Dark/System segmented control ([`ThemeModeControl`](../src/components/settings/ThemeModeControl.tsx), `role="radiogroup"`) in the Appearance section. Calendar item palette + semantic meanings unchanged.
 - **Tests**: `theme.test.ts` Phase 37C block — mode resolution, mode/accent orthogonality, per-mode surface/text/background flips, `themeMode` normalization, and light/dark contrast sanity.
+
+#### Phase 37C.1 — shipped (Settings Theme Mode Participation)
+
+Settings now follows Light / Dark / System like the rest of the app (fixes the inconsistency where Theme Mode is configured on Settings but the page stayed deep navy). Full plan: [aether-theme-modes-and-effects.md](plans/aether-theme-modes-and-effects.md).
+
+- **`panelBackground` mode-aware** in [`theme.ts`](../src/core/theme.ts): light mode uses translucent white glass (`rgba(255, 255, 255, 0.78)`); dark mode keeps the existing navy glass (`rgba(14, 26, 50, 0.55)`). Exposed as `--aether-panel-bg`.
+- **[`settingsStyles.ts`](../src/components/settings/settingsStyles.ts)** migrated from fixed dark rgba literals to mode-aware `--aether-bg`, `--aether-surface-*`, `--aether-border`, `--aether-panel-bg`, `--aether-text*`, and accent tokens. Glassmorphism (`backdropFilter`) and accent glow preserved. Profile badge and preview primary button use fixed on-accent text (`#04101f`) for contrast on bright accent fills.
+- **[`ThemePreviewCard`](../src/components/settings/ThemePreviewCard.tsx)** preview inset reads resolved `tokens.surfaceSunken` / `tokens.border` so the live preview matches the active mode.
+- **Tests**: `theme.test.ts` Phase 37C.1 block — `panelBackground` flips by mode and maps to `--aether-panel-bg`.
 
 #### Phase 37D — planned (Global Visual Effects)
 
