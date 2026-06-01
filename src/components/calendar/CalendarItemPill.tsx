@@ -4,7 +4,7 @@ import {
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import { formatItemTimeLabel } from "../../core/calendarView";
-import { styles, CALENDAR_TEXT } from "../../ui/appStyles";
+import { styles } from "../../ui/appStyles";
 import type { CalendarPillDragBindings } from "./useCalendarMonthItemDrag";
 
 export type CalendarItemPillProps = {
@@ -31,7 +31,7 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
       style={{
         ...styles.calendarPill,
         background: color.background,
-        color: CALENDAR_TEXT,
+        color: color.foreground,
         borderColor: color.border,
         cursor: draggable ? "grab" : undefined,
         opacity: drag?.isDimmed ? 0.45 : 1,

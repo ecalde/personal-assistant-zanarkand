@@ -11,7 +11,7 @@ import {
 } from "../../core/calendarView";
 import type { CalendarItemDragBindings } from "./useCalendarItemDrag";
 import type { CalendarItemResizeBindings } from "./useCalendarItemResize";
-import { styles, CALENDAR_TEXT } from "../../ui/appStyles";
+import { styles } from "../../ui/appStyles";
 
 export type CalendarEventBlockProps = {
   item: CalendarItem;
@@ -68,7 +68,7 @@ export function CalendarEventBlock({
         right: "auto",
         zIndex: blockZIndex,
         background: color.background,
-        color: CALENDAR_TEXT,
+        color: color.foreground,
         borderColor: color.border,
         cursor: draggable ? (isDragging ? "grabbing" : "grab") : undefined,
         touchAction: draggable ? "none" : undefined,
@@ -133,7 +133,7 @@ export function CalendarDragGhostBlock({
         top: topMinutes * pixelsPerMinute,
         height: Math.max(16, durationMinutes * pixelsPerMinute - 2),
         background: color.background,
-        color: CALENDAR_TEXT,
+        color: color.foreground,
         borderColor: color.border,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       }}
