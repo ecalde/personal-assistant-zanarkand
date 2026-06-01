@@ -55,10 +55,16 @@ const GLOBAL_EFFECT_CSS = `
     0 0 8px var(--aether-accent-soft, rgba(70,198,255,0.16));
 }
 
-/* Buttons do not inherit color by default (UA stylesheet); inherit the themed
-   ancestor color so unstyled button labels stay readable in dark mode. */
+/* Default button chrome: light surface + dark text so unstyled buttons stay
+   readable in dark mode (UA buttons are white with inherited light text). */
 button {
-  color: inherit;
+  color: #1a2233;
+  background-color: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {

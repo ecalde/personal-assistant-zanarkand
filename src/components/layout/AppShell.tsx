@@ -54,13 +54,19 @@ export function AppShell({
 
         <div style={styles.actions}>
           {onSignOut && (
-            <button type="button" onClick={onSignOut}>
+            <button type="button" style={styles.actionBtn} onClick={onSignOut}>
               Sign out
             </button>
           )}
-          <button onClick={onSaveNow}>Save Now</button>
-          <button onClick={onExport}>Export Backup</button>
-          <button onClick={onImportClick}>Import Backup</button>
+          <button type="button" style={styles.actionBtn} onClick={onSaveNow}>
+            Save Now
+          </button>
+          <button type="button" style={styles.actionBtn} onClick={onExport}>
+            Export Backup
+          </button>
+          <button type="button" style={styles.actionBtn} onClick={onImportClick}>
+            Import Backup
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -80,7 +86,7 @@ export function AppShell({
       {syncError && (
         <div style={styles.errorBox}>
           <b>Cloud save failed:</b> {syncError}{" "}
-          <button type="button" onClick={() => void onRetryCloudSave()}>
+          <button type="button" style={styles.smallBtn} onClick={() => void onRetryCloudSave()}>
             Retry cloud save
           </button>
         </div>

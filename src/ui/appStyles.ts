@@ -1,5 +1,16 @@
 import type { CSSProperties } from "react";
 
+/** Fixed dark text for controls on white/light surfaces (both theme modes). */
+export const ON_LIGHT_SURFACE = {
+  text: "#1a2233",
+  bg: "#ffffff",
+  bgRaised: "#f6f6f6",
+  border: "#e5e5e5",
+} as const;
+
+/** Calendar UI always uses dark text on its light-tinted surfaces and color swatches. */
+export const CALENDAR_TEXT = "#1a2233";
+
 /** Semantic Aether text tokens (Phase 37C.2). Prefer these over opacity dimming. */
 export const AETHER_TEXT = {
   primary: "var(--aether-text-primary, var(--aether-text, #1a2233))",
@@ -7,6 +18,8 @@ export const AETHER_TEXT = {
   muted: "var(--aether-text-muted, #5a6b85)",
   disabled: "var(--aether-text-disabled, #8a97ad)",
   onAccent: "var(--aether-text-on-accent, #04101f)",
+  /** Readable on white/light button and input fills — fixed, not mode-dependent. */
+  onLightSurface: ON_LIGHT_SURFACE.text,
 } as const;
 
 export const fullViewportCenter: CSSProperties = {
@@ -74,9 +87,9 @@ export const styles: Record<string, CSSProperties> = {
   actionBtn: {
     padding: "6px 12px",
     borderRadius: 8,
-    border: "1px solid var(--aether-panel-border, #ddd)",
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    background: ON_LIGHT_SURFACE.bg,
+    color: ON_LIGHT_SURFACE.text,
     cursor: "pointer",
     fontSize: 14,
   },
@@ -84,15 +97,22 @@ export const styles: Record<string, CSSProperties> = {
   // both light and dark mode (documented exception — not accent/mode tinted).
   errorBox: { background: "#ffe6e6", color: "#8a1c1c", padding: 12, borderRadius: 12, marginBottom: 10 },
   errorInline: { marginTop: 10, background: "#ffe6e6", color: "#8a1c1c", padding: 10, borderRadius: 12 },
-  input: { padding: "8px 10px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", minWidth: 280, background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
-  select: { padding: "6px 8px", borderRadius: 10, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
+  input: { padding: "8px 10px", borderRadius: 10, border: `1px solid ${ON_LIGHT_SURFACE.border}`, minWidth: 280, background: ON_LIGHT_SURFACE.bg, color: ON_LIGHT_SURFACE.text },
+  select: { padding: "6px 8px", borderRadius: 10, border: `1px solid ${ON_LIGHT_SURFACE.border}`, background: ON_LIGHT_SURFACE.bg, color: ON_LIGHT_SURFACE.text },
   label: { display: "grid", gap: 6, color: AETHER_TEXT.primary },
   listRow: { background: "var(--aether-surface, white)", padding: 12, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
   dayRow: { display: "flex", gap: 10, alignItems: "center", background: "var(--aether-surface, white)", padding: 10, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
   blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface-sunken, #fafafa)", color: AETHER_TEXT.primary },
-  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
-  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", textAlign: "right", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary },
-  smallBtn: { padding: "2px 6px", borderRadius: 8, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface, white)", color: AETHER_TEXT.primary, cursor: "pointer" },
+  timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: `1px solid ${ON_LIGHT_SURFACE.border}`, background: ON_LIGHT_SURFACE.bg, color: ON_LIGHT_SURFACE.text },
+  minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: `1px solid ${ON_LIGHT_SURFACE.border}`, textAlign: "right", background: ON_LIGHT_SURFACE.bg, color: ON_LIGHT_SURFACE.text },
+  smallBtn: {
+    padding: "2px 6px",
+    borderRadius: 8,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    background: ON_LIGHT_SURFACE.bg,
+    color: ON_LIGHT_SURFACE.text,
+    cursor: "pointer",
+  },
   statusPill: {
     padding: "6px 10px",
     borderRadius: 999,
@@ -210,9 +230,9 @@ export const styles: Record<string, CSSProperties> = {
   dashboardQuickActionBtn: {
     padding: "6px 10px",
     borderRadius: 10,
-    border: "1px solid var(--aether-panel-border, #ddd)",
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    background: ON_LIGHT_SURFACE.bg,
+    color: ON_LIGHT_SURFACE.text,
     cursor: "pointer",
     fontSize: 13,
   },
@@ -371,23 +391,25 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarSidebar: {
     flex: "0 0 180px",
-    background: "var(--aether-surface, white)",
-    border: "1px solid var(--aether-panel-border, #e5e5e5)",
+    background: ON_LIGHT_SURFACE.bg,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 12,
     padding: 12,
     display: "grid",
     gap: 8,
     alignContent: "start",
+    color: CALENDAR_TEXT,
   },
   calendarCategoryBar: {
-    background: "var(--aether-surface, white)",
-    border: "1px solid var(--aether-panel-border, #e5e5e5)",
+    background: ON_LIGHT_SURFACE.bg,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 12,
     padding: "10px 12px",
     display: "flex",
     flexWrap: "wrap",
     gap: 8,
     alignItems: "center",
+    color: CALENDAR_TEXT,
   },
   calendarCategoryToggleRow: {
     display: "flex",
@@ -414,24 +436,25 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: 18,
     fontWeight: 800,
     margin: 0,
+    color: CALENDAR_TEXT,
   },
   calendarToggle: {
     display: "inline-flex",
-    border: "1px solid var(--aether-panel-border, #ddd)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 10,
     overflow: "hidden",
   },
   calendarToggleBtn: {
     padding: "6px 12px",
     border: "none",
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
     cursor: "pointer",
     fontSize: 13,
   },
   calendarToggleBtnActive: {
     background: "var(--aether-accent-soft, #eef6fc)",
-    color: AETHER_TEXT.primary,
+    color: CALENDAR_TEXT,
     fontWeight: 700,
   },
   calendarWeekdayHeader: {
@@ -440,7 +463,7 @@ export const styles: Record<string, CSSProperties> = {
     gap: 4,
     fontSize: 12,
     fontWeight: 700,
-    color: AETHER_TEXT.muted,
+    color: CALENDAR_TEXT,
     textAlign: "center",
   },
   calendarMonthGrid: {
@@ -450,18 +473,19 @@ export const styles: Record<string, CSSProperties> = {
     gap: 4,
   },
   calendarDayCell: {
-    border: "1px solid var(--aether-border, #ececec)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 8,
-    background: "var(--aether-surface, white)",
+    background: ON_LIGHT_SURFACE.bg,
     padding: 4,
     display: "flex",
     flexDirection: "column",
     gap: 3,
     minHeight: 96,
     overflow: "hidden",
+    color: CALENDAR_TEXT,
   },
   calendarDayCellMuted: {
-    background: "var(--aether-surface-sunken, #fafafa)",
+    background: ON_LIGHT_SURFACE.bgRaised,
     opacity: 0.6,
   },
   calendarDayCellToday: {
@@ -472,14 +496,11 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     alignSelf: "flex-end",
-    color: AETHER_TEXT.primary,
+    color: CALENDAR_TEXT,
   },
-  // Solid badge with fixed white text: keep a high-contrast fill rather than an
-  // accent that could be light (amber/obsidian) and fail white-on-light contrast.
-  // The today *cell* (border + soft fill) carries the profile accent instead.
   calendarDayNumberToday: {
     background: "#3b82f6",
-    color: "white",
+    color: CALENDAR_TEXT,
     borderRadius: 999,
     width: 22,
     height: 22,
@@ -500,13 +521,14 @@ export const styles: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    color: CALENDAR_TEXT,
   },
   calendarMoreBtn: {
     border: "none",
     background: "transparent",
     fontSize: 11,
     fontWeight: 700,
-    color: AETHER_TEXT.muted,
+    color: CALENDAR_TEXT,
     cursor: "pointer",
     textAlign: "left",
     padding: "1px 4px",
@@ -514,33 +536,36 @@ export const styles: Record<string, CSSProperties> = {
   calendarWeekGrid: {
     display: "grid",
     gridTemplateColumns: "56px repeat(7, 1fr)",
-    border: "1px solid var(--aether-border, #ececec)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 10,
     overflow: "hidden",
-    background: "var(--aether-surface, white)",
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
   },
   calendarWeekColHeader: {
     padding: "6px 4px",
     textAlign: "center",
     fontSize: 12,
     fontWeight: 700,
-    borderBottom: "1px solid var(--aether-border, #ececec)",
-    borderLeft: "1px solid var(--aether-border, #f2f2f2)",
+    borderBottom: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    borderLeft: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    color: CALENDAR_TEXT,
   },
   calendarWeekColHeaderToday: {
     background: "var(--aether-accent-soft, #f3f9fd)",
-    color: "var(--aether-accent, #1d4ed8)",
+    color: CALENDAR_TEXT,
   },
   calendarAllDayRow: {
     display: "grid",
     gridTemplateColumns: "56px repeat(7, 1fr)",
-    borderBottom: "1px solid var(--aether-border, #ececec)",
-    background: "var(--aether-surface-sunken, #fafafa)",
+    borderBottom: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    background: ON_LIGHT_SURFACE.bgRaised,
+    color: CALENDAR_TEXT,
   },
   calendarAllDayLabel: {
     fontSize: 10,
     fontWeight: 700,
-    color: AETHER_TEXT.disabled,
+    color: CALENDAR_TEXT,
     padding: "4px 6px",
     textTransform: "uppercase",
   },
@@ -554,13 +579,13 @@ export const styles: Record<string, CSSProperties> = {
   calendarTimeGutterCell: {
     boxSizing: "border-box",
     fontSize: 10,
-    color: AETHER_TEXT.disabled,
+    color: CALENDAR_TEXT,
     textAlign: "right",
     paddingRight: 6,
     paddingTop: 2,
     lineHeight: 1,
     height: 48,
-    borderTop: "1px solid var(--aether-border, #f4f4f4)",
+    borderTop: `1px solid ${ON_LIGHT_SURFACE.border}`,
   },
   calendarWeekDayColumn: {
     position: "relative",
@@ -588,6 +613,7 @@ export const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     boxSizing: "border-box",
     appearance: "none",
+    color: CALENDAR_TEXT,
   },
   calendarNowLine: {
     position: "absolute",
@@ -602,10 +628,10 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 8,
     width: "100%",
-    border: "1px solid var(--aether-border, #eee)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 8,
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
     padding: "6px 8px",
     cursor: "pointer",
     fontSize: 13,
@@ -615,17 +641,18 @@ export const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    border: "1px solid var(--aether-border, #eee)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 8,
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
     padding: "4px 10px",
     cursor: "pointer",
     fontSize: 13,
     whiteSpace: "nowrap",
   },
   calendarCategoryToggleHidden: {
-    color: AETHER_TEXT.disabled,
+    color: CALENDAR_TEXT,
+    opacity: 0.45,
   },
   calendarCategorySwatch: {
     width: 12,
@@ -644,8 +671,8 @@ export const styles: Record<string, CSSProperties> = {
     zIndex: 50,
   },
   calendarModalCard: {
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
     borderRadius: 14,
     padding: 18,
     maxWidth: 420,
@@ -659,24 +686,27 @@ export const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "84px 1fr",
     gap: 8,
     fontSize: 13,
-    color: AETHER_TEXT.primary,
+    color: CALENDAR_TEXT,
   },
   calendarModalLabel: {
-    color: AETHER_TEXT.muted,
+    color: CALENDAR_TEXT,
     fontWeight: 600,
+    opacity: 0.7,
   },
   calendarSettingsSection: {
     marginTop: 16,
-    border: "1px solid var(--aether-panel-border, #eee)",
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
     borderRadius: 12,
     padding: "12px 14px",
-    background: "var(--aether-surface, white)",
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
   },
   calendarSettingsSummary: {
     cursor: "pointer",
     fontWeight: 800,
     fontSize: 14,
     listStyle: "none",
+    color: CALENDAR_TEXT,
   },
   calendarSettingsBody: {
     display: "grid",
@@ -691,6 +721,7 @@ export const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     fontSize: 13,
     margin: 0,
+    color: CALENDAR_TEXT,
   },
   calendarSettingsRow: {
     display: "grid",
@@ -708,15 +739,16 @@ export const styles: Record<string, CSSProperties> = {
   calendarSettingsRowLabel: {
     fontWeight: 600,
     fontSize: 13,
+    color: CALENDAR_TEXT,
   },
   calendarSettingsAliasInput: {
     width: "100%",
     maxWidth: 280,
     padding: "6px 8px",
     borderRadius: 8,
-    border: "1px solid var(--aether-panel-border, #ddd)",
-    background: "var(--aether-surface, white)",
-    color: AETHER_TEXT.primary,
+    border: `1px solid ${ON_LIGHT_SURFACE.border}`,
+    background: ON_LIGHT_SURFACE.bg,
+    color: CALENDAR_TEXT,
     fontSize: 13,
   },
   calendarSettingsActions: {
@@ -731,6 +763,7 @@ export const styles: Record<string, CSSProperties> = {
     gap: 8,
     fontSize: 12,
     fontWeight: 600,
+    color: CALENDAR_TEXT,
   },
   calendarColorPreviewSwatch: {
     width: 28,
@@ -769,7 +802,8 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarColorUsageText: {
     fontSize: 12,
-    color: AETHER_TEXT.muted,
+    color: CALENDAR_TEXT,
     margin: 0,
+    opacity: 0.75,
   },
 };

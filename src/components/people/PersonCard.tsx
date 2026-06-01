@@ -106,23 +106,23 @@ export function PersonCard({
         <div style={{ ...styles.textSecondary, fontSize: 13 }}>{summaryLine}</div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button type="button" onClick={onToggleExpand}>
+          <button type="button" style={styles.smallBtn} onClick={onToggleExpand}>
             {expanded ? "Hide" : "Details"}
           </button>
           {contactedToday ? (
             <span style={styles.streakPillMuted}>Contacted today</span>
           ) : (
-            <button type="button" onClick={onContactedToday}>
+            <button type="button" style={styles.smallBtn} onClick={onContactedToday}>
               Contacted today
             </button>
           )}
-          <button type="button" onClick={onCreateLinkedEvent}>
+          <button type="button" style={styles.smallBtn} onClick={onCreateLinkedEvent}>
             Add event
           </button>
-          <button type="button" onClick={onEdit}>
+          <button type="button" style={styles.smallBtn} onClick={onEdit}>
             Edit
           </button>
-          <button type="button" onClick={onDelete}>
+          <button type="button" style={styles.smallBtn} onClick={onDelete}>
             Delete
           </button>
         </div>
