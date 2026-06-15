@@ -3,13 +3,15 @@ import type { CalendarColorPreferences } from "../../core/calendarColors";
 import {
   buildWeekGrid,
   computeTimedOverlapLayouts,
-  formatHourLabel,
   splitDayItems,
 } from "../../core/calendarView";
 import { styles } from "../../ui/appStyles";
 import {
-  CALENDAR_HOUR_HEIGHT_PX,
-} from "./calendarLayoutConstants";
+  CalendarAllDayLabel,
+  CalendarHourGridLine,
+  CalendarHourGutter,
+  CALENDAR_HOUR_HEIGHT_PX_EXPORT,
+} from "./CalendarTimedGridParts";
 import { CalendarDragGhostBlock, CalendarEventBlock } from "./CalendarEventBlock";
 import { CalendarItemPill } from "./CalendarItemPill";
 import { useCalendarItemDrag } from "./useCalendarItemDrag";
@@ -33,7 +35,7 @@ export type WeekViewProps = {
   nowMinutes?: number;
 };
 
-const HOUR_HEIGHT_PX = CALENDAR_HOUR_HEIGHT_PX;
+const HOUR_HEIGHT_PX = CALENDAR_HOUR_HEIGHT_PX_EXPORT;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT_PX / 60;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
@@ -61,7 +63,6 @@ export function WeekView({
 
   return (
     <div style={styles.calendarWeekGrid}>
-      {/* Column headers */}
       <div style={styles.calendarWeekColHeader} aria-hidden="true" />
       {columns.map((column) => (
         <div
@@ -76,8 +77,7 @@ export function WeekView({
         </div>
       ))}
 
-      {/* All-day row */}
-      <div style={styles.calendarAllDayLabelCompact}>All day</div>
+      <CalendarAllDayLabel />
       {columns.map((column) => {
         const { allDay } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
         return (
@@ -94,13 +94,8 @@ export function WeekView({
         );
       })}
 
-      {/* Time gutter */}
       <div>
-        {HOURS.map((hour) => (
-          <div key={`hour-${hour}`} style={styles.calendarTimeGutterCellCompact}>
-            {formatHourLabel(hour)}
-          </div>
-        ))}
+        <CalendarHourGutter />
       </div>
 
       {columns.map((column) => {
@@ -121,7 +116,7 @@ export function WeekView({
             }}
           >
             {HOURS.map((hour) => (
-              <div key={`line-${hour}`} style={styles.calendarHourLine} />
+              <CalendarHourGridLine key={`line-${hour}`} hour={hour} />
             ))}
 
             {timed.map((item) => (

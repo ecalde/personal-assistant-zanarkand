@@ -8,7 +8,6 @@ import {
   computeThreeDaySnapAnchorIndex,
   computeTimedOverlapLayouts,
   daysBetweenDateKeys,
-  formatHourLabel,
   splitDayItems,
   threeDaySnapScrollLeft,
   THREE_DAY_VISIBLE_COUNT,
@@ -20,6 +19,15 @@ import {
   CALENDAR_TIME_GUTTER_PX,
   THREE_DAY_SCROLL_BUFFER_DAYS,
 } from "./calendarLayoutConstants";
+import {
+  CALENDAR_TIMED_GRID_ROWS,
+  CalendarHourGridLine,
+  CalendarHourGutter,
+  calendarStickyGutterAllDayLabelStyle,
+  calendarStickyGutterHeaderStyle,
+  calendarStickyGutterTimeColumnStyle,
+  calendarThreeDayGridColumns,
+} from "./CalendarTimedGridParts";
 import { CalendarDragGhostBlock, CalendarEventBlock } from "./CalendarEventBlock";
 import { CalendarItemPill } from "./CalendarItemPill";
 import { useCalendarItemDrag } from "./useCalendarItemDrag";
@@ -80,7 +88,10 @@ export function ThreeDayView({
   const isProgrammaticScrollRef = useRef(false);
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dayWidthPx = dayAreaWidth > 0 ? dayAreaWidth / 3 : 0;
+  const dayWidthPx =
+    dayAreaWidth > CALENDAR_TIME_GUTTER_PX
+      ? (dayAreaWidth - CALENDAR_TIME_GUTTER_PX) / THREE_DAY_VISIBLE_COUNT
+      : 0;
 
   const { getItemDragBindings, ghost } = useCalendarItemDrag({
     columnDateKeys,
@@ -93,7 +104,7 @@ export function ThreeDayView({
   });
 
   useEffect(() => {
-    const node = scrollRef.current;
+    const node = viewportRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver((entries) => {
@@ -149,7 +160,7 @@ export function ThreeDayView({
     if (newAnchorKey !== anchorKey) {
       onAnchorChange(newAnchorKey);
     }
-  }, [anchorKey, dayWidthPx, onAnchorChange, stripStartKey]);
+  }, [anchorKey, columns.length, dayWidthPx, onAnchorChange, stripStartKey]);
 
   const handleScroll = useCallback(() => {
     if (isProgrammaticScrollRef.current) return;
@@ -179,19 +190,7 @@ export function ThreeDayView({
     };
   }, [snapAfterScroll]);
 
-  const dayColumnTemplate =
-    dayWidthPx > 0 ? `repeat(${columns.length}, ${dayWidthPx}px)` : `repeat(${columns.length}, 1fr)`;
-
-  const scrollGridStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: dayColumnTemplate,
-    width: columns.length * dayWidthPx,
-    minWidth: "100%",
-  };
-
   const shellStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: `${CALENDAR_TIME_GUTTER_PX}px minmax(0, 1fr)`,
     border: styles.calendarWeekGrid.border as string,
     borderRadius: styles.calendarWeekGrid.borderRadius,
     overflow: "hidden",
@@ -201,10 +200,20 @@ export function ThreeDayView({
     minWidth: 0,
   };
 
+  const scrollGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: calendarThreeDayGridColumns(columns.length, dayWidthPx),
+    gridTemplateRows: CALENDAR_TIMED_GRID_ROWS,
+    width:
+      dayWidthPx > 0
+        ? CALENDAR_TIME_GUTTER_PX + columns.length * dayWidthPx
+        : "max-content",
+    minWidth: "100%",
+  };
+
   return (
-    <div ref={viewportRef} style={{ width: "100%", minWidth: 0 }}>
-      <div style={shellStyle}>
-        <GutterColumn />
+    <div style={{ width: "100%", minWidth: 0 }}>
+      <div ref={viewportRef} style={shellStyle}>
         <div
           ref={scrollRef}
           onScroll={handleScroll}
@@ -216,7 +225,7 @@ export function ThreeDayView({
           }}
           aria-label="Three day calendar"
         >
-          <ThreeDayScrollBody
+          <ThreeDayScrollGrid
             columns={columns}
             scrollGridStyle={scrollGridStyle}
             itemsByDate={itemsByDate}
@@ -234,23 +243,7 @@ export function ThreeDayView({
   );
 }
 
-function GutterColumn() {
-  return (
-    <div>
-      <div style={styles.calendarWeekColHeader} aria-hidden="true" />
-      <div style={styles.calendarAllDayLabelCompact}>All day</div>
-      <div>
-        {HOURS.map((hour) => (
-          <div key={`hour-${hour}`} style={styles.calendarTimeGutterCellCompact}>
-            {formatHourLabel(hour)}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-type ThreeDayScrollBodyProps = {
+type ThreeDayScrollGridProps = {
   columns: WeekDayColumn[];
   scrollGridStyle: CSSProperties;
   itemsByDate: Map<string, CalendarItem[]>;
@@ -263,7 +256,7 @@ type ThreeDayScrollBodyProps = {
   nowMinutes?: number;
 };
 
-function ThreeDayScrollBody({
+function ThreeDayScrollGrid({
   columns,
   scrollGridStyle,
   itemsByDate,
@@ -274,9 +267,11 @@ function ThreeDayScrollBody({
   ghost,
   resizeGhost,
   nowMinutes,
-}: ThreeDayScrollBodyProps) {
+}: ThreeDayScrollGridProps) {
   return (
     <div style={scrollGridStyle}>
+      <div style={calendarStickyGutterHeaderStyle()} aria-hidden="true" />
+
       {columns.map((column) => (
         <div
           key={`head-${column.dateKey}`}
@@ -289,6 +284,10 @@ function ThreeDayScrollBody({
           <div style={{ fontSize: 14 }}>{column.dayNumber}</div>
         </div>
       ))}
+
+      <div style={calendarStickyGutterAllDayLabelStyle()} aria-hidden="true">
+        All day
+      </div>
 
       {columns.map((column) => {
         const { allDay } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
@@ -305,6 +304,10 @@ function ThreeDayScrollBody({
           </div>
         );
       })}
+
+      <div style={calendarStickyGutterTimeColumnStyle()}>
+        <CalendarHourGutter />
+      </div>
 
       {columns.map((column) => {
         const { timed } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
@@ -325,7 +328,7 @@ function ThreeDayScrollBody({
             }}
           >
             {HOURS.map((hour) => (
-              <div key={`line-${hour}`} style={styles.calendarHourLine} />
+              <CalendarHourGridLine key={`line-${hour}`} hour={hour} />
             ))}
 
             {timed.map((item) => (
