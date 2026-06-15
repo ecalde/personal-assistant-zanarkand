@@ -60,6 +60,17 @@ export function CalendarToolbar({
         >
           Week
         </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === "threeDay"}
+          style={{
+            ...styles.calendarToggleBtn,
+            ...(viewMode === "threeDay" ? styles.calendarToggleBtnActive : {}),
+          }}
+          onClick={() => onViewModeChange("threeDay")}
+        >
+          3 Day
+        </button>
       </div>
     </div>
   );

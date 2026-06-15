@@ -7,6 +7,9 @@ import {
   splitDayItems,
 } from "../../core/calendarView";
 import { styles } from "../../ui/appStyles";
+import {
+  CALENDAR_HOUR_HEIGHT_PX,
+} from "./calendarLayoutConstants";
 import { CalendarDragGhostBlock, CalendarEventBlock } from "./CalendarEventBlock";
 import { CalendarItemPill } from "./CalendarItemPill";
 import { useCalendarItemDrag } from "./useCalendarItemDrag";
@@ -30,7 +33,7 @@ export type WeekViewProps = {
   nowMinutes?: number;
 };
 
-const HOUR_HEIGHT_PX = 48;
+const HOUR_HEIGHT_PX = CALENDAR_HOUR_HEIGHT_PX;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT_PX / 60;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
@@ -74,7 +77,7 @@ export function WeekView({
       ))}
 
       {/* All-day row */}
-      <div style={styles.calendarAllDayLabel}>All day</div>
+      <div style={styles.calendarAllDayLabelCompact}>All day</div>
       {columns.map((column) => {
         const { allDay } = splitDayItems(itemsByDate.get(column.dateKey) ?? []);
         return (
@@ -94,7 +97,7 @@ export function WeekView({
       {/* Time gutter */}
       <div>
         {HOURS.map((hour) => (
-          <div key={`hour-${hour}`} style={styles.calendarTimeGutterCell}>
+          <div key={`hour-${hour}`} style={styles.calendarTimeGutterCellCompact}>
             {formatHourLabel(hour)}
           </div>
         ))}

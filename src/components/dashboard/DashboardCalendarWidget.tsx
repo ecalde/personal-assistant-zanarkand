@@ -2,6 +2,7 @@ import type { CalendarColorPreferences } from "../../core/calendarColors";
 import { CalendarItemDetailModal } from "../calendar/CalendarItemDetailModal";
 import { CalendarToolbar } from "../calendar/CalendarToolbar";
 import { MonthView } from "../calendar/MonthView";
+import { ThreeDayView } from "../calendar/ThreeDayView";
 import { WeekView } from "../calendar/WeekView";
 import type { CalendarController } from "../calendar/useCalendarController";
 import { useNowMinutes } from "../../ui/useNowMinutes";
@@ -56,6 +57,16 @@ export function DashboardCalendarWidget({
           preferences={calendarPreferences}
           onSelectItem={controller.setSelectedItem}
           onSelectDay={controller.handleSelectDay}
+        />
+      ) : controller.viewMode === "threeDay" ? (
+        <ThreeDayView
+          anchorKey={controller.anchorKey}
+          todayKey={todayKey}
+          itemsByDate={controller.itemsByDate}
+          preferences={calendarPreferences}
+          onSelectItem={controller.setSelectedItem}
+          onAnchorChange={controller.handleThreeDayAnchorChange}
+          nowMinutes={nowMinutes}
         />
       ) : (
         <WeekView

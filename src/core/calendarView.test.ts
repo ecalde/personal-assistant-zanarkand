@@ -7,20 +7,29 @@ import {
 import { resolveCalendarItemColor } from "./calendarColors";
 import {
   buildMonthGrid,
+  buildThreeDayGrid,
   buildWeekGrid,
   computeMonthVisibleRange,
+  computeThreeDayRange,
+  computeThreeDaySnapAnchorIndex,
   computeTimedItemLayout,
   computeTimedOverlapLayouts,
   computeWeekRange,
+  dayColumnVisibleFraction,
+  daysBetweenDateKeys,
+  isValidThreeDaySnapWindow,
   filterItemsByHiddenCategories,
   formatHourLabel,
   formatItemTimeLabel,
+  formatThreeDayRangeTitle,
   laneGeometry,
   limitDayItems,
   monthAnchorFromKey,
   shiftMonth,
+  shiftThreeDay,
   shiftWeek,
   splitDayItems,
+  threeDaySnapScrollLeft,
   timedItemsOverlapMinutes,
   TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
 } from "./calendarView";
@@ -107,6 +116,90 @@ describe("week range + grid", () => {
   it("shifts weeks by 7 days", () => {
     expect(shiftWeek("2026-05-28", 1)).toBe("2026-06-04");
     expect(shiftWeek("2026-05-28", -1)).toBe("2026-05-21");
+  });
+});
+
+describe("three-day range + grid", () => {
+  it("computes a three-day range from the anchor", () => {
+    const range = computeThreeDayRange("2026-05-28");
+    expect(range.startDate).toBe("2026-05-28");
+    expect(range.endDate).toBe("2026-05-30");
+  });
+
+  it("builds three columns from the anchor", () => {
+    const columns = buildThreeDayGrid("2026-05-28", "2026-05-28");
+    expect(columns).toHaveLength(3);
+    expect(columns.map((c) => c.dateKey)).toEqual([
+      "2026-05-28",
+      "2026-05-29",
+      "2026-05-30",
+    ]);
+  });
+
+  it("formats a three-day title", () => {
+    expect(formatThreeDayRangeTitle("2026-05-28")).toMatch(/May 28/);
+    expect(formatThreeDayRangeTitle("2026-05-28")).toMatch(/30/);
+  });
+
+  it("shifts by whole days", () => {
+    expect(shiftThreeDay("2026-05-28", 3)).toBe("2026-05-31");
+    expect(shiftThreeDay("2026-05-28", -3)).toBe("2026-05-25");
+  });
+
+  it("counts whole days between date keys", () => {
+    expect(daysBetweenDateKeys("2026-05-28", "2026-05-30")).toBe(2);
+    expect(daysBetweenDateKeys("2026-05-28", "2026-05-28")).toBe(0);
+  });
+});
+
+describe("three-day snap", () => {
+  const dayWidth = 100;
+  const viewportWidth = 300;
+
+  it("keeps the current anchor when scroll is aligned", () => {
+    expect(computeThreeDaySnapAnchorIndex(200, dayWidth)).toBe(2);
+    expect(threeDaySnapScrollLeft(2, dayWidth)).toBe(200);
+  });
+
+  it("shifts forward one day when >50% of the next day peeks in on the right", () => {
+    // Window Fri–Sun (anchor 0); scrolled so Mon (index 3) is 80% visible.
+    expect(computeThreeDaySnapAnchorIndex(120, dayWidth)).toBe(1);
+  });
+
+  it("does not skip two days when scroll overshoots slightly past one day", () => {
+    expect(computeThreeDaySnapAnchorIndex(120, dayWidth)).toBe(1);
+    expect(computeThreeDaySnapAnchorIndex(120, dayWidth)).not.toBe(2);
+  });
+
+  it("shifts forward two days when scrolled to the next-next window", () => {
+    // Sat–Mon (anchor 1) → Mon–Wed (anchor 3) when centered on scrollLeft 300.
+    expect(computeThreeDaySnapAnchorIndex(300, dayWidth)).toBe(3);
+  });
+
+  it("shifts forward three days when scrolled to Tue–Thu", () => {
+    expect(computeThreeDaySnapAnchorIndex(400, dayWidth)).toBe(4);
+  });
+
+  it("shifts back one day when >50% of the previous day peeks in on the left", () => {
+    // Window Sat–Mon (anchor 1); scrolled left so Fri (index 0) is fully visible.
+    expect(computeThreeDaySnapAnchorIndex(0, dayWidth)).toBe(0);
+  });
+
+  it("stays on the current anchor when peeking days are under 50%", () => {
+    // Window Fri–Sun; Mon only 40% visible — snap back to Fri–Sun (closest valid).
+    expect(computeThreeDaySnapAnchorIndex(40, dayWidth)).toBe(0);
+  });
+
+  it("rejects windows with a >50% peek outside the trio", () => {
+    expect(isValidThreeDaySnapWindow(0, 120, viewportWidth, dayWidth)).toBe(false);
+    expect(isValidThreeDaySnapWindow(1, 120, viewportWidth, dayWidth)).toBe(true);
+    expect(isValidThreeDaySnapWindow(1, 300, viewportWidth, dayWidth)).toBe(false);
+    expect(isValidThreeDaySnapWindow(3, 300, viewportWidth, dayWidth)).toBe(true);
+  });
+
+  it("reports visible fraction for a day column", () => {
+    expect(dayColumnVisibleFraction(3, 80, viewportWidth, dayWidth)).toBeCloseTo(0.8);
+    expect(dayColumnVisibleFraction(0, 60, viewportWidth, dayWidth)).toBeCloseTo(0.4);
   });
 });
 

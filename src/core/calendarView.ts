@@ -9,7 +9,10 @@ import type { CalendarCategoryKey } from "./calendarColors";
 import { formatHHMMToDisplayTime, parseHHMMToMinutes } from "./schedule";
 import { formatLocalDateKey } from "./timeline";
 
-export type CalendarViewMode = "month" | "week";
+export type CalendarViewMode = "month" | "week" | "threeDay";
+
+/** Number of consecutive days shown in the 3-day view. */
+export const THREE_DAY_VISIBLE_COUNT = 3;
 
 export type DateRange = { startDate: string; endDate: string };
 
@@ -256,10 +259,17 @@ function parseDateKey(dateKey: string): Date {
   return new Date(year, month - 1, day);
 }
 
-function addDaysToDateKey(dateKey: string, days: number): string {
+export function addDaysToDateKey(dateKey: string, days: number): string {
   const date = parseDateKey(dateKey);
   date.setDate(date.getDate() + days);
   return formatLocalDateKey(date);
+}
+
+/** Whole-day distance from `startKey` to `endKey` (end − start). */
+export function daysBetweenDateKeys(startKey: string, endKey: string): number {
+  const start = parseDateKey(startKey);
+  const end = parseDateKey(endKey);
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
 }
 
 /** Normalizes any date key to the first day of its month (YYYY-MM-01). */
@@ -293,6 +303,28 @@ export function computeWeekRange(anchorKey: string): DateRange {
   return { startDate, endDate };
 }
 
+/** Three-day range: anchor through anchor + 2 days. */
+export function computeThreeDayRange(anchorKey: string): DateRange {
+  return {
+    startDate: anchorKey,
+    endDate: addDaysToDateKey(anchorKey, THREE_DAY_VISIBLE_COUNT - 1),
+  };
+}
+
+/**
+ * Wide range for the 3-day scroll strip so items exist while the user pans
+ * forward/backward. Centered on `centerKey`.
+ */
+export function computeThreeDayScrollRange(
+  centerKey: string,
+  bufferDays: number
+): DateRange {
+  return {
+    startDate: addDaysToDateKey(centerKey, -bufferDays),
+    endDate: addDaysToDateKey(centerKey, bufferDays + THREE_DAY_VISIBLE_COUNT - 1),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Grid builders
 // ---------------------------------------------------------------------------
@@ -320,11 +352,14 @@ export function buildMonthGrid(monthAnchorKey: string, todayKey: string): MonthW
   return weeks;
 }
 
-export function buildWeekGrid(anchorKey: string, todayKey: string): WeekDayColumn[] {
-  const { startDate } = computeWeekRange(anchorKey);
+export function buildDayColumns(
+  startDateKey: string,
+  count: number,
+  todayKey: string
+): WeekDayColumn[] {
   const columns: WeekDayColumn[] = [];
-  for (let i = 0; i < 7; i += 1) {
-    const dateKey = addDaysToDateKey(startDate, i);
+  for (let i = 0; i < count; i += 1) {
+    const dateKey = addDaysToDateKey(startDateKey, i);
     const date = parseDateKey(dateKey);
     const weekdayIndex = date.getDay();
     columns.push({
@@ -336,6 +371,15 @@ export function buildWeekGrid(anchorKey: string, todayKey: string): WeekDayColum
     });
   }
   return columns;
+}
+
+export function buildWeekGrid(anchorKey: string, todayKey: string): WeekDayColumn[] {
+  const { startDate } = computeWeekRange(anchorKey);
+  return buildDayColumns(startDate, 7, todayKey);
+}
+
+export function buildThreeDayGrid(anchorKey: string, todayKey: string): WeekDayColumn[] {
+  return buildDayColumns(anchorKey, THREE_DAY_VISIBLE_COUNT, todayKey);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +395,97 @@ export function shiftMonth(monthAnchorKey: string, delta: number): string {
 
 export function shiftWeek(anchorKey: string, deltaWeeks: number): string {
   return addDaysToDateKey(anchorKey, deltaWeeks * 7);
+}
+
+export function shiftThreeDay(anchorKey: string, deltaDays: number): string {
+  return addDaysToDateKey(anchorKey, deltaDays);
+}
+
+/**
+ * Fraction of a day column (0–1) visible inside the horizontal viewport.
+ */
+export function dayColumnVisibleFraction(
+  dayIndex: number,
+  scrollLeftPx: number,
+  viewportWidthPx: number,
+  dayWidthPx: number
+): number {
+  if (dayWidthPx <= 0) return 0;
+  const columnStart = dayIndex * dayWidthPx;
+  const columnEnd = columnStart + dayWidthPx;
+  const viewportEnd = scrollLeftPx + viewportWidthPx;
+  const overlapStart = Math.max(columnStart, scrollLeftPx);
+  const overlapEnd = Math.min(columnEnd, viewportEnd);
+  const overlap = Math.max(0, overlapEnd - overlapStart);
+  return overlap / dayWidthPx;
+}
+
+/** True when no day outside the 3-day window peeks in by more than 50%. */
+export function isValidThreeDaySnapWindow(
+  anchorIndex: number,
+  scrollLeftPx: number,
+  viewportWidthPx: number,
+  dayWidthPx: number
+): boolean {
+  const leftPeekIndex = anchorIndex - 1;
+  if (leftPeekIndex >= 0) {
+    const leftPeek = dayColumnVisibleFraction(
+      leftPeekIndex,
+      scrollLeftPx,
+      viewportWidthPx,
+      dayWidthPx
+    );
+    if (leftPeek > 0.5) return false;
+  }
+
+  const rightPeekIndex = anchorIndex + THREE_DAY_VISIBLE_COUNT;
+  const rightPeek = dayColumnVisibleFraction(
+    rightPeekIndex,
+    scrollLeftPx,
+    viewportWidthPx,
+    dayWidthPx
+  );
+  return rightPeek <= 0.5;
+}
+
+/**
+ * After horizontal scrolling in the 3-day view, picks the anchor whose aligned
+ * window is closest to the user's scroll position while keeping the >50% peek
+ * rule: no day outside the three visible columns may show more than half.
+ */
+export function computeThreeDaySnapAnchorIndex(
+  scrollLeftPx: number,
+  dayWidthPx: number,
+  minAnchorIndex = 0,
+  maxAnchorIndex = Number.POSITIVE_INFINITY
+): number {
+  if (dayWidthPx <= 0) return Math.max(minAnchorIndex, 0);
+
+  const viewportWidth = THREE_DAY_VISIBLE_COUNT * dayWidthPx;
+  const centerIndex = Math.floor(scrollLeftPx / dayWidthPx);
+  const searchStart = Math.max(minAnchorIndex, centerIndex - 2);
+  const searchEnd = Math.min(maxAnchorIndex, centerIndex + 2);
+
+  let bestAnchor = Math.max(minAnchorIndex, centerIndex);
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let candidate = searchStart; candidate <= searchEnd; candidate += 1) {
+    if (!isValidThreeDaySnapWindow(candidate, scrollLeftPx, viewportWidth, dayWidthPx)) {
+      continue;
+    }
+    const distance = Math.abs(scrollLeftPx - threeDaySnapScrollLeft(candidate, dayWidthPx));
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestAnchor = candidate;
+    }
+  }
+
+  return bestAnchor;
+}
+
+/** Pixel offset that aligns the scroll strip to `anchorIndex`. */
+export function threeDaySnapScrollLeft(anchorIndex: number, dayWidthPx: number): number {
+  return anchorIndex * dayWidthPx;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +560,15 @@ export function formatMonthTitle(monthAnchorKey: string): string {
 
 export function formatWeekRangeTitle(anchorKey: string): string {
   const { startDate, endDate } = computeWeekRange(anchorKey);
+  return formatDateRangeTitle(startDate, endDate);
+}
+
+export function formatThreeDayRangeTitle(anchorKey: string): string {
+  const { startDate, endDate } = computeThreeDayRange(anchorKey);
+  return formatDateRangeTitle(startDate, endDate);
+}
+
+function formatDateRangeTitle(startDate: string, endDate: string): string {
   const start = parseDateKey(startDate);
   const end = parseDateKey(endDate);
   const sameMonth = startDate.slice(0, 7) === endDate.slice(0, 7);

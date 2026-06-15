@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildCalendarItemsForRange,
   groupCalendarItemsByDate,
@@ -7,15 +7,26 @@ import {
 import type { CalendarCategoryKey } from "../../core/calendarColors";
 import {
   computeMonthVisibleRange,
+  computeThreeDayScrollRange,
   computeWeekRange,
   filterItemsByHiddenCategories,
   formatMonthTitle,
+  formatThreeDayRangeTitle,
   formatWeekRangeTitle,
   monthAnchorFromKey,
   shiftMonth,
+  shiftThreeDay,
   shiftWeek,
+  THREE_DAY_VISIBLE_COUNT,
   type CalendarViewMode,
 } from "../../core/calendarView";
+import {
+  persistCalendarViewMode,
+  readCalendarViewMode,
+  type CalendarViewSurface,
+  type CalendarViewViewport,
+} from "../../core/calendarViewPreferences";
+import { THREE_DAY_SCROLL_BUFFER_DAYS } from "./calendarLayoutConstants";
 import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../../core/model";
 
 export type UseCalendarControllerInput = {
@@ -28,11 +39,11 @@ export type UseCalendarControllerInput = {
   todayKey: string;
   initialViewMode?: CalendarViewMode;
   /**
-   * When set, the month/week view mode is persisted to `localStorage` under
-   * this key so it survives reloads. UI-only preference — not part of the
-   * synced `AppPayload`.
+   * When set with {@link viewModeViewport}, the month/week/3-day view mode is
+   * persisted per surface and viewport (client-local, not synced).
    */
-  viewModePersistenceKey?: string;
+  viewModeSurface?: CalendarViewSurface;
+  viewModeViewport?: CalendarViewViewport;
 };
 
 export type CalendarController = {
@@ -48,34 +59,16 @@ export type CalendarController = {
   handleToday: () => void;
   handleViewModeChange: (mode: CalendarViewMode) => void;
   handleSelectDay: (dateKey: string) => void;
+  handleThreeDayAnchorChange: (dateKey: string) => void;
   toggleCategory: (category: CalendarCategoryKey) => void;
 };
 
-function isCalendarViewMode(value: unknown): value is CalendarViewMode {
-  return value === "month" || value === "week";
-}
-
-function readPersistedViewMode(
-  key: string | undefined,
-  fallback: CalendarViewMode
-): CalendarViewMode {
-  if (!key || typeof window === "undefined") return fallback;
-  try {
-    const stored = window.localStorage.getItem(key);
-    return isCalendarViewMode(stored) ? stored : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function persistViewMode(key: string | undefined, mode: CalendarViewMode): void {
-  if (!key || typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, mode);
-  } catch {
-    // localStorage may be unavailable (private mode / quota); the view mode
-    // simply stays in memory for this session rather than failing the UI.
-  }
+function getViewModePersistenceContext(
+  surface: CalendarViewSurface | undefined,
+  viewport: CalendarViewViewport | undefined
+): { surface: CalendarViewSurface; viewport: CalendarViewViewport } | null {
+  if (surface === undefined || viewport === undefined) return null;
+  return { surface, viewport };
 }
 
 /**
@@ -92,29 +85,44 @@ export function useCalendarController({
   workoutPlans,
   todayKey,
   initialViewMode = "week",
-  viewModePersistenceKey,
+  viewModeSurface,
+  viewModeViewport,
 }: UseCalendarControllerInput): CalendarController {
-  const [viewMode, setViewModeState] = useState<CalendarViewMode>(() =>
-    readPersistedViewMode(viewModePersistenceKey, initialViewMode)
-  );
+  const persistViewMode = (mode: CalendarViewMode) => {
+    const ctx = getViewModePersistenceContext(viewModeSurface, viewModeViewport);
+    if (!ctx) return;
+    persistCalendarViewMode(ctx.surface, ctx.viewport, mode);
+  };
+
+  const readInitialViewMode = (): CalendarViewMode => {
+    const ctx = getViewModePersistenceContext(viewModeSurface, viewModeViewport);
+    if (!ctx) return initialViewMode;
+    return readCalendarViewMode(ctx.surface, ctx.viewport, initialViewMode);
+  };
+
+  const [viewMode, setViewModeState] = useState<CalendarViewMode>(readInitialViewMode);
   const [anchorKey, setAnchorKey] = useState<string>(todayKey);
   const [hiddenCategories, setHiddenCategories] = useState<Set<CalendarCategoryKey>>(
     () => new Set()
   );
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
 
+  useEffect(() => {
+    const ctx = getViewModePersistenceContext(viewModeSurface, viewModeViewport);
+    if (!ctx) return;
+    setViewModeState(readCalendarViewMode(ctx.surface, ctx.viewport, initialViewMode));
+  }, [viewModeSurface, viewModeViewport, initialViewMode]);
+
   function setViewMode(mode: CalendarViewMode) {
     setViewModeState(mode);
-    persistViewMode(viewModePersistenceKey, mode);
+    persistViewMode(mode);
   }
 
-  const range = useMemo(
-    () =>
-      viewMode === "month"
-        ? computeMonthVisibleRange(anchorKey)
-        : computeWeekRange(anchorKey),
-    [viewMode, anchorKey]
-  );
+  const range = useMemo(() => {
+    if (viewMode === "month") return computeMonthVisibleRange(anchorKey);
+    if (viewMode === "week") return computeWeekRange(anchorKey);
+    return computeThreeDayScrollRange(todayKey, THREE_DAY_SCROLL_BUFFER_DAYS);
+  }, [viewMode, anchorKey, todayKey]);
 
   const itemsByDate = useMemo(() => {
     const items = buildCalendarItemsForRange(
@@ -133,32 +141,51 @@ export function useCalendarController({
     return groupCalendarItemsByDate(visible);
   }, [range, skills, events, people, workoutSessions, workoutPlans, hiddenCategories]);
 
-  const title =
-    viewMode === "month" ? formatMonthTitle(anchorKey) : formatWeekRangeTitle(anchorKey);
+  const title = useMemo(() => {
+    if (viewMode === "month") return formatMonthTitle(anchorKey);
+    if (viewMode === "threeDay") return formatThreeDayRangeTitle(anchorKey);
+    return formatWeekRangeTitle(anchorKey);
+  }, [viewMode, anchorKey]);
 
   function handlePrev() {
-    setAnchorKey((current) =>
-      viewMode === "month" ? shiftMonth(current, -1) : shiftWeek(current, -1)
-    );
+    setAnchorKey((current) => {
+      if (viewMode === "month") return shiftMonth(current, -1);
+      if (viewMode === "threeDay") return shiftThreeDay(current, -THREE_DAY_VISIBLE_COUNT);
+      return shiftWeek(current, -1);
+    });
   }
 
   function handleNext() {
-    setAnchorKey((current) =>
-      viewMode === "month" ? shiftMonth(current, 1) : shiftWeek(current, 1)
-    );
+    setAnchorKey((current) => {
+      if (viewMode === "month") return shiftMonth(current, 1);
+      if (viewMode === "threeDay") return shiftThreeDay(current, THREE_DAY_VISIBLE_COUNT);
+      return shiftWeek(current, 1);
+    });
   }
 
   function handleToday() {
-    setAnchorKey(viewMode === "month" ? monthAnchorFromKey(todayKey) : todayKey);
+    if (viewMode === "month") {
+      setAnchorKey(monthAnchorFromKey(todayKey));
+      return;
+    }
+    setAnchorKey(todayKey);
   }
 
   function handleViewModeChange(mode: CalendarViewMode) {
     setViewMode(mode);
-    setAnchorKey((current) => (mode === "month" ? monthAnchorFromKey(current) : current));
+    setAnchorKey((current) => {
+      if (mode === "month") return monthAnchorFromKey(current);
+      if (mode === "threeDay") return todayKey;
+      return current;
+    });
   }
 
   function handleSelectDay(dateKey: string) {
     setViewMode("week");
+    setAnchorKey(dateKey);
+  }
+
+  function handleThreeDayAnchorChange(dateKey: string) {
     setAnchorKey(dateKey);
   }
 
@@ -187,6 +214,7 @@ export function useCalendarController({
     handleToday,
     handleViewModeChange,
     handleSelectDay,
+    handleThreeDayAnchorChange,
     toggleCategory,
   };
 }

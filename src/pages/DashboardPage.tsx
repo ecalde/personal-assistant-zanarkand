@@ -74,8 +74,8 @@ import { styles } from "../ui/appStyles";
 /** Toggle legacy schedule-only timeline during rollout. */
 const USE_UNIFIED_TIMELINE = true;
 
-/** UI-only preference key: dashboard calendar month/week view, client-local (not synced). */
-const DASHBOARD_CALENDAR_VIEW_MODE_KEY = "pa.dashboardCalendar.viewMode.v1";
+/** UI-only preference keys: dashboard calendar view per viewport (not synced). */
+const DASHBOARD_CALENDAR_VIEW_SURFACE = "dashboard" as const;
 
 const UPCOMING_EVENTS_WINDOW_DAYS = 14;
 const UPCOMING_EVENTS_MAX_ITEMS = 10;
@@ -151,7 +151,8 @@ export default function DashboardPage({
     workoutSessions,
     workoutPlans,
     todayKey: today,
-    viewModePersistenceKey: DASHBOARD_CALENDAR_VIEW_MODE_KEY,
+    viewModeSurface: DASHBOARD_CALENDAR_VIEW_SURFACE,
+    viewModeViewport: isDesktop ? "desktop" : "mobile",
   });
 
   const rows = useMemo(

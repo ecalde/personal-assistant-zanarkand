@@ -10,6 +10,7 @@ import { CalendarSettingsSection } from "../components/calendar/CalendarSettings
 import { CalendarToolbar } from "../components/calendar/CalendarToolbar";
 import { CalendarUndoSnackbar } from "../components/calendar/CalendarUndoSnackbar";
 import { MonthView } from "../components/calendar/MonthView";
+import { ThreeDayView } from "../components/calendar/ThreeDayView";
 import { WeekView } from "../components/calendar/WeekView";
 import { useCalendarController } from "../components/calendar/useCalendarController";
 import {
@@ -85,6 +86,8 @@ export default function CalendarPage({
     workoutSessions,
     workoutPlans,
     todayKey,
+    viewModeSurface: "calendarPage",
+    viewModeViewport: isDesktop ? "desktop" : "mobile",
   });
 
   const [pendingUndo, setPendingUndo] = useState<CalendarEventUndoPayload | null>(null);
@@ -190,6 +193,18 @@ export default function CalendarPage({
                 onSelectDay={calendar.handleSelectDay}
                 onMoveItem={handleMoveEventDate}
                 onCreateDraftFromDate={handleCreateDraftFromDate}
+              />
+            ) : calendar.viewMode === "threeDay" ? (
+              <ThreeDayView
+                anchorKey={calendar.anchorKey}
+                todayKey={todayKey}
+                itemsByDate={calendar.itemsByDate}
+                preferences={calendarPreferences}
+                onSelectItem={calendar.setSelectedItem}
+                onAnchorChange={calendar.handleThreeDayAnchorChange}
+                onRescheduleItem={handleReschedule}
+                onResizeItem={handleResize}
+                nowMinutes={nowMinutes}
               />
             ) : (
               <WeekView
