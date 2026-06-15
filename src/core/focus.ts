@@ -810,13 +810,13 @@ export function collectEventFocusItems(
       );
     }
 
-    if (event.type === "deadline" && daysUntil <= 3) {
+    if (event.type === "school" && daysUntil <= 3) {
       drafts.push(
         makeDraft({
           id: `event:${event.id}`,
           category: "event",
           sourceId: event.id,
-          title: `Deadline: ${event.title}`,
+          title: `School: ${event.title}`,
           description: `Due in ${daysUntil} day${daysUntil === 1 ? "" : "s"}${personSuffix}`,
           suggestedActionType: "open_events",
           actionTargetId: event.id,

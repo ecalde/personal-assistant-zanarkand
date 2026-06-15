@@ -48,7 +48,12 @@ export function normalizePayload(payload: unknown): AppPayload {
         overrides: Array.isArray(p.overrides) ? p.overrides : [],
         events: Array.isArray(p.events) ? p.events : [],
         people: Array.isArray(p.people) ? p.people : [],
-        jobApplications: Array.isArray(p.jobApplications) ? p.jobApplications : [],
+        jobApplications: Array.isArray(p.jobApplications)
+            ? (p.jobApplications as AppPayload["jobApplications"]).map((app) => ({
+                  ...app,
+                  interviews: Array.isArray(app.interviews) ? app.interviews : [],
+              }))
+            : [],
         careerTarget:
             p.careerTarget &&
             typeof p.careerTarget === "object" &&

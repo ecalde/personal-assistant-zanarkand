@@ -1,4 +1,4 @@
-import type { AppPayload, LifeEvent } from "./model";
+import type { AppPayload, EventType, LifeEvent } from "./model";
 import { isValidRecurrenceRule } from "./recurrence";
 import { formatLocalDateKey } from "./timeline";
 
@@ -97,6 +97,20 @@ export function sortPastEvents(events: LifeEvent[]): LifeEvent[] {
   });
 }
 
+/** Renames legacy event types on load/import. */
+export function migrateLegacyEventTypes(payload: AppPayload): AppPayload {
+  let changed = false;
+  const events = payload.events.map((event) => {
+    if ((event.type as string) === "deadline") {
+      changed = true;
+      return { ...event, type: "school" as EventType };
+    }
+    return event;
+  });
+  if (!changed) return payload;
+  return { ...payload, events };
+}
+
 /** Clears personId when the linked person no longer exists (legacy/orphan cleanup). */
 export function cleanupOrphanedEventPersonRefs(payload: AppPayload): AppPayload {
   const personIds = new Set(payload.people.map((p) => p.id));
@@ -133,7 +147,8 @@ export function cleanupInvalidEventRecurrence(payload: AppPayload): AppPayload {
 
 /** Repairs event references on load/import (does not remove valid events). */
 export function sanitizeEventReferences(payload: AppPayload): AppPayload {
-  let next = cleanupOrphanedEventPersonRefs(payload);
+  let next = migrateLegacyEventTypes(payload);
+  next = cleanupOrphanedEventPersonRefs(next);
   next = cleanupInvalidEventRecurrence(next);
   return next;
 }

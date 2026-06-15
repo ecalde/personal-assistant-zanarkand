@@ -875,6 +875,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       roleTitle: trimmedRole,
       status: input.status,
       requiredSkillIds: [...input.requiredSkillIds],
+      interviews: [...(input.interviews ?? [])],
       createdAtIso: now,
       updatedAtIso: now,
     };
@@ -955,6 +956,8 @@ export default function App({ userId, onSignOut }: AppProps) {
     } else {
       delete nextApplication.requiredSkillsText;
     }
+
+    nextApplication.interviews = [...(updated.interviews ?? [])];
 
     const jobApplications = (app.payload.jobApplications ?? []).map((application) =>
       application.id === updated.id ? nextApplication : application
@@ -1357,10 +1360,12 @@ export default function App({ userId, onSignOut }: AppProps) {
           skills={app.payload.skills}
           events={app.payload.events ?? []}
           people={app.payload.people ?? []}
+          jobApplications={app.payload.jobApplications ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           workoutPlans={app.payload.workoutPlans ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
+          onOpenCareer={() => setPage("career")}
           onEditOccurrence={openSeriesEdit}
           onSkipOccurrence={skipEventOccurrence}
           onMoveOccurrence={moveEventOccurrence}

@@ -6,14 +6,17 @@
 // with conflict/workload detection). No UI, schema, dependencies, or side effects;
 // total functions that never mutate their inputs.
 //
-// Career is reserved in the source-type union but emits no items: career
-// interviews/deadlines currently flow through life events (sourceType "event").
+// Career application interviews emit as sourceType "career". Other career
+// milestones may still flow through life events (sourceType "event") when added.
 // Recurring life events (event.recurrence) expand via the pure recurrence engine
 // into one CalendarItem per occurrence. Skill weekly blocks remain a separate
 // implicit recurrence (weekday template expansion).
 
 import type {
+  ApplicationInterview,
+  ApplicationStatus,
   EventType,
+  JobApplication,
   LifeEvent,
   Person,
   Priority,
@@ -22,6 +25,11 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import {
+  collectScheduledInterviews,
+  formatInterviewHeadline,
+  resolveInterviewStage,
+} from "./career";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import {
   expandWorkoutOccurrencesForDateRange,
@@ -90,6 +98,16 @@ export type CalendarItemSourceMeta =
       focus?: WorkoutFocus;
       plannedMinutes: number;
       occurrenceDate: string;
+    }
+  | {
+      kind: "applicationInterview";
+      applicationId: string;
+      interviewId: string;
+      company: string;
+      roleTitle: string;
+      stage: NonNullable<ApplicationInterview["stage"]> | ApplicationStatus;
+      format?: ApplicationInterview["format"];
+      outcome?: ApplicationInterview["outcome"];
     };
 
 export type CalendarItem = {
@@ -117,6 +135,7 @@ export type BuildCalendarItemsForRangeInput = {
   skills: Skill[];
   events: LifeEvent[];
   people: Person[];
+  jobApplications?: JobApplication[];
   workoutSessions?: WorkoutSession[];
   workoutPlans?: WorkoutPlan[];
 };
@@ -125,6 +144,7 @@ export type BuildCalendarItemsForRangeOptions = {
   includeSkills?: boolean; // default true
   includeEvents?: boolean; // default true
   includePeopleBirthdays?: boolean; // default true
+  includeCareerInterviews?: boolean; // default true
   includeFitnessHistory?: boolean; // default false
   includeWorkoutSchedules?: boolean; // default false
 };
@@ -150,6 +170,8 @@ export function buildStableCalendarItemId(
       return `fitness:session:${meta.sessionId}`;
     case "workoutScheduleBlock":
       return `fitness:plan:${meta.planId}:${meta.blockId}:${meta.occurrenceDate}`;
+    case "applicationInterview":
+      return `career:interview:${meta.applicationId}:${meta.interviewId}:${date}`;
   }
 }
 
@@ -503,6 +525,57 @@ function collectWorkoutScheduleItems(
   return items;
 }
 
+function collectCareerInterviewItems(
+  applications: JobApplication[],
+  startDate: string,
+  endDate: string
+): CalendarItem[] {
+  const items: CalendarItem[] = [];
+
+  for (const { application, interview } of collectScheduledInterviews(
+    applications,
+    startDate,
+    endDate
+  )) {
+    const hasStart = interview.startTime !== undefined;
+    const hasEnd = hasStart && interview.endTime !== undefined;
+    const stage = resolveInterviewStage(interview, application);
+
+    const meta: CalendarItemSourceMeta = {
+      kind: "applicationInterview",
+      applicationId: application.id,
+      interviewId: interview.id,
+      company: application.company,
+      roleTitle: application.roleTitle,
+      stage,
+      ...(interview.format ? { format: interview.format } : {}),
+      ...(interview.outcome ? { outcome: interview.outcome } : {}),
+    };
+
+    const item: CalendarItem = {
+      id: buildStableCalendarItemId(meta, interview.date),
+      sourceType: "career",
+      sourceId: interview.id,
+      title: formatInterviewHeadline(application, interview),
+      date: interview.date,
+      allDay: !hasStart,
+      categoryKey: "career",
+      subcategoryKey: stage,
+      isTimed: hasStart,
+      isMultiDay: false,
+      sourceMeta: meta,
+    };
+
+    if (hasStart) item.startTime = interview.startTime;
+    if (hasEnd) item.endTime = interview.endTime;
+    if (interview.notes) item.description = interview.notes;
+
+    items.push(item);
+  }
+
+  return items;
+}
+
 function collectFitnessItems(
   sessions: WorkoutSession[],
   startDate: string,
@@ -567,6 +640,7 @@ export function buildCalendarItemsForRange(
   const includeSkills = options.includeSkills ?? true;
   const includeEvents = options.includeEvents ?? true;
   const includePeopleBirthdays = options.includePeopleBirthdays ?? true;
+  const includeCareerInterviews = options.includeCareerInterviews ?? true;
   const includeFitnessHistory = options.includeFitnessHistory ?? false;
   const includeWorkoutSchedules = options.includeWorkoutSchedules ?? false;
 
@@ -591,6 +665,15 @@ export function buildCalendarItemsForRange(
       ...collectBirthdayItems(
         input.people,
         input.events,
+        input.startDate,
+        input.endDate
+      )
+    );
+  }
+  if (includeCareerInterviews && input.jobApplications) {
+    items.push(
+      ...collectCareerInterviewItems(
+        input.jobApplications,
         input.startDate,
         input.endDate
       )

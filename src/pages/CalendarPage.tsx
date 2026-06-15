@@ -3,7 +3,7 @@ import type {
   CalendarColorPreferences,
 } from "../core/calendarColors";
 import { formatLocalDateKey } from "../core/timeline";
-import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../core/model";
+import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession, JobApplication } from "../core/model";
 import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
 import { CalendarItemDetailModal } from "../components/calendar/CalendarItemDetailModal";
 import { CalendarSettingsSection } from "../components/calendar/CalendarSettingsSection";
@@ -28,6 +28,7 @@ export type CalendarPageProps = {
   skills: Skill[];
   events: LifeEvent[];
   people: Person[];
+  jobApplications: JobApplication[];
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
   calendarPreferences?: CalendarColorPreferences;
@@ -54,16 +55,19 @@ export type CalendarPageProps = {
   onResizeItem?: (eventId: string, endTime: string) => CalendarEventUndoPayload | null;
   onOpenEventDraft?: (seed: CalendarEventDraftSeed) => void;
   onUndoCalendarEvent?: (payload: CalendarEventUndoPayload) => void;
+  onOpenCareer?: () => void;
 };
 
 export default function CalendarPage({
   skills,
   events,
   people,
+  jobApplications,
   workoutSessions,
   workoutPlans,
   calendarPreferences,
   onSaveCalendarPreferences,
+  onOpenCareer,
   onEditOccurrence,
   onSkipOccurrence,
   onMoveOccurrence,
@@ -83,6 +87,7 @@ export default function CalendarPage({
     skills,
     events,
     people,
+    jobApplications,
     workoutSessions,
     workoutPlans,
     todayKey,
@@ -222,7 +227,9 @@ export default function CalendarPage({
 
           <CalendarCategorySidebar
             hiddenCategories={calendar.hiddenCategories}
+            hiddenEventSubcategories={calendar.hiddenEventSubcategories}
             onToggleCategory={calendar.toggleCategory}
+            onToggleEventSubcategory={calendar.toggleEventSubcategory}
             preferences={calendarPreferences}
           />
         </div>
@@ -232,6 +239,7 @@ export default function CalendarPage({
             item={calendar.selectedItem}
             preferences={calendarPreferences}
             onClose={() => calendar.setSelectedItem(null)}
+            onOpenCareer={onOpenCareer}
             onEditEntireSeries={
               onEditOccurrence
                 ? (eventId, occurrenceDate) =>

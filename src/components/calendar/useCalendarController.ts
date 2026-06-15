@@ -9,7 +9,7 @@ import {
   computeMonthVisibleRange,
   computeThreeDayScrollRange,
   computeWeekRange,
-  filterItemsByHiddenCategories,
+  filterCalendarItems,
   formatMonthTitle,
   formatThreeDayRangeTitle,
   formatWeekRangeTitle,
@@ -20,6 +20,7 @@ import {
   THREE_DAY_VISIBLE_COUNT,
   type CalendarViewMode,
 } from "../../core/calendarView";
+import type { EventType } from "../../core/model";
 import {
   persistCalendarViewMode,
   readCalendarViewMode,
@@ -27,7 +28,7 @@ import {
   type CalendarViewViewport,
 } from "../../core/calendarViewPreferences";
 import { THREE_DAY_SCROLL_BUFFER_DAYS } from "./calendarLayoutConstants";
-import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../../core/model";
+import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession, JobApplication } from "../../core/model";
 
 export type UseCalendarControllerInput = {
   skills: Skill[];
@@ -35,6 +36,7 @@ export type UseCalendarControllerInput = {
   people: Person[];
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
+  jobApplications: JobApplication[];
   /** Local `YYYY-MM-DD` for "today" — drives the default anchor and Today button. */
   todayKey: string;
   initialViewMode?: CalendarViewMode;
@@ -50,6 +52,7 @@ export type CalendarController = {
   viewMode: CalendarViewMode;
   anchorKey: string;
   hiddenCategories: ReadonlySet<CalendarCategoryKey>;
+  hiddenEventSubcategories: ReadonlySet<EventType>;
   selectedItem: CalendarItem | null;
   itemsByDate: Map<string, CalendarItem[]>;
   title: string;
@@ -61,6 +64,7 @@ export type CalendarController = {
   handleSelectDay: (dateKey: string) => void;
   handleThreeDayAnchorChange: (dateKey: string) => void;
   toggleCategory: (category: CalendarCategoryKey) => void;
+  toggleEventSubcategory: (eventType: EventType) => void;
 };
 
 function getViewModePersistenceContext(
@@ -81,6 +85,7 @@ export function useCalendarController({
   skills,
   events,
   people,
+  jobApplications,
   workoutSessions,
   workoutPlans,
   todayKey,
@@ -103,6 +108,9 @@ export function useCalendarController({
   const [viewMode, setViewModeState] = useState<CalendarViewMode>(readInitialViewMode);
   const [anchorKey, setAnchorKey] = useState<string>(todayKey);
   const [hiddenCategories, setHiddenCategories] = useState<Set<CalendarCategoryKey>>(
+    () => new Set()
+  );
+  const [hiddenEventSubcategories, setHiddenEventSubcategories] = useState<Set<EventType>>(
     () => new Set()
   );
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
@@ -132,14 +140,25 @@ export function useCalendarController({
         skills,
         events,
         people,
+        jobApplications,
         workoutSessions,
         workoutPlans,
       },
       { includeFitnessHistory: true, includeWorkoutSchedules: true }
     );
-    const visible = filterItemsByHiddenCategories(items, hiddenCategories);
+    const visible = filterCalendarItems(items, hiddenCategories, hiddenEventSubcategories);
     return groupCalendarItemsByDate(visible);
-  }, [range, skills, events, people, workoutSessions, workoutPlans, hiddenCategories]);
+  }, [
+    range,
+    skills,
+    events,
+    people,
+    jobApplications,
+    workoutSessions,
+    workoutPlans,
+    hiddenCategories,
+    hiddenEventSubcategories,
+  ]);
 
   const title = useMemo(() => {
     if (viewMode === "month") return formatMonthTitle(anchorKey);
@@ -201,10 +220,23 @@ export function useCalendarController({
     });
   }
 
+  function toggleEventSubcategory(eventType: EventType) {
+    setHiddenEventSubcategories((current) => {
+      const next = new Set(current);
+      if (next.has(eventType)) {
+        next.delete(eventType);
+      } else {
+        next.add(eventType);
+      }
+      return next;
+    });
+  }
+
   return {
     viewMode,
     anchorKey,
     hiddenCategories,
+    hiddenEventSubcategories,
     selectedItem,
     itemsByDate,
     title,
@@ -216,5 +248,6 @@ export function useCalendarController({
     handleSelectDay,
     handleThreeDayAnchorChange,
     toggleCategory,
+    toggleEventSubcategory,
   };
 }

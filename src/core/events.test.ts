@@ -3,6 +3,7 @@ import { validatePayloadForUpload } from "./dbMappers";
 import {
   cleanupInvalidEventRecurrence,
   cleanupOrphanedEventPersonRefs,
+  migrateLegacyEventTypes,
 } from "./events";
 import type { LifeEvent, Person } from "./model";
 import { defaultPayload } from "./state";
@@ -34,6 +35,20 @@ function samplePerson(overrides: Partial<Person> = {}): Person {
     ...overrides,
   };
 }
+
+describe("migrateLegacyEventTypes", () => {
+  it("renames deadline events to school", () => {
+    const payload = {
+      ...defaultPayload(),
+      events: [sampleEvent({ type: "deadline" as LifeEvent["type"] })],
+    };
+
+    const migrated = migrateLegacyEventTypes(payload);
+
+    expect(migrated.events[0].type).toBe("school");
+    expect(() => validatePayloadForUpload(migrated)).not.toThrow();
+  });
+});
 
 describe("cleanupOrphanedEventPersonRefs", () => {
   it("clears personId when the person is missing but keeps the event", () => {

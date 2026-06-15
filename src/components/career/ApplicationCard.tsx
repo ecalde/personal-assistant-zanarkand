@@ -6,12 +6,23 @@ import {
   formatSalaryRange,
   getApplicationAttentionStatus,
   resolveRequiredSkills,
+  isInterviewStageStatus,
   type QuickStatusAction,
 } from "../../core/career";
 import type { JobApplication, Skill } from "../../core/model";
 import { ApplicationQuickActions } from "./ApplicationQuickActions";
 import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
+import {
+  ApplicationInterviewsSection,
+  ApplicationInterviewsSummary,
+} from "./ApplicationInterviewsSection";
+import {
+  interviewsFormFromApplication,
+  interviewsFromForms,
+  validateInterviewForms,
+} from "./interviewFormState";
 import { styles } from "../../ui/appStyles";
+import { useEffect, useState } from "react";
 
 export type ApplicationCardProps = {
   application: JobApplication;
@@ -21,6 +32,7 @@ export type ApplicationCardProps = {
   onToggleExpand: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onUpdateApplication: (application: JobApplication) => void;
   onQuickAction: (action: QuickStatusAction) => void;
 };
 
@@ -42,6 +54,7 @@ export function ApplicationCard({
   onToggleExpand,
   onEdit,
   onDelete,
+  onUpdateApplication,
   onQuickAction,
 }: ApplicationCardProps) {
   const salary = formatSalaryRange(application.salaryMin, application.salaryMax);
@@ -49,6 +62,29 @@ export function ApplicationCard({
   const skillsById = buildSkillsById(skills);
   const skillSummary = resolveRequiredSkills(application.requiredSkillIds, skillsById);
   const attention = getApplicationAttentionStatus(application, todayKey);
+  const [interviewForms, setInterviewForms] = useState(() =>
+    interviewsFormFromApplication(application)
+  );
+  const [interviewError, setInterviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setInterviewForms(interviewsFormFromApplication(application));
+    setInterviewError(null);
+  }, [application]);
+
+  function handleInterviewFormsChange(next: ReturnType<typeof interviewsFormFromApplication>) {
+    setInterviewForms(next);
+    const error = validateInterviewForms(next);
+    if (error) {
+      setInterviewError(error);
+      return;
+    }
+    setInterviewError(null);
+    onUpdateApplication({
+      ...application,
+      interviews: interviewsFromForms(next),
+    });
+  }
 
   const summaryParts = [
     salary,
@@ -117,6 +153,24 @@ export function ApplicationCard({
 
         {expanded && (
           <div style={{ display: "grid", gap: 10, paddingTop: 4 }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Upcoming interviews</div>
+              <ApplicationInterviewsSummary application={application} />
+            </div>
+
+            <ApplicationInterviewsSection
+              application={application}
+              interviews={interviewForms}
+              onChange={handleInterviewFormsChange}
+              showPrompt={isInterviewStageStatus(application.status)}
+            />
+
+            {interviewError ? (
+              <div style={styles.errorBox} role="alert">
+                {interviewError}
+              </div>
+            ) : null}
+
             {application.notes && (
               <div>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Notes</div>

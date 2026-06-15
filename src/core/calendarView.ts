@@ -6,8 +6,32 @@
 import type { CalendarItem } from "./calendar";
 import { calendarTimeSortTier } from "./calendar";
 import type { CalendarCategoryKey } from "./calendarColors";
+import type { EventType } from "./model";
 import { formatHHMMToDisplayTime, parseHHMMToMinutes } from "./schedule";
 import { formatLocalDateKey } from "./timeline";
+
+/** Life-event types exposed as calendar filter toggles (matches `EventType`). */
+export const CALENDAR_EVENT_TYPE_FILTERS: readonly EventType[] = [
+  "birthday",
+  "hangout",
+  "trip",
+  "holiday",
+  "school",
+  "career",
+  "work",
+  "other",
+];
+
+export const CALENDAR_EVENT_TYPE_FILTER_LABELS: Record<EventType, string> = {
+  birthday: "Birthday",
+  hangout: "Hangout",
+  trip: "Trip",
+  holiday: "Holiday",
+  school: "School",
+  career: "Career",
+  work: "Work",
+  other: "Other",
+};
 
 export type CalendarViewMode = "month" | "week" | "threeDay";
 
@@ -502,6 +526,30 @@ export function filterItemsByHiddenCategories(
   );
 }
 
+export function filterItemsByHiddenEventSubcategories(
+  items: CalendarItem[],
+  hidden: ReadonlySet<EventType>
+): CalendarItem[] {
+  if (hidden.size === 0) return items;
+  return items.filter((item) => {
+    if (item.categoryKey !== "event") return true;
+    const subcategory = item.subcategoryKey as EventType | undefined;
+    if (subcategory === undefined) return true;
+    return !hidden.has(subcategory);
+  });
+}
+
+export function filterCalendarItems(
+  items: CalendarItem[],
+  hiddenCategories: ReadonlySet<CalendarCategoryKey>,
+  hiddenEventSubcategories: ReadonlySet<EventType>
+): CalendarItem[] {
+  return filterItemsByHiddenEventSubcategories(
+    filterItemsByHiddenCategories(items, hiddenCategories),
+    hiddenEventSubcategories
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Day-item layout helpers
 // ---------------------------------------------------------------------------
@@ -601,6 +649,9 @@ export function formatItemTimeLabel(item: CalendarItem): string | undefined {
 
 /** Stable display label for a calendar source type (for the read-only detail). */
 export function formatSourceTypeLabel(item: CalendarItem): string {
+  if (item.sourceMeta.kind === "applicationInterview") {
+    return "Interview";
+  }
   switch (item.sourceType) {
     case "skill":
       return "Skill block";

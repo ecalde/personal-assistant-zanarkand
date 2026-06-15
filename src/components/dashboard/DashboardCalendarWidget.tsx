@@ -13,6 +13,7 @@ export type DashboardCalendarWidgetProps = {
   todayKey: string;
   calendarPreferences?: CalendarColorPreferences;
   onOpenCalendar?: () => void;
+  onOpenCareer?: () => void;
 };
 
 /**
@@ -26,6 +27,7 @@ export function DashboardCalendarWidget({
   todayKey,
   calendarPreferences,
   onOpenCalendar,
+  onOpenCareer,
 }: DashboardCalendarWidgetProps) {
   const nowMinutes = useNowMinutes();
 
@@ -84,6 +86,7 @@ export function DashboardCalendarWidget({
           item={controller.selectedItem}
           preferences={calendarPreferences}
           onClose={() => controller.setSelectedItem(null)}
+          onOpenCareer={onOpenCareer}
         />
       ) : null}
     </section>

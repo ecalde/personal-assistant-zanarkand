@@ -8,6 +8,11 @@ import {
   formatItemTimeLabel,
   formatSourceTypeLabel,
 } from "../../core/calendarView";
+import {
+  APPLICATION_STATUS_LABELS,
+  INTERVIEW_FORMAT_LABELS,
+  INTERVIEW_OUTCOME_LABELS,
+} from "../../core/career";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarItemDetailModalProps = {
@@ -27,6 +32,7 @@ export type CalendarItemDetailModalProps = {
     overrideDate: string
   ) => void;
   onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
+  onOpenCareer?: () => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -64,6 +70,7 @@ export function CalendarItemDetailModal({
   onSkipOccurrence,
   onMoveOccurrence,
   onDeleteOccurrencesFromDate,
+  onOpenCareer,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColor(item, preferences);
@@ -94,6 +101,8 @@ export function CalendarItemDetailModal({
       onSkipOccurrence ||
       onMoveOccurrence ||
       onDeleteOccurrencesFromDate);
+
+  const isCareerInterview = item.sourceMeta.kind === "applicationInterview";
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -172,10 +181,40 @@ export function CalendarItemDetailModal({
           <DetailRow label="Type" value={formatSourceTypeLabel(item)} />
           <DetailRow label="Date" value={formatLongDate(item.date)} />
           <DetailRow label="Time" value={timeLabel ?? "All day"} />
+          {item.sourceMeta.kind === "applicationInterview" ? (
+            <>
+              <DetailRow label="Company" value={item.sourceMeta.company} />
+              <DetailRow label="Role" value={item.sourceMeta.roleTitle} />
+              <DetailRow
+                label="Stage"
+                value={APPLICATION_STATUS_LABELS[item.sourceMeta.stage]}
+              />
+              {item.sourceMeta.format ? (
+                <DetailRow
+                  label="Format"
+                  value={INTERVIEW_FORMAT_LABELS[item.sourceMeta.format]}
+                />
+              ) : null}
+              {item.sourceMeta.outcome ? (
+                <DetailRow
+                  label="Outcome"
+                  value={INTERVIEW_OUTCOME_LABELS[item.sourceMeta.outcome]}
+                />
+              ) : null}
+            </>
+          ) : null}
           {item.description ? (
             <DetailRow label="Details" value={item.description} />
           ) : null}
         </div>
+
+        {isCareerInterview && onOpenCareer ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" style={styles.smallBtn} onClick={onOpenCareer}>
+              Open in Career
+            </button>
+          </div>
+        ) : null}
 
         {canEditSeries ? (
           <div style={{ display: "grid", gap: 8 }}>
@@ -251,6 +290,10 @@ export function CalendarItemDetailModal({
               </div>
             ) : null}
           </div>
+        ) : isCareerInterview ? (
+          <p style={{ ...styles.helpText, margin: 0 }}>
+            Edit this interview on the Career page.
+          </p>
         ) : (
           <p style={{ ...styles.helpText, margin: 0 }}>
             Read-only preview. Open the source page to make changes.

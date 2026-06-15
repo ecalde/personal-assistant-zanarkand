@@ -97,6 +97,7 @@ function sampleApplication(overrides: Partial<JobApplication> = {}): JobApplicat
     roleTitle: "Software Engineer",
     status: "saved",
     requiredSkillIds: [SKILL_A],
+    interviews: [],
     createdAtIso: ISO,
     updatedAtIso: ISO,
     ...overrides,

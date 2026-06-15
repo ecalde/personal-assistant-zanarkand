@@ -24,11 +24,14 @@ import { ACHIEVEMENT_CATALOG } from "./achievementCatalog";
 import { isGamificationStateAllowedKey } from "./progressionModel";
 import type {
   AppPayload,
+  ApplicationInterview,
   ApplicationStatus,
   CareerTarget,
   GamificationState,
   EventType,
   ExerciseEntry,
+  InterviewFormat,
+  InterviewOutcome,
   JobApplication,
   LifeEvent,
   Person,
@@ -61,9 +64,15 @@ const EVENT_TYPES: EventType[] = [
   "hangout",
   "trip",
   "holiday",
-  "deadline",
+  "school",
+  "career",
+  "work",
   "other",
 ];
+
+const LEGACY_EVENT_TYPE_ALIASES: Record<string, EventType> = {
+  deadline: "school",
+};
 
 const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -77,6 +86,16 @@ const APPLICATION_STATUSES: ApplicationStatus[] = [
   "rejected",
   "withdrawn",
 ];
+
+const INTERVIEW_STAGES: ApplicationInterview["stage"][] = [
+  "screening",
+  "technical",
+  "onsite",
+];
+
+const INTERVIEW_FORMATS: InterviewFormat[] = ["phone", "video", "onsite", "other"];
+
+const INTERVIEW_OUTCOMES: InterviewOutcome[] = ["scheduled", "completed", "cancelled"];
 
 const REMOTE_POLICIES: RemotePolicy[] = ["remote", "hybrid", "onsite", "unknown"];
 
@@ -171,6 +190,7 @@ export type JobApplicationRow = {
   notes: string | null;
   required_skill_ids: unknown;
   required_skills_text: string | null;
+  interviews: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -287,6 +307,11 @@ export function isIsoDate(value: string): boolean {
 
 export function isEventType(value: string): value is EventType {
   return (EVENT_TYPES as string[]).includes(value);
+}
+
+function resolveEventType(value: string): EventType | undefined {
+  const normalized = LEGACY_EVENT_TYPE_ALIASES[value] ?? value;
+  return isEventType(normalized) ? normalized : undefined;
 }
 
 export function isApplicationStatus(value: string): value is ApplicationStatus {
@@ -739,6 +764,164 @@ export function parseRequiredSkillIds(value: unknown, field: string): string[] {
   return ids;
 }
 
+function isInterviewStage(value: string): value is NonNullable<ApplicationInterview["stage"]> {
+  return (INTERVIEW_STAGES as string[]).includes(value);
+}
+
+function isInterviewFormat(value: string): value is InterviewFormat {
+  return (INTERVIEW_FORMATS as string[]).includes(value);
+}
+
+function isInterviewOutcome(value: string): value is InterviewOutcome {
+  return (INTERVIEW_OUTCOMES as string[]).includes(value);
+}
+
+export function parseApplicationInterviews(
+  value: unknown,
+  field: string
+): ApplicationInterview[] {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const interviews: ApplicationInterview[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of value) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const raw = item as Record<string, unknown>;
+    if (typeof raw.id !== "string") {
+      throw new MapperError(`Invalid ${field}.id`, `${field}.id`);
+    }
+    assertUuid(raw.id, `${field}.id`);
+    if (seenIds.has(raw.id)) {
+      throw new MapperError(`Duplicate ${field} id`, `${field}.id`);
+    }
+    seenIds.add(raw.id);
+
+    if (typeof raw.date !== "string") {
+      throw new MapperError(`Invalid ${field}.date`, `${field}.date`);
+    }
+    assertIsoDate(raw.date, `${field}.date`);
+
+    const interview: ApplicationInterview = {
+      id: raw.id,
+      date: raw.date,
+    };
+
+    if (raw.startTime !== undefined && raw.startTime !== null) {
+      if (typeof raw.startTime !== "string" || !isHhMm(raw.startTime)) {
+        throw new MapperError(`Invalid ${field}.startTime`, `${field}.startTime`);
+      }
+      interview.startTime = raw.startTime;
+    }
+
+    if (raw.endTime !== undefined && raw.endTime !== null) {
+      if (typeof raw.endTime !== "string" || !isHhMm(raw.endTime)) {
+        throw new MapperError(`Invalid ${field}.endTime`, `${field}.endTime`);
+      }
+      interview.endTime = raw.endTime;
+    }
+
+    if (interview.startTime && interview.endTime) {
+      const startMinutes = parseHHMMToMinutes(interview.startTime);
+      const endMinutes = parseHHMMToMinutes(interview.endTime);
+      if (endMinutes <= startMinutes) {
+        throw new MapperError(
+          `${field}.endTime must be after startTime`,
+          `${field}.endTime`
+        );
+      }
+    }
+    if (interview.endTime && !interview.startTime) {
+      throw new MapperError(`${field}.endTime requires startTime`, `${field}.endTime`);
+    }
+
+    const stageRaw = raw.stage;
+    if (stageRaw !== undefined && stageRaw !== null) {
+      if (typeof stageRaw !== "string" || !isInterviewStage(stageRaw)) {
+        throw new MapperError(`Invalid ${field}.stage`, `${field}.stage`);
+      }
+      interview.stage = stageRaw;
+    }
+
+    const formatRaw = raw.format;
+    if (formatRaw !== undefined && formatRaw !== null) {
+      if (typeof formatRaw !== "string" || !isInterviewFormat(formatRaw)) {
+        throw new MapperError(`Invalid ${field}.format`, `${field}.format`);
+      }
+      interview.format = formatRaw;
+    }
+
+    const outcomeRaw = raw.outcome;
+    if (outcomeRaw !== undefined && outcomeRaw !== null) {
+      if (typeof outcomeRaw !== "string" || !isInterviewOutcome(outcomeRaw)) {
+        throw new MapperError(`Invalid ${field}.outcome`, `${field}.outcome`);
+      }
+      interview.outcome = outcomeRaw;
+    }
+
+    const notesRaw = raw.notes;
+    if (notesRaw !== undefined && notesRaw !== null) {
+      if (typeof notesRaw !== "string") {
+        throw new MapperError(`Invalid ${field}.notes`, `${field}.notes`);
+      }
+      const trimmed = notesRaw.trim();
+      if (trimmed.length > 0) interview.notes = trimmed;
+    }
+
+    interviews.push(interview);
+  }
+
+  return interviews;
+}
+
+export function assertValidApplicationInterview(
+  interview: ApplicationInterview,
+  fieldPrefix = "jobApplication.interviews"
+): void {
+  assertUuid(interview.id, `${fieldPrefix}.id`);
+  assertIsoDate(interview.date, `${fieldPrefix}.date`);
+  if (interview.startTime !== undefined && !isHhMm(interview.startTime)) {
+    throw new MapperError(`Invalid ${fieldPrefix}.startTime`, `${fieldPrefix}.startTime`);
+  }
+  if (interview.endTime !== undefined && !isHhMm(interview.endTime)) {
+    throw new MapperError(`Invalid ${fieldPrefix}.endTime`, `${fieldPrefix}.endTime`);
+  }
+  if (interview.endTime && !interview.startTime) {
+    throw new MapperError(
+      `${fieldPrefix}.endTime requires startTime`,
+      `${fieldPrefix}.endTime`
+    );
+  }
+  if (interview.startTime && interview.endTime) {
+    const startMinutes = parseHHMMToMinutes(interview.startTime);
+    const endMinutes = parseHHMMToMinutes(interview.endTime);
+    if (endMinutes <= startMinutes) {
+      throw new MapperError(
+        `${fieldPrefix}.endTime must be after startTime`,
+        `${fieldPrefix}.endTime`
+      );
+    }
+  }
+  if (interview.stage !== undefined && !isInterviewStage(interview.stage)) {
+    throw new MapperError(`Invalid ${fieldPrefix}.stage`, `${fieldPrefix}.stage`);
+  }
+  if (interview.format !== undefined && !isInterviewFormat(interview.format)) {
+    throw new MapperError(`Invalid ${fieldPrefix}.format`, `${fieldPrefix}.format`);
+  }
+  if (interview.outcome !== undefined && !isInterviewOutcome(interview.outcome)) {
+    throw new MapperError(`Invalid ${fieldPrefix}.outcome`, `${fieldPrefix}.outcome`);
+  }
+  if (interview.notes !== undefined && typeof interview.notes !== "string") {
+    throw new MapperError(`Invalid ${fieldPrefix}.notes`, `${fieldPrefix}.notes`);
+  }
+}
+
 export function assertValidJobApplication(app: JobApplication): void {
   assertUuid(app.id, "jobApplication.id");
   assertNonEmptyName(app.company, "jobApplication.company");
@@ -794,6 +977,20 @@ export function assertValidJobApplication(app: JobApplication): void {
       "Invalid jobApplication.requiredSkillsText",
       "jobApplication.requiredSkillsText"
     );
+  }
+  if (!Array.isArray(app.interviews)) {
+    throw new MapperError("Invalid jobApplication.interviews", "jobApplication.interviews");
+  }
+  const seenInterviewIds = new Set<string>();
+  for (const interview of app.interviews) {
+    assertValidApplicationInterview(interview);
+    if (seenInterviewIds.has(interview.id)) {
+      throw new MapperError(
+        "Duplicate jobApplication.interviews id",
+        "jobApplication.interviews.id"
+      );
+    }
+    seenInterviewIds.add(interview.id);
   }
 }
 
@@ -1164,7 +1361,8 @@ export function eventFromRow(row: EventRow): LifeEvent {
   assertIsoTimestamp(row.created_at, "events.created_at");
   assertIsoTimestamp(row.updated_at, "events.updated_at");
 
-  if (!isEventType(row.type)) {
+  const eventType = resolveEventType(row.type);
+  if (eventType === undefined) {
     throw new MapperError("Invalid events.type", "events.type");
   }
   if (typeof row.reminder !== "boolean") {
@@ -1175,7 +1373,7 @@ export function eventFromRow(row: EventRow): LifeEvent {
     id: row.id,
     title: row.title.trim(),
     date: row.date,
-    type: row.type,
+    type: eventType,
     reminder: row.reminder,
     createdAtIso: row.created_at,
     updatedAtIso: row.updated_at,
@@ -1313,6 +1511,16 @@ export function jobApplicationToRow(app: JobApplication, userId: string): JobApp
     notes: app.notes?.trim() || null,
     required_skill_ids: app.requiredSkillIds,
     required_skills_text: app.requiredSkillsText?.trim() || null,
+    interviews: app.interviews.map((interview) => ({
+      id: interview.id,
+      date: interview.date,
+      ...(interview.startTime ? { startTime: interview.startTime } : {}),
+      ...(interview.endTime ? { endTime: interview.endTime } : {}),
+      ...(interview.stage ? { stage: interview.stage } : {}),
+      ...(interview.format ? { format: interview.format } : {}),
+      ...(interview.outcome ? { outcome: interview.outcome } : {}),
+      ...(interview.notes ? { notes: interview.notes } : {}),
+    })),
     created_at: app.createdAtIso,
     updated_at: app.updatedAtIso,
   };
@@ -1362,6 +1570,10 @@ export function jobApplicationFromRow(row: JobApplicationRow): JobApplication {
     row.required_skill_ids,
     "job_applications.required_skill_ids"
   );
+  const interviews = parseApplicationInterviews(
+    row.interviews,
+    "job_applications.interviews"
+  );
 
   const app: JobApplication = {
     id: row.id,
@@ -1369,6 +1581,7 @@ export function jobApplicationFromRow(row: JobApplicationRow): JobApplication {
     roleTitle: row.role_title.trim(),
     status: row.status,
     requiredSkillIds,
+    interviews,
     createdAtIso: row.created_at,
     updatedAtIso: row.updated_at,
   };

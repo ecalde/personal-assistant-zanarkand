@@ -277,7 +277,7 @@ export function buildProgressionContext(
   const attendedEvents: AttendedEvent[] = [];
   for (const event of events) {
     if (event.recurrence) continue;
-    if (event.type === "deadline") continue;
+    if (event.type === "school") continue;
     if (!isValidDateKey(event.date) || event.date >= todayKey) continue;
     attendedEvents.push({
       eventId: event.id,

@@ -11,7 +11,9 @@ import {
   buildDreamJobSkillGap,
   buildInterviewStageSummary,
   buildSkillGapPriorityList,
+  collectScheduledInterviews,
   filterAndSortApplications,
+  formatInterviewHeadline,
   formatSalaryRange,
   getApplicationAttentionStatus,
   getQuickStatusActions,
@@ -46,6 +48,7 @@ function sampleApplication(overrides: Partial<JobApplication> = {}): JobApplicat
     status: "applied",
     requiredSkillIds: [SKILL_A],
     appliedDate: "2026-05-20",
+    interviews: [],
     createdAtIso: NOW,
     updatedAtIso: NOW,
     ...overrides,
@@ -345,5 +348,44 @@ describe("filterAndSortApplications attention modes", () => {
       todayKey: TODAY,
     });
     expect(result[0]?.company).toBe("Applied Co");
+  });
+});
+
+describe("application interviews", () => {
+  it("collects visible interviews in range", () => {
+    const items = collectScheduledInterviews(
+      [
+        sampleApplication({
+          interviews: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              date: "2026-06-10",
+              stage: "screening",
+            },
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              date: "2026-06-20",
+              stage: "technical",
+              outcome: "cancelled",
+            },
+          ],
+        }),
+      ],
+      "2026-06-01",
+      "2026-06-30"
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.interview.date).toBe("2026-06-10");
+  });
+
+  it("formats interview headlines", () => {
+    const app = sampleApplication({ company: "Acme Corp", status: "technical" });
+    const interview = {
+      id: "11111111-1111-4111-8111-111111111111",
+      date: "2026-06-10",
+      stage: "technical" as const,
+    };
+    expect(formatInterviewHeadline(app, interview)).toBe("Acme Corp — Technical interview");
   });
 });

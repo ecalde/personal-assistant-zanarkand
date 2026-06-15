@@ -120,6 +120,7 @@ function sampleJobApplication(overrides: Partial<JobApplication> = {}): JobAppli
     requiredSkillIds: [SKILL_ID],
     appliedDate: EVENT_DATE,
     url: "https://jobs.example.com/123",
+    interviews: [],
     createdAtIso: NOW,
     updatedAtIso: NOW,
     ...overrides,
@@ -623,6 +624,25 @@ describe("job application mappers", () => {
     expect(() =>
       jobApplicationToRow(sampleJobApplication({ url: "not-a-url" }), USER_ID)
     ).toThrow(MapperError);
+  });
+
+  it("round-trips scheduled interviews", () => {
+    const app = sampleJobApplication({
+      interviews: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          date: "2026-06-20",
+          startTime: "14:00",
+          endTime: "15:00",
+          stage: "technical",
+          format: "video",
+          outcome: "scheduled",
+          notes: "Bring laptop",
+        },
+      ],
+    });
+    const row = jobApplicationToRow(app, USER_ID);
+    expect(jobApplicationFromRow(row)).toEqual(app);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   type CalendarItem,
 } from "./calendar";
 import type {
+  JobApplication,
   LifeEvent,
   Person,
   Skill,
@@ -33,6 +34,19 @@ function makeEvent(overrides: Partial<LifeEvent> & { id: string; title: string; 
   return {
     type: "other",
     reminder: false,
+    createdAtIso: "2026-01-01T00:00:00.000Z",
+    updatedAtIso: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeApplication(
+  overrides: Partial<JobApplication> & { id: string; company: string; roleTitle: string }
+): JobApplication {
+  return {
+    status: "applied",
+    requiredSkillIds: [],
+    interviews: [],
     createdAtIso: "2026-01-01T00:00:00.000Z",
     updatedAtIso: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -578,6 +592,40 @@ describe("sorting and grouping", () => {
     const grouped = groupCalendarItemsByDate(items);
     const day = grouped.get("2026-05-25")!;
     expect(day.map((i) => i.startTime)).toEqual(["08:00", "09:00"]);
+  });
+
+  it("includes scheduled application interviews as career items", () => {
+    const items = buildCalendarItemsForRange({
+      startDate: "2026-06-10",
+      endDate: "2026-06-10",
+      skills: [],
+      events: [],
+      people: [],
+      jobApplications: [
+        makeApplication({
+          id: "app-1",
+          company: "Acme Corp",
+          roleTitle: "Engineer",
+          status: "technical",
+          interviews: [
+            {
+              id: "int-1",
+              date: "2026-06-10",
+              startTime: "14:00",
+              endTime: "15:00",
+              stage: "technical",
+              format: "video",
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.sourceType).toBe("career");
+    expect(items[0]?.categoryKey).toBe("career");
+    expect(items[0]?.title).toBe("Acme Corp — Technical interview");
+    expect(items[0]?.sourceMeta.kind).toBe("applicationInterview");
   });
 });
 

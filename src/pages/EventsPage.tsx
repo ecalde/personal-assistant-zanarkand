@@ -62,7 +62,9 @@ const EVENT_TYPES: EventType[] = [
   "hangout",
   "trip",
   "holiday",
-  "deadline",
+  "school",
+  "career",
+  "work",
   "other",
 ];
 
@@ -71,7 +73,9 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   hangout: "Hangout",
   trip: "Trip",
   holiday: "Holiday",
-  deadline: "Deadline",
+  school: "School",
+  career: "Career",
+  work: "Work",
   other: "Other",
 };
 
@@ -443,7 +447,7 @@ export default function EventsPage({
           )}
         </div>
         <div style={{ ...styles.textSecondary }}>
-          Track birthdays, hangouts, trips, holidays, deadlines, and other important dates.
+          Track birthdays, hangouts, trips, holidays, school, career, work, and other important dates.
         </div>
       </div>
 

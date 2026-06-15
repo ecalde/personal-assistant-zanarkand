@@ -4,6 +4,12 @@ import type {
   RemotePolicy,
 } from "../../core/model";
 import { getApplicationStatuses } from "../../core/career";
+import {
+  interviewsFormFromApplication,
+  interviewsFromForms,
+  validateInterviewForms,
+  type ApplicationInterviewFormState,
+} from "./interviewFormState";
 
 export type ApplicationFormState = {
   company: string;
@@ -18,6 +24,7 @@ export type ApplicationFormState = {
   notes: string;
   requiredSkillIds: string[];
   requiredSkillsText: string;
+  interviews: ApplicationInterviewFormState[];
 };
 
 export function emptyApplicationFormState(): ApplicationFormState {
@@ -34,6 +41,7 @@ export function emptyApplicationFormState(): ApplicationFormState {
     notes: "",
     requiredSkillIds: [],
     requiredSkillsText: "",
+    interviews: [],
   };
 }
 
@@ -51,6 +59,7 @@ export function applicationFormFromApplication(app: JobApplication): Application
     notes: app.notes ?? "",
     requiredSkillIds: [...app.requiredSkillIds],
     requiredSkillsText: app.requiredSkillsText ?? "",
+    interviews: interviewsFormFromApplication(app),
   };
 }
 
@@ -91,7 +100,7 @@ export function validateApplicationForm(form: ApplicationFormState): string | nu
     return "URL must be a valid http or https link.";
   }
 
-  return null;
+  return validateInterviewForms(form.interviews);
 }
 
 export function applicationPayloadFromForm(
@@ -113,5 +122,6 @@ export function applicationPayloadFromForm(
     notes: form.notes.trim() || undefined,
     requiredSkillIds: [...form.requiredSkillIds],
     requiredSkillsText: form.requiredSkillsText.trim() || undefined,
+    interviews: interviewsFromForms(form.interviews),
   };
 }

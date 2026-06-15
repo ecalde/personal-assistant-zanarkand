@@ -244,8 +244,13 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "event:hangout": "Hangouts",
   "event:trip": "Trips",
   "event:holiday": "Holidays",
-  "event:deadline": "Deadlines",
+  "event:school": "School",
+  "event:career": "Career",
+  "event:work": "Work",
   "event:other": "Other events",
+  "career:screening": "Screening interviews",
+  "career:technical": "Technical interviews",
+  "career:onsite": "Onsite interviews",
   "fitness:push": "Push workouts",
   "fitness:pull": "Pull workouts",
   "fitness:legs": "Legs workouts",
@@ -265,8 +270,13 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "event:hangout",
   "event:trip",
   "event:holiday",
-  "event:deadline",
+  "event:school",
+  "event:career",
+  "event:work",
   "event:other",
+  "career:screening",
+  "career:technical",
+  "career:onsite",
   "fitness:push",
   "fitness:pull",
   "fitness:legs",
@@ -321,6 +331,10 @@ export function resolveCalendarItemColorToken(
     const key = subcategoryPrefKey(input.categoryKey, input.subcategoryKey);
     const fromPrefs = readValidToken(prefs?.subcategories?.[key]);
     if (fromPrefs) return fromPrefs;
+    if (input.categoryKey === "event" && input.subcategoryKey === "school") {
+      const legacyDeadline = readValidToken(prefs?.subcategories?.["event:deadline"]);
+      if (legacyDeadline) return legacyDeadline;
+    }
     const fromDefault = readValidToken(DEFAULT_SUBCATEGORY_COLOR_TOKENS[key]);
     if (fromDefault) return fromDefault;
   }

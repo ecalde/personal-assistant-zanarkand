@@ -92,7 +92,9 @@ export type EventType =
   | "hangout"
   | "trip"
   | "holiday"
-  | "deadline"
+  | "school"
+  | "career"
+  | "work"
   | "other";
 
 export type LifeEvent = {
@@ -142,6 +144,22 @@ export type ApplicationStatus =
 
 export type RemotePolicy = "remote" | "hybrid" | "onsite" | "unknown";
 
+export type InterviewFormat = "phone" | "video" | "onsite" | "other";
+
+export type InterviewOutcome = "scheduled" | "completed" | "cancelled";
+
+export type ApplicationInterview = {
+  id: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  /** Pipeline stage for this round; defaults to the application status when unset. */
+  stage?: Extract<ApplicationStatus, "screening" | "technical" | "onsite">;
+  format?: InterviewFormat;
+  notes?: string;
+  outcome?: InterviewOutcome;
+};
+
 export type JobApplication = {
   id: string;
   company: string;
@@ -156,6 +174,7 @@ export type JobApplication = {
   notes?: string;
   requiredSkillIds: string[];
   requiredSkillsText?: string;
+  interviews: ApplicationInterview[];
   createdAtIso: string;
   updatedAtIso: string;
 };

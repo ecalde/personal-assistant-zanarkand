@@ -210,6 +210,7 @@ export default function CareerPage({
                     }
                     onEdit={() => openEditForm(application)}
                     onDelete={() => onDeleteApplication(application.id)}
+                    onUpdateApplication={onUpdateApplication}
                     onQuickAction={(action) => handleQuickAction(application, action)}
                   />
                 ))}

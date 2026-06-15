@@ -17,8 +17,11 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   hangout: "Hangout",
   trip: "Trip",
   holiday: "Holiday",
-  deadline: "Deadline",
+  school: "School",
+  career: "Career",
+  work: "Work",
   other: "Other",
+  deadline: "School",
 };
 
 function itemCategory(item: UnifiedTimelineItem): ItemCategory {

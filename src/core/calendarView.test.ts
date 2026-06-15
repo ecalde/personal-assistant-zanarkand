@@ -19,6 +19,8 @@ import {
   daysBetweenDateKeys,
   isValidThreeDaySnapWindow,
   filterItemsByHiddenCategories,
+  filterItemsByHiddenEventSubcategories,
+  filterCalendarItems,
   formatHourLabel,
   formatItemTimeLabel,
   formatThreeDayRangeTitle,
@@ -34,7 +36,7 @@ import {
   TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
 } from "./calendarView";
 import type { CalendarCategoryKey } from "./calendarColors";
-import type { LifeEvent, Skill, WeeklySchedule } from "./model";
+import type { EventType, LifeEvent, Skill, WeeklySchedule } from "./model";
 
 function emptySchedule(): WeeklySchedule {
   return { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
@@ -218,6 +220,33 @@ describe("category filtering (render-only)", () => {
   it("returns the same list when nothing is hidden", () => {
     const items = [makeEventItem({ id: "e1" })];
     expect(filterItemsByHiddenCategories(items, new Set())).toBe(items);
+  });
+});
+
+describe("event subcategory filtering (render-only)", () => {
+  it("removes event items whose subcategory is hidden", () => {
+    const items: CalendarItem[] = [
+      makeEventItem({ id: "school", subcategoryKey: "school" }),
+      makeEventItem({ id: "work", subcategoryKey: "work" }),
+      makeEventItem({ id: "s1", categoryKey: "skill", sourceType: "skill" }),
+    ];
+    const hidden = new Set<EventType>(["school"]);
+    const filtered = filterItemsByHiddenEventSubcategories(items, hidden);
+    expect(filtered.map((i) => i.id)).toEqual(["work", "s1"]);
+  });
+
+  it("composes category and event subcategory filters", () => {
+    const items: CalendarItem[] = [
+      makeEventItem({ id: "school", subcategoryKey: "school" }),
+      makeEventItem({ id: "work", subcategoryKey: "work" }),
+      makeEventItem({ id: "s1", categoryKey: "skill", sourceType: "skill" }),
+    ];
+    const filtered = filterCalendarItems(
+      items,
+      new Set<CalendarCategoryKey>(["skill"]),
+      new Set<EventType>(["work"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["school"]);
   });
 });
 

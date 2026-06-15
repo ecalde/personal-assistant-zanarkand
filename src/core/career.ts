@@ -14,8 +14,11 @@
 import { daysBetweenDateKeys } from "./events";
 import type {
   AppPayload,
+  ApplicationInterview,
   ApplicationStatus,
   CareerTarget,
+  InterviewFormat,
+  InterviewOutcome,
   JobApplication,
   RemotePolicy,
   Skill,
@@ -131,6 +134,103 @@ export const REMOTE_POLICY_LABELS: Record<RemotePolicy, string> = {
   onsite: "Onsite",
   unknown: "Unknown",
 };
+
+export const INTERVIEW_FORMAT_LABELS: Record<InterviewFormat, string> = {
+  phone: "Phone",
+  video: "Video",
+  onsite: "On-site",
+  other: "Other",
+};
+
+export const INTERVIEW_OUTCOME_LABELS: Record<InterviewOutcome, string> = {
+  scheduled: "Scheduled",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+export function getInterviewStageStatuses(): Array<
+  NonNullable<ApplicationInterview["stage"]>
+> {
+  return ["screening", "technical", "onsite"];
+}
+
+export function isInterviewStageStatus(status: ApplicationStatus): boolean {
+  return INTERVIEW_STATUSES.includes(status);
+}
+
+export function resolveInterviewStage(
+  interview: ApplicationInterview,
+  application: JobApplication
+): NonNullable<ApplicationInterview["stage"]> | ApplicationStatus {
+  if (interview.stage) return interview.stage;
+  if (INTERVIEW_STATUSES.includes(application.status)) {
+    return application.status;
+  }
+  return "screening";
+}
+
+export function formatInterviewStageLabel(
+  interview: ApplicationInterview,
+  application: JobApplication
+): string {
+  const stage = resolveInterviewStage(interview, application);
+  return APPLICATION_STATUS_LABELS[stage];
+}
+
+export function formatInterviewHeadline(
+  application: JobApplication,
+  interview: ApplicationInterview
+): string {
+  return `${application.company} — ${formatInterviewStageLabel(interview, application)} interview`;
+}
+
+export function isInterviewVisibleOnCalendar(interview: ApplicationInterview): boolean {
+  return interview.outcome !== "cancelled";
+}
+
+export function compareApplicationInterviews(
+  a: ApplicationInterview,
+  b: ApplicationInterview
+): number {
+  const byDate = a.date.localeCompare(b.date);
+  if (byDate !== 0) return byDate;
+  const startA = a.startTime ?? "99:99";
+  const startB = b.startTime ?? "99:99";
+  return startA.localeCompare(startB);
+}
+
+export function sortApplicationInterviews(
+  interviews: ApplicationInterview[]
+): ApplicationInterview[] {
+  return [...interviews].sort(compareApplicationInterviews);
+}
+
+export type ScheduledInterviewItem = {
+  application: JobApplication;
+  interview: ApplicationInterview;
+};
+
+export function collectScheduledInterviews(
+  applications: JobApplication[],
+  startDate: string,
+  endDate: string
+): ScheduledInterviewItem[] {
+  const items: ScheduledInterviewItem[] = [];
+
+  for (const application of applications) {
+    for (const interview of application.interviews ?? []) {
+      if (!isInterviewVisibleOnCalendar(interview)) continue;
+      if (interview.date < startDate || interview.date > endDate) continue;
+      items.push({ application, interview });
+    }
+  }
+
+  return items.sort((a, b) => {
+    const byDate = compareApplicationInterviews(a.interview, b.interview);
+    if (byDate !== 0) return byDate;
+    return a.application.company.localeCompare(b.application.company);
+  });
+}
 
 function emptyStatusCounts(): Record<ApplicationStatus, number> {
   return {

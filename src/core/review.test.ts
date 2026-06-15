@@ -103,6 +103,7 @@ function sampleApplication(overrides: Partial<JobApplication> = {}): JobApplicat
     status: "applied",
     appliedDate: "2026-05-01",
     requiredSkillIds: [],
+    interviews: [],
     createdAtIso: ISO,
     updatedAtIso: "2026-05-26T15:00:00.000Z",
     ...overrides,

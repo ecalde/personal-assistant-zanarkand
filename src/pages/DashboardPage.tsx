@@ -148,6 +148,7 @@ export default function DashboardPage({
     skills,
     events,
     people,
+    jobApplications,
     workoutSessions,
     workoutPlans,
     todayKey: today,
@@ -384,6 +385,7 @@ export default function DashboardPage({
       todayKey={today}
       calendarPreferences={calendarPreferences}
       onOpenCalendar={onOpenCalendar}
+      onOpenCareer={onOpenCareer}
     />
   );
 
@@ -409,7 +411,9 @@ export default function DashboardPage({
   const categoryFilters = (
     <CalendarCategorySidebar
       hiddenCategories={calendar.hiddenCategories}
+      hiddenEventSubcategories={calendar.hiddenEventSubcategories}
       onToggleCategory={calendar.toggleCategory}
+      onToggleEventSubcategory={calendar.toggleEventSubcategory}
       preferences={calendarPreferences}
       layout="horizontal"
     />

@@ -25,7 +25,9 @@ export const CALENDAR_SETTINGS_EVENT_SUBCATEGORIES = [
   "hangout",
   "trip",
   "holiday",
-  "deadline",
+  "school",
+  "career",
+  "work",
   "other",
 ] as const;
 

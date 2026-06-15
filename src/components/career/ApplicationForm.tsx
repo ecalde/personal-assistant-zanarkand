@@ -6,7 +6,9 @@ import {
 import type { RemotePolicy, Skill } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { SkillRequirementPicker } from "./SkillRequirementPicker";
+import { ApplicationInterviewsSection } from "./ApplicationInterviewsSection";
 import type { ApplicationFormState } from "./applicationFormState";
+import { isInterviewStageStatus } from "../../core/career";
 
 export type ApplicationFormProps = {
   form: ApplicationFormState;
@@ -174,6 +176,22 @@ export function ApplicationForm({
         onSelectedSkillIdsChange={(requiredSkillIds) => patch({ requiredSkillIds })}
         onRequiredSkillsTextChange={(requiredSkillsText) => patch({ requiredSkillsText })}
         idPrefix="application"
+      />
+
+      <ApplicationInterviewsSection
+        application={{
+          id: "draft",
+          company: form.company,
+          roleTitle: form.roleTitle,
+          status: form.status,
+          requiredSkillIds: form.requiredSkillIds,
+          interviews: [],
+          createdAtIso: "",
+          updatedAtIso: "",
+        }}
+        interviews={form.interviews}
+        onChange={(interviews) => patch({ interviews })}
+        showPrompt={isInterviewStageStatus(form.status)}
       />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
