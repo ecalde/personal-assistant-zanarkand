@@ -91,7 +91,7 @@ export function useCalendarController({
   workoutSessions,
   workoutPlans,
   todayKey,
-  initialViewMode = "month",
+  initialViewMode = "week",
   viewModePersistenceKey,
 }: UseCalendarControllerInput): CalendarController {
   const [viewMode, setViewModeState] = useState<CalendarViewMode>(() =>

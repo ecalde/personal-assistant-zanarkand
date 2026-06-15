@@ -19,6 +19,7 @@ import {
 } from "../core/calendarDrag";
 import type { EventSeriesEditScope } from "../core/eventSeries";
 import { styles } from "../ui/appStyles";
+import { useIsDesktopViewport } from "../ui/useMediaQuery";
 
 const UNDO_TIMEOUT_MS = 8000;
 
@@ -72,6 +73,7 @@ export default function CalendarPage({
   onOpenEventDraft,
   onUndoCalendarEvent,
 }: CalendarPageProps) {
+  const isDesktop = useIsDesktopViewport();
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatLocalDateKey(now), [now]);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -167,8 +169,8 @@ export default function CalendarPage({
       <div style={styles.card}>
         <h1 style={{ ...styles.cardTitle, margin: "0 0 12px 0" }}>Calendar</h1>
 
-        <div style={styles.calendarLayout}>
-          <div style={styles.calendarMain}>
+        <div style={isDesktop ? styles.calendarLayout : styles.calendarLayoutMobile}>
+          <div style={isDesktop ? styles.calendarMain : styles.calendarMainMobile}>
             <CalendarToolbar
               title={calendar.title}
               viewMode={calendar.viewMode}

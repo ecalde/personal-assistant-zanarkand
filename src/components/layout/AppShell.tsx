@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import type { Page } from "../../pages/types";
 import { styles } from "../../ui/appStyles";
+import { useIsDesktopViewport } from "../../ui/useMediaQuery";
 import { NavButton } from "./NavButton";
 
 export type AppShellProps = {
@@ -36,8 +38,32 @@ export function AppShell({
   onPageChange,
   children,
 }: AppShellProps) {
+  const isDesktop = useIsDesktopViewport();
+  const activeNavRef = useRef<HTMLButtonElement>(null);
+
+  const navItems: { id: Page; label: string }[] = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "calendar", label: "Calendar" },
+    { id: "skills", label: "Skills" },
+    { id: "events", label: "Events" },
+    { id: "people", label: "People" },
+    { id: "career", label: "Career" },
+    { id: "fitness", label: "Fitness" },
+    { id: "review", label: "Review" },
+    { id: "settings", label: "Settings" },
+  ];
+
+  useEffect(() => {
+    if (isDesktop || !activeNavRef.current) return;
+    activeNavRef.current.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [page, isDesktop]);
+
   return (
-    <div style={styles.shell}>
+    <div style={{ ...styles.shell, ...(isDesktop ? {} : styles.shellMobile) }}>
       <header style={styles.header}>
         <div>
           <div style={styles.title}>Personal Assistant</div>
@@ -92,37 +118,25 @@ export function AppShell({
         </div>
       )}
 
-      <nav style={styles.nav}>
-        <NavButton active={page === "dashboard"} onClick={() => onPageChange("dashboard")}>
-          Dashboard
-        </NavButton>
-        <NavButton active={page === "calendar"} onClick={() => onPageChange("calendar")}>
-          Calendar
-        </NavButton>
-        <NavButton active={page === "skills"} onClick={() => onPageChange("skills")}>
-          Skills
-        </NavButton>
-        <NavButton active={page === "events"} onClick={() => onPageChange("events")}>
-          Events
-        </NavButton>
-        <NavButton active={page === "people"} onClick={() => onPageChange("people")}>
-          People
-        </NavButton>
-        <NavButton active={page === "career"} onClick={() => onPageChange("career")}>
-          Career
-        </NavButton>
-        <NavButton active={page === "fitness"} onClick={() => onPageChange("fitness")}>
-          Fitness
-        </NavButton>
-        <NavButton active={page === "review"} onClick={() => onPageChange("review")}>
-          Review
-        </NavButton>
-        <NavButton active={page === "settings"} onClick={() => onPageChange("settings")}>
-          Settings
-        </NavButton>
+      <nav
+        style={isDesktop ? styles.nav : styles.navMobile}
+        aria-label="Main navigation"
+        className={isDesktop ? undefined : "pa-nav-mobile"}
+      >
+        {navItems.map(({ id, label }) => (
+          <NavButton
+            key={id}
+            active={page === id}
+            onClick={() => onPageChange(id)}
+            style={isDesktop ? undefined : styles.navBtnMobile}
+            buttonRef={page === id ? activeNavRef : undefined}
+          >
+            {label}
+          </NavButton>
+        ))}
       </nav>
 
-      <main style={styles.main}>{children}</main>
+      <main style={isDesktop ? styles.main : styles.mainMobile}>{children}</main>
     </div>
   );
 }

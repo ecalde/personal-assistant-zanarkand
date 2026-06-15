@@ -71,6 +71,11 @@ button {
   [data-aether-animated] { animation: none !important; }
   :root[data-aether-borders="on"] .aether-animated-border { animation: none !important; }
 }
+
+/* Mobile main nav: hide scrollbar while keeping touch scroll (WebKit). */
+.pa-nav-mobile::-webkit-scrollbar {
+  display: none;
+}
 `;
 
 export function GlobalEffectStyles() {

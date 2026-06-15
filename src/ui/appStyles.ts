@@ -40,6 +40,37 @@ export const styles: Record<string, CSSProperties> = {
   sub: { color: AETHER_TEXT.secondary },
   actions: { display: "flex", gap: 8, flexWrap: "wrap" },
   nav: { display: "flex", gap: 8, margin: "14px 0" },
+  /** Mobile shell: clip horizontal overflow from the scrollable nav strip. */
+  shellMobile: {
+    overflowX: "hidden",
+    maxWidth: "100%",
+    boxSizing: "border-box",
+    padding: "1rem",
+    minWidth: 0,
+  },
+  /** Touch-friendly horizontal nav; items scroll instead of widening the page. */
+  navMobile: {
+    display: "flex",
+    gap: 8,
+    margin: "14px 0",
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "none",
+    msOverflowStyle: "none",
+    minWidth: 0,
+    width: "100%",
+  },
+  navBtnMobile: {
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+  },
+  mainMobile: {
+    display: "grid",
+    gap: 14,
+    minWidth: 0,
+    width: "100%",
+  },
   navBtn: {
     padding: "8px 12px",
     borderRadius: 10,
@@ -380,11 +411,23 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
+  calendarLayoutMobile: {
+    display: "grid",
+    gap: 14,
+    width: "100%",
+    minWidth: 0,
+  },
   calendarMain: {
     flex: "1 1 520px",
     minWidth: 0,
     display: "grid",
     gap: 10,
+  },
+  calendarMainMobile: {
+    display: "grid",
+    gap: 10,
+    minWidth: 0,
+    width: "100%",
   },
   calendarSidebar: {
     flex: "0 0 180px",
