@@ -15,21 +15,10 @@ import {
   type CalendarColorPreferences,
   type CalendarColorToken,
 } from "../../core/calendarColors";
+import { CALENDAR_EVENT_TYPE_FILTERS } from "../../core/calendarView";
 
-export const CALENDAR_SETTINGS_EVENT_SUBCATEGORIES = [
-  "birthday",
-  "meeting",
-  "social",
-  "travel",
-  "medical",
-  "hangout",
-  "trip",
-  "holiday",
-  "school",
-  "career",
-  "work",
-  "other",
-] as const;
+/** Life-event types users can create on the Events page (matches calendar filters). */
+export const CALENDAR_SETTINGS_EVENT_SUBCATEGORIES = CALENDAR_EVENT_TYPE_FILTERS;
 
 export const CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES = [
   "push",
@@ -39,6 +28,45 @@ export const CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES = [
   "mobility",
   "full_body",
 ] as const;
+
+export const CALENDAR_SETTINGS_CAREER_SUBCATEGORIES = [
+  "screening",
+  "technical",
+  "onsite",
+] as const;
+
+export type CalendarSettingsSectionKey =
+  | "categories"
+  | "events"
+  | "fitness"
+  | "career";
+
+export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
+  key: CalendarSettingsSectionKey;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "categories",
+    label: "Categories",
+    description: "Broad colors for Skills, Events, People, Fitness, and Career.",
+  },
+  {
+    key: "events",
+    label: "Event types",
+    description: "Colors for life events you add on the Events page.",
+  },
+  {
+    key: "fitness",
+    label: "Fitness",
+    description: "Colors for logged workout sessions by focus (push, pull, etc.).",
+  },
+  {
+    key: "career",
+    label: "Career",
+    description: "Colors for interview stages on job applications.",
+  },
+];
 
 export type CalendarCategoryFormRow = {
   colorToken: CalendarColorToken;
@@ -97,6 +125,11 @@ export function calendarPreferencesFormFromPrefs(
   for (const suffix of CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES) {
     const prefKey = subcategoryPrefKey("fitness", suffix);
     subcategories[prefKey] = effectiveSubcategoryToken("fitness", suffix, prefs);
+  }
+
+  for (const suffix of CALENDAR_SETTINGS_CAREER_SUBCATEGORIES) {
+    const prefKey = subcategoryPrefKey("career", suffix);
+    subcategories[prefKey] = effectiveSubcategoryToken("career", suffix, prefs);
   }
 
   for (const [prefKey, token] of Object.entries(prefs?.subcategories ?? {})) {

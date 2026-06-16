@@ -66,7 +66,7 @@ export function AppShell({
     <div style={{ ...styles.shell, ...(isDesktop ? {} : styles.shellMobile) }}>
       <header style={styles.header}>
         <div>
-          <div style={styles.title}>Personal Assistant</div>
+          <div style={styles.title}>Zanarkand</div>
           <div style={styles.sub}>
             Last saved: <b>{lastSavedLabel}</b>
             {syncPending && (

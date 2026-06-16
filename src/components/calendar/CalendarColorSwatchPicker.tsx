@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CALENDAR_PALETTE,
   getCalendarColorSwatch,
@@ -10,7 +11,8 @@ export type CalendarColorSwatchPickerProps = {
   onChange: (token: CalendarColorToken) => void;
   usageLabel?: string;
   disabled?: boolean;
-  fieldsetLegend?: string;
+  /** Accessible name for the color trigger button. */
+  ariaLabel?: string;
 };
 
 export function CalendarColorSwatchPicker({
@@ -18,13 +20,53 @@ export function CalendarColorSwatchPicker({
   onChange,
   usageLabel,
   disabled = false,
-  fieldsetLegend = "Choose color",
+  ariaLabel = "Choose color",
 }: CalendarColorSwatchPickerProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
   const preview = getCalendarColorSwatch(value);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  function selectToken(token: CalendarColorToken) {
+    onChange(token);
+    setOpen(false);
+  }
+
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div style={styles.calendarColorPreview}>
+    <div ref={rootRef} style={styles.calendarColorPopoverRoot}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          ...styles.calendarColorPopoverTrigger,
+          ...(open ? styles.calendarColorPopoverTriggerOpen : {}),
+        }}
+      >
         <span
           style={{
             ...styles.calendarColorPreviewSwatch,
@@ -33,40 +75,46 @@ export function CalendarColorSwatchPicker({
             borderColor: preview.border,
           }}
           aria-hidden="true"
-        >
-          Aa
+        />
+        <span style={styles.calendarColorPopoverTriggerLabel}>{preview.label}</span>
+        <span aria-hidden="true" style={styles.calendarColorPopoverChevron}>
+          {open ? "▴" : "▾"}
         </span>
-        <span>{preview.label}</span>
-      </div>
+      </button>
 
-      {usageLabel ? (
-        <p style={styles.calendarColorUsageText}>Used by: {usageLabel}</p>
-      ) : null}
-
-      <fieldset style={styles.calendarPaletteFieldset} disabled={disabled}>
-        <legend style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{fieldsetLegend}</legend>
-        <div style={styles.calendarPaletteGrid}>
-          {CALENDAR_PALETTE.map((swatch) => {
-            const selected = swatch.token === value;
-            return (
-              <button
-                key={swatch.token}
-                type="button"
-                aria-label={swatch.label}
-                aria-pressed={selected}
-                disabled={disabled}
-                title={swatch.label}
-                onClick={() => onChange(swatch.token)}
-                style={{
-                  ...styles.calendarPaletteSwatch,
-                  background: swatch.background,
-                  ...(selected ? styles.calendarPaletteSwatchSelected : {}),
-                }}
-              />
-            );
-          })}
+      {open ? (
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label={ariaLabel}
+          style={styles.calendarColorPopoverPanel}
+        >
+          {usageLabel ? (
+            <p style={styles.calendarColorUsageText}>Used by: {usageLabel}</p>
+          ) : null}
+          <div style={styles.calendarPaletteGrid}>
+            {CALENDAR_PALETTE.map((swatch) => {
+              const selected = swatch.token === value;
+              return (
+                <button
+                  key={swatch.token}
+                  type="button"
+                  role="option"
+                  aria-label={swatch.label}
+                  aria-selected={selected}
+                  title={swatch.label}
+                  onClick={() => selectToken(swatch.token)}
+                  style={{
+                    ...styles.calendarPaletteSwatch,
+                    background: swatch.background,
+                    ...(selected ? styles.calendarPaletteSwatchSelected : {}),
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
-      </fieldset>
+      ) : null}
     </div>
   );
 }

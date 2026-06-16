@@ -186,6 +186,13 @@ export default function CalendarPage({
               onPrev={calendar.handlePrev}
               onNext={calendar.handleNext}
               onToday={calendar.handleToday}
+              settingsSlot={
+                <CalendarSettingsSection
+                  key={JSON.stringify(calendarPreferences ?? null)}
+                  preferences={calendarPreferences}
+                  onSave={onSaveCalendarPreferences}
+                />
+              }
             />
 
             {calendar.viewMode === "month" ? (
@@ -264,12 +271,6 @@ export default function CalendarPage({
           />
         ) : null}
       </div>
-
-      <CalendarSettingsSection
-        key={JSON.stringify(calendarPreferences ?? null)}
-        preferences={calendarPreferences}
-        onSave={onSaveCalendarPreferences}
-      />
 
       {pendingUndo ? (
         <CalendarUndoSnackbar

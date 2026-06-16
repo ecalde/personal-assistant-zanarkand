@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CALENDAR_CATEGORY_KEYS,
   DEFAULT_CATEGORY_COLOR_TOKENS,
   DEFAULT_CATEGORY_LABELS,
   describeColorUsage,
+  getCalendarColorSwatch,
   subcategoryPrefKey,
   type CalendarCategoryKey,
   type CalendarColorPreferences,
@@ -12,8 +13,10 @@ import {
 import { styles } from "../../ui/appStyles";
 import { CalendarColorSwatchPicker } from "./CalendarColorSwatchPicker";
 import {
+  CALENDAR_SETTINGS_CAREER_SUBCATEGORIES,
   CALENDAR_SETTINGS_EVENT_SUBCATEGORIES,
   CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES,
+  CALENDAR_SETTINGS_SECTIONS,
   calendarPreferencesFormFromPrefs,
   calendarPreferencesPayloadFromForm,
   defaultSubcategoryTokenForForm,
@@ -21,6 +24,7 @@ import {
   subcategorySettingsLabel,
   validateCalendarPreferencesForm,
   type CalendarPreferencesFormState,
+  type CalendarSettingsSectionKey,
 } from "./calendarPreferencesFormState";
 
 export type CalendarSettingsSectionProps = {
@@ -35,17 +39,80 @@ function resetCategoryRow(categoryKey: CalendarCategoryKey) {
   };
 }
 
+type SettingsRowProps = {
+  label: string;
+  token: CalendarColorToken;
+  usageLabel?: string;
+  onColorChange: (token: CalendarColorToken) => void;
+  onReset: () => void;
+  colorAriaLabel: string;
+  children?: ReactNode;
+};
+
+function SettingsRow({
+  label,
+  token,
+  usageLabel,
+  onColorChange,
+  onReset,
+  colorAriaLabel,
+  children,
+}: SettingsRowProps) {
+  const swatch = getCalendarColorSwatch(token);
+
+  return (
+    <div style={styles.calendarSettingsCompactRow}>
+      <span
+        style={{
+          ...styles.calendarSettingsRowSwatchDot,
+          background: swatch.background,
+          borderColor: swatch.border,
+        }}
+        aria-hidden="true"
+      />
+      <div style={styles.calendarSettingsCompactRowMain}>
+        <span style={styles.calendarSettingsRowLabel}>{label}</span>
+        {children}
+      </div>
+      <CalendarColorSwatchPicker
+        value={token}
+        onChange={onColorChange}
+        usageLabel={usageLabel}
+        ariaLabel={colorAriaLabel}
+      />
+      <button type="button" onClick={onReset} style={styles.calendarSettingsResetBtn} title="Reset to default">
+        ↺
+      </button>
+    </div>
+  );
+}
+
 export function CalendarSettingsSection({
   preferences,
   onSave,
 }: CalendarSettingsSectionProps) {
+  const [open, setOpen] = useState(false);
+  const [activeSection, setActiveSection] =
+    useState<CalendarSettingsSectionKey>("categories");
   const [form, setForm] = useState<CalendarPreferencesFormState>(() =>
     calendarPreferencesFormFromPrefs(preferences)
   );
   const [error, setError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   const draftPrefs = useMemo(() => draftCalendarPreferencesFromForm(form), [form]);
+  const activeMeta = CALENDAR_SETTINGS_SECTIONS.find((section) => section.key === activeSection)!;
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   function usageForToken(token: CalendarColorToken): string | undefined {
     const label = describeColorUsage(token, draftPrefs);
@@ -127,129 +194,210 @@ export function CalendarSettingsSection({
     }
     setError(null);
     setSavedNotice(null);
+    setForm(calendarPreferencesFormFromPrefs(undefined));
     onSave(undefined);
   }
 
+  function renderSectionContent() {
+    if (activeSection === "categories") {
+      return CALENDAR_CATEGORY_KEYS.map((categoryKey) => {
+        const row = form.categories[categoryKey];
+        const defaultLabel = DEFAULT_CATEGORY_LABELS[categoryKey];
+        return (
+          <SettingsRow
+            key={categoryKey}
+            label={defaultLabel}
+            token={row.colorToken}
+            usageLabel={usageForToken(row.colorToken)}
+            onColorChange={(token) => updateCategoryColor(categoryKey, token)}
+            onReset={() => resetCategory(categoryKey)}
+            colorAriaLabel={`Color for ${defaultLabel}`}
+          >
+            <input
+              type="text"
+              value={row.alias}
+              placeholder={`Display label (${defaultLabel})`}
+              maxLength={40}
+              onChange={(event) => updateCategoryAlias(categoryKey, event.target.value)}
+              style={styles.calendarSettingsInlineAlias}
+            />
+          </SettingsRow>
+        );
+      });
+    }
+
+    if (activeSection === "events") {
+      return CALENDAR_SETTINGS_EVENT_SUBCATEGORIES.map((suffix) => {
+        const prefKey = subcategoryPrefKey("event", suffix);
+        const token = form.subcategories[prefKey];
+        const label = subcategorySettingsLabel(prefKey);
+        return (
+          <SettingsRow
+            key={prefKey}
+            label={label}
+            token={token}
+            usageLabel={usageForToken(token)}
+            onColorChange={(next) => updateSubcategoryColor(prefKey, next)}
+            onReset={() => resetSubcategory("event", suffix)}
+            colorAriaLabel={`Color for ${label}`}
+          />
+        );
+      });
+    }
+
+    if (activeSection === "fitness") {
+      return CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES.map((suffix) => {
+        const prefKey = subcategoryPrefKey("fitness", suffix);
+        const token = form.subcategories[prefKey];
+        const label = subcategorySettingsLabel(prefKey);
+        return (
+          <SettingsRow
+            key={prefKey}
+            label={label}
+            token={token}
+            usageLabel={usageForToken(token)}
+            onColorChange={(next) => updateSubcategoryColor(prefKey, next)}
+            onReset={() => resetSubcategory("fitness", suffix)}
+            colorAriaLabel={`Color for ${label}`}
+          />
+        );
+      });
+    }
+
+    return CALENDAR_SETTINGS_CAREER_SUBCATEGORIES.map((suffix) => {
+      const prefKey = subcategoryPrefKey("career", suffix);
+      const token = form.subcategories[prefKey];
+      const label = subcategorySettingsLabel(prefKey);
+      return (
+        <SettingsRow
+          key={prefKey}
+          label={label}
+          token={token}
+          usageLabel={usageForToken(token)}
+          onColorChange={(next) => updateSubcategoryColor(prefKey, next)}
+          onReset={() => resetSubcategory("career", suffix)}
+          colorAriaLabel={`Color for ${label}`}
+        />
+      );
+    });
+  }
+
   return (
-    <details style={styles.calendarSettingsSection}>
-      <summary style={styles.calendarSettingsSummary}>Calendar settings</summary>
+    <>
+      <button
+        type="button"
+        style={styles.calendarSettingsOpenBtn}
+        onClick={() => {
+          setOpen(true);
+          setError(null);
+          setSavedNotice(null);
+        }}
+      >
+        Calendar settings
+      </button>
 
-      <div style={styles.calendarSettingsBody}>
-        <section style={styles.calendarSettingsGroup} aria-label="Category colors and labels">
-          <h2 style={styles.calendarSettingsGroupTitle}>Categories</h2>
-          {CALENDAR_CATEGORY_KEYS.map((categoryKey) => {
-            const row = form.categories[categoryKey];
-            const defaultLabel = DEFAULT_CATEGORY_LABELS[categoryKey];
-            return (
-              <div key={categoryKey} style={styles.calendarSettingsRow}>
-                <div style={styles.calendarSettingsRowHeader}>
-                  <span style={styles.calendarSettingsRowLabel}>{defaultLabel}</span>
-                  <button
-                    type="button"
-                    onClick={() => resetCategory(categoryKey)}
-                    style={{ fontSize: 12 }}
-                  >
-                    Reset to default
-                  </button>
-                </div>
-                <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-                  Display label
-                  <input
-                    type="text"
-                    value={row.alias}
-                    placeholder={defaultLabel}
-                    maxLength={40}
-                    onChange={(event) => updateCategoryAlias(categoryKey, event.target.value)}
-                    style={styles.calendarSettingsAliasInput}
-                  />
-                </label>
-                <CalendarColorSwatchPicker
-                  value={row.colorToken}
-                  onChange={(token) => updateCategoryColor(categoryKey, token)}
-                  usageLabel={usageForToken(row.colorToken)}
-                  fieldsetLegend={`Color for ${defaultLabel}`}
-                />
+      {open ? (
+        <div
+          style={styles.calendarModalOverlay}
+          onClick={() => setOpen(false)}
+          role="presentation"
+        >
+          <div
+            style={styles.calendarSettingsModalCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-settings-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.calendarSettingsModalHeader}>
+              <div>
+                <h2 id="calendar-settings-title" style={styles.calendarSettingsModalTitle}>
+                  Calendar settings
+                </h2>
+                <p style={styles.calendarSettingsModalSubtitle}>
+                  Customize colors and category labels. Click a color to pick from the palette.
+                </p>
               </div>
-            );
-          })}
-        </section>
+              <button
+                ref={closeRef}
+                type="button"
+                style={styles.calendarSettingsCloseBtn}
+                onClick={() => setOpen(false)}
+                aria-label="Close calendar settings"
+              >
+                ✕
+              </button>
+            </div>
 
-        <section style={styles.calendarSettingsGroup} aria-label="Event subcategory colors">
-          <h2 style={styles.calendarSettingsGroupTitle}>Events</h2>
-          {CALENDAR_SETTINGS_EVENT_SUBCATEGORIES.map((suffix) => {
-            const prefKey = subcategoryPrefKey("event", suffix);
-            const token = form.subcategories[prefKey];
-            const label = subcategorySettingsLabel(prefKey);
-            return (
-              <div key={prefKey} style={styles.calendarSettingsRow}>
-                <div style={styles.calendarSettingsRowHeader}>
-                  <span style={styles.calendarSettingsRowLabel}>{label}</span>
-                  <button
-                    type="button"
-                    onClick={() => resetSubcategory("event", suffix)}
-                    style={{ fontSize: 12 }}
-                  >
-                    Reset to default
-                  </button>
+            <div style={styles.calendarSettingsModalBody}>
+              <nav style={styles.calendarSettingsNav} aria-label="Settings sections">
+                {CALENDAR_SETTINGS_SECTIONS.map((section) => {
+                  const active = section.key === activeSection;
+                  return (
+                    <button
+                      key={section.key}
+                      type="button"
+                      aria-current={active ? "true" : undefined}
+                      style={{
+                        ...styles.calendarSettingsNavTab,
+                        ...(active ? styles.calendarSettingsNavTabActive : {}),
+                      }}
+                      onClick={() => setActiveSection(section.key)}
+                    >
+                      {section.label}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div style={styles.calendarSettingsPanel}>
+                <div style={styles.calendarSettingsPanelHeader}>
+                  <h3 style={styles.calendarSettingsPanelTitle}>{activeMeta.label}</h3>
+                  <p style={styles.calendarSettingsPanelDescription}>{activeMeta.description}</p>
                 </div>
-                <CalendarColorSwatchPicker
-                  value={token}
-                  onChange={(next) => updateSubcategoryColor(prefKey, next)}
-                  usageLabel={usageForToken(token)}
-                  fieldsetLegend={`Color for ${label}`}
-                />
+                <div style={styles.calendarSettingsPanelList}>{renderSectionContent()}</div>
               </div>
-            );
-          })}
-        </section>
+            </div>
 
-        <section style={styles.calendarSettingsGroup} aria-label="Fitness subcategory colors">
-          <h2 style={styles.calendarSettingsGroupTitle}>Fitness</h2>
-          {CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES.map((suffix) => {
-            const prefKey = subcategoryPrefKey("fitness", suffix);
-            const token = form.subcategories[prefKey];
-            const label = subcategorySettingsLabel(prefKey);
-            return (
-              <div key={prefKey} style={styles.calendarSettingsRow}>
-                <div style={styles.calendarSettingsRowHeader}>
-                  <span style={styles.calendarSettingsRowLabel}>{label}</span>
-                  <button
-                    type="button"
-                    onClick={() => resetSubcategory("fitness", suffix)}
-                    style={{ fontSize: 12 }}
-                  >
-                    Reset to default
-                  </button>
-                </div>
-                <CalendarColorSwatchPicker
-                  value={token}
-                  onChange={(next) => updateSubcategoryColor(prefKey, next)}
-                  usageLabel={usageForToken(token)}
-                  fieldsetLegend={`Color for ${label}`}
-                />
-              </div>
-            );
-          })}
-        </section>
+            {error ? (
+              <p
+                role="alert"
+                style={{
+                  ...styles.textMuted,
+                  color: "var(--aether-chip-danger-text, #8a1c1c)",
+                  margin: 0,
+                  fontSize: 13,
+                }}
+              >
+                {error}
+              </p>
+            ) : null}
+            {savedNotice ? (
+              <p
+                style={{
+                  color: "var(--aether-chip-success-text, #1b5e20)",
+                  margin: 0,
+                  fontSize: 13,
+                }}
+              >
+                {savedNotice}
+              </p>
+            ) : null}
 
-        {error ? (
-          <p role="alert" style={{ ...styles.textMuted, color: "var(--aether-chip-danger-text, #8a1c1c)", margin: 0, fontSize: 13 }}>
-            {error}
-          </p>
-        ) : null}
-        {savedNotice ? (
-          <p style={{ color: "var(--aether-chip-success-text, #1b5e20)", margin: 0, fontSize: 13 }}>{savedNotice}</p>
-        ) : null}
-
-        <div style={styles.calendarSettingsActions}>
-          <button type="button" onClick={handleSave}>
-            Save settings
-          </button>
-          <button type="button" onClick={handleResetAll}>
-            Reset all
-          </button>
+            <div style={styles.calendarSettingsActions}>
+              <button type="button" onClick={handleSave}>
+                Save settings
+              </button>
+              <button type="button" onClick={handleResetAll}>
+                Reset all
+              </button>
+              <button type="button" style={styles.ghostBtn} onClick={() => setOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </details>
+      ) : null}
+    </>
   );
 }

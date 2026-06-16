@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { CalendarViewMode } from "../../core/calendarView";
 import { styles } from "../../ui/appStyles";
 
@@ -8,6 +9,7 @@ export type CalendarToolbarProps = {
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
+  settingsSlot?: ReactNode;
 };
 
 export function CalendarToolbar({
@@ -17,6 +19,7 @@ export function CalendarToolbar({
   onPrev,
   onNext,
   onToday,
+  settingsSlot,
 }: CalendarToolbarProps) {
   return (
     <div style={styles.calendarToolbar}>
@@ -33,11 +36,13 @@ export function CalendarToolbar({
         <h2 style={styles.calendarTitle}>{title}</h2>
       </div>
 
-      <div
-        style={styles.calendarToggle}
-        role="group"
-        aria-label="Calendar view mode"
-      >
+      <div style={styles.calendarToolbarGroup}>
+        {settingsSlot}
+        <div
+          style={styles.calendarToggle}
+          role="group"
+          aria-label="Calendar view mode"
+        >
         <button
           type="button"
           aria-pressed={viewMode === "month"}
@@ -71,6 +76,7 @@ export function CalendarToolbar({
         >
           3 Day
         </button>
+        </div>
       </div>
     </div>
   );

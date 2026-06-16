@@ -67,7 +67,7 @@ export function AuthScreen() {
           border: "1px solid #e5e5e5",
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px" }}>Personal Assistant</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px" }}>Zanarkand</h1>
         <p style={{ margin: "0 0 20px", opacity: 0.8, fontSize: 14 }}>
           {mode === "signin" ? "Sign in to continue." : "Create an account."}
         </p>
