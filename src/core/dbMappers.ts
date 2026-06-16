@@ -65,13 +65,14 @@ const EVENT_TYPES: EventType[] = [
   "trip",
   "holiday",
   "school",
-  "career",
+  "vacation",
   "work",
   "other",
 ];
 
 const LEGACY_EVENT_TYPE_ALIASES: Record<string, EventType> = {
   deadline: "school",
+  career: "vacation",
 };
 
 const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];

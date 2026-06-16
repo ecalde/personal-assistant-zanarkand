@@ -3,6 +3,7 @@ import {
   buildColorUsageIndex,
   CALENDAR_PALETTE,
   CALENDAR_PALETTE_BY_TOKEN,
+  CALENDAR_PALETTE_HUES,
   DEFAULT_CATEGORY_COLOR_TOKENS,
   DEFAULT_SUBCATEGORY_COLOR_TOKENS,
   describeColorUsage,
@@ -194,6 +195,10 @@ describe("color usage labeling", () => {
 });
 
 describe("palette integrity", () => {
+  it("exposes three variants for every hue in the picker order", () => {
+    expect(CALENDAR_PALETTE.length).toBe(CALENDAR_PALETTE_HUES.length * 3);
+  });
+
   it("registers every palette swatch in the by-token map", () => {
     expect(CALENDAR_PALETTE.length).toBe(CALENDAR_PALETTE_BY_TOKEN.size);
     for (const swatch of CALENDAR_PALETTE) {
@@ -217,6 +222,8 @@ describe("palette integrity", () => {
 
   it("validates tokens and category keys", () => {
     expect(isCalendarColorToken("red.base")).toBe(true);
+    expect(isCalendarColorToken("rose.soft")).toBe(true);
+    expect(isCalendarColorToken("emerald.strong")).toBe(true);
     expect(isCalendarColorToken("red.neon")).toBe(false);
     expect(isCalendarColorToken(undefined)).toBe(false);
     expect(isCalendarCategoryKey("event")).toBe(true);

@@ -19,16 +19,21 @@ export type CalendarCategoryKey =
 
 export type CalendarPaletteHue =
   | "red"
+  | "rose"
   | "orange"
   | "amber"
   | "yellow"
   | "lime"
   | "green"
+  | "emerald"
   | "teal"
   | "cyan"
+  | "sky"
   | "blue"
   | "indigo"
   | "violet"
+  | "purple"
+  | "fuchsia"
   | "pink"
   | "slate";
 
@@ -86,18 +91,45 @@ export const CALENDAR_CATEGORY_KEYS: readonly CalendarCategoryKey[] = [
 
 const HUE_VARIANTS: readonly CalendarHueVariant[] = ["soft", "base", "strong"];
 
+/** Stable hue order for the settings color picker (spectrum, then neutral). */
+export const CALENDAR_PALETTE_HUES: readonly CalendarPaletteHue[] = [
+  "red",
+  "rose",
+  "orange",
+  "amber",
+  "yellow",
+  "lime",
+  "green",
+  "emerald",
+  "teal",
+  "cyan",
+  "sky",
+  "blue",
+  "indigo",
+  "violet",
+  "purple",
+  "fuchsia",
+  "pink",
+  "slate",
+];
+
 const HUE_LABELS: Record<CalendarPaletteHue, string> = {
   red: "Red",
+  rose: "Rose",
   orange: "Orange",
   amber: "Amber",
   yellow: "Yellow",
   lime: "Lime",
   green: "Green",
+  emerald: "Emerald",
   teal: "Teal",
   cyan: "Cyan",
+  sky: "Sky",
   blue: "Blue",
   indigo: "Indigo",
   violet: "Violet",
+  purple: "Purple",
+  fuchsia: "Fuchsia",
   pink: "Pink",
   slate: "Slate",
 };
@@ -109,16 +141,21 @@ const HUE_SHADES: Record<
   Record<CalendarHueVariant, string>
 > = {
   red: { soft: "#fee2e2", base: "#ef4444", strong: "#b91c1c" },
+  rose: { soft: "#ffe4e6", base: "#f43f5e", strong: "#be123c" },
   orange: { soft: "#ffedd5", base: "#f97316", strong: "#c2410c" },
   amber: { soft: "#fef3c7", base: "#f59e0b", strong: "#b45309" },
   yellow: { soft: "#fef9c3", base: "#eab308", strong: "#a16207" },
   lime: { soft: "#ecfccb", base: "#84cc16", strong: "#4d7c0f" },
   green: { soft: "#dcfce7", base: "#22c55e", strong: "#15803d" },
+  emerald: { soft: "#d1fae5", base: "#10b981", strong: "#047857" },
   teal: { soft: "#ccfbf1", base: "#14b8a6", strong: "#0f766e" },
   cyan: { soft: "#cffafe", base: "#06b6d4", strong: "#0e7490" },
+  sky: { soft: "#e0f2fe", base: "#0ea5e9", strong: "#0369a1" },
   blue: { soft: "#dbeafe", base: "#3b82f6", strong: "#1d4ed8" },
   indigo: { soft: "#e0e7ff", base: "#6366f1", strong: "#4338ca" },
   violet: { soft: "#ede9fe", base: "#8b5cf6", strong: "#6d28d9" },
+  purple: { soft: "#f3e8ff", base: "#a855f7", strong: "#7e22ce" },
+  fuchsia: { soft: "#fae8ff", base: "#d946ef", strong: "#a21caf" },
   pink: { soft: "#fce7f3", base: "#ec4899", strong: "#be185d" },
   slate: { soft: "#e2e8f0", base: "#64748b", strong: "#334155" },
 };
@@ -182,7 +219,7 @@ function borderShade(
 
 function buildPalette(): CalendarColorSwatch[] {
   const swatches: CalendarColorSwatch[] = [];
-  for (const hue of Object.keys(HUE_SHADES) as CalendarPaletteHue[]) {
+  for (const hue of CALENDAR_PALETTE_HUES) {
     for (const variant of HUE_VARIANTS) {
       const background = HUE_SHADES[hue][variant];
       swatches.push({
@@ -245,7 +282,7 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "event:trip": "Trips",
   "event:holiday": "Holidays",
   "event:school": "School",
-  "event:career": "Career",
+  "event:vacation": "Vacation",
   "event:work": "Work",
   "event:other": "Other events",
   "career:screening": "Screening interviews",
@@ -271,7 +308,7 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "event:trip",
   "event:holiday",
   "event:school",
-  "event:career",
+  "event:vacation",
   "event:work",
   "event:other",
   "career:screening",
@@ -334,6 +371,10 @@ export function resolveCalendarItemColorToken(
     if (input.categoryKey === "event" && input.subcategoryKey === "school") {
       const legacyDeadline = readValidToken(prefs?.subcategories?.["event:deadline"]);
       if (legacyDeadline) return legacyDeadline;
+    }
+    if (input.categoryKey === "event" && input.subcategoryKey === "vacation") {
+      const legacyCareer = readValidToken(prefs?.subcategories?.["event:career"]);
+      if (legacyCareer) return legacyCareer;
     }
     const fromDefault = readValidToken(DEFAULT_SUBCATEGORY_COLOR_TOKENS[key]);
     if (fromDefault) return fromDefault;

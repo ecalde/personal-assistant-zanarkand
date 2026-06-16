@@ -48,6 +48,18 @@ describe("migrateLegacyEventTypes", () => {
     expect(migrated.events[0].type).toBe("school");
     expect(() => validatePayloadForUpload(migrated)).not.toThrow();
   });
+
+  it("renames career events to vacation", () => {
+    const payload = {
+      ...defaultPayload(),
+      events: [sampleEvent({ type: "career" as LifeEvent["type"] })],
+    };
+
+    const migrated = migrateLegacyEventTypes(payload);
+
+    expect(migrated.events[0].type).toBe("vacation");
+    expect(() => validatePayloadForUpload(migrated)).not.toThrow();
+  });
 });
 
 describe("cleanupOrphanedEventPersonRefs", () => {

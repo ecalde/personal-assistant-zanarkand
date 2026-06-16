@@ -93,7 +93,7 @@ export type EventType =
   | "trip"
   | "holiday"
   | "school"
-  | "career"
+  | "vacation"
   | "work"
   | "other";
 

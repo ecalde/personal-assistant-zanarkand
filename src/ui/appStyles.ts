@@ -1009,7 +1009,13 @@ export const styles: Record<string, CSSProperties> = {
   },
   calendarPaletteGrid: {
     display: "flex",
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: 6,
+    maxHeight: 320,
+    overflowY: "auto",
+  },
+  calendarPaletteHueRow: {
+    display: "flex",
     gap: 6,
   },
   calendarPaletteSwatch: {

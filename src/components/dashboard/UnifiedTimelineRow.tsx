@@ -18,8 +18,9 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   trip: "Trip",
   holiday: "Holiday",
   school: "School",
-  career: "Career",
+  vacation: "Vacation",
   work: "Work",
+  career: "Vacation",
   other: "Other",
   deadline: "School",
 };

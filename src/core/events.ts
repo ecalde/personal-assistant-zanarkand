@@ -105,6 +105,10 @@ export function migrateLegacyEventTypes(payload: AppPayload): AppPayload {
       changed = true;
       return { ...event, type: "school" as EventType };
     }
+    if ((event.type as string) === "career") {
+      changed = true;
+      return { ...event, type: "vacation" as EventType };
+    }
     return event;
   });
   if (!changed) return payload;

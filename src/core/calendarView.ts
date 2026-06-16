@@ -17,7 +17,7 @@ export const CALENDAR_EVENT_TYPE_FILTERS: readonly EventType[] = [
   "trip",
   "holiday",
   "school",
-  "career",
+  "vacation",
   "work",
   "other",
 ];
@@ -28,7 +28,7 @@ export const CALENDAR_EVENT_TYPE_FILTER_LABELS: Record<EventType, string> = {
   trip: "Trip",
   holiday: "Holiday",
   school: "School",
-  career: "Career",
+  vacation: "Vacation",
   work: "Work",
   other: "Other",
 };

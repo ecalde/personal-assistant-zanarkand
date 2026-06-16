@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  CALENDAR_PALETTE,
+  CALENDAR_PALETTE_HUES,
   getCalendarColorSwatch,
   type CalendarColorToken,
 } from "../../core/calendarColors";
@@ -93,25 +93,31 @@ export function CalendarColorSwatchPicker({
             <p style={styles.calendarColorUsageText}>Used by: {usageLabel}</p>
           ) : null}
           <div style={styles.calendarPaletteGrid}>
-            {CALENDAR_PALETTE.map((swatch) => {
-              const selected = swatch.token === value;
-              return (
-                <button
-                  key={swatch.token}
-                  type="button"
-                  role="option"
-                  aria-label={swatch.label}
-                  aria-selected={selected}
-                  title={swatch.label}
-                  onClick={() => selectToken(swatch.token)}
-                  style={{
-                    ...styles.calendarPaletteSwatch,
-                    background: swatch.background,
-                    ...(selected ? styles.calendarPaletteSwatchSelected : {}),
-                  }}
-                />
-              );
-            })}
+            {CALENDAR_PALETTE_HUES.map((hue) => (
+              <div key={hue} style={styles.calendarPaletteHueRow}>
+                {(["soft", "base", "strong"] as const).map((variant) => {
+                  const token = `${hue}.${variant}` as CalendarColorToken;
+                  const swatch = getCalendarColorSwatch(token);
+                  const selected = token === value;
+                  return (
+                    <button
+                      key={token}
+                      type="button"
+                      role="option"
+                      aria-label={swatch.label}
+                      aria-selected={selected}
+                      title={swatch.label}
+                      onClick={() => selectToken(token)}
+                      style={{
+                        ...styles.calendarPaletteSwatch,
+                        background: swatch.background,
+                        ...(selected ? styles.calendarPaletteSwatchSelected : {}),
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       ) : null}
