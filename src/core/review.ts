@@ -57,9 +57,15 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import {
+  adherenceForProtocols,
+  incompleteAdherenceDays,
+} from "./supplements";
 
 // ---------------------------------------------------------------------------
 // Public constants
@@ -143,6 +149,11 @@ export type SkillWeekSummary = {
 
 export type FitnessWeekSection = WorkoutWeekScheduleSummary & {
   summaryLine: string;
+  supplementDueDays: number;
+  supplementCompleteDays: number;
+  supplementIncompleteDays: number;
+  supplementAdherenceRate: number | null;
+  supplementSummaryLine?: string;
 };
 
 export type CareerWeekItem = {
@@ -208,6 +219,8 @@ export type BuildWeeklyReviewInput = {
   jobApplications: JobApplication[];
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
   focusFeedback: FocusFeedback[];
   todayKey: string;
   now?: Date;
@@ -417,7 +430,9 @@ export function buildFitnessWeekSection(
   workoutPlans: WorkoutPlan[],
   workoutSessions: WorkoutSession[],
   todayKey: string,
-  weekStartKey: string
+  weekStartKey: string,
+  supplementProtocols: readonly SupplementProtocol[] = [],
+  supplementIntakeLogs: readonly SupplementIntakeLog[] = []
 ): FitnessWeekSection {
   const summary = buildWorkoutWeekScheduleSummary(workoutPlans, workoutSessions, todayKey);
   const duration =
@@ -430,7 +445,35 @@ export function buildFitnessWeekSection(
     .replace("{count}", String(summary.count))
     .replace("{duration}", duration);
 
-  return { ...summary, summaryLine };
+  const adherence = adherenceForProtocols(
+    supplementProtocols,
+    supplementIntakeLogs,
+    weekStartKey,
+    todayKey
+  );
+  const incompleteDays = incompleteAdherenceDays(adherence);
+
+  return {
+    ...summary,
+    summaryLine,
+    supplementDueDays: adherence.dueDays,
+    supplementCompleteDays: adherence.completeDays,
+    supplementIncompleteDays: incompleteDays,
+    supplementAdherenceRate: adherence.rate,
+    supplementSummaryLine: formatSupplementAdherenceLine(adherence),
+  };
+}
+
+function formatSupplementAdherenceLine(
+  adherence: ReturnType<typeof adherenceForProtocols>
+): string | undefined {
+  if (adherence.dueDays === 0 || adherence.rate === null) return undefined;
+  const percent = Math.round(adherence.rate * 100);
+  const dueLabel = adherence.dueDays === 1 ? "due day" : "due days";
+  const incomplete = incompleteAdherenceDays(adherence);
+  const incompleteClause =
+    incomplete > 0 ? `, ${incomplete} incomplete` : "";
+  return `Supplement adherence ${percent}% (${adherence.completeDays} of ${adherence.dueDays} ${dueLabel} complete${incompleteClause}).`;
 }
 
 function toCareerWeekItem(
@@ -780,7 +823,7 @@ export function isSkillsSectionVisible(section: SkillWeekSummary): boolean {
 }
 
 export function isFitnessSectionVisible(section: FitnessWeekSection): boolean {
-  return section.count > 0;
+  return section.count > 0 || section.supplementDueDays > 0;
 }
 
 export function isCareerSectionVisible(section: CareerWeekSection): boolean {
@@ -821,9 +864,13 @@ function buildWeeklyReviewSummary(
     review.fitness.count
   );
 
-  if (review.skills.totalMinutes === 0 && review.fitness.count === 0) {
+  if (
+    review.skills.totalMinutes === 0 &&
+    review.fitness.count === 0 &&
+    !review.fitness.supplementSummaryLine
+  ) {
     parts.push(selectDeterministicTemplate(EMPTY_WEEK_SUMMARY_TEMPLATES, seed));
-  } else {
+  } else if (review.skills.totalMinutes > 0 || review.fitness.count > 0) {
     const openerTemplate = selectDeterministicTemplate(WEEK_SUMMARY_OPENERS, seed);
     parts.push(
       openerTemplate.replace("{skillMinutes}", formatMinutesLabel(review.skills.totalMinutes)) + "."
@@ -832,6 +879,9 @@ function buildWeeklyReviewSummary(
 
   if (review.fitness.count > 0) {
     parts.push(review.fitness.summaryLine);
+  }
+  if (review.fitness.supplementSummaryLine) {
+    parts.push(review.fitness.supplementSummaryLine);
   }
 
   const timelineDays = buildUnifiedTimelineRange(
@@ -869,7 +919,9 @@ export function buildWeeklyReview(input: BuildWeeklyReviewInput): WeeklyReview {
     input.workoutPlans,
     input.workoutSessions,
     input.todayKey,
-    week.weekStartKey
+    week.weekStartKey,
+    input.supplementProtocols ?? [],
+    input.supplementIntakeLogs ?? []
   );
   const career = buildCareerWeekSection(
     input.jobApplications,

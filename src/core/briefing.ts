@@ -29,10 +29,13 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
 import { buildPeopleNeedingFollowUp } from "./people";
+import { dueProtocolsWithRemainingDoses } from "./supplements";
 import type { DailyWorkloadTotals, UnifiedTimelineDay } from "./timeline";
 
 // ---------------------------------------------------------------------------
@@ -128,6 +131,8 @@ export type BuildDailyBriefingInput = {
   jobApplications: JobApplication[];
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
   focusSummary: DailyFocusSummary;
   unifiedTimelineDay: UnifiedTimelineDay;
   workload: DailyWorkloadTotals;
@@ -371,7 +376,9 @@ export function buildFocusSummaryParagraph(
   workoutPlans: WorkoutPlan[],
   workoutSessions: WorkoutSession[],
   todayKey: string,
-  seedParts: BriefingSeedParts
+  seedParts: BriefingSeedParts,
+  supplementProtocols: readonly SupplementProtocol[] = [],
+  supplementIntakeLogs: readonly SupplementIntakeLog[] = []
 ): string {
   const parts: string[] = [];
   const { skillOverdueCount, workoutsThisWeek } = context;
@@ -391,6 +398,21 @@ export function buildFocusSummaryParagraph(
     );
   } else if (hasFitnessData(workoutPlans, workoutSessions) && workoutsThisWeek === 0) {
     parts.push("you haven't logged a workout this week");
+  }
+
+  const remainingSupplements = dueProtocolsWithRemainingDoses(
+    supplementProtocols,
+    supplementIntakeLogs,
+    todayKey
+  );
+  if (remainingSupplements.length === 1) {
+    const lead = remainingSupplements[0]!;
+    const doseWord = lead.remaining === 1 ? "dose" : "doses";
+    parts.push(`${lead.remaining} ${lead.protocol.name} ${doseWord} remaining today`);
+  } else if (remainingSupplements.length > 1) {
+    parts.push(
+      `${remainingSupplements.length} supplements still have doses remaining today`
+    );
   }
 
   const followUpCount = buildPeopleNeedingFollowUp(people, todayKey, 5).length;
@@ -480,6 +502,10 @@ export function focusItemToRecommendation(
     case "fitness_workout_scheduled_today":
     case "fitness_workout_missed_yesterday":
       return "Schedule a workout today.";
+    case "fitness_supplement_doses_remaining": {
+      const protocolName = item.title.replace(/^(Take|Finish) /, "");
+      return `Take remaining ${protocolName} doses today.`;
+    }
     case "timeline_high_blocked_time":
       return "Review your calendar — today is heavily blocked.";
     case "timeline_low_available_skill_time":
@@ -593,7 +619,9 @@ export function buildDailyBriefing(input: BuildDailyBriefingInput): DailyBriefin
       input.workoutPlans,
       input.workoutSessions,
       input.todayKey,
-      seedParts
+      seedParts,
+      input.supplementProtocols ?? [],
+      input.supplementIntakeLogs ?? []
     ),
     recommendations: buildRecommendations(input.focusSummary, now, input.todayKey),
     riskFlags,

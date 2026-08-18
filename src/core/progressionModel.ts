@@ -62,6 +62,7 @@ export type RewardSource =
   | "streak_milestone"
   | "workout_completed"
   | "workout_scheduled_slot"
+  | "supplement_adherence_day"
   | "event_attended"
   | "career_status"
   | "career_application"
@@ -124,6 +125,7 @@ export type AchievementCondition =
   | { kind: "axis_level_gte"; axis: ProgressionAxis; level: number }
   | { kind: "total_skill_minutes_gte"; minutes: number }
   | { kind: "workouts_completed_gte"; count: number }
+  | { kind: "supplement_adherence_days_gte"; days: number }
   | { kind: "weekly_goal_met_count"; count: number }
   | { kind: "career_applications_gte"; count: number }
   | { kind: "career_status_reached"; status: ApplicationStatus }

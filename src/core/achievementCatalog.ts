@@ -80,6 +80,15 @@ export const ACHIEVEMENT_CATALOG: readonly AchievementDefinition[] = [
     condition: { kind: "workouts_completed_gte", count: 10 },
   },
   {
+    id: "supplement_days_7",
+    category: "fitness",
+    tier: "bronze",
+    title: "Daily Dose",
+    description: "Complete 7 full supplement days.",
+    axis: "body",
+    condition: { kind: "supplement_adherence_days_gte", days: 7 },
+  },
+  {
     id: "body_level_5",
     category: "fitness",
     tier: "silver",

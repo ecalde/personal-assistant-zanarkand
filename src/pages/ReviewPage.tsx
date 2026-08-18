@@ -10,6 +10,8 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "../core/model";
@@ -37,6 +39,8 @@ export type ReviewPageProps = {
   jobApplications: JobApplication[];
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   focusFeedback: FocusFeedback[];
 };
 
@@ -104,6 +108,8 @@ export default function ReviewPage({
   jobApplications,
   workoutPlans,
   workoutSessions,
+  supplementProtocols,
+  supplementIntakeLogs,
   focusFeedback,
 }: ReviewPageProps) {
   const todayKey = formatLocalDateKey(new Date());
@@ -117,6 +123,8 @@ export default function ReviewPage({
         jobApplications,
         workoutPlans,
         workoutSessions,
+        supplementProtocols,
+        supplementIntakeLogs,
         focusFeedback,
         todayKey,
       }),
@@ -128,6 +136,8 @@ export default function ReviewPage({
       jobApplications,
       workoutPlans,
       workoutSessions,
+      supplementProtocols,
+      supplementIntakeLogs,
       focusFeedback,
       todayKey,
     ]
@@ -216,10 +226,22 @@ export default function ReviewPage({
       </SectionBlock>
 
       <SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
-        <p style={{ margin: 0, fontSize: 14 }}>{review.fitness.summaryLine}</p>
-        {review.fitness.totalDurationMinutes > 0 && (
+        {review.fitness.count > 0 && (
+          <p style={{ margin: 0, fontSize: 14 }}>{review.fitness.summaryLine}</p>
+        )}
+        {review.fitness.count > 0 && review.fitness.totalDurationMinutes > 0 && (
           <p style={{ margin: "6px 0 0 0", fontSize: 13, ...styles.textSecondary }}>
             Total duration: {formatMinutes(review.fitness.totalDurationMinutes)}
+          </p>
+        )}
+        {review.fitness.supplementSummaryLine && (
+          <p
+            style={{
+              margin: review.fitness.count > 0 ? "8px 0 0 0" : 0,
+              fontSize: 14,
+            }}
+          >
+            {review.fitness.supplementSummaryLine}
           </p>
         )}
       </SectionBlock>

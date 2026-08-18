@@ -7,6 +7,8 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutSession,
 } from "./model";
 import {
@@ -132,6 +134,42 @@ function sampleFeedback(overrides: Partial<FocusFeedback> = {}): FocusFeedback {
     sourceSnapshot: "Log TypeScript minutes",
     createdAtIso: "2026-05-26T09:00:00.000Z",
     updatedAtIso: "2026-05-26T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function sampleReviewProtocol(overrides: Partial<SupplementProtocol> = {}): SupplementProtocol {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "Creatine",
+    unit: "g",
+    active: true,
+    phases: [
+      {
+        id: "p1",
+        kind: "maintenance",
+        startDate: "2026-05-01",
+        dosesPerDay: 2,
+        amountPerDose: 5,
+      },
+    ],
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
+function sampleReviewLog(overrides: Partial<SupplementIntakeLog> = {}): SupplementIntakeLog {
+  return {
+    id: "88888888-8888-4888-8888-888888888881",
+    protocolId: "77777777-7777-4777-8777-777777777777",
+    date: "2026-05-25",
+    doses: [
+      { id: "d1", slotIndex: 0, amount: 5, takenAtIso: ISO },
+      { id: "d2", slotIndex: 1, amount: 5, takenAtIso: ISO },
+    ],
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
     ...overrides,
   };
 }
@@ -305,6 +343,35 @@ describe("buildFitnessWeekSection", () => {
     expect(section.count).toBe(2);
     expect(section.totalDurationMinutes).toBe(90);
     expect(section.summaryLine).toContain("2");
+  });
+
+  it("adds weekly supplement adherence under the fitness section", () => {
+    const protocol = sampleReviewProtocol();
+    const completeMon = sampleReviewLog({ date: "2026-05-25" });
+    const partialTue = sampleReviewLog({
+      id: "log-tue",
+      date: "2026-05-26",
+      doses: [
+        { id: "d1", slotIndex: 0, amount: 5, takenAtIso: ISO },
+        { id: "d2", slotIndex: 1, amount: 5 },
+      ],
+    });
+    const section = buildFitnessWeekSection(
+      [],
+      [],
+      TODAY,
+      WEEK_START,
+      [protocol],
+      [completeMon, partialTue]
+    );
+
+    expect(section.supplementDueDays).toBe(3);
+    expect(section.supplementCompleteDays).toBe(1);
+    expect(section.supplementIncompleteDays).toBe(2);
+    expect(section.supplementAdherenceRate).toBeCloseTo(1 / 3);
+    expect(section.supplementSummaryLine).toContain("33%");
+    expect(section.supplementSummaryLine).toContain("2 incomplete");
+    expect(isFitnessSectionVisible(section)).toBe(true);
   });
 });
 
@@ -578,6 +645,27 @@ describe("section visibility helpers", () => {
     expect(isPeopleSectionVisible(review.people)).toBe(true);
     expect(isEventsSectionVisible(review.events)).toBe(true);
     expect(isFocusFeedbackSectionVisible(review.focusFeedback)).toBe(true);
+  });
+
+  it("shows the fitness section when only supplements had due days", () => {
+    const review = buildWeeklyReview({
+      skills: [],
+      sessions: [],
+      events: [],
+      people: [],
+      jobApplications: [],
+      workoutPlans: [],
+      workoutSessions: [],
+      supplementProtocols: [sampleReviewProtocol()],
+      supplementIntakeLogs: [sampleReviewLog()],
+      focusFeedback: [],
+      todayKey: TODAY,
+      now: NOW,
+    });
+
+    expect(isFitnessSectionVisible(review.fitness)).toBe(true);
+    expect(review.fitness.supplementSummaryLine).toBeDefined();
+    expect(review.summary).toContain("Supplement adherence");
   });
 });
 

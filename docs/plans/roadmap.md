@@ -86,6 +86,11 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 44 | **Calendar fitness merge** | One fitness block per plan occurrence per day (`planned` / `in_progress` / `completed` visuals); retimed override when start differs from the scheduled slot. |
 | 45 | **Dashboard quick-complete** | Fitness summary lists today’s scheduled exercises with Complete + weight; first mutation upserts an in-progress session; **Open in Fitness** sets `fitnessFocus` for the today rail. Partial completes do not finish the occurrence. |
 | 46 | **Weight progression chart** | Pure `exerciseProgression.ts` aggregators (completed session entries by normalized name: weight series, first/last logged, completion count, PR, weekly frequency). Fitness SVG chart (Weight / Frequency / Stats) using `--aether-*` tokens; no new chart library. |
+| 47 | **Supplement tracker model** | `SupplementProtocol` / `SupplementIntakeLog` types, `supplements.ts` phase/due/tap/adherence helpers, `AppPayload` arrays, Supabase tables + RLS, mappers + remote sync. No Fitness UI yet. |
+| 48 | **Supplement Fitness UI** | Fitness **Workouts \| Supplements** switcher, protocol form with optional loading→maintenance dates, today-rail + dashboard dose taps, `upsertSupplementIntake`, `FitnessFocus` union for **Open in Fitness**. |
+| 49 | **Supplement calendar filters** | One all-day Fitness item per due protocol per day; workout items use `subcategoryKey: workout`; sidebar **Fitness types** hide workouts vs supplements independently. |
+| 50 | **Supplement focus / briefing / review** | Remaining-doses Daily Focus signal, briefing/review adherence under Fitness, `fitnessFocus` deep-link to a protocol row. |
+| 51 | **Supplement XP + polish** | Full-day `body` XP (`supplement_adherence_day`, not per dose) under `MAX_BONUS_XP_PER_DAY`; protocol-card due-day streak; calendar modal progress + **Open in Fitness**; `supplement_days_7` achievement. |
 
 **Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 
@@ -127,13 +132,13 @@ flowchart TB
 
 ### Raw `AppPayload` data
 
-- Canonical user state in [`src/core/model.ts`](../../src/core/model.ts): skills, sessions, overrides, events, people, job applications, career target, workout plans/sessions, focus feedback, optional `calendarPreferences`, etc.
+- Canonical user state in [`src/core/model.ts`](../../src/core/model.ts): skills, sessions, overrides, events, people, job applications, career target, workout plans/sessions, supplement protocols/intake logs, focus feedback, optional `calendarPreferences`, etc.
 - Loaded/saved via [`storage.ts`](../../src/core/storage.ts); normalized on import for backward compatibility.
 - **Not** where XP, daily focus, briefing, or weekly review are stored—they are recomputed.
 
 ### Domain helpers
 
-- Per-entity pure modules: [`schedule.ts`](../../src/core/schedule.ts), [`events.ts`](../../src/core/events.ts), [`people.ts`](../../src/core/people.ts), [`career.ts`](../../src/core/career.ts), [`fitness.ts`](../../src/core/fitness.ts), [`sessions.ts`](../../src/core/sessions.ts).
+- Per-entity pure modules: [`schedule.ts`](../../src/core/schedule.ts), [`events.ts`](../../src/core/events.ts), [`people.ts`](../../src/core/people.ts), [`career.ts`](../../src/core/career.ts), [`fitness.ts`](../../src/core/fitness.ts), [`supplements.ts`](../../src/core/supplements.ts), [`sessions.ts`](../../src/core/sessions.ts).
 - Validation at boundaries; display/search/sort helpers; no React.
 
 ### Derived intelligence layers
@@ -328,6 +333,8 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 **Recommended next phase: [Phase 37E — Appearance Cloud Sync](#phase-37e--appearance-cloud-sync--planned)** — Phase 37D (Global Visual Effects) shipped, so the `AppearancePreferences` shape is now finalized (profile + intensity + mode + effects + `effectPerformance` + `reducedMotion`). Next, persist it to a Supabase `appearance_preferences` singleton (mirroring `calendar_preferences` / `gamification_state`) with a strict `dbMappers` parser and localStorage fallback. Full detail and ordering rationale: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).
 
+**Fitness supplement track (47–51) is complete.** See [fitness_supplement_tracker plan](../../.cursor/plans/fitness_supplement_tracker_101e5c31.plan.md). Nutrition/calories remains reserved (`FitnessType: "nutrition"`), not built.
+
 **Ordering note:** cloud sync moved from 37C to **37E** so the synced `AppearancePreferences` shape (now including `themeMode`, `effects`, and `effectPerformance`) is finalized before it is committed to a Supabase table + strict parser — avoiding a second migration.
 
 **Parallel / later:** Phase 38 (Notifications) after Settings Notifications category has a home. Optional 37B follow-ups: tokenize remaining semantic status colors and tint native header action buttons if desired.
@@ -336,4 +343,4 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ---
 
-*Last updated: 2026-05-31 — Phase 37C.2 (Text Token Adoption / dark-mode readability) shipped. Next: 37E (Appearance Cloud Sync).*
+*Last updated: 2026-08-18 — Phase 51 (supplement XP + polish) shipped; fitness supplement track 47–51 complete. Aether next: 37E (Appearance Cloud Sync).*

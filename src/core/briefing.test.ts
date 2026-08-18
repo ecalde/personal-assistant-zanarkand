@@ -20,6 +20,7 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
@@ -36,6 +37,7 @@ const EVENT_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const PERSON_ID = "88888888-8888-4888-8888-888888888888";
 const APP_ID = "44444444-4444-4444-8444-444444444444";
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
+const PROTOCOL_ID = "77777777-7777-4777-8777-777777777777";
 
 function sampleSkill(overrides: Partial<Skill> = {}): Skill {
   return {
@@ -113,6 +115,27 @@ function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutS
   };
 }
 
+function sampleProtocol(overrides: Partial<SupplementProtocol> = {}): SupplementProtocol {
+  return {
+    id: PROTOCOL_ID,
+    name: "Creatine",
+    unit: "g",
+    active: true,
+    phases: [
+      {
+        id: "p1",
+        kind: "maintenance",
+        startDate: "2026-05-01",
+        dosesPerDay: 4,
+        amountPerDose: 5,
+      },
+    ],
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
 function emptyTimelineDay(overrides: Partial<UnifiedTimelineDay> = {}): UnifiedTimelineDay {
   return {
     date: TODAY,
@@ -168,6 +191,8 @@ function buildBriefingInput(
     jobApplications: focusInput.jobApplications,
     workoutPlans: focusInput.workoutPlans,
     workoutSessions: focusInput.workoutSessions,
+    supplementProtocols: focusInput.supplementProtocols,
+    supplementIntakeLogs: focusInput.supplementIntakeLogs,
     focusSummary,
     unifiedTimelineDay,
     workload,
@@ -438,6 +463,23 @@ describe("focusItemToRecommendation", () => {
     expect(rec).toBe("Log 30 minutes toward Machine Learning.");
   });
 
+  it("maps remaining supplement doses to a take-remaining recommendation", () => {
+    const rec = focusItemToRecommendation(
+      {
+        id: `fitness:supplement:${PROTOCOL_ID}:${TODAY}`,
+        category: "fitness",
+        title: "Finish Creatine",
+        description: "3 doses remaining today.",
+        priorityScore: 470,
+        urgency: "low",
+        urgencyLabel: "Low",
+        reasonCodes: ["fitness_supplement_doses_remaining"],
+      },
+      NOW_EVENING
+    );
+    expect(rec).toBe("Take remaining Creatine doses today.");
+  });
+
   it("uses deterministic fallback templates for unknown reason codes", () => {
     const item = {
       id: "custom:1",
@@ -599,6 +641,28 @@ describe("buildFocusSummaryParagraph", () => {
 
     expect(paragraph).toContain("behind schedule");
     expect(paragraph).toContain("workout");
+  });
+
+  it("mentions remaining supplement doses", () => {
+    const paragraph = buildFocusSummaryParagraph(
+      {
+        skillOverdueCount: 0,
+        eventsTodayCount: 0,
+        timelineConflictMinutes: 0,
+        netAvailableSkillMinutes: 0,
+        workoutsThisWeek: 0,
+        applicationsNeedingAttention: 0,
+      },
+      [],
+      [],
+      [],
+      TODAY,
+      sampleSeedParts(),
+      [sampleProtocol()],
+      []
+    );
+    expect(paragraph).toContain("Creatine");
+    expect(paragraph).toContain("remaining today");
   });
 });
 

@@ -31,12 +31,22 @@ describe("calendarPreferencesFormFromPrefs", () => {
     const prefs: CalendarColorPreferences = {
       subcategories: {
         "event:birthday": "pink.base",
-        "fitness:push": "orange.base",
+        "fitness:supplement": "orange.base",
       },
     };
     const form = calendarPreferencesFormFromPrefs(prefs);
     expect(form.subcategories["event:birthday"]).toBe("pink.base");
+    expect(form.subcategories["fitness:supplement"]).toBe("orange.base");
+  });
+
+  it("keeps stale fitness:push prefs in form state without promoting them", () => {
+    const prefs: CalendarColorPreferences = {
+      subcategories: { "fitness:push": "orange.base" },
+    };
+    const form = calendarPreferencesFormFromPrefs(prefs);
     expect(form.subcategories["fitness:push"]).toBe("orange.base");
+    expect(form.subcategories["fitness:workout"]).toBe("green.base");
+    expect(form.subcategories["fitness:supplement"]).toBe("cyan.base");
   });
 });
 
@@ -50,12 +60,12 @@ describe("calendarPreferencesPayloadFromForm", () => {
     const form = calendarPreferencesFormFromPrefs(undefined);
     form.categories.skill.colorToken = "cyan.strong";
     form.categories.skill.alias = "Growth";
-    form.subcategories["fitness:push"] = "orange.base";
+    form.subcategories["fitness:supplement"] = "orange.base";
 
     expect(calendarPreferencesPayloadFromForm(form)).toEqual({
       categories: { skill: "cyan.strong" },
       aliases: { skill: "Growth" },
-      subcategories: { "fitness:push": "orange.base" },
+      subcategories: { "fitness:supplement": "orange.base" },
     });
   });
 

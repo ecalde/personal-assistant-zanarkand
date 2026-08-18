@@ -1,4 +1,5 @@
 import type { CalendarColorPreferences } from "../../core/calendarColors";
+import type { FitnessFocus } from "../../core/fitness";
 import { CalendarItemDetailModal } from "../calendar/CalendarItemDetailModal";
 import { CalendarToolbar } from "../calendar/CalendarToolbar";
 import { MonthView } from "../calendar/MonthView";
@@ -14,6 +15,7 @@ export type DashboardCalendarWidgetProps = {
   calendarPreferences?: CalendarColorPreferences;
   onOpenCalendar?: () => void;
   onOpenCareer?: () => void;
+  onOpenFitness?: (focus?: FitnessFocus) => void;
 };
 
 /**
@@ -28,6 +30,7 @@ export function DashboardCalendarWidget({
   calendarPreferences,
   onOpenCalendar,
   onOpenCareer,
+  onOpenFitness,
 }: DashboardCalendarWidgetProps) {
   const nowMinutes = useNowMinutes();
 
@@ -87,6 +90,7 @@ export function DashboardCalendarWidget({
           preferences={calendarPreferences}
           onClose={() => controller.setSelectedItem(null)}
           onOpenCareer={onOpenCareer}
+          onOpenFitness={onOpenFitness}
         />
       ) : null}
     </section>

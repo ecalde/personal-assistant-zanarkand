@@ -60,6 +60,7 @@ export const BONUS_XP = {
   globalStreakDay: 5,
   workoutCompleted: 20,
   workoutScheduledSlot: 10,
+  supplementAdherenceDay: 5,
   eventAttended: 10,
   careerStatusForward: 30,
   careerApplication: 15,

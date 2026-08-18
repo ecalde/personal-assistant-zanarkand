@@ -248,6 +248,62 @@ export type WorkoutSession = {
   updatedAtIso: string;
 };
 
+/** Calendar/Fitness filter axis. `nutrition` is reserved; no items emit yet. */
+export type FitnessType = "workout" | "supplement" | "nutrition";
+
+export type SupplementForm = "powder" | "capsule" | "liquid" | "other";
+
+export type SupplementUnit = "g" | "mg" | "mcg" | "iu" | "scoop" | "capsule" | "drop";
+
+export type SupplementPhaseKind = "loading" | "maintenance" | "custom";
+
+export type SupplementPhase = {
+  id: string;
+  name?: string;
+  kind: SupplementPhaseKind;
+  /** Inclusive YYYY-MM-DD. */
+  startDate: string;
+  /** Inclusive YYYY-MM-DD. Omit = open-ended. */
+  endDate?: string;
+  /** Integer 1–6. */
+  dosesPerDay: number;
+  amountPerDose: number;
+  /** HH:MM; when set, length must equal dosesPerDay. */
+  times?: string[];
+  /** Omit = every day. */
+  weekdays?: Weekday[];
+};
+
+export type SupplementProtocol = {
+  id: string;
+  name: string;
+  form?: SupplementForm;
+  unit: SupplementUnit;
+  notes?: string;
+  active: boolean;
+  phases: SupplementPhase[];
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type SupplementDoseSlot = {
+  id: string;
+  slotIndex: number;
+  amount: number;
+  plannedTime?: string;
+  takenAtIso?: string;
+};
+
+export type SupplementIntakeLog = {
+  id: string;
+  protocolId: string;
+  date: string;
+  doses: SupplementDoseSlot[];
+  notes?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type FocusFeedbackAction = "dismissed" | "snoozed";
 
 export type FocusFeedback = {
@@ -270,6 +326,8 @@ export type AppPayload = {
   careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;

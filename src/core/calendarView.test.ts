@@ -20,6 +20,7 @@ import {
   isValidThreeDaySnapWindow,
   filterItemsByHiddenCategories,
   filterItemsByHiddenEventSubcategories,
+  filterItemsByHiddenFitnessTypes,
   filterCalendarItems,
   formatHourLabel,
   formatItemTimeLabel,
@@ -37,7 +38,7 @@ import {
   TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
 } from "./calendarView";
 import type { CalendarCategoryKey } from "./calendarColors";
-import type { EventType, LifeEvent, Skill, WeeklySchedule } from "./model";
+import type { EventType, FitnessType, LifeEvent, Skill, WeeklySchedule } from "./model";
 
 function emptySchedule(): WeeklySchedule {
   return { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
@@ -248,6 +249,86 @@ describe("event subcategory filtering (render-only)", () => {
       new Set<EventType>(["work"])
     );
     expect(filtered.map((i) => i.id)).toEqual(["school"]);
+  });
+});
+
+describe("fitness type filtering (render-only)", () => {
+  function makeFitnessItem(
+    id: string,
+    subcategoryKey: "workout" | "supplement"
+  ): CalendarItem {
+    if (subcategoryKey === "supplement") {
+      return {
+        id,
+        sourceType: "fitness",
+        sourceId: id,
+        title: "Creatine",
+        date: "2026-08-18",
+        categoryKey: "fitness",
+        subcategoryKey: "supplement",
+        isTimed: false,
+        isMultiDay: false,
+        allDay: true,
+        sourceMeta: {
+          kind: "supplementIntake",
+          protocolId: id,
+          protocolName: "Creatine",
+          phaseId: "ph1",
+          phaseKind: "maintenance",
+          phaseChip: "Maintenance",
+          doseSummary: "5 g × 1",
+          plannedDoses: 1,
+          takenDoses: 0,
+        },
+      };
+    }
+    return {
+      id,
+      sourceType: "fitness",
+      sourceId: id,
+      title: "Push A",
+      date: "2026-08-18",
+      categoryKey: "fitness",
+      subcategoryKey: "workout",
+      isTimed: true,
+      isMultiDay: false,
+      sourceMeta: {
+        kind: "workoutScheduleBlock",
+        planId: "plan1",
+        blockId: "wb1",
+        planName: "Push A",
+        plannedMinutes: 45,
+        occurrenceDate: "2026-08-18",
+        focus: "push",
+      },
+    };
+  }
+
+  it("hides supplement items without hiding workouts", () => {
+    const items: CalendarItem[] = [
+      makeFitnessItem("workout-1", "workout"),
+      makeFitnessItem("supp-1", "supplement"),
+      makeEventItem({ id: "e1" }),
+    ];
+    const filtered = filterCalendarItems(
+      items,
+      new Set(),
+      new Set(),
+      new Set<FitnessType>(["supplement"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["workout-1", "e1"]);
+  });
+
+  it("hides workout items without hiding supplements", () => {
+    const items: CalendarItem[] = [
+      makeFitnessItem("workout-1", "workout"),
+      makeFitnessItem("supp-1", "supplement"),
+    ];
+    const filtered = filterItemsByHiddenFitnessTypes(
+      items,
+      new Set<FitnessType>(["workout"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["supp-1"]);
   });
 });
 
@@ -497,5 +578,28 @@ describe("formatSourceTypeLabel", () => {
     expect(formatSourceTypeLabel({ ...fitnessBase, completionVisual: "completed" })).toBe(
       "Workout · Completed"
     );
+  });
+
+  it("labels supplement items separately from workouts", () => {
+    const item: CalendarItem = {
+      ...makeEventItem({ id: "creatine" }),
+      sourceType: "fitness",
+      categoryKey: "fitness",
+      subcategoryKey: "supplement",
+      title: "Creatine",
+      sourceMeta: {
+        kind: "supplementIntake",
+        protocolId: "p1",
+        protocolName: "Creatine",
+        phaseId: "ph1",
+        phaseKind: "loading",
+        phaseChip: "Loading · day 1/7",
+        doseSummary: "5 g × 4",
+        plannedDoses: 4,
+        takenDoses: 2,
+      },
+      completionVisual: "in_progress",
+    };
+    expect(formatSourceTypeLabel(item)).toBe("Supplement · In progress");
   });
 });

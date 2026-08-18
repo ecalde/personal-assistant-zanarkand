@@ -29,6 +29,7 @@ import {
   isWorkoutSessionComplete,
   resolveWorkoutPlanSchedule,
 } from "./fitness";
+import { listCompleteAdherenceDays, type CompleteAdherenceDay } from "./supplements";
 import type { ProgressionAxis } from "./progressionModel";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -55,6 +56,8 @@ export type CareerStatusReached = {
 };
 
 export type ScheduledWorkoutCompletion = { planId: string; dateKey: string };
+
+export type SupplementAdherenceDay = CompleteAdherenceDay;
 
 export type AttendedEvent = { eventId: string; dateKey: string; isSocial: boolean };
 
@@ -91,6 +94,9 @@ export type ProgressionContext = {
   workoutSessions: WorkoutSession[];
   workoutsCompletedTotal: number;
   scheduledWorkoutCompletions: ScheduledWorkoutCompletion[];
+
+  supplementAdherenceDays: SupplementAdherenceDay[];
+  supplementAdherenceDaysTotal: number;
 
   jobApplications: JobApplication[];
   applicationsCount: number;
@@ -257,6 +263,10 @@ export function buildProgressionContext(
     scheduledWorkoutCompletions.push({ planId: session.planId, dateKey: session.date });
   }
 
+  const supplementAdherenceDays = listCompleteAdherenceDays(
+    payload.supplementIntakeLogs ?? []
+  ).filter((day) => isValidDateKey(day.dateKey));
+
   // Career reached statuses (one entry per application that progressed past saved).
   const careerStatusReached: CareerStatusReached[] = [];
   for (const app of jobApplications) {
@@ -314,6 +324,8 @@ export function buildProgressionContext(
     workoutSessions,
     workoutsCompletedTotal: workoutSessions.length,
     scheduledWorkoutCompletions,
+    supplementAdherenceDays,
+    supplementAdherenceDaysTotal: supplementAdherenceDays.length,
     jobApplications,
     applicationsCount: jobApplications.length,
     careerStatusReached,

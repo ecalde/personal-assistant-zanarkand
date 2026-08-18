@@ -10,12 +10,16 @@ import {
   type DashboardWorkoutExercise,
   type FitnessFocus,
 } from "../../core/fitness";
-import type { WorkoutPlan, WorkoutSession } from "../../core/model";
+import type { SupplementIntakeLog, SupplementProtocol, WorkoutPlan, WorkoutSession } from "../../core/model";
+import { dueProtocolsForDate, findIntakeForProtocolDate } from "../../core/supplements";
 import { AETHER_TEXT, styles } from "../../ui/appStyles";
+import { SupplementDoseRow } from "../fitness/SupplementDoseRow";
 
 export type FitnessSummarySectionProps = {
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   todayKey: string;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onToggleTodayExercise?: (planId: string, exerciseId: string) => void;
@@ -24,6 +28,7 @@ export type FitnessSummarySectionProps = {
     exerciseId: string,
     weight: number | undefined
   ) => void;
+  onUpsertSupplementIntake?: (log: SupplementIntakeLog) => void;
 };
 
 function formatWorkoutDate(dateKey: string): string {
@@ -138,12 +143,19 @@ function DashboardExerciseRow({
 export function FitnessSummarySection({
   workoutPlans,
   workoutSessions,
+  supplementProtocols,
+  supplementIntakeLogs,
   todayKey,
   onOpenFitness,
   onToggleTodayExercise,
   onSetTodayExerciseWeight,
+  onUpsertSupplementIntake,
 }: FitnessSummarySectionProps) {
-  if (workoutPlans.length === 0 && workoutSessions.length === 0) {
+  if (
+    workoutPlans.length === 0 &&
+    workoutSessions.length === 0 &&
+    supplementProtocols.length === 0
+  ) {
     return null;
   }
 
@@ -151,6 +163,7 @@ export function FitnessSummarySection({
   const lastSession = getLastSession(workoutSessions);
   const recentSessions = buildRecentSessions(workoutSessions, 2);
   const todayLoggers = buildDashboardWorkoutLoggers(workoutPlans, workoutSessions, todayKey);
+  const dueSupplements = dueProtocolsForDate(supplementProtocols, todayKey);
 
   return (
     <section style={styles.dashboardSection} aria-label="Fitness summary">
@@ -180,6 +193,9 @@ export function FitnessSummarySection({
         {workoutPlans.length > 0
           ? ` · ${workoutPlans.length} saved plan${workoutPlans.length === 1 ? "" : "s"}`
           : ""}
+        {supplementProtocols.length > 0
+          ? ` · ${supplementProtocols.length} protocol${supplementProtocols.length === 1 ? "" : "s"}`
+          : ""}
         .
       </p>
 
@@ -202,7 +218,9 @@ export function FitnessSummarySection({
               <button
                 type="button"
                 style={styles.smallBtn}
-                onClick={() => onOpenFitness({ date: todayKey, planId: logger.planId })}
+                onClick={() =>
+                  onOpenFitness({ kind: "workout", date: todayKey, planId: logger.planId })
+                }
                 aria-label={`Open ${logger.planName} in Fitness`}
               >
                 Open in Fitness
@@ -220,6 +238,33 @@ export function FitnessSummarySection({
           ))}
         </div>
       ))}
+
+      {onUpsertSupplementIntake
+        ? dueSupplements.map((protocol) => (
+            <div key={protocol.id} style={{ marginBottom: 12 }}>
+              <SupplementDoseRow
+                protocol={protocol}
+                dateKey={todayKey}
+                persistedLog={findIntakeForProtocolDate(
+                  supplementIntakeLogs,
+                  protocol.id,
+                  todayKey
+                )}
+                onUpsertIntake={onUpsertSupplementIntake}
+                onOpenFitness={
+                  onOpenFitness
+                    ? () =>
+                        onOpenFitness({
+                          kind: "supplement",
+                          date: todayKey,
+                          protocolId: protocol.id,
+                        })
+                    : undefined
+                }
+              />
+            </div>
+          ))
+        : null}
 
       {lastSession && (
         <p style={{ margin: "0 0 12px 0", ...styles.textSecondary }}>

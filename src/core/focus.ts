@@ -32,6 +32,7 @@ import {
   expandWorkoutOccurrencesForDate,
   getLastSession,
   isWorkoutOccurrenceComplete,
+  type FitnessFocus,
 } from "./fitness";
 import type {
   CareerTarget,
@@ -40,9 +41,12 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import { dueProtocolsWithRemainingDoses } from "./supplements";
 import {
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
@@ -94,6 +98,7 @@ const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   fitness_no_workout_this_week: 420,
   fitness_log_from_plan: 350,
   fitness_workout_scheduled_today: 480,
+  fitness_supplement_doses_remaining: 470,
   fitness_workout_missed_yesterday: 400,
 };
 
@@ -172,6 +177,7 @@ export type FocusReasonCode =
   | "fitness_long_gap_since_last"
   | "fitness_log_from_plan"
   | "fitness_workout_scheduled_today"
+  | "fitness_supplement_doses_remaining"
   | "fitness_workout_missed_yesterday"
   | "timeline_schedule_conflict"
   | "timeline_high_blocked_time"
@@ -233,6 +239,8 @@ export type BuildDailyFocusInput = {
   careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
   todayKey: string;
   now?: Date;
   opts?: { maxItems?: number; perCategoryCap?: number };
@@ -1030,14 +1038,18 @@ export function collectCareerFocusItems(
 export function collectFitnessFocusItems(
   workoutPlans: WorkoutPlan[],
   workoutSessions: WorkoutSession[],
-  todayKey: string
+  todayKey: string,
+  supplementProtocols: readonly SupplementProtocol[] = [],
+  supplementIntakeLogs: readonly SupplementIntakeLog[] = []
 ): FocusItemDraft[] {
   const drafts: FocusItemDraft[] = [];
-  const hasFitnessData = workoutPlans.length > 0 || workoutSessions.length > 0;
-  if (!hasFitnessData) return drafts;
+  const hasWorkoutData = workoutPlans.length > 0 || workoutSessions.length > 0;
+  const hasSupplementData = supplementProtocols.length > 0;
+  if (!hasWorkoutData && !hasSupplementData) return drafts;
 
   const dayEnd = endOfLocalDayIso(todayKey);
 
+  if (hasWorkoutData) {
   const weekSummary = buildWorkoutWeekSummary(workoutSessions, todayKey);
   const lastSession = getLastSession(workoutSessions);
   const sessionToday = workoutSessions.some((s) => s.date === todayKey);
@@ -1170,8 +1182,73 @@ export function collectFitnessFocusItems(
       })
     );
   }
+  }
+
+  appendSupplementRemainingDoseFocus(
+    drafts,
+    supplementProtocols,
+    supplementIntakeLogs,
+    todayKey,
+    dayEnd
+  );
 
   return drafts;
+}
+
+function appendSupplementRemainingDoseFocus(
+  drafts: FocusItemDraft[],
+  protocols: readonly SupplementProtocol[],
+  logs: readonly SupplementIntakeLog[],
+  todayKey: string,
+  dayEnd: string
+): void {
+  if (protocols.length === 0) return;
+  const remaining = dueProtocolsWithRemainingDoses(protocols, logs, todayKey);
+  const lead = remaining[0];
+  if (!lead) return;
+
+  const extraCount = remaining.length - 1;
+  const doseWord = lead.remaining === 1 ? "dose" : "doses";
+  const extraSuffix =
+    extraCount > 0
+      ? `, plus ${extraCount} other protocol${extraCount === 1 ? "" : "s"}`
+      : "";
+
+  drafts.push(
+    makeDraft({
+      id: `fitness:supplement:${lead.protocol.id}:${todayKey}`,
+      category: "fitness",
+      sourceId: lead.protocol.id,
+      title: lead.taken === 0 ? `Take ${lead.protocol.name}` : `Finish ${lead.protocol.name}`,
+      description: `${lead.remaining} ${doseWord} remaining today${extraSuffix}.`,
+      suggestedActionType: "open_fitness",
+      actionTargetId: lead.protocol.id,
+      expiresAtIso: dayEnd,
+      reasonCodes: ["fitness_supplement_doses_remaining"],
+      score: {
+        categoryBase: CATEGORY_BASE.fitness_supplement_doses_remaining!,
+      },
+    })
+  );
+}
+
+/** Maps a fitness focus CTA onto the Fitness page deep-link union. */
+export function fitnessFocusFromFocusItem(
+  item: FocusItem,
+  todayKey: string
+): FitnessFocus | undefined {
+  if (!item.actionTargetId) return undefined;
+  if (item.reasonCodes.includes("fitness_supplement_doses_remaining")) {
+    return { kind: "supplement", date: todayKey, protocolId: item.actionTargetId };
+  }
+  if (
+    item.suggestedActionType === "schedule_workout" ||
+    item.reasonCodes.includes("fitness_log_from_plan") ||
+    item.reasonCodes.includes("fitness_workout_scheduled_today")
+  ) {
+    return { kind: "workout", date: todayKey, planId: item.actionTargetId };
+  }
+  return undefined;
 }
 
 function conflictTitle(conflicts: TimelineConflict[]): string {
@@ -1403,7 +1480,13 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
     ...collectEventFocusItems(input.events, input.people, input.todayKey, now),
     ...collectPeopleFocusItems(input.people, input.todayKey),
     ...collectCareerFocusItems(input.skills, input.jobApplications, input.careerTarget, input.todayKey),
-    ...collectFitnessFocusItems(input.workoutPlans, input.workoutSessions, input.todayKey),
+    ...collectFitnessFocusItems(
+      input.workoutPlans,
+      input.workoutSessions,
+      input.todayKey,
+      input.supplementProtocols ?? [],
+      input.supplementIntakeLogs ?? []
+    ),
     ...timelineDrafts,
   ];
 

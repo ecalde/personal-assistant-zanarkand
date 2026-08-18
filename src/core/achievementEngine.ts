@@ -79,6 +79,10 @@ function evaluateCondition(
       const current = context.workoutsCompletedTotal;
       return { current, target: condition.count, met: current >= condition.count };
     }
+    case "supplement_adherence_days_gte": {
+      const current = context.supplementAdherenceDaysTotal;
+      return { current, target: condition.days, met: current >= condition.days };
+    }
     case "weekly_goal_met_count": {
       const current = context.weeklyGoalsMetCount;
       return { current, target: condition.count, met: current >= condition.count };

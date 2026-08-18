@@ -21,12 +21,8 @@ import { CALENDAR_EVENT_TYPE_FILTERS } from "../../core/calendarView";
 export const CALENDAR_SETTINGS_EVENT_SUBCATEGORIES = CALENDAR_EVENT_TYPE_FILTERS;
 
 export const CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES = [
-  "push",
-  "pull",
-  "legs",
-  "cardio",
-  "mobility",
-  "full_body",
+  "workout",
+  "supplement",
 ] as const;
 
 export const CALENDAR_SETTINGS_CAREER_SUBCATEGORIES = [
@@ -59,7 +55,7 @@ export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
   {
     key: "fitness",
     label: "Fitness",
-    description: "Colors for logged workout sessions by focus (push, pull, etc.).",
+    description: "Colors for workout blocks and supplement intake.",
   },
   {
     key: "career",

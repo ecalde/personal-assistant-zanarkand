@@ -21,6 +21,7 @@ import {
   filterAndSortPlans,
   filterAndSortSessions,
   findSessionForPlanDate,
+  normalizeFitnessFocus,
   finishWorkoutSession,
   formatExerciseSummary,
   formatSessionDurationLabel,
@@ -589,5 +590,36 @@ describe("workout scheduling", () => {
     expect(summary.completedScheduledCount).toBeGreaterThanOrEqual(1);
     expect(summary.adherenceRate).not.toBeNull();
     expect(buildWorkoutWeekSummary([], "2026-05-26").count).toBe(0);
+  });
+});
+
+describe("normalizeFitnessFocus", () => {
+  it("upgrades the legacy { date, planId } shape to a workout focus", () => {
+    expect(normalizeFitnessFocus({ date: "2026-08-18", planId: PLAN_ID })).toEqual({
+      kind: "workout",
+      date: "2026-08-18",
+      planId: PLAN_ID,
+    });
+  });
+
+  it("passes through workout and supplement unions", () => {
+    expect(
+      normalizeFitnessFocus({ kind: "workout", date: "2026-08-18", planId: PLAN_ID })
+    ).toEqual({ kind: "workout", date: "2026-08-18", planId: PLAN_ID });
+    expect(
+      normalizeFitnessFocus({
+        kind: "supplement",
+        date: "2026-08-18",
+        protocolId: PLAN_ID,
+      })
+    ).toEqual({
+      kind: "supplement",
+      date: "2026-08-18",
+      protocolId: PLAN_ID,
+    });
+  });
+
+  it("returns undefined for empty input", () => {
+    expect(normalizeFitnessFocus(undefined)).toBeUndefined();
   });
 });

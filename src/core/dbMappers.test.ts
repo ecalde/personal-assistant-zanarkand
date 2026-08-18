@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, RecurrenceRule, Session, Skill, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   calendarPreferencesFromRow,
@@ -39,6 +39,12 @@ import {
   workoutPlanToRow,
   workoutSessionFromRow,
   workoutSessionToRow,
+  supplementIntakeLogFromRow,
+  supplementIntakeLogToRow,
+  supplementProtocolFromRow,
+  supplementProtocolToRow,
+  parseSupplementDoseSlots,
+  parseSupplementPhases,
 } from "./dbMappers";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -55,6 +61,10 @@ const WORKOUT_SESSION_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const EXERCISE_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const FEEDBACK_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const SERIES_ID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const SUPPLEMENT_PROTOCOL_ID = "12121212-1212-4121-8121-121212121212";
+const SUPPLEMENT_PHASE_ID = "13131313-1313-4131-8131-131313131313";
+const SUPPLEMENT_LOG_ID = "14141414-1414-4141-8141-141414141414";
+const SUPPLEMENT_DOSE_ID = "15151515-1515-4151-8151-151515151515";
 
 const NOW = "2026-05-26T12:00:00.000Z";
 const EVENT_DATE = "2026-06-15";
@@ -768,6 +778,161 @@ describe("workout mappers", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [sampleWorkoutSession({ planId: PLAN_ID })],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
+        focusFeedback: [],
+      })
+    ).toThrow(MapperError);
+  });
+});
+
+describe("supplement mappers", () => {
+  function samplePhase(overrides: Partial<SupplementPhase> = {}): SupplementPhase {
+    return {
+      id: SUPPLEMENT_PHASE_ID,
+      kind: "loading",
+      startDate: "2026-08-18",
+      endDate: "2026-08-24",
+      dosesPerDay: 4,
+      amountPerDose: 5,
+      ...overrides,
+    };
+  }
+
+  function sampleProtocol(overrides: Partial<SupplementProtocol> = {}): SupplementProtocol {
+    return {
+      id: SUPPLEMENT_PROTOCOL_ID,
+      name: "Creatine",
+      form: "powder",
+      unit: "g",
+      active: true,
+      phases: [samplePhase()],
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  function sampleLog(overrides: Partial<SupplementIntakeLog> = {}): SupplementIntakeLog {
+    return {
+      id: SUPPLEMENT_LOG_ID,
+      protocolId: SUPPLEMENT_PROTOCOL_ID,
+      date: EVENT_DATE,
+      doses: [
+        {
+          id: SUPPLEMENT_DOSE_ID,
+          slotIndex: 0,
+          amount: 5,
+          plannedTime: "08:00",
+          takenAtIso: NOW,
+        },
+      ],
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips a protocol with loading phase times and weekdays", () => {
+    const protocol = sampleProtocol({
+      notes: "With food",
+      phases: [
+        samplePhase({
+          name: "Load",
+          times: ["08:00", "12:00", "16:00", "20:00"],
+          weekdays: ["mon", "wed", "fri"],
+        }),
+        {
+          id: "16161616-1616-4161-8161-161616161616",
+          kind: "maintenance",
+          startDate: "2026-08-25",
+          dosesPerDay: 1,
+          amountPerDose: 5,
+        },
+      ],
+    });
+    const row = supplementProtocolToRow(protocol, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.unit).toBe("g");
+    expect(supplementProtocolFromRow(row)).toEqual(protocol);
+  });
+
+  it("maps optional protocol fields to null/undefined", () => {
+    const row = supplementProtocolToRow(
+      sampleProtocol({ form: undefined, notes: undefined }),
+      USER_ID
+    );
+    expect(row.form).toBeNull();
+    expect(row.notes).toBeNull();
+    expect(supplementProtocolFromRow(row).form).toBeUndefined();
+  });
+
+  it("round-trips an intake log", () => {
+    const log = sampleLog({ notes: "Felt fine" });
+    const row = supplementIntakeLogToRow(log, USER_ID);
+    expect(row.protocol_id).toBe(SUPPLEMENT_PROTOCOL_ID);
+    expect(row.intake_date).toBe(EVENT_DATE);
+    expect(supplementIntakeLogFromRow(row)).toEqual(log);
+  });
+
+  it("rejects an empty phase list", () => {
+    expect(() =>
+      supplementProtocolToRow(sampleProtocol({ phases: [] }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects dosesPerDay outside 1–6", () => {
+    expect(() => parseSupplementPhases([samplePhase({ dosesPerDay: 0 })], "phases")).toThrow(
+      MapperError
+    );
+    expect(() => parseSupplementPhases([samplePhase({ dosesPerDay: 7 })], "phases")).toThrow(
+      MapperError
+    );
+  });
+
+  it("rejects times length that does not match dosesPerDay", () => {
+    expect(() =>
+      parseSupplementPhases([samplePhase({ times: ["08:00"] })], "phases")
+    ).toThrow(MapperError);
+  });
+
+  it("rejects empty dose lists", () => {
+    expect(() => parseSupplementDoseSlots([], "doses")).toThrow(MapperError);
+  });
+
+  it("rejects an orphan protocol id on intake upload validation", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [sampleLog()],
+        focusFeedback: [],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects duplicate protocol+date intake logs", () => {
+    const protocol = sampleProtocol();
+    const log = sampleLog();
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
+        supplementProtocols: [protocol],
+        supplementIntakeLogs: [log, { ...log, id: "17171717-1717-4171-8171-171717171717" }],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -787,6 +952,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -803,6 +970,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -820,6 +989,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -836,6 +1007,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -852,6 +1025,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -869,6 +1044,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -885,6 +1062,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [sampleJobApplication()],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -901,6 +1080,8 @@ describe("validatePayloadForUpload", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
         careerTarget: sampleCareerTarget(),
       })
@@ -1073,6 +1254,8 @@ describe("calendar preferences mappers", () => {
         jobApplications: [],
         workoutPlans: [],
         workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
         focusFeedback: [],
         calendarPreferences: { categories: { skill: "bad.token" as never } },
       })

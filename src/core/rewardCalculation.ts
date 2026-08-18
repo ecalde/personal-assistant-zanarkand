@@ -121,6 +121,17 @@ export function listXpGrants(context: ProgressionContext): XpGrant[] {
     });
   }
 
+  // Full supplement days -> Body axis. Partial days and protocol CRUD grant 0.
+  for (const day of context.supplementAdherenceDays) {
+    pushGrant(grants, {
+      id: `supplement_adherence_day:${day.protocolId}:${day.dateKey}`,
+      source: "supplement_adherence_day",
+      trackId: axisTrackId("body"),
+      amount: BONUS_XP.supplementAdherenceDay,
+      dayKey: day.dateKey,
+    });
+  }
+
   // Career -> Career axis.
   for (const app of context.jobApplications) {
     pushGrant(grants, {

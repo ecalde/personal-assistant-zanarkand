@@ -12,11 +12,15 @@ import type {
   LifeEvent,
   Person,
   Skill,
+  SupplementIntakeLog,
+  SupplementPhase,
+  SupplementProtocol,
   WeeklySchedule,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
 import { combineDateTimeToIso } from "./fitness";
+import { buildDoseSlotsFromPhase } from "./supplements";
 
 function emptySchedule(): WeeklySchedule {
   return { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
@@ -94,6 +98,67 @@ function makePlan(overrides: Partial<WorkoutPlan> = {}): WorkoutPlan {
 }
 
 const FITNESS_BOTH = { includeFitnessHistory: true, includeWorkoutSchedules: true } as const;
+
+const PROTOCOL_ID = "11111111-1111-4111-8111-111111111111";
+const LOG_ID = "22222222-2222-4222-8222-222222222222";
+const PHASE_LOADING_ID = "33333333-3333-4333-8333-333333333333";
+const PHASE_MAINT_ID = "44444444-4444-4444-8444-444444444444";
+const DOSE_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const DOSE_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const DOSE_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const DOSE_D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const LOADING_START = "2026-08-18";
+const LOADING_END = "2026-08-24";
+const MAINT_START = "2026-08-25";
+const NOW = "2026-08-18T12:00:00.000Z";
+
+function loadingPhase(overrides: Partial<SupplementPhase> = {}): SupplementPhase {
+  return {
+    id: PHASE_LOADING_ID,
+    kind: "loading",
+    startDate: LOADING_START,
+    endDate: LOADING_END,
+    dosesPerDay: 4,
+    amountPerDose: 5,
+    ...overrides,
+  };
+}
+
+function maintenancePhase(overrides: Partial<SupplementPhase> = {}): SupplementPhase {
+  return {
+    id: PHASE_MAINT_ID,
+    kind: "maintenance",
+    startDate: MAINT_START,
+    dosesPerDay: 1,
+    amountPerDose: 5,
+    ...overrides,
+  };
+}
+
+function makeProtocol(overrides: Partial<SupplementProtocol> = {}): SupplementProtocol {
+  return {
+    id: PROTOCOL_ID,
+    name: "Creatine",
+    unit: "g",
+    active: true,
+    phases: [loadingPhase(), maintenancePhase()],
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
+
+function makeIntakeLog(overrides: Partial<SupplementIntakeLog> = {}): SupplementIntakeLog {
+  return {
+    id: LOG_ID,
+    protocolId: PROTOCOL_ID,
+    date: LOADING_START,
+    doses: buildDoseSlotsFromPhase(loadingPhase(), [DOSE_A, DOSE_B, DOSE_C, DOSE_D]),
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+    ...overrides,
+  };
+}
 
 describe("buildCalendarItemsForRange", () => {
   it("returns empty when start is after end", () => {
@@ -334,7 +399,7 @@ describe("buildCalendarItemsForRange", () => {
       (i) => i.sourceMeta.kind === "workoutScheduleBlock"
     );
     expect(scheduled.length).toBeGreaterThanOrEqual(1);
-    expect(scheduled[0]?.subcategoryKey).toBe("scheduled");
+    expect(scheduled[0]?.subcategoryKey).toBe("workout");
     expect(scheduled[0]?.id).toBe("fitness:plan:plan1:wb1:2026-05-25");
     expect(scheduled[0]?.completionVisual).toBe("planned");
   });
@@ -373,7 +438,8 @@ describe("buildCalendarItemsForRange", () => {
     expect(fitness.isTimed).toBe(true);
     expect(fitness.startTime).toBeDefined();
     expect(fitness.endTime).toBeDefined();
-    expect(fitness.subcategoryKey).toBe("push");
+    expect(fitness.subcategoryKey).toBe("workout");
+    expect(fitness.sourceMeta.kind === "workoutSession" && fitness.sourceMeta.focus).toBe("push");
     expect(fitness.id).toBe("fitness:session:w1");
     expect(fitness.completionVisual).toBe("completed");
   });
@@ -847,6 +913,133 @@ describe("sorting and grouping", () => {
   });
 });
 
+describe("supplement calendar items", () => {
+  const range = {
+    startDate: LOADING_START,
+    endDate: MAINT_START,
+    skills: [] as Skill[],
+    events: [] as LifeEvent[],
+    people: [] as Person[],
+  };
+
+  it("emits one all-day item per due protocol per day with workout-style progress", () => {
+    const items = buildCalendarItemsForRange({
+      ...range,
+      supplementProtocols: [makeProtocol()],
+    });
+    const supplements = items.filter((i) => i.sourceMeta.kind === "supplementIntake");
+    expect(supplements.length).toBeGreaterThan(1);
+    const first = supplements[0]!;
+    expect(first.categoryKey).toBe("fitness");
+    expect(first.subcategoryKey).toBe("supplement");
+    expect(first.allDay).toBe(true);
+    expect(first.isTimed).toBe(false);
+    expect(first.completionVisual).toBe("planned");
+    expect(first.progressLabel).toBe("0/4");
+    expect(first.id).toBe(`fitness:supplement:${PROTOCOL_ID}:${LOADING_START}`);
+    expect(first.sourceMeta.kind === "supplementIntake" && first.sourceMeta.doseSummary).toBe(
+      "5 g × 4"
+    );
+  });
+
+  it("flips from loading (4 doses) to maintenance (1 dose) after endDate", () => {
+    const items = buildCalendarItemsForRange({
+      ...range,
+      supplementProtocols: [makeProtocol()],
+    });
+    const byDate = new Map(
+      items
+        .filter((i) => i.sourceMeta.kind === "supplementIntake")
+        .map((i) => [i.date, i])
+    );
+    expect(byDate.get(LOADING_END)?.progressLabel).toBe("0/4");
+    expect(byDate.get(MAINT_START)?.progressLabel).toBe("0/1");
+    expect(byDate.get(LOADING_END)?.sourceMeta).toMatchObject({
+      kind: "supplementIntake",
+      phaseKind: "loading",
+    });
+    expect(byDate.get(MAINT_START)?.sourceMeta).toMatchObject({
+      kind: "supplementIntake",
+      phaseKind: "maintenance",
+    });
+  });
+
+  it("omits paused protocols and non-due weekdays", () => {
+    const paused = buildCalendarItemsForRange({
+      ...range,
+      supplementProtocols: [makeProtocol({ active: false })],
+    });
+    expect(paused.filter((i) => i.sourceType === "fitness")).toHaveLength(0);
+
+    const weekdayOnly = buildCalendarItemsForRange({
+      startDate: "2026-08-17",
+      endDate: "2026-08-23",
+      skills: [],
+      events: [],
+      people: [],
+      supplementProtocols: [
+        makeProtocol({
+          phases: [
+            loadingPhase({
+              startDate: "2026-08-17",
+              weekdays: ["mon"],
+              endDate: undefined,
+            }),
+          ],
+        }),
+      ],
+    });
+    const days = weekdayOnly
+      .filter((i) => i.sourceMeta.kind === "supplementIntake")
+      .map((i) => i.date);
+    expect(days).toEqual(["2026-08-17"]);
+  });
+
+  it("marks in-progress and completed from the day's intake log", () => {
+    const partial = makeIntakeLog({
+      doses: buildDoseSlotsFromPhase(loadingPhase(), [DOSE_A, DOSE_B, DOSE_C, DOSE_D]).map(
+        (slot, index) => (index < 2 ? { ...slot, takenAtIso: NOW } : slot)
+      ),
+    });
+    const inProgress = buildCalendarItemsForRange({
+      startDate: LOADING_START,
+      endDate: LOADING_START,
+      skills: [],
+      events: [],
+      people: [],
+      supplementProtocols: [makeProtocol()],
+      supplementIntakeLogs: [partial],
+    });
+    expect(inProgress[0]?.completionVisual).toBe("in_progress");
+    expect(inProgress[0]?.progressLabel).toBe("2/4");
+
+    const complete = makeIntakeLog({
+      doses: buildDoseSlotsFromPhase(loadingPhase(), [DOSE_A, DOSE_B, DOSE_C, DOSE_D]).map(
+        (slot) => ({ ...slot, takenAtIso: NOW })
+      ),
+    });
+    const done = buildCalendarItemsForRange({
+      startDate: LOADING_START,
+      endDate: LOADING_START,
+      skills: [],
+      events: [],
+      people: [],
+      supplementProtocols: [makeProtocol()],
+      supplementIntakeLogs: [complete],
+    });
+    expect(done[0]?.completionVisual).toBe("completed");
+    expect(done[0]?.progressLabel).toBe("4/4");
+  });
+
+  it("excludes supplement items when includeSupplementSchedule is false", () => {
+    const items = buildCalendarItemsForRange(
+      { ...range, supplementProtocols: [makeProtocol()] },
+      { includeSupplementSchedule: false }
+    );
+    expect(items.filter((i) => i.sourceType === "fitness")).toHaveLength(0);
+  });
+});
+
 describe("buildStableCalendarItemId", () => {
   it("produces stable ids per source type", () => {
     expect(
@@ -873,5 +1066,21 @@ describe("buildStableCalendarItemId", () => {
         "2026-05-26"
       )
     ).toBe("fitness:session:w1");
+    expect(
+      buildStableCalendarItemId(
+        {
+          kind: "supplementIntake",
+          protocolId: "p1",
+          protocolName: "Creatine",
+          phaseId: "ph1",
+          phaseKind: "loading",
+          phaseChip: "Loading · day 1/7",
+          doseSummary: "5 g × 4",
+          plannedDoses: 4,
+          takenDoses: 0,
+        },
+        "2026-08-18"
+      )
+    ).toBe("fitness:supplement:p1:2026-08-18");
   });
 });

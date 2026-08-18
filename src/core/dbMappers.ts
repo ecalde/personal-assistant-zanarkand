@@ -48,6 +48,14 @@ import type {
   WorkoutSession,
   FocusFeedback,
   FocusFeedbackAction,
+  FitnessType,
+  SupplementForm,
+  SupplementIntakeLog,
+  SupplementPhase,
+  SupplementPhaseKind,
+  SupplementProtocol,
+  SupplementUnit,
+  SupplementDoseSlot,
 } from "./model";
 
 const UUID_RE =
@@ -108,6 +116,22 @@ const WORKOUT_FOCUSES: WorkoutFocus[] = [
   "cardio",
   "mobility",
 ];
+
+const FITNESS_TYPES: FitnessType[] = ["workout", "supplement", "nutrition"];
+
+const SUPPLEMENT_FORMS: SupplementForm[] = ["powder", "capsule", "liquid", "other"];
+
+const SUPPLEMENT_UNITS: SupplementUnit[] = [
+  "g",
+  "mg",
+  "mcg",
+  "iu",
+  "scoop",
+  "capsule",
+  "drop",
+];
+
+const SUPPLEMENT_PHASE_KINDS: SupplementPhaseKind[] = ["loading", "maintenance", "custom"];
 
 const FOCUS_FEEDBACK_ACTIONS: FocusFeedbackAction[] = ["dismissed", "snoozed"];
 
@@ -232,6 +256,30 @@ export type WorkoutSessionRow = {
   duration_minutes: number | null;
   started_at: string | null;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupplementProtocolRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  form: string | null;
+  unit: string;
+  notes: string | null;
+  active: boolean;
+  phases: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupplementIntakeLogRow = {
+  id: string;
+  user_id: string;
+  protocol_id: string;
+  intake_date: string;
+  doses: unknown;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1232,6 +1280,259 @@ export function assertValidWorkoutSession(session: WorkoutSession): void {
   }
 }
 
+export function isFitnessType(value: string): value is FitnessType {
+  return FITNESS_TYPES.includes(value as FitnessType);
+}
+
+export function isSupplementForm(value: string): value is SupplementForm {
+  return SUPPLEMENT_FORMS.includes(value as SupplementForm);
+}
+
+export function isSupplementUnit(value: string): value is SupplementUnit {
+  return SUPPLEMENT_UNITS.includes(value as SupplementUnit);
+}
+
+export function isSupplementPhaseKind(value: string): value is SupplementPhaseKind {
+  return SUPPLEMENT_PHASE_KINDS.includes(value as SupplementPhaseKind);
+}
+
+function isPositiveFiniteNumber(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isWeekday(value: string): value is Weekday {
+  return WEEKDAYS.includes(value as Weekday);
+}
+
+function parseWeekdayList(value: unknown, field: string): Weekday[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  if (value.length === 0) {
+    throw new MapperError(`Invalid ${field}: must not be empty`, field);
+  }
+  const seen = new Set<Weekday>();
+  const weekdays: Weekday[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !isWeekday(item)) {
+      throw new MapperError(`Invalid ${field}: expected weekday`, field);
+    }
+    if (seen.has(item)) continue;
+    seen.add(item);
+    weekdays.push(item);
+  }
+  return weekdays;
+}
+
+function parseTimeList(value: unknown, expectedLength: number, field: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  if (value.length !== expectedLength) {
+    throw new MapperError(
+      `Invalid ${field}: length must equal dosesPerDay`,
+      field
+    );
+  }
+  const times: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !isHhMm(item)) {
+      throw new MapperError(`Invalid ${field}: expected HH:MM`, field);
+    }
+    times.push(item);
+  }
+  return times;
+}
+
+export function parseSupplementPhases(value: unknown, field: string): SupplementPhase[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  if (value.length === 0) {
+    throw new MapperError(`${field} must not be empty`, field);
+  }
+
+  const phases: SupplementPhase[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const phaseId = item.id;
+    if (typeof phaseId !== "string" || !isUuid(phaseId)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(phaseId)) {
+      throw new MapperError(`Invalid ${field}: duplicate phase id`, field);
+    }
+    seenIds.add(phaseId);
+
+    const kind = item.kind;
+    if (typeof kind !== "string" || !isSupplementPhaseKind(kind)) {
+      throw new MapperError(`Invalid ${field}: invalid kind`, field);
+    }
+
+    const startDate = item.startDate;
+    if (typeof startDate !== "string" || !isIsoDate(startDate)) {
+      throw new MapperError(`Invalid ${field}: invalid startDate`, field);
+    }
+
+    const dosesPerDay = item.dosesPerDay;
+    if (
+      typeof dosesPerDay !== "number" ||
+      !Number.isInteger(dosesPerDay) ||
+      dosesPerDay < 1 ||
+      dosesPerDay > 6
+    ) {
+      throw new MapperError(`Invalid ${field}: dosesPerDay must be 1–6`, field);
+    }
+
+    const amountPerDose = item.amountPerDose;
+    if (typeof amountPerDose !== "number" || !isPositiveFiniteNumber(amountPerDose)) {
+      throw new MapperError(`Invalid ${field}: amountPerDose must be positive`, field);
+    }
+
+    const phase: SupplementPhase = {
+      id: phaseId,
+      kind,
+      startDate,
+      dosesPerDay,
+      amountPerDose,
+    };
+
+    if (item.name !== undefined && item.name !== null) {
+      if (typeof item.name !== "string") {
+        throw new MapperError(`Invalid ${field}: name must be string`, field);
+      }
+      const trimmed = item.name.trim();
+      if (trimmed.length > 0) phase.name = trimmed;
+    }
+
+    if (item.endDate !== undefined && item.endDate !== null) {
+      if (typeof item.endDate !== "string" || !isIsoDate(item.endDate)) {
+        throw new MapperError(`Invalid ${field}: invalid endDate`, field);
+      }
+      if (item.endDate < startDate) {
+        throw new MapperError(`Invalid ${field}: endDate before startDate`, field);
+      }
+      phase.endDate = item.endDate;
+    }
+
+    if (item.times !== undefined && item.times !== null) {
+      phase.times = parseTimeList(item.times, dosesPerDay, `${field}.times`);
+    }
+
+    if (item.weekdays !== undefined && item.weekdays !== null) {
+      phase.weekdays = parseWeekdayList(item.weekdays, `${field}.weekdays`);
+    }
+
+    phases.push(phase);
+  }
+
+  return phases;
+}
+
+export function parseSupplementDoseSlots(value: unknown, field: string): SupplementDoseSlot[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  if (value.length === 0) {
+    throw new MapperError(`${field} must not be empty`, field);
+  }
+
+  const slots: SupplementDoseSlot[] = [];
+  const seenIds = new Set<string>();
+  const seenIndexes = new Set<number>();
+
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const slotId = item.id;
+    if (typeof slotId !== "string" || !isUuid(slotId)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(slotId)) {
+      throw new MapperError(`Invalid ${field}: duplicate dose id`, field);
+    }
+    seenIds.add(slotId);
+
+    const slotIndex = item.slotIndex;
+    if (typeof slotIndex !== "number" || !isNonNegativeInteger(slotIndex)) {
+      throw new MapperError(`Invalid ${field}: slotIndex must be non-negative integer`, field);
+    }
+    if (seenIndexes.has(slotIndex)) {
+      throw new MapperError(`Invalid ${field}: duplicate slotIndex`, field);
+    }
+    seenIndexes.add(slotIndex);
+
+    const amount = item.amount;
+    if (typeof amount !== "number" || !isPositiveFiniteNumber(amount)) {
+      throw new MapperError(`Invalid ${field}: amount must be positive`, field);
+    }
+
+    const slot: SupplementDoseSlot = {
+      id: slotId,
+      slotIndex,
+      amount,
+    };
+
+    if (item.plannedTime !== undefined && item.plannedTime !== null) {
+      if (typeof item.plannedTime !== "string" || !isHhMm(item.plannedTime)) {
+        throw new MapperError(`Invalid ${field}: plannedTime must be HH:MM`, field);
+      }
+      slot.plannedTime = item.plannedTime;
+    }
+
+    if (item.takenAtIso !== undefined && item.takenAtIso !== null) {
+      if (typeof item.takenAtIso !== "string" || !isIsoTimestamp(item.takenAtIso)) {
+        throw new MapperError(`Invalid ${field}: takenAtIso must be ISO timestamp`, field);
+      }
+      slot.takenAtIso = item.takenAtIso;
+    }
+
+    slots.push(slot);
+  }
+
+  return slots;
+}
+
+export function assertValidSupplementProtocol(protocol: SupplementProtocol): void {
+  assertUuid(protocol.id, "supplementProtocol.id");
+  assertNonEmptyName(protocol.name, "supplementProtocol.name");
+  assertIsoTimestamp(protocol.createdAtIso, "supplementProtocol.createdAtIso");
+  assertIsoTimestamp(protocol.updatedAtIso, "supplementProtocol.updatedAtIso");
+
+  if (typeof protocol.active !== "boolean") {
+    throw new MapperError("Invalid supplementProtocol.active", "supplementProtocol.active");
+  }
+  if (!isSupplementUnit(protocol.unit)) {
+    throw new MapperError("Invalid supplementProtocol.unit", "supplementProtocol.unit");
+  }
+  if (protocol.form !== undefined && !isSupplementForm(protocol.form)) {
+    throw new MapperError("Invalid supplementProtocol.form", "supplementProtocol.form");
+  }
+  if (protocol.notes !== undefined && typeof protocol.notes !== "string") {
+    throw new MapperError("Invalid supplementProtocol.notes", "supplementProtocol.notes");
+  }
+  parseSupplementPhases(protocol.phases, "supplementProtocol.phases");
+}
+
+export function assertValidSupplementIntakeLog(log: SupplementIntakeLog): void {
+  assertUuid(log.id, "supplementIntakeLog.id");
+  assertUuid(log.protocolId, "supplementIntakeLog.protocolId");
+  assertIsoDate(log.date, "supplementIntakeLog.date");
+  assertIsoTimestamp(log.createdAtIso, "supplementIntakeLog.createdAtIso");
+  assertIsoTimestamp(log.updatedAtIso, "supplementIntakeLog.updatedAtIso");
+  if (log.notes !== undefined && typeof log.notes !== "string") {
+    throw new MapperError("Invalid supplementIntakeLog.notes", "supplementIntakeLog.notes");
+  }
+  parseSupplementDoseSlots(log.doses, "supplementIntakeLog.doses");
+}
+
 function isFocusFeedbackAction(value: string): value is FocusFeedbackAction {
   return (FOCUS_FEEDBACK_ACTIONS as string[]).includes(value);
 }
@@ -1843,6 +2144,109 @@ export function workoutSessionFromRow(row: WorkoutSessionRow): WorkoutSession {
   return session;
 }
 
+export function supplementProtocolToRow(
+  protocol: SupplementProtocol,
+  userId: string
+): SupplementProtocolRow {
+  assertUuid(userId, "userId");
+  assertValidSupplementProtocol(protocol);
+
+  return {
+    id: protocol.id,
+    user_id: userId,
+    name: protocol.name.trim(),
+    form: protocol.form ?? null,
+    unit: protocol.unit,
+    notes: protocol.notes?.trim() || null,
+    active: protocol.active,
+    phases: parseSupplementPhases(protocol.phases, "supplementProtocol.phases"),
+    created_at: protocol.createdAtIso,
+    updated_at: protocol.updatedAtIso,
+  };
+}
+
+export function supplementProtocolFromRow(row: SupplementProtocolRow): SupplementProtocol {
+  assertUuid(row.id, "supplement_protocols.id");
+  assertUuid(row.user_id, "supplement_protocols.user_id");
+  assertNonEmptyName(row.name, "supplement_protocols.name");
+  assertIsoTimestamp(row.created_at, "supplement_protocols.created_at");
+  assertIsoTimestamp(row.updated_at, "supplement_protocols.updated_at");
+
+  if (typeof row.active !== "boolean") {
+    throw new MapperError("Invalid supplement_protocols.active", "supplement_protocols.active");
+  }
+  if (!isSupplementUnit(row.unit)) {
+    throw new MapperError("Invalid supplement_protocols.unit", "supplement_protocols.unit");
+  }
+  if (row.form !== null && !isSupplementForm(row.form)) {
+    throw new MapperError("Invalid supplement_protocols.form", "supplement_protocols.form");
+  }
+
+  const phases = parseSupplementPhases(row.phases, "supplement_protocols.phases");
+
+  const protocol: SupplementProtocol = {
+    id: row.id,
+    name: row.name.trim(),
+    unit: row.unit,
+    active: row.active,
+    phases,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.form !== null) protocol.form = row.form;
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    protocol.notes = row.notes.trim();
+  }
+
+  return protocol;
+}
+
+export function supplementIntakeLogToRow(
+  log: SupplementIntakeLog,
+  userId: string
+): SupplementIntakeLogRow {
+  assertUuid(userId, "userId");
+  assertValidSupplementIntakeLog(log);
+
+  return {
+    id: log.id,
+    user_id: userId,
+    protocol_id: log.protocolId,
+    intake_date: log.date,
+    doses: parseSupplementDoseSlots(log.doses, "supplementIntakeLog.doses"),
+    notes: log.notes?.trim() || null,
+    created_at: log.createdAtIso,
+    updated_at: log.updatedAtIso,
+  };
+}
+
+export function supplementIntakeLogFromRow(row: SupplementIntakeLogRow): SupplementIntakeLog {
+  assertUuid(row.id, "supplement_intake_logs.id");
+  assertUuid(row.user_id, "supplement_intake_logs.user_id");
+  assertUuid(row.protocol_id, "supplement_intake_logs.protocol_id");
+  assertIsoDate(row.intake_date, "supplement_intake_logs.intake_date");
+  assertIsoTimestamp(row.created_at, "supplement_intake_logs.created_at");
+  assertIsoTimestamp(row.updated_at, "supplement_intake_logs.updated_at");
+
+  const doses = parseSupplementDoseSlots(row.doses, "supplement_intake_logs.doses");
+
+  const log: SupplementIntakeLog = {
+    id: row.id,
+    protocolId: row.protocol_id,
+    date: row.intake_date,
+    doses,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    log.notes = row.notes.trim();
+  }
+
+  return log;
+}
+
 export function focusFeedbackToRow(entry: FocusFeedback, userId: string): FocusFeedbackRow {
   assertUuid(userId, "userId");
   assertValidFocusFeedback(entry);
@@ -2243,7 +2647,9 @@ export function payloadFromRows(
   workoutSessionRows: WorkoutSessionRow[] = [],
   focusFeedbackRows: FocusFeedbackRow[] = [],
   calendarPreferencesRows: CalendarPreferencesRow[] = [],
-  gamificationStateRows: GamificationStateRow[] = []
+  gamificationStateRows: GamificationStateRow[] = [],
+  supplementProtocolRows: SupplementProtocolRow[] = [],
+  supplementIntakeLogRows: SupplementIntakeLogRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -2254,6 +2660,12 @@ export function payloadFromRows(
   const workoutPlans = workoutPlanRows.map((row) => workoutPlanFromRow(row));
   const workoutSessions = workoutSessionRows.map((row) => workoutSessionFromRow(row));
   const focusFeedback = focusFeedbackRows.map((row) => focusFeedbackFromRow(row));
+  const supplementProtocols = supplementProtocolRows.map((row) =>
+    supplementProtocolFromRow(row)
+  );
+  const supplementIntakeLogs = supplementIntakeLogRows.map((row) =>
+    supplementIntakeLogFromRow(row)
+  );
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -2289,6 +2701,8 @@ export function payloadFromRows(
     careerTarget,
     workoutPlans,
     workoutSessions,
+    supplementProtocols,
+    supplementIntakeLogs,
     focusFeedback,
     calendarPreferences,
     gamificationState,
@@ -2414,6 +2828,45 @@ export function validatePayloadForUpload(payload: AppPayload): void {
         "workoutSessions.planId"
       );
     }
+  }
+
+  const protocolIds = new Set<string>();
+  for (const protocol of payload.supplementProtocols) {
+    assertValidSupplementProtocol(protocol);
+    if (protocolIds.has(protocol.id)) {
+      throw new MapperError(
+        `Duplicate supplement protocol id: ${protocol.id}`,
+        "supplementProtocols.id"
+      );
+    }
+    protocolIds.add(protocol.id);
+  }
+
+  const intakeLogIds = new Set<string>();
+  const intakeDayKeys = new Set<string>();
+  for (const log of payload.supplementIntakeLogs) {
+    assertValidSupplementIntakeLog(log);
+    if (intakeLogIds.has(log.id)) {
+      throw new MapperError(
+        `Duplicate supplement intake log id: ${log.id}`,
+        "supplementIntakeLogs.id"
+      );
+    }
+    intakeLogIds.add(log.id);
+    if (!protocolIds.has(log.protocolId)) {
+      throw new MapperError(
+        `Supplement intake log references unknown protocol: ${log.protocolId}`,
+        "supplementIntakeLogs.protocolId"
+      );
+    }
+    const dayKey = `${log.protocolId}:${log.date}`;
+    if (intakeDayKeys.has(dayKey)) {
+      throw new MapperError(
+        `Duplicate supplement intake for protocol and date: ${dayKey}`,
+        "supplementIntakeLogs.date"
+      );
+    }
+    intakeDayKeys.add(dayKey);
   }
 
   const focusFeedbackIds = new Set<string>();

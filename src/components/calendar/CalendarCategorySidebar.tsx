@@ -7,15 +7,22 @@ import {
   type CalendarCategoryKey,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
-import { CALENDAR_EVENT_TYPE_FILTER_LABELS, CALENDAR_EVENT_TYPE_FILTERS } from "../../core/calendarView";
-import type { EventType } from "../../core/model";
+import {
+  CALENDAR_EVENT_TYPE_FILTER_LABELS,
+  CALENDAR_EVENT_TYPE_FILTERS,
+  CALENDAR_FITNESS_TYPE_FILTER_LABELS,
+  CALENDAR_FITNESS_TYPE_FILTERS,
+} from "../../core/calendarView";
+import type { EventType, FitnessType } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarCategorySidebarProps = {
   hiddenCategories: ReadonlySet<CalendarCategoryKey>;
   hiddenEventSubcategories: ReadonlySet<EventType>;
+  hiddenFitnessTypes: ReadonlySet<FitnessType>;
   onToggleCategory: (category: CalendarCategoryKey) => void;
   onToggleEventSubcategory: (eventType: EventType) => void;
+  onToggleFitnessType: (fitnessType: FitnessType) => void;
   preferences?: CalendarColorPreferences;
   /** Horizontal bar above the calendar; default vertical stack for the calendar page sidebar. */
   layout?: "horizontal" | "vertical";
@@ -68,8 +75,10 @@ function FilterToggle({
 export function CalendarCategorySidebar({
   hiddenCategories,
   hiddenEventSubcategories,
+  hiddenFitnessTypes,
   onToggleCategory,
   onToggleEventSubcategory,
+  onToggleFitnessType,
   preferences,
   layout = "vertical",
 }: CalendarCategorySidebarProps) {
@@ -116,6 +125,27 @@ export function CalendarCategorySidebar({
     );
   });
 
+  const fitnessTypeToggles = CALENDAR_FITNESS_TYPE_FILTERS.map((fitnessType) => {
+    const hidden = hiddenFitnessTypes.has(fitnessType);
+    const token = resolveCalendarItemColorToken(
+      { categoryKey: "fitness", subcategoryKey: fitnessType },
+      preferences
+    );
+    const swatch = getCalendarColorSwatch(token);
+    const label = CALENDAR_FITNESS_TYPE_FILTER_LABELS[fitnessType];
+
+    return (
+      <FilterToggle
+        key={fitnessType}
+        label={label}
+        hidden={hidden}
+        swatchBackground={swatch.background}
+        onToggle={() => onToggleFitnessType(fitnessType)}
+        layout={layout}
+      />
+    );
+  });
+
   if (isHorizontal) {
     return (
       <aside
@@ -130,6 +160,10 @@ export function CalendarCategorySidebar({
           <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Event types</div>
           <div style={styles.calendarCategoryToggleRow}>{eventTypeToggles}</div>
         </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Fitness types</div>
+          <div style={styles.calendarCategoryToggleRow}>{fitnessTypeToggles}</div>
+        </div>
       </aside>
     );
   }
@@ -140,6 +174,8 @@ export function CalendarCategorySidebar({
       <div style={{ display: "grid", gap: 8 }}>{categoryToggles}</div>
       <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>Event types</div>
       <div style={{ display: "grid", gap: 8 }}>{eventTypeToggles}</div>
+      <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>Fitness types</div>
+      <div style={{ display: "grid", gap: 8 }}>{fitnessTypeToggles}</div>
     </aside>
   );
 }

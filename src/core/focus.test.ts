@@ -6,6 +6,8 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
@@ -17,6 +19,7 @@ import {
   collectSkillFocusItems,
   endOfLocalDayIso,
   filterExpiredFocusItems,
+  fitnessFocusFromFocusItem,
   formatFocusActionLabel,
   formatFocusContextLine,
   formatFocusExpirationHint,
@@ -41,6 +44,7 @@ const APP_ID = "44444444-4444-4444-8444-444444444444";
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 const SESSION_ID = "22222222-2222-4222-8222-222222222222";
 const TARGET_ID = "55555555-5555-4555-8555-555555555555";
+const PROTOCOL_ID = "77777777-7777-4777-8777-777777777777";
 
 function sampleSkill(overrides: Partial<Skill> = {}): Skill {
   return {
@@ -133,6 +137,44 @@ function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutS
     focus: "push",
     exercises: [{ id: "ex1", name: "Squat", sets: 3, reps: 5 }],
     completedAtIso: ISO,
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
+function sampleProtocol(overrides: Partial<SupplementProtocol> = {}): SupplementProtocol {
+  return {
+    id: PROTOCOL_ID,
+    name: "Creatine",
+    unit: "g",
+    active: true,
+    phases: [
+      {
+        id: "p1",
+        kind: "maintenance",
+        startDate: "2026-05-01",
+        dosesPerDay: 4,
+        amountPerDose: 5,
+      },
+    ],
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
+function sampleIntakeLog(overrides: Partial<SupplementIntakeLog> = {}): SupplementIntakeLog {
+  return {
+    id: "88888888-8888-4888-8888-888888888881",
+    protocolId: PROTOCOL_ID,
+    date: TODAY,
+    doses: [
+      { id: "d1", slotIndex: 0, amount: 5, takenAtIso: ISO },
+      { id: "d2", slotIndex: 1, amount: 5 },
+      { id: "d3", slotIndex: 2, amount: 5 },
+      { id: "d4", slotIndex: 3, amount: 5 },
+    ],
     createdAtIso: ISO,
     updatedAtIso: ISO,
     ...overrides,
@@ -622,6 +664,67 @@ describe("buildDailyFocusSummary", () => {
     const summary = buildDailyFocusSummary(emptyInput());
     expect(summary.byCategory.fitness).toEqual([]);
   });
+
+  it("signals remaining supplement doses and deep-links to the protocol", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        supplementProtocols: [sampleProtocol()],
+        supplementIntakeLogs: [sampleIntakeLog()],
+      })
+    );
+    const item = summary.items.find((entry) =>
+      entry.reasonCodes.includes("fitness_supplement_doses_remaining")
+    );
+    expect(item).toBeDefined();
+    expect(item?.title).toBe("Finish Creatine");
+    expect(item?.description).toContain("3 doses remaining");
+    expect(item?.suggestedActionType).toBe("open_fitness");
+    expect(item?.actionTargetId).toBe(PROTOCOL_ID);
+    expect(fitnessFocusFromFocusItem(item!, TODAY)).toEqual({
+      kind: "supplement",
+      date: TODAY,
+      protocolId: PROTOCOL_ID,
+    });
+  });
+
+  it("does not nag about remaining doses when none are due or all are taken", () => {
+    const complete = sampleIntakeLog({
+      doses: [
+        { id: "d1", slotIndex: 0, amount: 5, takenAtIso: ISO },
+        { id: "d2", slotIndex: 1, amount: 5, takenAtIso: ISO },
+        { id: "d3", slotIndex: 2, amount: 5, takenAtIso: ISO },
+        { id: "d4", slotIndex: 3, amount: 5, takenAtIso: ISO },
+      ],
+    });
+    const completeSummary = buildDailyFocusSummary(
+      emptyInput({
+        supplementProtocols: [sampleProtocol()],
+        supplementIntakeLogs: [complete],
+      })
+    );
+    expect(completeSummary.byCategory.fitness).toEqual([]);
+
+    const pausedSummary = buildDailyFocusSummary(
+      emptyInput({
+        supplementProtocols: [sampleProtocol({ active: false })],
+      })
+    );
+    expect(pausedSummary.byCategory.fitness).toEqual([]);
+  });
+
+  it("does not emit workout nags for supplement-only users", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        supplementProtocols: [sampleProtocol()],
+      })
+    );
+    expect(
+      summary.items.some((item) => item.reasonCodes.includes("fitness_no_workout_this_week"))
+    ).toBe(false);
+    expect(
+      summary.items.some((item) => item.reasonCodes.includes("fitness_supplement_doses_remaining"))
+    ).toBe(true);
+  });
 });
 
 describe("formatFocusContextLine", () => {
@@ -638,5 +741,46 @@ describe("formatFocusContextLine", () => {
     expect(line).toContain("45m available for skills");
     expect(line).toContain("1 workout this week");
     expect(line).toContain("1 career item");
+  });
+});
+
+describe("fitnessFocusFromFocusItem", () => {
+  it("maps a scheduled workout CTA onto a workout deep-link", () => {
+    expect(
+      fitnessFocusFromFocusItem(
+        {
+          id: "fitness:scheduled",
+          category: "fitness",
+          title: "Scheduled: Push A",
+          description: "Log your session when done.",
+          priorityScore: 480,
+          urgency: "low",
+          urgencyLabel: "Low",
+          reasonCodes: ["fitness_workout_scheduled_today"],
+          suggestedActionType: "schedule_workout",
+          actionTargetId: PLAN_ID,
+        },
+        TODAY
+      )
+    ).toEqual({ kind: "workout", date: TODAY, planId: PLAN_ID });
+  });
+
+  it("returns undefined when the fitness item has no target", () => {
+    expect(
+      fitnessFocusFromFocusItem(
+        {
+          id: "fitness:no-workout-week",
+          category: "fitness",
+          title: "No workouts logged this week",
+          description: "Log a session to stay on track.",
+          priorityScore: 420,
+          urgency: "low",
+          urgencyLabel: "Low",
+          reasonCodes: ["fitness_no_workout_this_week"],
+          suggestedActionType: "open_fitness",
+        },
+        TODAY
+      )
+    ).toBeUndefined();
   });
 });

@@ -67,6 +67,8 @@ import type {
   Person,
   Session,
   Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "../core/model";
@@ -93,6 +95,8 @@ export type DashboardPageProps = {
   careerTarget?: CareerTarget;
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
   onDismissFocusItem: (focusItemId: string, sourceSnapshot?: string) => void;
@@ -114,6 +118,7 @@ export type DashboardPageProps = {
     exerciseId: string,
     weight: number | undefined
   ) => void;
+  onUpsertSupplementIntake?: (log: SupplementIntakeLog) => void;
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;
   onAcknowledgeGlobalLevel?: (level: number) => void;
@@ -129,6 +134,8 @@ export default function DashboardPage({
   careerTarget,
   workoutPlans,
   workoutSessions,
+  supplementProtocols,
+  supplementIntakeLogs,
   focusFeedback,
   onAddSession,
   onDismissFocusItem,
@@ -145,6 +152,7 @@ export default function DashboardPage({
   onOpenCalendar,
   onToggleTodayExercise,
   onSetTodayExerciseWeight,
+  onUpsertSupplementIntake,
   calendarPreferences,
   gamificationState,
   onAcknowledgeGlobalLevel,
@@ -160,6 +168,8 @@ export default function DashboardPage({
     jobApplications,
     workoutSessions,
     workoutPlans,
+    supplementProtocols,
+    supplementIntakeLogs,
     todayKey: today,
     viewModeSurface: DASHBOARD_CALENDAR_VIEW_SURFACE,
     viewModeViewport: isDesktop ? "desktop" : "mobile",
@@ -212,6 +222,8 @@ export default function DashboardPage({
       careerTarget,
       workoutPlans,
       workoutSessions,
+      supplementProtocols,
+      supplementIntakeLogs,
       focusFeedback,
       gamificationState,
     };
@@ -225,6 +237,8 @@ export default function DashboardPage({
     careerTarget,
     workoutPlans,
     workoutSessions,
+    supplementProtocols,
+    supplementIntakeLogs,
     focusFeedback,
     gamificationState,
   ]);
@@ -272,6 +286,8 @@ export default function DashboardPage({
         careerTarget,
         workoutPlans,
         workoutSessions,
+        supplementProtocols,
+        supplementIntakeLogs,
         todayKey: today,
       }),
     [
@@ -283,6 +299,8 @@ export default function DashboardPage({
       careerTarget,
       workoutPlans,
       workoutSessions,
+      supplementProtocols,
+      supplementIntakeLogs,
       today,
     ]
   );
@@ -339,6 +357,8 @@ export default function DashboardPage({
         jobApplications,
         workoutPlans,
         workoutSessions,
+        supplementProtocols,
+        supplementIntakeLogs,
         focusSummary: dailyFocusSummary,
         unifiedTimelineDay: unifiedToday,
         workload: todayWorkload,
@@ -352,6 +372,8 @@ export default function DashboardPage({
       jobApplications,
       workoutPlans,
       workoutSessions,
+      supplementProtocols,
+      supplementIntakeLogs,
       dailyFocusSummary,
       unifiedToday,
       todayWorkload,
@@ -369,6 +391,8 @@ export default function DashboardPage({
         jobApplications,
         workoutPlans,
         workoutSessions,
+        supplementProtocols,
+        supplementIntakeLogs,
         focusFeedback,
         todayKey: today,
       }),
@@ -380,6 +404,8 @@ export default function DashboardPage({
       jobApplications,
       workoutPlans,
       workoutSessions,
+      supplementProtocols,
+      supplementIntakeLogs,
       focusFeedback,
       today,
     ]
@@ -395,6 +421,7 @@ export default function DashboardPage({
       calendarPreferences={calendarPreferences}
       onOpenCalendar={onOpenCalendar}
       onOpenCareer={onOpenCareer}
+      onOpenFitness={onOpenFitness}
     />
   );
 
@@ -412,7 +439,7 @@ export default function DashboardPage({
       onOpenEvents={onOpenEvents}
       onOpenPeople={onOpenPeople}
       onOpenCareer={onOpenCareer}
-      onOpenFitness={onOpenFitness ? () => onOpenFitness() : undefined}
+      onOpenFitness={onOpenFitness}
       onAddSession={onAddSession}
     />
   );
@@ -421,8 +448,10 @@ export default function DashboardPage({
     <CalendarCategorySidebar
       hiddenCategories={calendar.hiddenCategories}
       hiddenEventSubcategories={calendar.hiddenEventSubcategories}
+      hiddenFitnessTypes={calendar.hiddenFitnessTypes}
       onToggleCategory={calendar.toggleCategory}
       onToggleEventSubcategory={calendar.toggleEventSubcategory}
+      onToggleFitnessType={calendar.toggleFitnessType}
       preferences={calendarPreferences}
       layout="horizontal"
     />
@@ -466,10 +495,13 @@ export default function DashboardPage({
     <FitnessSummarySection
       workoutPlans={workoutPlans}
       workoutSessions={workoutSessions}
+      supplementProtocols={supplementProtocols}
+      supplementIntakeLogs={supplementIntakeLogs}
       todayKey={today}
       onOpenFitness={onOpenFitness}
       onToggleTodayExercise={onToggleTodayExercise}
       onSetTodayExerciseWeight={onSetTodayExerciseWeight}
+      onUpsertSupplementIntake={onUpsertSupplementIntake}
     />
   );
 

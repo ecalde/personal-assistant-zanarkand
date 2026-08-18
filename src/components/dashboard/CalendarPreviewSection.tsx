@@ -15,7 +15,15 @@ import {
 } from "../../core/calendarColors";
 import { formatItemTimeLabel } from "../../core/calendarView";
 import { formatLocalDateKey, iterateDateRange } from "../../core/timeline";
-import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession } from "../../core/model";
+import type {
+  LifeEvent,
+  Person,
+  Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
+  WorkoutPlan,
+  WorkoutSession,
+} from "../../core/model";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarPreviewSectionProps = {
@@ -24,6 +32,8 @@ export type CalendarPreviewSectionProps = {
   people: Person[];
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
   todayKey: string;
   calendarPreferences?: CalendarColorPreferences;
   onOpenCalendar?: () => void;
@@ -49,6 +59,8 @@ export function CalendarPreviewSection({
   people,
   workoutSessions,
   workoutPlans,
+  supplementProtocols = [],
+  supplementIntakeLogs = [],
   todayKey,
   calendarPreferences,
   onOpenCalendar,
@@ -73,11 +85,27 @@ export function CalendarPreviewSection({
         people,
         workoutSessions,
         workoutPlans,
+        supplementProtocols,
+        supplementIntakeLogs,
       },
-      { includeFitnessHistory: true, includeWorkoutSchedules: true }
+      {
+        includeFitnessHistory: true,
+        includeWorkoutSchedules: true,
+        includeSupplementSchedule: true,
+      }
     );
     return groupCalendarItemsByDate(items);
-  }, [todayKey, endKey, skills, events, people, workoutSessions, workoutPlans]);
+  }, [
+    todayKey,
+    endKey,
+    skills,
+    events,
+    people,
+    workoutSessions,
+    workoutPlans,
+    supplementProtocols,
+    supplementIntakeLogs,
+  ]);
 
   const days = iterateDateRange(todayKey, endKey);
   const hasAnyItems = days.some((dateKey) => (itemsByDate.get(dateKey) ?? []).length > 0);

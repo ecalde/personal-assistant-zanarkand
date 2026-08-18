@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CalendarItem } from "../../core/calendar";
+import type { CalendarCompletionVisual, CalendarItem } from "../../core/calendar";
 import {
   resolveCalendarItemColor,
   type CalendarColorPreferences,
@@ -13,6 +13,7 @@ import {
   INTERVIEW_FORMAT_LABELS,
   INTERVIEW_OUTCOME_LABELS,
 } from "../../core/career";
+import type { FitnessFocus } from "../../core/fitness";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarItemDetailModalProps = {
@@ -33,6 +34,7 @@ export type CalendarItemDetailModalProps = {
   ) => void;
   onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
   onOpenCareer?: () => void;
+  onOpenFitness?: (focus?: FitnessFocus) => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -49,6 +51,13 @@ function formatLongDate(dateKey: string): string {
 function scheduledOccurrenceDate(item: CalendarItem): string | undefined {
   if (item.sourceMeta.kind !== "lifeEvent") return undefined;
   return item.sourceMeta.originalDate ?? item.sourceMeta.recurrenceDate ?? item.date;
+}
+
+function completionStatusLabel(visual?: CalendarCompletionVisual): string | undefined {
+  if (visual === "completed") return "Complete";
+  if (visual === "in_progress") return "In progress";
+  if (visual === "planned") return "Planned";
+  return undefined;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -71,6 +80,7 @@ export function CalendarItemDetailModal({
   onMoveOccurrence,
   onDeleteOccurrencesFromDate,
   onOpenCareer,
+  onOpenFitness,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColor(item, preferences);
@@ -103,6 +113,10 @@ export function CalendarItemDetailModal({
       onDeleteOccurrencesFromDate);
 
   const isCareerInterview = item.sourceMeta.kind === "applicationInterview";
+  const isSupplementIntake = item.sourceMeta.kind === "supplementIntake";
+  const supplementStatus = isSupplementIntake
+    ? completionStatusLabel(item.completionVisual)
+    : undefined;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -181,7 +195,22 @@ export function CalendarItemDetailModal({
           <DetailRow label="Type" value={formatSourceTypeLabel(item)} />
           <DetailRow label="Date" value={formatLongDate(item.date)} />
           <DetailRow label="Time" value={timeLabel ?? "All day"} />
-          {item.completionVisual === "in_progress" && item.progressLabel ? (
+          {item.sourceMeta.kind === "supplementIntake" ? (
+            <>
+              <DetailRow label="Phase" value={item.sourceMeta.phaseChip} />
+              <DetailRow label="Dose" value={item.sourceMeta.doseSummary} />
+              {supplementStatus ? (
+                <DetailRow label="Status" value={supplementStatus} />
+              ) : null}
+              <DetailRow
+                label="Progress"
+                value={`${item.sourceMeta.takenDoses}/${item.sourceMeta.plannedDoses}`}
+              />
+            </>
+          ) : null}
+          {item.sourceMeta.kind !== "supplementIntake" &&
+          item.completionVisual === "in_progress" &&
+          item.progressLabel ? (
             <DetailRow label="Progress" value={item.progressLabel} />
           ) : null}
           {item.sourceMeta.kind === "applicationInterview" ? (
@@ -215,6 +244,26 @@ export function CalendarItemDetailModal({
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" style={styles.smallBtn} onClick={onOpenCareer}>
               Open in Career
+            </button>
+          </div>
+        ) : null}
+
+        {isSupplementIntake && onOpenFitness ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={styles.smallBtn}
+              onClick={() => {
+                if (item.sourceMeta.kind !== "supplementIntake") return;
+                onOpenFitness({
+                  kind: "supplement",
+                  date: item.date,
+                  protocolId: item.sourceMeta.protocolId,
+                });
+                onClose();
+              }}
+            >
+              Open in Fitness
             </button>
           </div>
         ) : null}
@@ -296,6 +345,10 @@ export function CalendarItemDetailModal({
         ) : isCareerInterview ? (
           <p style={{ ...styles.helpText, margin: 0 }}>
             Edit this interview on the Career page.
+          </p>
+        ) : item.sourceMeta.kind === "supplementIntake" ? (
+          <p style={{ ...styles.helpText, margin: 0 }}>
+            Read-only preview. Log doses on Fitness or the dashboard.
           </p>
         ) : (
           <p style={{ ...styles.helpText, margin: 0 }}>

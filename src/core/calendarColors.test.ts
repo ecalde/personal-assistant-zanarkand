@@ -33,10 +33,10 @@ describe("resolution precedence", () => {
   it("prefers subcategory preference over category", () => {
     const prefs: CalendarColorPreferences = {
       categories: { fitness: "green.base" },
-      subcategories: { "fitness:push": "orange.base" },
+      subcategories: { "fitness:workout": "orange.base" },
     };
     const token = resolveCalendarItemColorToken(
-      { categoryKey: "fitness", subcategoryKey: "push" },
+      { categoryKey: "fitness", subcategoryKey: "workout" },
       prefs
     );
     expect(token).toBe("orange.base");
@@ -49,6 +49,21 @@ describe("resolution precedence", () => {
     });
     expect(token).toBe(DEFAULT_SUBCATEGORY_COLOR_TOKENS["event:birthday"]);
     expect(token).toBe("amber.base");
+  });
+
+  it("uses the supplement subcategory default and inherits workout from fitness", () => {
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "fitness",
+        subcategoryKey: "supplement",
+      })
+    ).toBe("cyan.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "fitness",
+        subcategoryKey: "workout",
+      })
+    ).toBe(DEFAULT_CATEGORY_COLOR_TOKENS.fitness);
   });
 
   it("inherits the category color when the subcategory has no default or preference", () => {
@@ -181,9 +196,9 @@ describe("color usage labeling", () => {
 
   it("labels fitness subcategory overrides with readable names", () => {
     const prefs: CalendarColorPreferences = {
-      subcategories: { "fitness:legs": "orange.base" },
+      subcategories: { "fitness:workout": "orange.base" },
     };
-    expect(describeColorUsage("orange.base", prefs)).toBe("Legs workouts");
+    expect(describeColorUsage("orange.base", prefs)).toBe("Workouts");
   });
 
   it("labels legacy event subcategory overrides", () => {

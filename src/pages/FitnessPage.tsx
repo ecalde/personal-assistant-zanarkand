@@ -21,11 +21,16 @@ import {
   type WorkoutFocusFilter,
 } from "../core/fitness";
 import { buildExerciseProgressions } from "../core/exerciseProgression";
-import type { WorkoutPlan, WorkoutSession } from "../core/model";
+import type { SupplementIntakeLog, SupplementProtocol, WorkoutPlan, WorkoutSession } from "../core/model";
 import { formatLocalDateKey } from "../core/timeline";
 import { ExerciseProgressionChart } from "../components/fitness/ExerciseProgressionChart";
+import {
+  FitnessSectionSwitcher,
+  type FitnessSection,
+} from "../components/fitness/FitnessSectionSwitcher";
 import { FitnessToolbar } from "../components/fitness/FitnessToolbar";
 import { LiveWorkoutLogger } from "../components/fitness/LiveWorkoutLogger";
+import { SupplementTrackerSection } from "../components/fitness/SupplementTrackerSection";
 import { WorkoutPlanCard } from "../components/fitness/WorkoutPlanCard";
 import { WorkoutPlanForm } from "../components/fitness/WorkoutPlanForm";
 import { WorkoutSessionCard } from "../components/fitness/WorkoutSessionCard";
@@ -51,6 +56,8 @@ export type { FitnessFocus };
 export type FitnessPageProps = {
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   fitnessFocus?: FitnessFocus;
   onAddPlan: (input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdatePlan: (plan: WorkoutPlan) => void;
@@ -59,6 +66,12 @@ export type FitnessPageProps = {
   onUpdateSession: (session: WorkoutSession) => void;
   onUpsertSession: (session: WorkoutSession) => void;
   onDeleteSession: (sessionId: string) => void;
+  onAddProtocol: (
+    input: Omit<SupplementProtocol, "id" | "createdAtIso" | "updatedAtIso">
+  ) => void;
+  onUpdateProtocol: (protocol: SupplementProtocol) => void;
+  onDeleteProtocol: (protocolId: string) => void;
+  onUpsertIntake: (log: SupplementIntakeLog) => void;
 };
 
 type TodayRailItemProps = {
@@ -119,6 +132,8 @@ function TodayRailItem({
 export default function FitnessPage({
   workoutPlans,
   workoutSessions,
+  supplementProtocols,
+  supplementIntakeLogs,
   fitnessFocus,
   onAddPlan,
   onUpdatePlan,
@@ -127,8 +142,15 @@ export default function FitnessPage({
   onUpdateSession,
   onUpsertSession,
   onDeleteSession,
+  onAddProtocol,
+  onUpdateProtocol,
+  onDeleteProtocol,
+  onUpsertIntake,
 }: FitnessPageProps) {
   const todayKey = formatLocalDateKey(new Date());
+  const [section, setSection] = useState<FitnessSection>(() =>
+    fitnessFocus?.kind === "supplement" ? "supplements" : "workouts"
+  );
 
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -170,7 +192,9 @@ export default function FitnessPage({
     [workoutSessions, sessionQuery, sessionSortMode, sessionFocusFilter]
   );
 
-  const focusPlanId = fitnessFocus?.planId;
+  const focusPlanId = fitnessFocus?.kind === "workout" ? fitnessFocus.planId : undefined;
+  const focusProtocolId =
+    fitnessFocus?.kind === "supplement" ? fitnessFocus.protocolId : undefined;
   const todayRailPlans = useMemo(() => {
     const plans = plansForLiveLogger(workoutPlans, workoutSessions, todayKey);
     if (!focusPlanId) return plans;
@@ -187,11 +211,26 @@ export default function FitnessPage({
   );
 
   useEffect(() => {
-    if (!focusPlanId) return;
-    document.getElementById(`live-workout-${focusPlanId}`)?.scrollIntoView({
-      block: "nearest",
-    });
-  }, [focusPlanId]);
+    if (fitnessFocus?.kind === "supplement") {
+      setSection("supplements");
+    } else if (fitnessFocus?.kind === "workout") {
+      setSection("workouts");
+    }
+  }, [fitnessFocus]);
+
+  useEffect(() => {
+    if (fitnessFocus?.kind === "workout") {
+      document.getElementById(`live-workout-${fitnessFocus.planId}`)?.scrollIntoView({
+        block: "nearest",
+      });
+      return;
+    }
+    if (fitnessFocus?.kind === "supplement") {
+      document.getElementById(`today-supplement-${fitnessFocus.protocolId}`)?.scrollIntoView({
+        block: "nearest",
+      });
+    }
+  }, [fitnessFocus, section]);
 
   function resetPlanForm() {
     setPlanForm(emptyWorkoutPlanFormState());
@@ -314,13 +353,40 @@ export default function FitnessPage({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div style={styles.card}>
-        <div style={styles.cardTitle}>Fitness</div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <div style={styles.cardTitle}>Fitness</div>
+          <FitnessSectionSwitcher value={section} onChange={setSection} />
+        </div>
         <div style={{ ...styles.textSecondary }}>
-          Track workout plans and log completed sessions with sets, reps, and weight.
+          {section === "workouts"
+            ? "Track workout plans and log completed sessions with sets, reps, and weight."
+            : "Track supplement protocols and tap each dose as you take it."}
         </div>
       </div>
 
-      {todayRailPlans.length > 0 && (
+      {section === "supplements" && (
+        <SupplementTrackerSection
+          protocols={supplementProtocols}
+          logs={supplementIntakeLogs}
+          todayKey={todayKey}
+          focusProtocolId={focusProtocolId}
+          onAddProtocol={onAddProtocol}
+          onUpdateProtocol={onUpdateProtocol}
+          onDeleteProtocol={onDeleteProtocol}
+          onUpsertIntake={onUpsertIntake}
+        />
+      )}
+
+      {section === "workouts" && todayRailPlans.length > 0 && (
         <div style={styles.card}>
           <div style={styles.cardTitle}>Today</div>
           <div style={{ ...styles.textSecondary, marginBottom: 12 }}>
@@ -347,6 +413,8 @@ export default function FitnessPage({
         </div>
       )}
 
+      {section === "workouts" && (
+        <>
       <ExerciseProgressionChart exercises={exerciseProgressions} />
 
       <div style={styles.card}>
@@ -513,6 +581,8 @@ export default function FitnessPage({
           </>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

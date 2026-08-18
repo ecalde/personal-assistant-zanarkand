@@ -1,16 +1,17 @@
 import { useId, useState, type CSSProperties } from "react";
 import type {
   DailyFocusSummary,
-  FocusActionType,
   FocusItem,
   FocusPriority,
 } from "../../core/focus";
 import {
+  fitnessFocusFromFocusItem,
   formatFocusActionLabel,
   formatFocusCategory,
   formatFocusContextLine,
   formatFocusExpirationHint,
 } from "../../core/focus";
+import type { FitnessFocus } from "../../core/fitness";
 import { buildFocusSourceSnapshot, type HiddenFocusFeedbackItem } from "../../core/focusFeedback";
 import { styles } from "../../ui/appStyles";
 import { formatLocal, formatMinutes } from "../../ui/format";
@@ -29,7 +30,7 @@ export type DailyFocusSectionProps = {
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
-  onOpenFitness?: () => void;
+  onOpenFitness?: (focus?: FitnessFocus) => void;
   onAddSession?: (skillId: string, minutes: number) => void;
 };
 
@@ -43,9 +44,12 @@ const URGENCY_PILL_STYLES: Record<FocusPriority, CSSProperties> = {
 const SECONDARY_BUTTON_STYLE: CSSProperties = styles.ghostBtn;
 
 function resolveFocusActionHandler(
-  actionType: FocusActionType,
-  props: DailyFocusSectionProps
+  item: FocusItem,
+  props: DailyFocusSectionProps,
+  todayKey: string
 ): (() => void) | undefined {
+  const actionType = item.suggestedActionType;
+  if (!actionType) return undefined;
   switch (actionType) {
     case "open_skills":
       return props.onOpenSkills;
@@ -60,7 +64,9 @@ function resolveFocusActionHandler(
       return props.onOpenCareer;
     case "open_fitness":
     case "schedule_workout":
-      return props.onOpenFitness;
+      return props.onOpenFitness
+        ? () => props.onOpenFitness!(fitnessFocusFromFocusItem(item, todayKey))
+        : undefined;
     case "log_skill_minutes":
       return undefined;
   }
@@ -326,7 +332,7 @@ export function DailyFocusSection({
               nowIso={summary.generatedAtIso}
               onAction={
                 item.suggestedActionType
-                  ? resolveFocusActionHandler(item.suggestedActionType, sectionProps)
+                  ? resolveFocusActionHandler(item, sectionProps, summary.todayKey)
                   : undefined
               }
               onAddSession={onAddSession}

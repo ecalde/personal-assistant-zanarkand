@@ -284,6 +284,8 @@ describe("cleanupInvalidSkillScheduleSeries", () => {
       jobApplications: [],
       workoutPlans: [],
       workoutSessions: [],
+      supplementProtocols: [],
+      supplementIntakeLogs: [],
       focusFeedback: [],
     };
     const cleaned = cleanupInvalidSkillScheduleSeries(payload);
@@ -302,6 +304,8 @@ describe("cleanupInvalidSkillScheduleSeries", () => {
       jobApplications: [],
       workoutPlans: [],
       workoutSessions: [],
+      supplementProtocols: [],
+      supplementIntakeLogs: [],
       focusFeedback: [],
     };
     expect(cleanupInvalidSkillScheduleSeries(payload)).toBe(payload);

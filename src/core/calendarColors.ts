@@ -261,6 +261,7 @@ export const DEFAULT_CATEGORY_COLOR_TOKENS: Record<
 // Sparse: unset subcategories intentionally inherit their category color.
 export const DEFAULT_SUBCATEGORY_COLOR_TOKENS: Record<string, CalendarColorToken> = {
   "event:birthday": "amber.base",
+  "fitness:supplement": "cyan.base",
 };
 
 export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
@@ -288,12 +289,8 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "career:screening": "Screening interviews",
   "career:technical": "Technical interviews",
   "career:onsite": "Onsite interviews",
-  "fitness:push": "Push workouts",
-  "fitness:pull": "Pull workouts",
-  "fitness:legs": "Legs workouts",
-  "fitness:cardio": "Cardio",
-  "fitness:mobility": "Mobility",
-  "fitness:full_body": "Full body workouts",
+  "fitness:workout": "Workouts",
+  "fitness:supplement": "Supplements",
   "skill:scheduleBlock": "Schedule blocks",
 };
 
@@ -314,12 +311,8 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "career:screening",
   "career:technical",
   "career:onsite",
-  "fitness:push",
-  "fitness:pull",
-  "fitness:legs",
-  "fitness:cardio",
-  "fitness:mobility",
-  "fitness:full_body",
+  "fitness:workout",
+  "fitness:supplement",
   "skill:scheduleBlock",
 ];
 

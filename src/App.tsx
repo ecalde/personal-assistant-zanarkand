@@ -10,6 +10,8 @@ import type {
   Person,
   Skill,
   Session,
+  SupplementIntakeLog,
+  SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
 } from "./core/model";
@@ -67,7 +69,9 @@ import {
   dashboardSetExerciseWeight,
   dashboardToggleExercise,
   FALLBACK_EXERCISE_NAME,
+  normalizeFitnessFocus,
   type FitnessFocus,
+  type LegacyFitnessFocus,
 } from "./core/fitness";
 import { formatLocalDateKey } from "./core/timeline";
 import { formatLocal } from "./ui/format";
@@ -131,6 +135,47 @@ function persistWorkoutSession(
   }
 
   return nextSession;
+}
+
+function persistSupplementProtocol(
+  protocol: SupplementProtocol,
+  now: string,
+  createdAtIso: string
+): SupplementProtocol | null {
+  const name = protocol.name.trim();
+  if (!name || protocol.phases.length === 0) return null;
+
+  const next: SupplementProtocol = {
+    id: protocol.id || id(),
+    name,
+    unit: protocol.unit,
+    active: protocol.active,
+    phases: protocol.phases.map((phase) => ({ ...phase })),
+    createdAtIso,
+    updatedAtIso: now,
+  };
+  if (protocol.form) next.form = protocol.form;
+  if (protocol.notes?.trim()) next.notes = protocol.notes.trim();
+  return next;
+}
+
+function persistSupplementIntake(
+  log: SupplementIntakeLog,
+  now: string,
+  createdAtIso: string
+): SupplementIntakeLog | null {
+  if (!log.protocolId || !log.date || log.doses.length === 0) return null;
+
+  const next: SupplementIntakeLog = {
+    id: log.id || id(),
+    protocolId: log.protocolId,
+    date: log.date,
+    doses: log.doses.map((slot) => ({ ...slot })),
+    createdAtIso,
+    updatedAtIso: now,
+  };
+  if (log.notes?.trim()) next.notes = log.notes.trim();
+  return next;
 }
 
 function applyEventPersonFields(
@@ -1265,12 +1310,8 @@ export default function App({ userId, onSignOut }: AppProps) {
     setPage(next);
   }
 
-  function openFitness(focus?: FitnessFocus) {
-    const next =
-      focus && typeof focus.planId === "string" && typeof focus.date === "string"
-        ? { date: focus.date, planId: focus.planId }
-        : undefined;
-    setFitnessFocus(next);
+  function openFitness(focus?: FitnessFocus | LegacyFitnessFocus) {
+    setFitnessFocus(normalizeFitnessFocus(focus));
     setPage("fitness");
   }
 
@@ -1316,6 +1357,80 @@ export default function App({ userId, onSignOut }: AppProps) {
       (session) => session.id !== sessionId
     );
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
+  }
+
+  function addSupplementProtocol(
+    input: Omit<SupplementProtocol, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+    const now = new Date().toISOString();
+    const next = persistSupplementProtocol(
+      { ...input, id: id(), createdAtIso: now, updatedAtIso: now },
+      now,
+      now
+    );
+    if (!next) return;
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        supplementProtocols: [...(app.payload.supplementProtocols ?? []), next],
+      },
+    });
+  }
+
+  function updateSupplementProtocol(updated: SupplementProtocol) {
+    if (!app) return;
+    const existing = (app.payload.supplementProtocols ?? []).find(
+      (protocol) => protocol.id === updated.id
+    );
+    if (!existing) return;
+    const now = new Date().toISOString();
+    const next = persistSupplementProtocol(updated, now, existing.createdAtIso);
+    if (!next) return;
+    const supplementProtocols = (app.payload.supplementProtocols ?? []).map((protocol) =>
+      protocol.id === updated.id ? next : protocol
+    );
+    commit({ ...app, payload: { ...app.payload, supplementProtocols } });
+  }
+
+  function deleteSupplementProtocol(protocolId: string) {
+    if (!app) return;
+    const supplementProtocols = (app.payload.supplementProtocols ?? []).filter(
+      (protocol) => protocol.id !== protocolId
+    );
+    const supplementIntakeLogs = (app.payload.supplementIntakeLogs ?? []).filter(
+      (log) => log.protocolId !== protocolId
+    );
+    commit({
+      ...app,
+      payload: { ...app.payload, supplementProtocols, supplementIntakeLogs },
+    });
+  }
+
+  function upsertSupplementIntake(log: SupplementIntakeLog) {
+    if (!app) return;
+    const protocols = app.payload.supplementProtocols ?? [];
+    if (!protocols.some((protocol) => protocol.id === log.protocolId)) return;
+
+    const now = new Date().toISOString();
+    const list = app.payload.supplementIntakeLogs ?? [];
+    const existingByDay = list.find(
+      (item) => item.protocolId === log.protocolId && item.date === log.date
+    );
+    const existing = existingByDay ?? list.find((item) => item.id === log.id);
+    const nextLog = persistSupplementIntake(
+      { ...log, id: existing?.id ?? log.id },
+      now,
+      existing?.createdAtIso ?? log.createdAtIso ?? now
+    );
+    if (!nextLog) return;
+
+    const supplementIntakeLogs = existing
+      ? list.map((item) => (item.id === existing.id ? nextLog : item))
+      : [...list, nextLog];
+
+    commit({ ...app, payload: { ...app.payload, supplementIntakeLogs } });
   }
 
   function upsertFocusFeedbackEntry(entry: FocusFeedback) {
@@ -1416,6 +1531,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           careerTarget={app.payload.careerTarget}
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
+          supplementProtocols={app.payload.supplementProtocols ?? []}
+          supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           gamificationState={app.payload.gamificationState}
@@ -1437,6 +1554,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenCalendar={() => setPage("calendar")}
           onToggleTodayExercise={toggleTodayExercise}
           onSetTodayExerciseWeight={setTodayExerciseWeight}
+          onUpsertSupplementIntake={upsertSupplementIntake}
         />
       )}
 
@@ -1448,9 +1566,12 @@ export default function App({ userId, onSignOut }: AppProps) {
           jobApplications={app.payload.jobApplications ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           workoutPlans={app.payload.workoutPlans ?? []}
+          supplementProtocols={app.payload.supplementProtocols ?? []}
+          supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
           onOpenCareer={() => setPage("career")}
+          onOpenFitness={openFitness}
           onEditOccurrence={openSeriesEdit}
           onSkipOccurrence={skipEventOccurrence}
           onMoveOccurrence={moveEventOccurrence}
@@ -1472,6 +1593,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           jobApplications={app.payload.jobApplications ?? []}
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
+          supplementProtocols={app.payload.supplementProtocols ?? []}
+          supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
         />
       )}
@@ -1539,6 +1662,8 @@ export default function App({ userId, onSignOut }: AppProps) {
         <FitnessPage
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
+          supplementProtocols={app.payload.supplementProtocols ?? []}
+          supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           fitnessFocus={fitnessFocus}
           onAddPlan={addWorkoutPlan}
           onUpdatePlan={updateWorkoutPlan}
@@ -1547,6 +1672,10 @@ export default function App({ userId, onSignOut }: AppProps) {
           onUpdateSession={updateWorkoutSession}
           onUpsertSession={upsertWorkoutSession}
           onDeleteSession={deleteWorkoutSession}
+          onAddProtocol={addSupplementProtocol}
+          onUpdateProtocol={updateSupplementProtocol}
+          onDeleteProtocol={deleteSupplementProtocol}
+          onUpsertIntake={upsertSupplementIntake}
         />
       )}
 

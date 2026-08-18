@@ -62,6 +62,10 @@ export function normalizePayload(payload: unknown): AppPayload {
                 : undefined,
         workoutPlans: Array.isArray(p.workoutPlans) ? p.workoutPlans : [],
         workoutSessions: Array.isArray(p.workoutSessions) ? p.workoutSessions : [],
+        supplementProtocols: Array.isArray(p.supplementProtocols) ? p.supplementProtocols : [],
+        supplementIntakeLogs: Array.isArray(p.supplementIntakeLogs)
+            ? p.supplementIntakeLogs
+            : [],
         focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
         calendarPreferences:
             p.calendarPreferences &&

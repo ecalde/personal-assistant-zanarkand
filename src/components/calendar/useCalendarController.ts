@@ -20,15 +20,25 @@ import {
   THREE_DAY_VISIBLE_COUNT,
   type CalendarViewMode,
 } from "../../core/calendarView";
-import type { EventType } from "../../core/model";
 import {
   persistCalendarViewMode,
   readCalendarViewMode,
   type CalendarViewSurface,
   type CalendarViewViewport,
 } from "../../core/calendarViewPreferences";
+import type {
+  EventType,
+  FitnessType,
+  JobApplication,
+  LifeEvent,
+  Person,
+  Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
+  WorkoutPlan,
+  WorkoutSession,
+} from "../../core/model";
 import { THREE_DAY_SCROLL_BUFFER_DAYS } from "./calendarLayoutConstants";
-import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession, JobApplication } from "../../core/model";
 
 export type UseCalendarControllerInput = {
   skills: Skill[];
@@ -37,6 +47,8 @@ export type UseCalendarControllerInput = {
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
   jobApplications: JobApplication[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
   /** Local `YYYY-MM-DD` for "today" — drives the default anchor and Today button. */
   todayKey: string;
   initialViewMode?: CalendarViewMode;
@@ -53,6 +65,7 @@ export type CalendarController = {
   anchorKey: string;
   hiddenCategories: ReadonlySet<CalendarCategoryKey>;
   hiddenEventSubcategories: ReadonlySet<EventType>;
+  hiddenFitnessTypes: ReadonlySet<FitnessType>;
   selectedItem: CalendarItem | null;
   itemsByDate: Map<string, CalendarItem[]>;
   title: string;
@@ -65,6 +78,7 @@ export type CalendarController = {
   handleThreeDayAnchorChange: (dateKey: string) => void;
   toggleCategory: (category: CalendarCategoryKey) => void;
   toggleEventSubcategory: (eventType: EventType) => void;
+  toggleFitnessType: (fitnessType: FitnessType) => void;
 };
 
 function getViewModePersistenceContext(
@@ -88,6 +102,8 @@ export function useCalendarController({
   jobApplications,
   workoutSessions,
   workoutPlans,
+  supplementProtocols = [],
+  supplementIntakeLogs = [],
   todayKey,
   initialViewMode = "week",
   viewModeSurface,
@@ -113,6 +129,7 @@ export function useCalendarController({
   const [hiddenEventSubcategories, setHiddenEventSubcategories] = useState<Set<EventType>>(
     () => new Set()
   );
+  const [hiddenFitnessTypes, setHiddenFitnessTypes] = useState<Set<FitnessType>>(() => new Set());
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
 
   useEffect(() => {
@@ -143,10 +160,21 @@ export function useCalendarController({
         jobApplications,
         workoutSessions,
         workoutPlans,
+        supplementProtocols,
+        supplementIntakeLogs,
       },
-      { includeFitnessHistory: true, includeWorkoutSchedules: true }
+      {
+        includeFitnessHistory: true,
+        includeWorkoutSchedules: true,
+        includeSupplementSchedule: true,
+      }
     );
-    const visible = filterCalendarItems(items, hiddenCategories, hiddenEventSubcategories);
+    const visible = filterCalendarItems(
+      items,
+      hiddenCategories,
+      hiddenEventSubcategories,
+      hiddenFitnessTypes
+    );
     return groupCalendarItemsByDate(visible);
   }, [
     range,
@@ -156,8 +184,11 @@ export function useCalendarController({
     jobApplications,
     workoutSessions,
     workoutPlans,
+    supplementProtocols,
+    supplementIntakeLogs,
     hiddenCategories,
     hiddenEventSubcategories,
+    hiddenFitnessTypes,
   ]);
 
   const title = useMemo(() => {
@@ -232,11 +263,24 @@ export function useCalendarController({
     });
   }
 
+  function toggleFitnessType(fitnessType: FitnessType) {
+    setHiddenFitnessTypes((current) => {
+      const next = new Set(current);
+      if (next.has(fitnessType)) {
+        next.delete(fitnessType);
+      } else {
+        next.add(fitnessType);
+      }
+      return next;
+    });
+  }
+
   return {
     viewMode,
     anchorKey,
     hiddenCategories,
     hiddenEventSubcategories,
+    hiddenFitnessTypes,
     selectedItem,
     itemsByDate,
     title,
@@ -249,5 +293,6 @@ export function useCalendarController({
     handleThreeDayAnchorChange,
     toggleCategory,
     toggleEventSubcategory,
+    toggleFitnessType,
   };
 }

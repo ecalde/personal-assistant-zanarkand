@@ -3,7 +3,16 @@ import type {
   CalendarColorPreferences,
 } from "../core/calendarColors";
 import { formatLocalDateKey } from "../core/timeline";
-import type { LifeEvent, Person, Skill, WorkoutPlan, WorkoutSession, JobApplication } from "../core/model";
+import type {
+  JobApplication,
+  LifeEvent,
+  Person,
+  Skill,
+  SupplementIntakeLog,
+  SupplementProtocol,
+  WorkoutPlan,
+  WorkoutSession,
+} from "../core/model";
 import { CalendarCategorySidebar } from "../components/calendar/CalendarCategorySidebar";
 import { CalendarItemDetailModal } from "../components/calendar/CalendarItemDetailModal";
 import { CalendarSettingsSection } from "../components/calendar/CalendarSettingsSection";
@@ -19,6 +28,7 @@ import {
   type CalendarEventUndoPayload,
 } from "../core/calendarDrag";
 import type { EventSeriesEditScope } from "../core/eventSeries";
+import type { FitnessFocus } from "../core/fitness";
 import { styles } from "../ui/appStyles";
 import { useIsDesktopViewport } from "../ui/useMediaQuery";
 
@@ -31,6 +41,8 @@ export type CalendarPageProps = {
   jobApplications: JobApplication[];
   workoutSessions: WorkoutSession[];
   workoutPlans: WorkoutPlan[];
+  supplementProtocols: SupplementProtocol[];
+  supplementIntakeLogs: SupplementIntakeLog[];
   calendarPreferences?: CalendarColorPreferences;
   onSaveCalendarPreferences: (prefs: CalendarColorPreferences | undefined) => void;
   onEditOccurrence?: (
@@ -56,6 +68,7 @@ export type CalendarPageProps = {
   onOpenEventDraft?: (seed: CalendarEventDraftSeed) => void;
   onUndoCalendarEvent?: (payload: CalendarEventUndoPayload) => void;
   onOpenCareer?: () => void;
+  onOpenFitness?: (focus?: FitnessFocus) => void;
 };
 
 export default function CalendarPage({
@@ -65,9 +78,12 @@ export default function CalendarPage({
   jobApplications,
   workoutSessions,
   workoutPlans,
+  supplementProtocols,
+  supplementIntakeLogs,
   calendarPreferences,
   onSaveCalendarPreferences,
   onOpenCareer,
+  onOpenFitness,
   onEditOccurrence,
   onSkipOccurrence,
   onMoveOccurrence,
@@ -90,6 +106,8 @@ export default function CalendarPage({
     jobApplications,
     workoutSessions,
     workoutPlans,
+    supplementProtocols,
+    supplementIntakeLogs,
     todayKey,
     viewModeSurface: "calendarPage",
     viewModeViewport: isDesktop ? "desktop" : "mobile",
@@ -235,8 +253,10 @@ export default function CalendarPage({
           <CalendarCategorySidebar
             hiddenCategories={calendar.hiddenCategories}
             hiddenEventSubcategories={calendar.hiddenEventSubcategories}
+            hiddenFitnessTypes={calendar.hiddenFitnessTypes}
             onToggleCategory={calendar.toggleCategory}
             onToggleEventSubcategory={calendar.toggleEventSubcategory}
+            onToggleFitnessType={calendar.toggleFitnessType}
             preferences={calendarPreferences}
           />
         </div>
@@ -247,6 +267,7 @@ export default function CalendarPage({
             preferences={calendarPreferences}
             onClose={() => calendar.setSelectedItem(null)}
             onOpenCareer={onOpenCareer}
+            onOpenFitness={onOpenFitness}
             onEditEntireSeries={
               onEditOccurrence
                 ? (eventId, occurrenceDate) =>

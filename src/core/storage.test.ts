@@ -39,6 +39,8 @@ describe("normalizePayload calendar preferences", () => {
     const result = normalizePayload(legacy);
     expect(result.calendarPreferences).toBeUndefined();
     expect(result.skills).toEqual([]);
+    expect(result.supplementProtocols).toEqual([]);
+    expect(result.supplementIntakeLogs).toEqual([]);
   });
 });
 

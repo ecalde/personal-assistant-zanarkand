@@ -21,6 +21,9 @@ import type {
   Person,
   Priority,
   Skill,
+  SupplementIntakeLog,
+  SupplementPhaseKind,
+  SupplementProtocol,
   WorkoutFocus,
   WorkoutPlan,
   WorkoutSession,
@@ -43,6 +46,14 @@ import {
 } from "./fitness";
 import { addMinutesToHHMM } from "./schedule";
 import { isSkillActiveOnDate, getSkillSeriesDateRange } from "./skillSeries";
+import {
+  findIntakeForProtocolDate,
+  formatDoseSummary,
+  formatPhaseChip,
+  intakeProgress,
+  isProtocolDueOnDate,
+  resolvePhaseForDate,
+} from "./supplements";
 import { getWorkoutPlanSeriesDateRange } from "./workoutSeries";
 import { iterateDateRange, weekdayFromDateString } from "./timeline";
 import { expandRecurrenceInstances, type RecurrenceInstance } from "./recurrence";
@@ -116,6 +127,18 @@ export type CalendarItemSourceMeta =
       stage: NonNullable<ApplicationInterview["stage"]> | ApplicationStatus;
       format?: ApplicationInterview["format"];
       outcome?: ApplicationInterview["outcome"];
+    }
+  | {
+      kind: "supplementIntake";
+      protocolId: string;
+      protocolName: string;
+      logId?: string;
+      phaseId: string;
+      phaseKind: SupplementPhaseKind;
+      phaseChip: string;
+      doseSummary: string;
+      plannedDoses: number;
+      takenDoses: number;
     };
 
 export type CalendarItem = {
@@ -150,6 +173,8 @@ export type BuildCalendarItemsForRangeInput = {
   jobApplications?: JobApplication[];
   workoutSessions?: WorkoutSession[];
   workoutPlans?: WorkoutPlan[];
+  supplementProtocols?: SupplementProtocol[];
+  supplementIntakeLogs?: SupplementIntakeLog[];
 };
 
 export type BuildCalendarItemsForRangeOptions = {
@@ -159,6 +184,7 @@ export type BuildCalendarItemsForRangeOptions = {
   includeCareerInterviews?: boolean; // default true
   includeFitnessHistory?: boolean; // default false
   includeWorkoutSchedules?: boolean; // default false
+  includeSupplementSchedule?: boolean; // default true
 };
 
 // ---------------------------------------------------------------------------
@@ -184,6 +210,8 @@ export function buildStableCalendarItemId(
       return `fitness:plan:${meta.planId}:${meta.blockId}:${meta.occurrenceDate}`;
     case "applicationInterview":
       return `career:interview:${meta.applicationId}:${meta.interviewId}:${date}`;
+    case "supplementIntake":
+      return `fitness:supplement:${meta.protocolId}:${date}`;
   }
 }
 
@@ -552,7 +580,7 @@ function collectWorkoutScheduleItems(
       endTime,
       allDay: false,
       categoryKey: "fitness",
-      subcategoryKey: "scheduled",
+      subcategoryKey: "workout",
       isTimed: true,
       isMultiDay: false,
       sourceMeta: meta,
@@ -651,16 +679,78 @@ function collectFitnessItems(
       startTime,
       allDay: false,
       categoryKey: "fitness",
+      subcategoryKey: "workout",
       isTimed: true,
       isMultiDay: false,
       sourceMeta: meta,
     };
 
-    if (session.focus) item.subcategoryKey = session.focus;
     if (endTime) item.endTime = endTime;
     if (session.notes) item.description = session.notes;
 
     items.push(item);
+  }
+
+  return items;
+}
+
+function completionVisualForIntake(taken: number, planned: number): CalendarCompletionVisual {
+  if (planned > 0 && taken >= planned) return "completed";
+  if (taken > 0) return "in_progress";
+  return "planned";
+}
+
+function collectSupplementItems(
+  protocols: SupplementProtocol[],
+  logs: SupplementIntakeLog[],
+  startDate: string,
+  endDate: string
+): CalendarItem[] {
+  const items: CalendarItem[] = [];
+
+  for (const protocol of protocols) {
+    for (const dateKey of iterateDateRange(startDate, endDate)) {
+      if (!isProtocolDueOnDate(protocol, dateKey)) continue;
+      const phase = resolvePhaseForDate(protocol, dateKey);
+      if (!phase) continue;
+
+      const log = findIntakeForProtocolDate(logs, protocol.id, dateKey);
+      const progress = log
+        ? intakeProgress(log)
+        : { taken: 0, planned: phase.dosesPerDay, complete: false };
+      const completionVisual = completionVisualForIntake(progress.taken, progress.planned);
+
+      const meta: CalendarItemSourceMeta = {
+        kind: "supplementIntake",
+        protocolId: protocol.id,
+        protocolName: protocol.name,
+        phaseId: phase.id,
+        phaseKind: phase.kind,
+        phaseChip: formatPhaseChip(phase, dateKey),
+        doseSummary: formatDoseSummary(phase, protocol.unit),
+        plannedDoses: progress.planned,
+        takenDoses: progress.taken,
+        ...(log ? { logId: log.id } : {}),
+      };
+
+      const item: CalendarItem = {
+        id: buildStableCalendarItemId(meta, dateKey),
+        sourceType: "fitness",
+        sourceId: protocol.id,
+        title: protocol.name,
+        date: dateKey,
+        allDay: true,
+        categoryKey: "fitness",
+        subcategoryKey: "supplement",
+        isTimed: false,
+        isMultiDay: false,
+        sourceMeta: meta,
+        completionVisual,
+        progressLabel: `${progress.taken}/${progress.planned}`,
+      };
+      if (protocol.notes) item.description = protocol.notes;
+      items.push(item);
+    }
   }
 
   return items;
@@ -793,6 +883,7 @@ export function buildCalendarItemsForRange(
   const includeCareerInterviews = options.includeCareerInterviews ?? true;
   const includeFitnessHistory = options.includeFitnessHistory ?? false;
   const includeWorkoutSchedules = options.includeWorkoutSchedules ?? false;
+  const includeSupplementSchedule = options.includeSupplementSchedule ?? true;
 
   const dates = iterateDateRange(input.startDate, input.endDate);
   if (dates.length === 0) return [];
@@ -850,6 +941,16 @@ export function buildCalendarItemsForRange(
         sessionItems,
         input.workoutSessions ?? [],
         includeFitnessHistory
+      )
+    );
+  }
+  if (includeSupplementSchedule) {
+    items.push(
+      ...collectSupplementItems(
+        input.supplementProtocols ?? [],
+        input.supplementIntakeLogs ?? [],
+        input.startDate,
+        input.endDate
       )
     );
   }

@@ -617,10 +617,27 @@ export function createSessionDraftFromPlan(
   };
 }
 
-export type FitnessFocus = {
-  date: string;
-  planId: string;
-};
+export type FitnessFocus =
+  | { kind: "workout"; date: string; planId: string }
+  | { kind: "supplement"; date: string; protocolId: string };
+
+/** Pre-union shape still accepted at the `openFitness` call site. */
+export type LegacyFitnessFocus = { date: string; planId: string };
+
+export function normalizeFitnessFocus(
+  focus?: FitnessFocus | LegacyFitnessFocus
+): FitnessFocus | undefined {
+  if (!focus || typeof focus.date !== "string") return undefined;
+  if ("kind" in focus) {
+    if (focus.kind === "workout" && typeof focus.planId === "string") return focus;
+    if (focus.kind === "supplement" && typeof focus.protocolId === "string") return focus;
+    return undefined;
+  }
+  if (typeof focus.planId === "string") {
+    return { kind: "workout", date: focus.date, planId: focus.planId };
+  }
+  return undefined;
+}
 
 export type DashboardWorkoutExercise = {
   exerciseId: string;

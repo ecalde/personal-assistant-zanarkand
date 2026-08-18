@@ -6,7 +6,7 @@
 import type { CalendarItem } from "./calendar";
 import { calendarTimeSortTier } from "./calendar";
 import type { CalendarCategoryKey } from "./calendarColors";
-import type { EventType } from "./model";
+import type { EventType, FitnessType } from "./model";
 import { formatHHMMToDisplayTime, parseHHMMToMinutes } from "./schedule";
 import { formatLocalDateKey } from "./timeline";
 
@@ -31,6 +31,16 @@ export const CALENDAR_EVENT_TYPE_FILTER_LABELS: Record<EventType, string> = {
   vacation: "Vacation",
   work: "Work",
   other: "Other",
+};
+
+/** Fitness types exposed as calendar filter toggles. `nutrition` is omitted until it emits items. */
+export const CALENDAR_FITNESS_TYPE_FILTERS = ["workout", "supplement"] as const;
+
+export type CalendarFitnessTypeFilter = (typeof CALENDAR_FITNESS_TYPE_FILTERS)[number];
+
+export const CALENDAR_FITNESS_TYPE_FILTER_LABELS: Record<CalendarFitnessTypeFilter, string> = {
+  workout: "Workout",
+  supplement: "Supplement",
 };
 
 export type CalendarViewMode = "month" | "week" | "threeDay";
@@ -539,14 +549,31 @@ export function filterItemsByHiddenEventSubcategories(
   });
 }
 
+export function filterItemsByHiddenFitnessTypes(
+  items: CalendarItem[],
+  hidden: ReadonlySet<FitnessType>
+): CalendarItem[] {
+  if (hidden.size === 0) return items;
+  return items.filter((item) => {
+    if (item.categoryKey !== "fitness") return true;
+    const subcategory = item.subcategoryKey as FitnessType | undefined;
+    if (subcategory === undefined) return true;
+    return !hidden.has(subcategory);
+  });
+}
+
 export function filterCalendarItems(
   items: CalendarItem[],
   hiddenCategories: ReadonlySet<CalendarCategoryKey>,
-  hiddenEventSubcategories: ReadonlySet<EventType>
+  hiddenEventSubcategories: ReadonlySet<EventType>,
+  hiddenFitnessTypes: ReadonlySet<FitnessType> = new Set()
 ): CalendarItem[] {
-  return filterItemsByHiddenEventSubcategories(
-    filterItemsByHiddenCategories(items, hiddenCategories),
-    hiddenEventSubcategories
+  return filterItemsByHiddenFitnessTypes(
+    filterItemsByHiddenEventSubcategories(
+      filterItemsByHiddenCategories(items, hiddenCategories),
+      hiddenEventSubcategories
+    ),
+    hiddenFitnessTypes
   );
 }
 
@@ -669,15 +696,16 @@ export function formatSourceTypeLabel(item: CalendarItem): string {
 }
 
 function formatFitnessSourceTypeLabel(item: CalendarItem): string {
+  const kindLabel = item.sourceMeta.kind === "supplementIntake" ? "Supplement" : "Workout";
   switch (item.completionVisual) {
     case "planned":
-      return "Workout · Planned";
+      return `${kindLabel} · Planned`;
     case "in_progress":
-      return "Workout · In progress";
+      return `${kindLabel} · In progress`;
     case "completed":
-      return "Workout · Completed";
+      return `${kindLabel} · Completed`;
     default:
-      return "Workout";
+      return kindLabel;
   }
 }
 
