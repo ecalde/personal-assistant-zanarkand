@@ -19,6 +19,7 @@ export function NavButton({
       ref={buttonRef}
       type="button"
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       style={{
         ...styles.navBtn,
         ...(active ? styles.navBtnActive : {}),

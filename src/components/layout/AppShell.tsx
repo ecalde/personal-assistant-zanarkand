@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import type { Page } from "../../pages/types";
 import { styles } from "../../ui/appStyles";
-import { useIsDesktopViewport } from "../../ui/useMediaQuery";
+import { useIsDesktopViewport, useMediaQuery } from "../../ui/useMediaQuery";
 import { NavButton } from "./NavButton";
+import { NavEmblem } from "./NavEmblem";
 
 export type AppShellProps = {
   lastSavedLabel: string;
@@ -39,7 +39,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const isDesktop = useIsDesktopViewport();
-  const activeNavRef = useRef<HTMLButtonElement>(null);
+  const isWideMobile = useMediaQuery("(min-width: 640px)");
 
   const navItems: { id: Page; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
@@ -52,15 +52,6 @@ export function AppShell({
     { id: "review", label: "Review" },
     { id: "settings", label: "Settings" },
   ];
-
-  useEffect(() => {
-    if (isDesktop || !activeNavRef.current) return;
-    activeNavRef.current.scrollIntoView({
-      inline: "center",
-      block: "nearest",
-      behavior: "smooth",
-    });
-  }, [page, isDesktop]);
 
   return (
     <div style={{ ...styles.shell, ...(isDesktop ? {} : styles.shellMobile) }}>
@@ -119,21 +110,44 @@ export function AppShell({
       )}
 
       <nav
-        style={isDesktop ? styles.nav : styles.navMobile}
+        style={
+          isDesktop
+            ? styles.nav
+            : {
+                ...styles.navMobile,
+                ...(isWideMobile ? styles.navMobileWide : {}),
+              }
+        }
         aria-label="Main navigation"
         className={isDesktop ? undefined : "pa-nav-mobile"}
       >
-        {navItems.map(({ id, label }) => (
-          <NavButton
-            key={id}
-            active={page === id}
-            onClick={() => onPageChange(id)}
-            style={isDesktop ? undefined : styles.navBtnMobile}
-            buttonRef={page === id ? activeNavRef : undefined}
-          >
-            {label}
-          </NavButton>
-        ))}
+        {navItems.map(({ id, label }) => {
+          const active = page === id;
+          return (
+            <NavButton
+              key={id}
+              active={active}
+              onClick={() => onPageChange(id)}
+              style={
+                isDesktop
+                  ? undefined
+                  : {
+                      ...styles.navBtnMobile,
+                      ...(active ? styles.navBtnMobileActive : {}),
+                    }
+              }
+            >
+              {isDesktop ? (
+                label
+              ) : (
+                <>
+                  <NavEmblem page={id} active={active} />
+                  <span style={styles.navEmblemLabel}>{label}</span>
+                </>
+              )}
+            </NavButton>
+          );
+        })}
       </nav>
 
       <main style={isDesktop ? styles.main : styles.mainMobile}>{children}</main>

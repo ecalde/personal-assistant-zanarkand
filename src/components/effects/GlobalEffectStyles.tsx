@@ -72,7 +72,7 @@ button {
   :root[data-aether-borders="on"] .aether-animated-border { animation: none !important; }
 }
 
-/* Mobile main nav: hide scrollbar while keeping touch scroll (WebKit). */
+/* Mobile main nav: emblem grid — no horizontal scrollbar leftover. */
 .pa-nav-mobile::-webkit-scrollbar {
   display: none;
 }
