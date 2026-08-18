@@ -22,7 +22,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   { id: "notifications", label: "Notifications", glyph: "notifications", available: false },
   { id: "calendar", label: "Calendar", glyph: "calendar", available: false },
   { id: "skills", label: "Skills", glyph: "skills", available: false },
-  { id: "data", label: "Data & Backup", glyph: "data", available: false },
+  { id: "data", label: "Data & Backup", glyph: "data", available: true },
   { id: "privacy", label: "Privacy", glyph: "privacy", available: false },
   { id: "advanced", label: "Advanced", glyph: "advanced", available: false },
 ] as const;

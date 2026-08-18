@@ -115,7 +115,6 @@ export default function App({ userId, onSignOut }: AppProps) {
   const [seriesEditIntent, setSeriesEditIntent] = useState<EventSeriesEditIntent | null>(null);
   const [seriesEditKey, setSeriesEditKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const syncReadyRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -207,20 +206,6 @@ export default function App({ userId, onSignOut }: AppProps) {
     scheduleRemotePersist(saved.payload);
   }
 
-  async function onSaveNow() {
-    if (!app || !syncReadyRef.current) return;
-
-    setError(null);
-    const saved = saveAppData(app, userId);
-    setApp(saved);
-    setSyncError(null);
-    clearDebounce();
-
-    if (isRemoteSyncEnabled()) {
-      await persistRemote(saved.payload);
-    }
-  }
-
   function onExport() {
     if (!app) return;
 
@@ -230,20 +215,15 @@ export default function App({ userId, onSignOut }: AppProps) {
     exportBackup(saved);
   }
 
-  async function onPickImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onImportFile(file: File) {
     if (!syncReadyRef.current) return;
 
     setError(null);
-    const f = e.target.files?.[0];
-    if (!f) return;
-
     try {
-      const imported = await importBackup(f);
+      const imported = await importBackup(file);
       commit(imported);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed.");
-    } finally {
-      e.target.value = "";
     }
   }
 
@@ -1311,12 +1291,6 @@ export default function App({ userId, onSignOut }: AppProps) {
       <AppShell
       lastSavedLabel={lastSavedLabel}
       syncPending={syncPending}
-      onSignOut={onSignOut}
-      onSaveNow={onSaveNow}
-      onExport={onExport}
-      onImportClick={() => fileRef.current?.click()}
-      fileInputRef={fileRef}
-      onPickImportFile={onPickImportFile}
       error={error}
       syncError={syncError}
       onRetryCloudSave={onRetryCloudSave}
@@ -1463,7 +1437,16 @@ export default function App({ userId, onSignOut }: AppProps) {
         />
       )}
 
-      {page === "settings" && <SettingsPage appearance={appearance} />}
+      {page === "settings" && (
+        <SettingsPage
+          appearance={appearance}
+          lastSavedLabel={lastSavedLabel}
+          syncPending={syncPending}
+          onExport={onExport}
+          onImportFile={onImportFile}
+          onSignOut={onSignOut}
+        />
+      )}
       </AppShell>
     </>
   );

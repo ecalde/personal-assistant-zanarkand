@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import type { Page } from "../../pages/types";
 import { styles } from "../../ui/appStyles";
 import { useIsDesktopViewport, useMediaQuery } from "../../ui/useMediaQuery";
@@ -8,12 +8,6 @@ import { NavEmblem } from "./NavEmblem";
 export type AppShellProps = {
   lastSavedLabel: string;
   syncPending: boolean;
-  onSignOut?: () => void;
-  onSaveNow: () => void;
-  onExport: () => void;
-  onImportClick: () => void;
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  onPickImportFile: (e: ChangeEvent<HTMLInputElement>) => void;
   error: string | null;
   syncError: string | null;
   onRetryCloudSave: () => void;
@@ -25,12 +19,6 @@ export type AppShellProps = {
 export function AppShell({
   lastSavedLabel,
   syncPending,
-  onSignOut,
-  onSaveNow,
-  onExport,
-  onImportClick,
-  fileInputRef,
-  onPickImportFile,
   error,
   syncError,
   onRetryCloudSave,
@@ -67,30 +55,6 @@ export function AppShell({
               </>
             )}
           </div>
-        </div>
-
-        <div style={styles.actions}>
-          {onSignOut && (
-            <button type="button" style={styles.actionBtn} onClick={onSignOut}>
-              Sign out
-            </button>
-          )}
-          <button type="button" style={styles.actionBtn} onClick={onSaveNow}>
-            Save Now
-          </button>
-          <button type="button" style={styles.actionBtn} onClick={onExport}>
-            Export Backup
-          </button>
-          <button type="button" style={styles.actionBtn} onClick={onImportClick}>
-            Import Backup
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: "none" }}
-            onChange={onPickImportFile}
-          />
         </div>
       </header>
 

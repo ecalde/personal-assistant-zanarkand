@@ -15,6 +15,7 @@ import { InterfaceEffectsToggles } from "../components/settings/InterfaceEffects
 import { EffectPerformanceControl } from "../components/settings/EffectPerformanceControl";
 import { ReducedMotionControl } from "../components/settings/ReducedMotionControl";
 import { FutureSystemsSection } from "../components/settings/FutureSystemsSection";
+import { DataBackupSection } from "../components/settings/DataBackupSection";
 import { ANIMATED_BORDER_CLASS } from "../components/effects/effectsConfig";
 import {
   DEFAULT_EFFECT_PERFORMANCE,
@@ -23,9 +24,21 @@ import {
 
 export type SettingsPageProps = {
   appearance: AppearanceThemeController;
+  lastSavedLabel: string;
+  syncPending: boolean;
+  onExport: () => void;
+  onImportFile: (file: File) => void;
+  onSignOut?: () => void;
 };
 
-export default function SettingsPage({ appearance }: SettingsPageProps) {
+export default function SettingsPage({
+  appearance,
+  lastSavedLabel,
+  syncPending,
+  onExport,
+  onImportFile,
+  onSignOut,
+}: SettingsPageProps) {
   const {
     preferences,
     tokens,
@@ -56,7 +69,11 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
       <div style={s.content}>
         <header style={s.header}>
           <h1 style={s.title}>Settings</h1>
-          <p style={s.subtitle}>Customize your personal assistant experience.</p>
+          <p style={s.subtitle}>
+            {activeCategory === "data"
+              ? "Back up your data and manage your session."
+              : "Customize your personal assistant experience."}
+          </p>
         </header>
 
         <div style={isDesktop ? s.layoutDesktop : s.layoutMobile}>
@@ -67,6 +84,16 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
           />
 
           <div style={s.main}>
+            {activeCategory === "data" ? (
+              <DataBackupSection
+                lastSavedLabel={lastSavedLabel}
+                syncPending={syncPending}
+                onExport={onExport}
+                onImportFile={onImportFile}
+                onSignOut={onSignOut}
+              />
+            ) : (
+              <>
             <section style={s.panel} aria-labelledby="mode-heading">
               <div style={s.panelHeader}>
                 <h2 id="mode-heading" style={s.panelTitle}>
@@ -193,6 +220,8 @@ export default function SettingsPage({ appearance }: SettingsPageProps) {
               </div>
               <FutureSystemsSection />
             </section>
+              </>
+            )}
           </div>
         </div>
       </div>
