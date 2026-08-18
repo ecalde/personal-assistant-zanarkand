@@ -11,6 +11,8 @@ export type SkillScheduleFieldsProps = {
   disabled?: boolean;
   /** Defaults to "Schedule Availability". */
   legend?: string;
+  /** When true, Date Range may omit end date (open-ended from start). */
+  endDateOptional?: boolean;
 };
 
 export function SkillScheduleFields({
@@ -22,6 +24,7 @@ export function SkillScheduleFields({
   error,
   disabled = false,
   legend = "Schedule Availability",
+  endDateOptional = false,
 }: SkillScheduleFieldsProps) {
   const modes: { value: SkillScheduleUiMode; label: string }[] = [
     { value: "indefinite", label: "Indefinite" },
@@ -62,7 +65,7 @@ export function SkillScheduleFields({
             />
           </label>
           <label style={styles.label}>
-            End Date
+            {endDateOptional ? "End Date (optional)" : "End Date"}
             <input
               type="date"
               value={state.endDate}
@@ -72,6 +75,12 @@ export function SkillScheduleFields({
               style={styles.input}
             />
           </label>
+        </div>
+      )}
+
+      {state.mode === "date_range" && endDateOptional && (
+        <div style={{ ...styles.helpText, marginTop: 8 }}>
+          Leave end date blank to keep this plan scheduled from the start date onward.
         </div>
       )}
 

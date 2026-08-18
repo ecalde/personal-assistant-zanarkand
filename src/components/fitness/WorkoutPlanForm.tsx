@@ -77,11 +77,7 @@ export function WorkoutPlanForm({
 
         <WorkoutPlanScheduleSection
           schedule={form.schedule}
-          scheduleSeries={
-            form.scheduleAvailability.mode === "indefinite"
-              ? undefined
-              : workoutScheduleSeriesFromForm(form.scheduleAvailability)
-          }
+          scheduleSeries={workoutScheduleSeriesFromForm(form.scheduleAvailability)}
           radioGroupName={editing ? "workout-plan-schedule-edit" : "workout-plan-schedule-create"}
           onScheduleChange={(schedule) => onChange({ ...form, schedule })}
           onScheduleSeriesChange={(series) =>

@@ -74,6 +74,13 @@ describe("formatWorkoutScheduleSeriesLabel", () => {
     });
     expect(formatWorkoutScheduleSeriesLabel(plan)).toMatch(/Scheduled.*Jun.*2026.*Aug.*2026/);
   });
+
+  it("labels open-ended start as scheduled from", () => {
+    const plan = makePlan({
+      scheduleSeries: { mode: "indefinite", startDate: "2026-06-01" },
+    });
+    expect(formatWorkoutScheduleSeriesLabel(plan)).toMatch(/Scheduled from.*Jun.*2026/);
+  });
 });
 
 describe("cleanupInvalidWorkoutScheduleSeries", () => {

@@ -29,74 +29,83 @@ export function WorkoutSessionForm({
         {editing ? "Edit workout session" : "Log workout session"}
       </div>
       <div style={{ display: "grid", gap: 12 }}>
-        <label style={styles.label}>
-          Workout date
-          <input
-            type="date"
-            value={form.date}
-            onChange={(e) => onChange({ ...form, date: e.target.value })}
-            style={styles.input}
-          />
-        </label>
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            alignItems: "end",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          }}
+        >
+          <label style={{ ...styles.label, minWidth: 0 }}>
+            Workout date
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => onChange({ ...form, date: e.target.value })}
+              style={styles.inputCompact}
+            />
+          </label>
 
-        <label style={styles.label}>
-          Start time (optional)
-          <input
-            type="time"
-            value={form.startTime}
-            onChange={(e) => onChange({ ...form, startTime: e.target.value })}
-            style={styles.input}
-          />
-        </label>
+          <label style={{ ...styles.label, minWidth: 0 }}>
+            Start time
+            <input
+              type="time"
+              value={form.startTime}
+              onChange={(e) => onChange({ ...form, startTime: e.target.value })}
+              style={styles.inputCompact}
+            />
+          </label>
 
-        <label style={styles.label}>
-          Focus (optional)
-          <select
-            value={form.focus}
-            onChange={(e) =>
-              onChange({
-                ...form,
-                focus: e.target.value as WorkoutSessionFormState["focus"],
-              })
-            }
-            style={styles.input}
-          >
-            <option value="">None</option>
-            {getWorkoutFocusValues().map((focus) => (
-              <option key={focus} value={focus}>
-                {WORKOUT_FOCUS_LABELS[focus]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {plans.length > 0 && (
-          <label style={styles.label}>
-            From plan (optional)
+          <label style={{ ...styles.label, minWidth: 0 }}>
+            Focus
             <select
-              value={form.planId}
-              onChange={(e) => onChange({ ...form, planId: e.target.value })}
-              style={styles.input}
+              value={form.focus}
+              onChange={(e) =>
+                onChange({
+                  ...form,
+                  focus: e.target.value as WorkoutSessionFormState["focus"],
+                })
+              }
+              style={styles.inputCompact}
             >
-              <option value="">Manual entry</option>
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name}
+              <option value="">None</option>
+              {getWorkoutFocusValues().map((focus) => (
+                <option key={focus} value={focus}>
+                  {WORKOUT_FOCUS_LABELS[focus]}
                 </option>
               ))}
             </select>
           </label>
-        )}
 
-        <label style={styles.label}>
-          Duration in minutes (optional)
-          <input
-            value={form.durationMinutes}
-            onChange={(e) => onChange({ ...form, durationMinutes: e.target.value })}
-            placeholder="45"
-            style={styles.input}
-          />
-        </label>
+          {plans.length > 0 && (
+            <label style={{ ...styles.label, minWidth: 0 }}>
+              From plan
+              <select
+                value={form.planId}
+                onChange={(e) => onChange({ ...form, planId: e.target.value })}
+                style={styles.inputCompact}
+              >
+                <option value="">Manual entry</option>
+                {plans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label style={{ ...styles.label, minWidth: 0 }}>
+            Duration (min)
+            <input
+              value={form.durationMinutes}
+              onChange={(e) => onChange({ ...form, durationMinutes: e.target.value })}
+              placeholder="45"
+              style={styles.inputCompact}
+            />
+          </label>
+        </div>
 
         <label style={styles.label}>
           Notes (optional)
@@ -104,7 +113,7 @@ export function WorkoutSessionForm({
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             rows={3}
-            style={styles.input}
+            style={{ ...styles.input, minWidth: 0, width: "100%", boxSizing: "border-box" }}
           />
         </label>
 

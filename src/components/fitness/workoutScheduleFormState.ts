@@ -39,6 +39,16 @@ export function workoutScheduleFormFromSeries(
         singleDate: normalized.singleDate!,
       };
     case "indefinite":
+      // Open-ended range: Date Range with a start and no end.
+      if (normalized.startDate !== undefined) {
+        return {
+          mode: "date_range",
+          startDate: normalized.startDate,
+          endDate: "",
+          singleDate: "",
+        };
+      }
+      return emptyWorkoutScheduleFormState();
     default:
       return emptyWorkoutScheduleFormState();
   }
@@ -53,7 +63,15 @@ export function validateWorkoutScheduleForm(form: WorkoutScheduleFormState): str
     const startDate = form.startDate.trim();
     const endDate = form.endDate.trim();
     if (!startDate) return "Start date is required.";
-    if (!endDate) return "End date is required.";
+
+    if (!endDate) {
+      const openEnded = normalizeWorkoutScheduleSeries({
+        mode: "indefinite",
+        startDate,
+      });
+      if (openEnded === undefined) return "Enter a valid start date (YYYY-MM-DD).";
+      return null;
+    }
 
     const normalized = normalizeWorkoutScheduleSeries({
       mode: "date_range",
@@ -83,10 +101,18 @@ export function workoutScheduleSeriesFromForm(
   }
 
   if (form.mode === "date_range") {
+    const startDate = form.startDate.trim();
+    const endDate = form.endDate.trim();
+    if (!endDate) {
+      return normalizeWorkoutScheduleSeries({
+        mode: "indefinite",
+        startDate,
+      });
+    }
     return normalizeWorkoutScheduleSeries({
       mode: "date_range",
-      startDate: form.startDate.trim(),
-      endDate: form.endDate.trim(),
+      startDate,
+      endDate,
     });
   }
 

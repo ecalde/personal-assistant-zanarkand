@@ -116,6 +116,7 @@ export function WorkoutPlanScheduleSection({
         error={seriesError}
         disabled={disabled}
         legend="When this plan is scheduled"
+        endDateOptional
       />
 
       <div>
