@@ -82,6 +82,7 @@ describe("rewardCalculation", () => {
       id: "w1",
       date: "2026-05-26",
       exercises: [],
+      completedAtIso: NOW.toISOString(),
       createdAtIso: NOW.toISOString(),
       updatedAtIso: NOW.toISOString(),
     };

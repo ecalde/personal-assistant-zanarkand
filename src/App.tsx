@@ -63,6 +63,13 @@ import type {
 } from "./core/calendarDrag";
 import type { Page } from "./pages/types";
 import { fullViewportCenter } from "./ui/appStyles";
+import {
+  dashboardSetExerciseWeight,
+  dashboardToggleExercise,
+  FALLBACK_EXERCISE_NAME,
+  type FitnessFocus,
+} from "./core/fitness";
+import { formatLocalDateKey } from "./core/timeline";
 import { formatLocal } from "./ui/format";
 import { useAppearanceTheme } from "./ui/useAppearanceTheme";
 import { GlobalEffectStyles } from "./components/effects/GlobalEffectStyles";
@@ -72,6 +79,58 @@ const REMOTE_DEBOUNCE_MS = 400;
 
 function id() {
   return crypto.randomUUID();
+}
+
+function persistWorkoutSession(
+  session: WorkoutSession,
+  now: string,
+  createdAtIso: string
+): WorkoutSession | null {
+  if (!session.date || session.exercises.length === 0) return null;
+
+  const nextSession: WorkoutSession = {
+    ...session,
+    id: session.id || id(),
+    exercises: session.exercises.map((entry) => ({
+      ...entry,
+      name: entry.name.trim() || FALLBACK_EXERCISE_NAME,
+    })),
+    createdAtIso,
+    updatedAtIso: now,
+  };
+
+  if (session.focus) {
+    nextSession.focus = session.focus;
+  } else {
+    delete nextSession.focus;
+  }
+  if (session.planId) {
+    nextSession.planId = session.planId;
+  } else {
+    delete nextSession.planId;
+  }
+  if (session.notes?.trim()) {
+    nextSession.notes = session.notes.trim();
+  } else {
+    delete nextSession.notes;
+  }
+  if (session.durationMinutes !== undefined) {
+    nextSession.durationMinutes = session.durationMinutes;
+  } else {
+    delete nextSession.durationMinutes;
+  }
+  if (session.startedAtIso) {
+    nextSession.startedAtIso = session.startedAtIso;
+  } else {
+    delete nextSession.startedAtIso;
+  }
+  if (session.completedAtIso) {
+    nextSession.completedAtIso = session.completedAtIso;
+  } else {
+    delete nextSession.completedAtIso;
+  }
+
+  return nextSession;
 }
 
 function applyEventPersonFields(
@@ -110,6 +169,7 @@ export default function App({ userId, onSignOut }: AppProps) {
 
   const appearance = useAppearanceTheme();
   const [page, setPage] = useState<Page>("dashboard");
+  const [fitnessFocus, setFitnessFocus] = useState<FitnessFocus | undefined>();
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
   const [eventDraftKey, setEventDraftKey] = useState(0);
   const [seriesEditIntent, setSeriesEditIntent] = useState<EventSeriesEditIntent | null>(null);
@@ -1134,7 +1194,6 @@ export default function App({ userId, onSignOut }: AppProps) {
       id: id(),
       date: input.date,
       exercises: input.exercises.map((entry) => ({ ...entry })),
-      completedAtIso: now,
       createdAtIso: now,
       updatedAtIso: now,
     };
@@ -1145,6 +1204,10 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (input.durationMinutes !== undefined) {
       newSession.durationMinutes = input.durationMinutes;
     }
+    // Honor caller intent: retro "Log session" passes completedAtIso; live
+    // logging omits it so the session stays in progress until finished.
+    if (input.startedAtIso) newSession.startedAtIso = input.startedAtIso;
+    if (input.completedAtIso) newSession.completedAtIso = input.completedAtIso;
 
     commit({
       ...app,
@@ -1158,46 +1221,92 @@ export default function App({ userId, onSignOut }: AppProps) {
   function updateWorkoutSession(updated: WorkoutSession) {
     if (!app) return;
 
-    if (!updated.date || updated.exercises.length === 0) return;
+    const existing = (app.payload.workoutSessions ?? []).find(
+      (session) => session.id === updated.id
+    );
+    if (!existing) return;
 
-    const now = new Date().toISOString();
-    const nextSession: WorkoutSession = {
-      ...updated,
-      exercises: updated.exercises.map((entry) => ({ ...entry })),
-      updatedAtIso: now,
-    };
-
-    if (updated.focus) {
-      nextSession.focus = updated.focus;
-    } else {
-      delete nextSession.focus;
-    }
-    if (updated.planId) {
-      nextSession.planId = updated.planId;
-    } else {
-      delete nextSession.planId;
-    }
-    if (updated.notes?.trim()) {
-      nextSession.notes = updated.notes.trim();
-    } else {
-      delete nextSession.notes;
-    }
-    if (updated.durationMinutes !== undefined) {
-      nextSession.durationMinutes = updated.durationMinutes;
-    } else {
-      delete nextSession.durationMinutes;
-    }
-    if (updated.completedAtIso) {
-      nextSession.completedAtIso = updated.completedAtIso;
-    } else {
-      delete nextSession.completedAtIso;
-    }
+    const nextSession = persistWorkoutSession(
+      updated,
+      new Date().toISOString(),
+      existing.createdAtIso
+    );
+    if (!nextSession) return;
 
     const workoutSessions = (app.payload.workoutSessions ?? []).map((session) =>
       session.id === updated.id ? nextSession : session
     );
 
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
+  }
+
+  function upsertWorkoutSession(session: WorkoutSession) {
+    if (!app) return;
+
+    const now = new Date().toISOString();
+    const list = app.payload.workoutSessions ?? [];
+    const existing = list.find((item) => item.id === session.id);
+    const nextSession = persistWorkoutSession(
+      session,
+      now,
+      existing?.createdAtIso ?? session.createdAtIso ?? now
+    );
+    if (!nextSession) return;
+
+    const workoutSessions = existing
+      ? list.map((item) => (item.id === session.id ? nextSession : item))
+      : [...list, nextSession];
+
+    commit({ ...app, payload: { ...app.payload, workoutSessions } });
+  }
+
+  function goToPage(next: Page) {
+    setFitnessFocus(undefined);
+    setPage(next);
+  }
+
+  function openFitness(focus?: FitnessFocus) {
+    const next =
+      focus && typeof focus.planId === "string" && typeof focus.date === "string"
+        ? { date: focus.date, planId: focus.planId }
+        : undefined;
+    setFitnessFocus(next);
+    setPage("fitness");
+  }
+
+  function toggleTodayExercise(planId: string, exerciseId: string) {
+    if (!app) return;
+    const plan = (app.payload.workoutPlans ?? []).find((item) => item.id === planId);
+    if (!plan) return;
+    const next = dashboardToggleExercise(
+      plan,
+      app.payload.workoutSessions ?? [],
+      exerciseId,
+      formatLocalDateKey(new Date()),
+      nowIso(),
+      id()
+    );
+    if (next) upsertWorkoutSession(next);
+  }
+
+  function setTodayExerciseWeight(
+    planId: string,
+    exerciseId: string,
+    weight: number | undefined
+  ) {
+    if (!app) return;
+    const plan = (app.payload.workoutPlans ?? []).find((item) => item.id === planId);
+    if (!plan) return;
+    const next = dashboardSetExerciseWeight(
+      plan,
+      app.payload.workoutSessions ?? [],
+      exerciseId,
+      weight,
+      formatLocalDateKey(new Date()),
+      nowIso(),
+      id()
+    );
+    if (next) upsertWorkoutSession(next);
   }
 
   function deleteWorkoutSession(sessionId: string) {
@@ -1295,7 +1404,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       syncError={syncError}
       onRetryCloudSave={onRetryCloudSave}
       page={page}
-      onPageChange={setPage}
+      onPageChange={goToPage}
     >
       {page === "dashboard" && (
         <DashboardPage
@@ -1323,9 +1432,11 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenEvents={() => setPage("events")}
           onOpenPeople={() => setPage("people")}
           onOpenCareer={() => setPage("career")}
-          onOpenFitness={() => setPage("fitness")}
+          onOpenFitness={openFitness}
           onOpenReview={() => setPage("review")}
           onOpenCalendar={() => setPage("calendar")}
+          onToggleTodayExercise={toggleTodayExercise}
+          onSetTodayExerciseWeight={setTodayExerciseWeight}
         />
       )}
 
@@ -1428,11 +1539,13 @@ export default function App({ userId, onSignOut }: AppProps) {
         <FitnessPage
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
+          fitnessFocus={fitnessFocus}
           onAddPlan={addWorkoutPlan}
           onUpdatePlan={updateWorkoutPlan}
           onDeletePlan={deleteWorkoutPlan}
           onAddSession={addWorkoutSession}
           onUpdateSession={updateWorkoutSession}
+          onUpsertSession={upsertWorkoutSession}
           onDeleteSession={deleteWorkoutSession}
         />
       )}

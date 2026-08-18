@@ -1,12 +1,16 @@
 import type { ExerciseEntry, WorkoutFocus, WorkoutSession } from "../../core/model";
-import { getWorkoutFocusValues } from "../../core/fitness";
+import { combineDateTimeToIso, getWorkoutFocusValues, resolveSessionStartHHMM } from "../../core/fitness";
 import {
   emptyExerciseEntryFormRow,
+  exerciseFormFromEntry,
   type ExerciseEntryFormRow,
 } from "./workoutPlanFormState";
 
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export type WorkoutSessionFormState = {
   date: string;
+  startTime: string;
   focus: WorkoutFocus | "";
   planId: string;
   durationMinutes: string;
@@ -17,6 +21,7 @@ export type WorkoutSessionFormState = {
 export function emptyWorkoutSessionFormState(dateKey: string): WorkoutSessionFormState {
   return {
     date: dateKey,
+    startTime: "",
     focus: "",
     planId: "",
     durationMinutes: "",
@@ -25,20 +30,10 @@ export function emptyWorkoutSessionFormState(dateKey: string): WorkoutSessionFor
   };
 }
 
-function exerciseFormFromEntry(entry: ExerciseEntry): ExerciseEntryFormRow {
-  return {
-    id: entry.id,
-    name: entry.name,
-    sets: entry.sets !== undefined ? String(entry.sets) : "",
-    reps: entry.reps !== undefined ? String(entry.reps) : "",
-    weight: entry.weight !== undefined ? String(entry.weight) : "",
-    notes: entry.notes ?? "",
-  };
-}
-
 export function workoutSessionFormFromSession(session: WorkoutSession): WorkoutSessionFormState {
   return {
     date: session.date,
+    startTime: resolveSessionStartHHMM(session) ?? "",
     focus: session.focus ?? "",
     planId: session.planId ?? "",
     durationMinutes:
@@ -87,6 +82,8 @@ function buildExerciseEntry(row: ExerciseEntryFormRow): ExerciseEntry | string {
   if (reps !== undefined) entry.reps = reps;
   if (weight !== undefined) entry.weight = weight;
   if (row.notes.trim()) entry.notes = row.notes.trim();
+  if (row.completedAtIso !== undefined) entry.completedAtIso = row.completedAtIso;
+  if (row.sourceExerciseId !== undefined) entry.sourceExerciseId = row.sourceExerciseId;
   return entry;
 }
 
@@ -98,6 +95,10 @@ export function validateWorkoutSessionForm(form: WorkoutSessionFormState): strin
 
   if (form.focus && !getWorkoutFocusValues().includes(form.focus)) {
     return "Invalid workout focus.";
+  }
+
+  if (form.startTime.trim() && !HHMM_RE.test(form.startTime.trim())) {
+    return "Start time must be HH:MM.";
   }
 
   const durationMinutes = parsePositiveIntField(form.durationMinutes, "Duration");
@@ -137,6 +138,10 @@ export function workoutSessionPayloadFromForm(
     if (typeof durationMinutes === "number") {
       payload.durationMinutes = durationMinutes;
     }
+  }
+  if (form.startTime.trim()) {
+    const startedAtIso = combineDateTimeToIso(form.date.trim(), form.startTime.trim());
+    if (startedAtIso) payload.startedAtIso = startedAtIso;
   }
 
   return payload;

@@ -73,14 +73,14 @@ src/
     EventsPage.tsx      # Life events CRUD
     PeoplePage.tsx      # Friends/contacts CRUD
     CareerPage.tsx      # Job applications + dream job target CRUD
-    FitnessPage.tsx     # Workout plans + completed session CRUD
+    FitnessPage.tsx     # Workout plans, live logger, session history, weight-progression chart
   components/
     layout/             # AppShell, NavButton
     calendar/           # Calendar views (month/week), toolbar, sidebar, pills/blocks, detail modal
     dashboard/          # Dashboard sections and shared widgets
     people/             # People page cards, toolbar, form
     career/             # Career page forms, cards, skill picker
-    fitness/            # Fitness page forms, cards, exercise editor
+    fitness/            # Fitness page forms, cards, live logger, progression chart
     skills/             # SkillEditor, GoalInput
     settings/           # Settings UI — sidebar, Aether profile cards, preview, intensity, effects, styles
   ui/                   # Shared styles, theme hook, display helpers
@@ -142,7 +142,7 @@ src/
 - Persistence and backup ([`storage.ts`](../src/core/storage.ts))
 - Remote sync policy ([`remoteStorage.ts`](../src/core/remoteStorage.ts), [`syncErrors.ts`](../src/core/syncErrors.ts))
 - Row ↔ payload mappers ([`dbMappers.ts`](../src/core/dbMappers.ts))
-- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), unified calendar ([`calendar.ts`](../src/core/calendar.ts)), daily focus ([`focus.ts`](../src/core/focus.ts)), daily briefing ([`briefing.ts`](../src/core/briefing.ts)), weekly review ([`review.ts`](../src/core/review.ts))
+- Pure helpers: schedule math ([`schedule.ts`](../src/core/schedule.ts)), events ([`events.ts`](../src/core/events.ts)), people ([`people.ts`](../src/core/people.ts)), career ([`career.ts`](../src/core/career.ts)), fitness ([`fitness.ts`](../src/core/fitness.ts)), exercise progression ([`exerciseProgression.ts`](../src/core/exerciseProgression.ts)), unified timeline ([`timeline.ts`](../src/core/timeline.ts)), unified calendar ([`calendar.ts`](../src/core/calendar.ts)), daily focus ([`focus.ts`](../src/core/focus.ts)), daily briefing ([`briefing.ts`](../src/core/briefing.ts)), weekly review ([`review.ts`](../src/core/review.ts))
 - Dashboard stats ([`dashboardStats.ts`](../src/core/dashboardStats.ts)): `buildSkillDayRows`, `buildTimelineItems`, `totalMinutesToday`, week helpers, progress targets — tested in [`dashboardStats.test.ts`](../src/core/dashboardStats.test.ts)
 - Daily focus ([`focus.ts`](../src/core/focus.ts)): `buildDailyFocusSummary` aggregates skills, events, people, career, fitness, and timeline signals into ranked read-only `FocusItem` recommendations — tested in [`focus.test.ts`](../src/core/focus.test.ts). **Not persisted**; recomputed on each dashboard render. Recommendations only (no mutations, notifications, or auto-rescheduling).
   - **`FocusActionType`** — derived action hints (`log_skill_minutes`, `apply_to_job`, `resolve_conflict`, etc.) mapped in [`DailyFocusSection`](../src/components/dashboard/DailyFocusSection.tsx) to existing page navigation handlers.
@@ -245,13 +245,13 @@ src/
 
 ### Dashboard (`DashboardPage` + `components/dashboard`)
 
-[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, `focusFeedback`, `calendarPreferences`, `gamificationState`, focus feedback callbacks, page-navigation callbacks, the `onAcknowledgeGlobalLevel` / `onDismissAchievement` gamification callbacks, and `onAddSession` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`progressionSnapshot.ts`](../src/core/progressionSnapshot.ts), [`focus.ts`](../src/core/focus.ts), [`focusFeedback.ts`](../src/core/focusFeedback.ts), [`briefing.ts`](../src/core/briefing.ts), [`review.ts`](../src/core/review.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts). The Phase 35 gamification panel reuses the calendar/domain inputs already passed; only the `gamificationState` prop and the two ack callbacks were added.
+[`DashboardPage`](../src/pages/DashboardPage.tsx) receives `skills`, `sessions`, `events`, `people`, `jobApplications`, `careerTarget`, `workoutPlans`, `workoutSessions`, `focusFeedback`, `calendarPreferences`, `gamificationState`, focus feedback callbacks, page-navigation callbacks, the `onAcknowledgeGlobalLevel` / `onDismissAchievement` gamification callbacks, `onAddSession`, and Phase 45 `onToggleTodayExercise` / `onSetTodayExerciseWeight` from `App`, runs pure calculations in [`dashboardStats.ts`](../src/core/dashboardStats.ts), [`progression.ts`](../src/core/progression.ts), [`progressionSnapshot.ts`](../src/core/progressionSnapshot.ts), [`focus.ts`](../src/core/focus.ts), [`focusFeedback.ts`](../src/core/focusFeedback.ts), [`briefing.ts`](../src/core/briefing.ts), [`review.ts`](../src/core/review.ts), [`events.ts`](../src/core/events.ts), [`people.ts`](../src/core/people.ts), [`career.ts`](../src/core/career.ts), and [`fitness.ts`](../src/core/fitness.ts). The Phase 35 gamification panel reuses the calendar/domain inputs already passed; only the `gamificationState` prop and the two ack callbacks were added. `onOpenFitness` may pass an optional `{ date, planId }` focus so the Fitness today rail is ready.
 
 **Calendar-centerpiece layout** (Phase 32): the dashboard is a motivation-ordered, desktop-first **three-column** layout that falls back to a stacked single column on narrow viewports (switched by [`useIsDesktopViewport`](../src/ui/useMediaQuery.ts), ≥1024px; inline styles cannot express media queries). `ProgressionHero` (XP/level/streak) stays at the top, full-width, **unchanged** pending a dedicated gamification phase.
 
 - **Left rail (do-now):** `DailyFocusSection` → calendar **category filters** (`CalendarCategorySidebar`, session-only show/hide) → `DashboardQuickActions` (deep-link nav buttons).
 - **Center:** `TodayHero` strip → **`DashboardCalendarWidget`** — the read-only month/week calendar centerpiece. It reuses [`useCalendarController`](../src/components/calendar/useCalendarController.ts) (shared with `CalendarPage`), `CalendarToolbar` (month/week toggle + Today + prev/next), `MonthView`/`WeekView`, and `CalendarItemDetailModal`. The week view's current-time line is fed by [`useNowMinutes`](../src/ui/useNowMinutes.ts) (a 60s tick **scoped to the widget** so the dashboard's heavier `useMemo`s do not recompute each minute). View mode persists per-browser via the controller's `viewModePersistenceKey` (`localStorage`, not synced). Colors come from `calendarPreferences` (read-only here; editing stays on `CalendarPage`).
-- **Right rail (briefing/context):** `DailyBriefingSection` → `UpcomingEventsSection` → `WeeklyReviewSection` → `CareerActionsSection` → `FitnessSummarySection` → `PeopleRemindersSection` (the domain alerts auto-hide when empty).
+- **Right rail (briefing/context):** `DailyBriefingSection` → `UpcomingEventsSection` → `WeeklyReviewSection` → `CareerActionsSection` → `FitnessSummarySection` (week summary, last workout, and today’s scheduled plan exercises with Complete + weight; **Open in Fitness** deep-links via `fitnessFocus`) → `PeopleRemindersSection` (the domain alerts auto-hide when empty).
 - **Details band (full-width, below):** `UnifiedTimelineSection`, the **deprecated** `CalendarPreviewSection` (next-7-days quick scan, kept for now, planned for later removal), then per-skill detail (`OverdueBehindSection`, `SkillProgressSection`, `WeeklyPreviewSection`) or the empty-skills hint.
 
 Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProgressRow`, `TimelineRow`, `UnifiedTimelineRow`, `ProgressionHero`, `DashboardCalendarWidget`, `DashboardQuickActions`. Display formatting uses [`ui/format.ts`](../src/ui/format.ts) (`formatMinutes`, `formatLevel`, `formatXp`, `priorityEmoji`); layout tokens (`dashboardLayout`, `dashboardLeftRail`, `dashboardCenter`, `dashboardRightRail`, `dashboardStack`, `dashboardDetails`, `dashboardCalendarCard`) live in [`ui/appStyles.ts`](../src/ui/appStyles.ts).
@@ -275,16 +275,17 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 ### Fitness domain
 
 - **`WorkoutPlan`** records store a reusable template: name, optional focus (`push`, `pull`, `legs`, `full_body`, `cardio`, `mobility`), notes, embedded **`ExerciseEntry[]`**, optional **`WeeklySchedule`** (weekday blocks — empty = template-only, not schedulable), optional **`scheduleSeries`** (same bounds shape as skills: indefinite omission, `date_range`, `single_day`), and optional **`seriesId`** for future split flows.
-- **`WorkoutSession`** records store a completed workout: date (`YYYY-MM-DD`), optional focus, optional `planId` link, optional `durationMinutes` (positive integer), optional `completedAtIso` (set automatically when logging a new session), notes, and embedded exercise entries (copied from a plan or entered manually).
+- **`WorkoutSession`** records store a dated log: date (`YYYY-MM-DD`), optional focus, optional `planId` link, optional `durationMinutes` (positive integer), optional `startedAtIso` (calendar start), optional `completedAtIso` (**present = finished**; omitted = in progress), notes, and embedded exercise entries (copied from a plan or entered manually). Session exercise rows may include `completedAtIso` / `sourceExerciseId` for live logging; plan saves strip those fields.
 - Exercises are embedded in plans/sessions as jsonb arrays (no separate exercise catalog table in v1).
-- Pure helpers in [`fitness.ts`](../src/core/fitness.ts): focus labels, search/sort, week summary (including optional duration totals), plan→session copy (`createSessionDraftFromPlan`), occurrence expansion/completion matchers, recent exercise name collection for form autocomplete.
+- Pure helpers in [`fitness.ts`](../src/core/fitness.ts): focus labels, search/sort, week summary (including optional duration totals), plan→session copy (`createSessionDraftFromPlan` / `createLiveSessionFromPlan`), live-session toggles, dashboard loggers (`buildDashboardWorkoutLoggers`, `dashboardToggleExercise`, `dashboardSetExerciseWeight`), occurrence expansion/completion matchers, recent exercise name collection (`collectRecentExerciseNames`) for the progression catalog (completed sessions first, plans as known-name fallback).
+- Weight progression ([`exerciseProgression.ts`](../src/core/exerciseProgression.ts)): groups completed session entries by normalized name; per exercise `{ date, weight }[]`, first/last logged, completion count, PR, and weekly frequency. SVG geometry helpers (`buildWeightChartLayout`, `buildFrequencyChartLayout`) keep the Fitness chart presentational. Phase 39 Analytics can reuse these aggregators later.
 - Workout schedule series ([`workoutSeries.ts`](../src/core/workoutSeries.ts)): delegates bounds validation to [`skillSeries.ts`](../src/core/skillSeries.ts); `cleanupInvalidWorkoutScheduleSeries` on load via [`sanitizeFitnessReferences`](../src/core/sessions.ts). Labels on Fitness plan cards use `formatWorkoutScheduleSeriesLabel`.
-- **Completion rule (v1):** a scheduled occurrence is satisfied when a session has matching `planId` and `date` (calendar day only; no time tolerance). Multiple sessions same day: first match completes the slot.
-- **Persistence:** `workout_plans.schedule` / `schedule_series` / `series_id` (migration `20260529100000_workout_plan_schedule.sql`); parsed in [`dbMappers.ts`](../src/core/dbMappers.ts).
-- **UI:** [`WorkoutPlanForm`](../src/components/fitness/WorkoutPlanForm.tsx) + [`WorkoutPlanScheduleSection`](../src/components/fitness/WorkoutPlanScheduleSection.tsx) edit weekly blocks and schedule bounds (indefinite persists as omitted `scheduleSeries`).
-- **Consumers:** calendar (`includeWorkoutSchedules`), daily focus (`fitness_workout_scheduled_today` / missed yesterday), briefing focus paragraph, weekly review adherence metrics, dashboard fitness summary “Scheduled today”.
+- **Completion rule:** a scheduled occurrence is satisfied when a **finished** session (`completedAtIso` present) has matching `planId` and `date`. In-progress taps do not complete the slot, grant XP, or finish quests.
+- **Persistence:** `workout_plans.schedule` / `schedule_series` / `series_id` (migration `20260529100000_workout_plan_schedule.sql`); `workout_sessions.started_at` (migration `20260630000000_workout_session_started_at.sql`); parsed in [`dbMappers.ts`](../src/core/dbMappers.ts).
+- **UI:** [`WorkoutPlanForm`](../src/components/fitness/WorkoutPlanForm.tsx) + [`WorkoutPlanScheduleSection`](../src/components/fitness/WorkoutPlanScheduleSection.tsx) edit weekly blocks and schedule bounds (indefinite persists as omitted `scheduleSeries`). [`LiveWorkoutLogger`](../src/components/fitness/LiveWorkoutLogger.tsx) is the Fitness today rail; [`ExerciseProgressionChart`](../src/components/fitness/ExerciseProgressionChart.tsx) sits below it (weight line / weekly frequency bars / stats; custom SVG, `--aether-*` tokens, static under `prefers-reduced-motion`). [`FitnessSummarySection`](../src/components/dashboard/FitnessSummarySection.tsx) offers the same Complete + weight path without opening Fitness. First mutation upserts an in-progress session via `upsertWorkoutSession`; **Finish** / **Mark all complete** on Fitness stamps `completedAtIso`.
+- **Consumers:** calendar (one merged fitness block per plan occurrence: planned / in progress / completed), daily focus (`fitness_workout_scheduled_today` / missed yesterday), briefing focus paragraph, weekly review adherence metrics, dashboard fitness summary (scheduled today + quick-complete).
 - Deleting a plan clears `planId` on linked sessions in the same `commit` (mirrors person unlink on events).
-- Future phases (not implemented): calorie tracker, supplement tracker, biweekly/monthly `RecurrenceRule` on plans, series exception UI, PR analytics.
+- Future phases (not implemented): calorie tracker, supplement tracker, biweekly/monthly `RecurrenceRule` on plans, series exception UI.
 
 ### Aether Theme System
 
@@ -425,7 +426,7 @@ The production build currently emits a single main JS chunk (~590 KB minified; V
 Likely future code-split points (not implemented yet):
 
 - [`CareerPage`](../src/pages/CareerPage.tsx) — forms, cards, skill picker
-- [`FitnessPage`](../src/pages/FitnessPage.tsx) — workout editor and session history
+- [`FitnessPage`](../src/pages/FitnessPage.tsx) — workout editor, session history, and weight-progression chart
 - [`PeoplePage`](../src/pages/PeoplePage.tsx) — contact cards and follow-up tooling
 - [`EventsPage`](../src/pages/EventsPage.tsx) — life events CRUD
 - Dashboard heavy derived widgets — focus/briefing engines are pure and cheap; page-level lazy loading of domain screens is the higher-yield split
@@ -440,5 +441,5 @@ No Vite config or `React.lazy` changes in the current phase; revisit when adding
 
 ## Testing
 
-- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`, `skillSeries.test.ts`, `theme.test.ts`)
+- Unit tests live next to core modules (e.g. `dbMappers.test.ts`, `career.test.ts`, `fitness.test.ts`, `exerciseProgression.test.ts`, `focus.test.ts`, `briefing.test.ts`, `review.test.ts`, `dashboardStats.test.ts`, `progression.test.ts`, `recurrence.test.ts`, `skillSeries.test.ts`, `theme.test.ts`)
 - Run `npm test`, `npm run lint`, and `npm run build` before merging structural changes

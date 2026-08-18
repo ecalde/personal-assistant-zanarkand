@@ -23,6 +23,7 @@ import {
   filterCalendarItems,
   formatHourLabel,
   formatItemTimeLabel,
+  formatSourceTypeLabel,
   formatThreeDayRangeTitle,
   laneGeometry,
   limitDayItems,
@@ -464,5 +465,37 @@ describe("integration with calendar foundation", () => {
     expect(skillColor.token).toBe("indigo.base"); // default category color for skills
     const eventColor = resolveCalendarItemColor(day[0]);
     expect(eventColor.token).toBe("red.base"); // default category color for events
+  });
+});
+
+describe("formatSourceTypeLabel", () => {
+  it("labels fitness items with planned, in progress, or completed", () => {
+    const base = makeEventItem({ id: "w1" });
+    const fitnessBase: CalendarItem = {
+      ...base,
+      id: "fitness:plan:plan1:wb1:2026-05-25",
+      sourceType: "fitness",
+      sourceId: "wb1",
+      title: "Push A",
+      categoryKey: "fitness",
+      sourceMeta: {
+        kind: "workoutScheduleBlock",
+        planId: "plan1",
+        blockId: "wb1",
+        planName: "Push A",
+        plannedMinutes: 45,
+        occurrenceDate: "2026-05-25",
+      },
+    };
+    expect(formatSourceTypeLabel(fitnessBase)).toBe("Workout");
+    expect(formatSourceTypeLabel({ ...fitnessBase, completionVisual: "planned" })).toBe(
+      "Workout · Planned"
+    );
+    expect(formatSourceTypeLabel({ ...fitnessBase, completionVisual: "in_progress" })).toBe(
+      "Workout · In progress"
+    );
+    expect(formatSourceTypeLabel({ ...fitnessBase, completionVisual: "completed" })).toBe(
+      "Workout · Completed"
+    );
   });
 });

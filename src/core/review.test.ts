@@ -117,6 +117,7 @@ function sampleWorkout(overrides: Partial<WorkoutSession> = {}): WorkoutSession 
     focus: "push",
     durationMinutes: 45,
     exercises: [],
+    completedAtIso: ISO,
     createdAtIso: ISO,
     updatedAtIso: ISO,
     ...overrides,

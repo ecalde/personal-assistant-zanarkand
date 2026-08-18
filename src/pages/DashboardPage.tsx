@@ -25,6 +25,7 @@ import {
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
 } from "../core/people";
+import type { FitnessFocus } from "../core/fitness";
 import {
   buildUnifiedTimelineRange,
   computeDailyWorkloadForDay,
@@ -104,9 +105,15 @@ export type DashboardPageProps = {
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
-  onOpenFitness?: () => void;
+  onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenReview?: () => void;
   onOpenCalendar?: () => void;
+  onToggleTodayExercise?: (planId: string, exerciseId: string) => void;
+  onSetTodayExerciseWeight?: (
+    planId: string,
+    exerciseId: string,
+    weight: number | undefined
+  ) => void;
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;
   onAcknowledgeGlobalLevel?: (level: number) => void;
@@ -136,6 +143,8 @@ export default function DashboardPage({
   onOpenFitness,
   onOpenReview,
   onOpenCalendar,
+  onToggleTodayExercise,
+  onSetTodayExerciseWeight,
   calendarPreferences,
   gamificationState,
   onAcknowledgeGlobalLevel,
@@ -403,7 +412,7 @@ export default function DashboardPage({
       onOpenEvents={onOpenEvents}
       onOpenPeople={onOpenPeople}
       onOpenCareer={onOpenCareer}
-      onOpenFitness={onOpenFitness}
+      onOpenFitness={onOpenFitness ? () => onOpenFitness() : undefined}
       onAddSession={onAddSession}
     />
   );
@@ -425,7 +434,7 @@ export default function DashboardPage({
       onOpenEvents={onOpenEvents}
       onOpenPeople={onOpenPeople}
       onOpenCareer={onOpenCareer}
-      onOpenFitness={onOpenFitness}
+      onOpenFitness={onOpenFitness ? () => onOpenFitness() : undefined}
       onOpenReview={onOpenReview}
       onOpenCalendar={onOpenCalendar}
     />
@@ -459,6 +468,8 @@ export default function DashboardPage({
       workoutSessions={workoutSessions}
       todayKey={today}
       onOpenFitness={onOpenFitness}
+      onToggleTodayExercise={onToggleTodayExercise}
+      onSetTodayExerciseWeight={onSetTodayExerciseWeight}
     />
   );
 

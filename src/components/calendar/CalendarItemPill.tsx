@@ -3,8 +3,13 @@ import {
   resolveCalendarItemColor,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
-import { formatItemTimeLabel } from "../../core/calendarView";
+import { formatCalendarItemButtonLabel, formatItemTimeLabel } from "../../core/calendarView";
 import { styles } from "../../ui/appStyles";
+import {
+  completionVisualMark,
+  completionVisualOpacity,
+  completionVisualStyle,
+} from "./calendarCompletionVisual";
 import type { CalendarPillDragBindings } from "./useCalendarMonthItemDrag";
 
 export type CalendarItemPillProps = {
@@ -19,6 +24,10 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
   const color = resolveCalendarItemColor(item, preferences);
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
+  const isDimmed = drag?.isDimmed ?? false;
+  const completionStyle = completionVisualStyle(item.completionVisual);
+  const mark = completionVisualMark(item);
+  const label = drag?.title ?? formatCalendarItemButtonLabel(item);
 
   return (
     <button
@@ -26,19 +35,25 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
       onClick={() => onSelect(item)}
       onClickCapture={drag?.onClickCapture}
       onPointerDown={drag?.onPointerDown}
-      title={drag?.title ?? item.title}
+      title={label}
+      aria-label={label}
       aria-grabbed={drag?.isDragging ? true : undefined}
       style={{
         ...styles.calendarPill,
+        ...completionStyle,
         background: color.background,
         color: color.foreground,
         borderColor: color.border,
         cursor: draggable ? "grab" : undefined,
-        opacity: drag?.isDimmed ? 0.45 : 1,
+        opacity: completionVisualOpacity(item.completionVisual, isDimmed),
       }}
     >
       {timeLabel ? <span>{timeLabel} </span> : null}
+      {mark ? <span aria-hidden="true" style={styles.calendarCompletionMark}>{mark}</span> : null}
       {item.title}
+      {item.progressLabel ? (
+        <span style={styles.calendarCompletionProgress}>{item.progressLabel}</span>
+      ) : null}
     </button>
   );
 }

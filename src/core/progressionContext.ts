@@ -24,7 +24,11 @@ import {
 import { startOfWeekLocal } from "./dashboardStats";
 import { formatLocalDateKey, weekdayFromDateString } from "./timeline";
 import { isWorkoutPlanActiveOnDate } from "./workoutSeries";
-import { isPlanSchedulable, resolveWorkoutPlanSchedule } from "./fitness";
+import {
+  isPlanSchedulable,
+  isWorkoutSessionComplete,
+  resolveWorkoutPlanSchedule,
+} from "./fitness";
 import type { ProgressionAxis } from "./progressionModel";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -155,7 +159,9 @@ export function buildProgressionContext(
 ): ProgressionContext {
   const skills = payload.skills ?? [];
   const sessions = payload.sessions ?? [];
-  const workoutSessions = payload.workoutSessions ?? [];
+  // Only completed sessions earn XP / progress quests; in-progress live
+  // sessions (no completedAtIso) are excluded from all progression signals.
+  const workoutSessions = (payload.workoutSessions ?? []).filter(isWorkoutSessionComplete);
   const workoutPlans = payload.workoutPlans ?? [];
   const jobApplications = payload.jobApplications ?? [];
   const people = payload.people ?? [];

@@ -6,12 +6,18 @@ import {
 } from "../../core/calendarColors";
 import {
   computeTimedItemLayout,
+  formatCalendarItemButtonLabel,
   formatItemTimeLabel,
   type TimedItemLayout,
 } from "../../core/calendarView";
 import type { CalendarItemDragBindings } from "./useCalendarItemDrag";
 import type { CalendarItemResizeBindings } from "./useCalendarItemResize";
 import { styles } from "../../ui/appStyles";
+import {
+  completionVisualMark,
+  completionVisualOpacity,
+  completionVisualStyle,
+} from "./calendarCompletionVisual";
 
 export type CalendarEventBlockProps = {
   item: CalendarItem;
@@ -46,6 +52,9 @@ export function CalendarEventBlock({
   const showRaised = isRaised && !isDragging && !isDimmed;
   const baseZIndex = Math.max(resolvedLayout.zIndex, 5);
   const blockZIndex = isDragging || isDimmed ? 100 : showRaised ? baseZIndex + 10 : baseZIndex;
+  const completionStyle = completionVisualStyle(item.completionVisual);
+  const mark = completionVisualMark(item);
+  const label = drag?.title ?? formatCalendarItemButtonLabel(item);
 
   return (
     <button
@@ -57,10 +66,12 @@ export function CalendarEventBlock({
       onMouseLeave={() => setIsRaised(false)}
       onFocus={() => setIsRaised(true)}
       onBlur={() => setIsRaised(false)}
-      title={drag?.title ?? item.title}
+      title={label}
+      aria-label={label}
       aria-grabbed={isDragging ? true : undefined}
       style={{
         ...styles.calendarTimedBlock,
+        ...completionStyle,
         top: resolvedLayout.topMinutes * pixelsPerMinute,
         height: Math.max(16, resolvedLayout.durationMinutes * pixelsPerMinute - 2),
         left: `${resolvedLayout.leftPercent}%`,
@@ -72,12 +83,16 @@ export function CalendarEventBlock({
         borderColor: color.border,
         cursor: draggable ? (isDragging ? "grabbing" : "grab") : undefined,
         touchAction: draggable ? "none" : undefined,
-        opacity: isDimmed ? 0.45 : 1,
+        opacity: completionVisualOpacity(item.completionVisual, isDimmed),
         boxShadow: showRaised ? "0 2px 8px rgba(0,0,0,0.18)" : undefined,
       }}
     >
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {mark ? <span aria-hidden="true" style={styles.calendarCompletionMark}>{mark}</span> : null}
         {item.title}
+        {item.progressLabel ? (
+          <span style={styles.calendarCompletionProgress}>{item.progressLabel}</span>
+        ) : null}
       </div>
       {timeLabel ? <div>{timeLabel}</div> : null}
 

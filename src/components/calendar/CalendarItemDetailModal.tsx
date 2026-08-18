@@ -181,6 +181,9 @@ export function CalendarItemDetailModal({
           <DetailRow label="Type" value={formatSourceTypeLabel(item)} />
           <DetailRow label="Date" value={formatLongDate(item.date)} />
           <DetailRow label="Time" value={timeLabel ?? "All day"} />
+          {item.completionVisual === "in_progress" && item.progressLabel ? (
+            <DetailRow label="Progress" value={item.progressLabel} />
+          ) : null}
           {item.sourceMeta.kind === "applicationInterview" ? (
             <>
               <DetailRow label="Company" value={item.sourceMeta.company} />

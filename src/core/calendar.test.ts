@@ -16,6 +16,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import { combineDateTimeToIso } from "./fitness";
 
 function emptySchedule(): WeeklySchedule {
   return { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
@@ -71,6 +72,28 @@ function makeSession(
     ...overrides,
   };
 }
+
+function makePlan(overrides: Partial<WorkoutPlan> = {}): WorkoutPlan {
+  const schedule = emptySchedule();
+  schedule.mon = [{ id: "wb1", startTime: "06:00", minutes: 45 }];
+  return {
+    id: "plan1",
+    name: "Push A",
+    exercises: [
+      { id: "ex1", name: "Bench press" },
+      { id: "ex2", name: "OHP" },
+      { id: "ex3", name: "Flyes" },
+      { id: "ex4", name: "Tricep pushdown" },
+      { id: "ex5", name: "Lateral raise" },
+    ],
+    schedule,
+    createdAtIso: "2026-01-01T00:00:00.000Z",
+    updatedAtIso: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const FITNESS_BOTH = { includeFitnessHistory: true, includeWorkoutSchedules: true } as const;
 
 describe("buildCalendarItemsForRange", () => {
   it("returns empty when start is after end", () => {
@@ -313,6 +336,7 @@ describe("buildCalendarItemsForRange", () => {
     expect(scheduled.length).toBeGreaterThanOrEqual(1);
     expect(scheduled[0]?.subcategoryKey).toBe("scheduled");
     expect(scheduled[0]?.id).toBe("fitness:plan:plan1:wb1:2026-05-25");
+    expect(scheduled[0]?.completionVisual).toBe("planned");
   });
 
   it("excludes fitness history by default and includes it when opted in", () => {
@@ -351,6 +375,7 @@ describe("buildCalendarItemsForRange", () => {
     expect(fitness.endTime).toBeDefined();
     expect(fitness.subcategoryKey).toBe("push");
     expect(fitness.id).toBe("fitness:session:w1");
+    expect(fitness.completionVisual).toBe("completed");
   });
 
   it("excludes fitness sessions without completedAtIso even when opted in", () => {
@@ -369,6 +394,199 @@ describe("buildCalendarItemsForRange", () => {
       { includeFitnessHistory: true }
     );
     expect(items.filter((i) => i.sourceType === "fitness")).toHaveLength(0);
+  });
+
+  describe("fitness schedule and session merge", () => {
+    const range = {
+      startDate: "2026-05-25",
+      endDate: "2026-05-25",
+      skills: [] as Skill[],
+      events: [] as LifeEvent[],
+      people: [] as Person[],
+    };
+
+    it("keeps one planned block when there is no session for the occurrence", () => {
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.sourceMeta.kind).toBe("workoutScheduleBlock");
+      expect(fitness[0]?.startTime).toBe("06:00");
+      expect(fitness[0]?.completionVisual).toBe("planned");
+    });
+
+    it("suppresses overlapping scheduled and completed session blocks at the same start", () => {
+      const startedAtIso = combineDateTimeToIso("2026-05-25", "06:00");
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-25",
+        planId: "plan1",
+        startedAtIso,
+        completedAtIso: combineDateTimeToIso("2026-05-25", "06:45"),
+        durationMinutes: 45,
+      });
+
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()], workoutSessions: [session] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.sourceMeta.kind).toBe("workoutScheduleBlock");
+      expect(fitness[0]?.startTime).toBe("06:00");
+      expect(fitness[0]?.endTime).toBe("06:45");
+      expect(fitness[0]?.completionVisual).toBe("completed");
+    });
+
+    it("emits only the retimed session block when start differs from the scheduled slot", () => {
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-25",
+        planId: "plan1",
+        startedAtIso: combineDateTimeToIso("2026-05-25", "07:30"),
+        completedAtIso: combineDateTimeToIso("2026-05-25", "08:15"),
+        durationMinutes: 45,
+      });
+
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()], workoutSessions: [session] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.sourceMeta.kind).toBe("workoutSession");
+      expect(fitness[0]?.id).toBe("fitness:session:w1");
+      expect(fitness[0]?.startTime).toBe("07:30");
+      expect(fitness[0]?.endTime).toBe("08:15");
+      expect(fitness[0]?.completionVisual).toBe("completed");
+    });
+
+    it("falls back to planned minutes for a retimed session without duration", () => {
+      const startedAtIso = combineDateTimeToIso("2026-05-25", "07:30");
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-25",
+        planId: "plan1",
+        startedAtIso,
+        completedAtIso: startedAtIso,
+      });
+
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()], workoutSessions: [session] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.startTime).toBe("07:30");
+      expect(fitness[0]?.endTime).toBe("08:15");
+    });
+
+    it("does not emit a second item for an in-progress session", () => {
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-25",
+        planId: "plan1",
+        startedAtIso: combineDateTimeToIso("2026-05-25", "07:00"),
+        completedAtIso: undefined,
+        exercises: [
+          { id: "ex1", name: "Bench press", completedAtIso: "2026-05-25T12:00:00.000Z" },
+          { id: "ex2", name: "OHP", completedAtIso: "2026-05-25T12:10:00.000Z" },
+          { id: "ex3", name: "Flyes" },
+          { id: "ex4", name: "Tricep pushdown" },
+          { id: "ex5", name: "Lateral raise" },
+        ],
+      });
+
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()], workoutSessions: [session] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.sourceMeta.kind).toBe("workoutScheduleBlock");
+      expect(fitness[0]?.startTime).toBe("06:00");
+      expect(fitness[0]?.completionVisual).toBe("in_progress");
+      expect(fitness[0]?.progressLabel).toBe("2/5");
+    });
+
+    it("emits a manual session with no plan from startedAtIso", () => {
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-25",
+        startedAtIso: combineDateTimeToIso("2026-05-25", "18:00"),
+        completedAtIso: combineDateTimeToIso("2026-05-25", "18:40"),
+        durationMinutes: 40,
+        focus: "push",
+      });
+
+      const items = buildCalendarItemsForRange(
+        { ...range, workoutPlans: [makePlan()], workoutSessions: [session] },
+        FITNESS_BOTH
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(2);
+      const sessionItem = fitness.find((i) => i.sourceMeta.kind === "workoutSession");
+      const scheduled = fitness.find((i) => i.sourceMeta.kind === "workoutScheduleBlock");
+      expect(sessionItem?.startTime).toBe("18:00");
+      expect(sessionItem?.endTime).toBe("18:40");
+      expect(sessionItem?.completionVisual).toBe("completed");
+      expect(scheduled?.completionVisual).toBe("planned");
+    });
+
+    it("still renders a legacy completedAtIso-only session", () => {
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-26",
+        focus: "push",
+        durationMinutes: 45,
+        completedAtIso: "2026-05-26T17:30:00.000Z",
+      });
+
+      const items = buildCalendarItemsForRange(
+        {
+          startDate: "2026-05-25",
+          endDate: "2026-05-31",
+          skills: [],
+          events: [],
+          people: [],
+          workoutSessions: [session],
+        },
+        { includeFitnessHistory: true }
+      );
+      const fitness = items.filter((i) => i.sourceType === "fitness");
+      expect(fitness).toHaveLength(1);
+      expect(fitness[0]?.id).toBe("fitness:session:w1");
+      expect(fitness[0]?.startTime).toBeDefined();
+      expect(fitness[0]?.endTime).toBeDefined();
+      expect(fitness[0]?.completionVisual).toBe("completed");
+      expect(fitness[0]?.sourceMeta.kind).toBe("workoutSession");
+    });
+
+    it("uses startedAtIso rather than completedAtIso for a history-only session start", () => {
+      const session = makeSession({
+        id: "w1",
+        date: "2026-05-26",
+        startedAtIso: combineDateTimeToIso("2026-05-26", "06:00"),
+        completedAtIso: combineDateTimeToIso("2026-05-26", "22:00"),
+        durationMinutes: 45,
+      });
+
+      const items = buildCalendarItemsForRange(
+        {
+          startDate: "2026-05-26",
+          endDate: "2026-05-26",
+          skills: [],
+          events: [],
+          people: [],
+          workoutSessions: [session],
+        },
+        { includeFitnessHistory: true }
+      );
+      expect(items[0]?.startTime).toBe("06:00");
+      expect(items[0]?.endTime).toBe("06:45");
+    });
   });
 
   it("respects disabled collectors via options", () => {

@@ -204,6 +204,16 @@ export type ExerciseEntry = {
   reps?: number;
   weight?: number;
   notes?: string;
+  /**
+   * Session entries only: set when the exercise is checked off during a live
+   * workout. Absent = not yet done. Plans never carry this (stripped on save).
+   */
+  completedAtIso?: string;
+  /**
+   * Session entries only: the plan exercise id this row was copied from, so the
+   * same exercise can be toggled after copy. Absent for ad-hoc/manual entries.
+   */
+  sourceExerciseId?: string;
 };
 
 export type WorkoutPlan = {
@@ -230,6 +240,9 @@ export type WorkoutSession = {
   exercises: ExerciseEntry[];
   notes?: string;
   durationMinutes?: number;
+  /** Clock time the workout started; used as the calendar block start. */
+  startedAtIso?: string;
+  /** Present once the session is finished. Absent = still in progress. */
   completedAtIso?: string;
   createdAtIso: string;
   updatedAtIso: string;

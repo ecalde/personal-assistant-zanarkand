@@ -1,15 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  addSessionExercise,
+  createLiveSessionFromPlan,
   createSessionDraftFromPlan,
   filterAndSortPlans,
   filterAndSortSessions,
+  findSessionForPlanDate,
+  finishWorkoutSession,
+  isWorkoutSessionInProgress,
+  markAllExercisesCompletedAndFinish,
+  plansForLiveLogger,
+  removeSessionExercise,
+  setSessionDurationMinutes,
+  setSessionStartHHMM,
+  toggleExerciseCompleted,
+  updateSessionExercise,
+  type FitnessFocus,
   type PlansSortMode,
   type SessionsSortMode,
   type WorkoutFocusFilter,
 } from "../core/fitness";
+import { buildExerciseProgressions } from "../core/exerciseProgression";
 import type { WorkoutPlan, WorkoutSession } from "../core/model";
 import { formatLocalDateKey } from "../core/timeline";
+import { ExerciseProgressionChart } from "../components/fitness/ExerciseProgressionChart";
 import { FitnessToolbar } from "../components/fitness/FitnessToolbar";
+import { LiveWorkoutLogger } from "../components/fitness/LiveWorkoutLogger";
 import { WorkoutPlanCard } from "../components/fitness/WorkoutPlanCard";
 import { WorkoutPlanForm } from "../components/fitness/WorkoutPlanForm";
 import { WorkoutSessionCard } from "../components/fitness/WorkoutSessionCard";
@@ -30,25 +46,86 @@ import {
 } from "../components/fitness/workoutSessionFormState";
 import { styles } from "../ui/appStyles";
 
+export type { FitnessFocus };
+
 export type FitnessPageProps = {
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  fitnessFocus?: FitnessFocus;
   onAddPlan: (input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdatePlan: (plan: WorkoutPlan) => void;
   onDeletePlan: (planId: string) => void;
   onAddSession: (input: Omit<WorkoutSession, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdateSession: (session: WorkoutSession) => void;
+  onUpsertSession: (session: WorkoutSession) => void;
   onDeleteSession: (sessionId: string) => void;
 };
+
+type TodayRailItemProps = {
+  plan: WorkoutPlan;
+  dateKey: string;
+  persistedSession?: WorkoutSession;
+  highlighted: boolean;
+  onCommit: (session: WorkoutSession) => void;
+  onLogDifferentSession: () => void;
+};
+
+function TodayRailItem({
+  plan,
+  dateKey,
+  persistedSession,
+  highlighted,
+  onCommit,
+  onLogDifferentSession,
+}: TodayRailItemProps) {
+  const [draft] = useState(() =>
+    createLiveSessionFromPlan(plan, dateKey, new Date().toISOString(), crypto.randomUUID())
+  );
+  const session = persistedSession ?? draft;
+
+  return (
+    <LiveWorkoutLogger
+      planName={plan.name}
+      session={session}
+      highlighted={highlighted}
+      onToggleExercise={(exerciseId) =>
+        onCommit(toggleExerciseCompleted(session, exerciseId, new Date().toISOString()))
+      }
+      onUpdateExercise={(exerciseId, patch) =>
+        onCommit(updateSessionExercise(session, exerciseId, patch))
+      }
+      onAddExercise={() => onCommit(addSessionExercise(session))}
+      onRemoveExercise={(exerciseId) => onCommit(removeSessionExercise(session, exerciseId))}
+      onStartTimeChange={(hhmm) => onCommit(setSessionStartHHMM(session, hhmm))}
+      onDurationChange={(raw) => {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          onCommit(setSessionDurationMinutes(session, undefined));
+          return;
+        }
+        const parsed = Number(trimmed);
+        if (!Number.isInteger(parsed) || parsed <= 0) return;
+        onCommit(setSessionDurationMinutes(session, parsed));
+      }}
+      onFinish={() => onCommit(finishWorkoutSession(session, new Date().toISOString()))}
+      onMarkAllComplete={() =>
+        onCommit(markAllExercisesCompletedAndFinish(session, new Date().toISOString()))
+      }
+      onLogDifferentSession={onLogDifferentSession}
+    />
+  );
+}
 
 export default function FitnessPage({
   workoutPlans,
   workoutSessions,
+  fitnessFocus,
   onAddPlan,
   onUpdatePlan,
   onDeletePlan,
   onAddSession,
   onUpdateSession,
+  onUpsertSession,
   onDeleteSession,
 }: FitnessPageProps) {
   const todayKey = formatLocalDateKey(new Date());
@@ -92,6 +169,29 @@ export default function FitnessPage({
       }),
     [workoutSessions, sessionQuery, sessionSortMode, sessionFocusFilter]
   );
+
+  const focusPlanId = fitnessFocus?.planId;
+  const todayRailPlans = useMemo(() => {
+    const plans = plansForLiveLogger(workoutPlans, workoutSessions, todayKey);
+    if (!focusPlanId) return plans;
+    return [...plans].sort((a, b) => {
+      if (a.id === focusPlanId) return -1;
+      if (b.id === focusPlanId) return 1;
+      return 0;
+    });
+  }, [workoutPlans, workoutSessions, todayKey, focusPlanId]);
+
+  const exerciseProgressions = useMemo(
+    () => buildExerciseProgressions(workoutPlans, workoutSessions),
+    [workoutPlans, workoutSessions]
+  );
+
+  useEffect(() => {
+    if (!focusPlanId) return;
+    document.getElementById(`live-workout-${focusPlanId}`)?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [focusPlanId]);
 
   function resetPlanForm() {
     setPlanForm(emptyWorkoutPlanFormState());
@@ -155,18 +255,25 @@ export default function FitnessPage({
     const draft = createSessionDraftFromPlan(plan, todayKey);
     setSessionForm({
       date: draft.date,
+      startTime: "",
       focus: draft.focus ?? "",
       planId: draft.planId ?? "",
       durationMinutes: "",
       notes: draft.notes ?? "",
-      exercises: draft.exercises.map((entry) => ({
-        id: entry.id,
-        name: entry.name,
-        sets: entry.sets !== undefined ? String(entry.sets) : "",
-        reps: entry.reps !== undefined ? String(entry.reps) : "",
-        weight: entry.weight !== undefined ? String(entry.weight) : "",
-        notes: entry.notes ?? "",
-      })),
+      exercises: draft.exercises.map((entry) => {
+        const row = {
+          id: entry.id,
+          name: entry.name,
+          sets: entry.sets !== undefined ? String(entry.sets) : "",
+          reps: entry.reps !== undefined ? String(entry.reps) : "",
+          weight: entry.weight !== undefined ? String(entry.weight) : "",
+          notes: entry.notes ?? "",
+        } as WorkoutSessionFormState["exercises"][number];
+        if (entry.sourceExerciseId !== undefined) {
+          row.sourceExerciseId = entry.sourceExerciseId;
+        }
+        return row;
+      }),
     });
     setEditingSessionId(null);
     setSessionFormError(null);
@@ -197,7 +304,8 @@ export default function FitnessPage({
       }
       onUpdateSession({ ...existing, ...payload });
     } else {
-      onAddSession(payload);
+      // Manual "Log session" is a retro completed log.
+      onAddSession({ ...payload, completedAtIso: new Date().toISOString() });
     }
 
     resetSessionForm();
@@ -211,6 +319,35 @@ export default function FitnessPage({
           Track workout plans and log completed sessions with sets, reps, and weight.
         </div>
       </div>
+
+      {todayRailPlans.length > 0 && (
+        <div style={styles.card}>
+          <div style={styles.cardTitle}>Today</div>
+          <div style={{ ...styles.textSecondary, marginBottom: 12 }}>
+            Tap complete as you go. Each change saves immediately.
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {todayRailPlans.map((plan) => {
+              const existing = findSessionForPlanDate(workoutSessions, plan.id, todayKey);
+              const persistedSession =
+                existing && isWorkoutSessionInProgress(existing) ? existing : undefined;
+              return (
+                <TodayRailItem
+                  key={`${plan.id}:${todayKey}`}
+                  plan={plan}
+                  dateKey={todayKey}
+                  persistedSession={persistedSession}
+                  highlighted={focusPlanId === plan.id}
+                  onCommit={onUpsertSession}
+                  onLogDifferentSession={openCreateSessionForm}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <ExerciseProgressionChart exercises={exerciseProgressions} />
 
       <div style={styles.card}>
         <div

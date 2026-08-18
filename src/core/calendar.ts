@@ -32,9 +32,14 @@ import {
 } from "./career";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import {
+  combineDateTimeToIso,
+  countCompletedExercises,
   expandWorkoutOccurrencesForDateRange,
+  findSessionForPlanDate,
   formatSessionHeadline,
   isPlanSchedulable,
+  isWorkoutSessionInProgress,
+  resolveSessionStartHHMM,
 } from "./fitness";
 import { addMinutesToHHMM } from "./schedule";
 import { isSkillActiveOnDate, getSkillSeriesDateRange } from "./skillSeries";
@@ -52,6 +57,9 @@ export type CalendarSourceType =
   | "people"
   | "fitness"
   | "career"; // reserved; no items emitted yet
+
+/** Planned vs live vs finished treatment for a fitness calendar block. */
+export type CalendarCompletionVisual = "planned" | "in_progress" | "completed";
 
 export type CalendarTimeSortTier = 0 | 1 | 2;
 
@@ -127,6 +135,10 @@ export type CalendarItem = {
   isTimed: boolean;
   isMultiDay: boolean;
   sourceMeta: CalendarItemSourceMeta;
+  /** Fitness planned / live / done treatment. Other sources omit this. */
+  completionVisual?: CalendarCompletionVisual;
+  /** In-progress caption such as "2/5" completed exercises. */
+  progressLabel?: string;
 };
 
 export type BuildCalendarItemsForRangeInput = {
@@ -261,10 +273,35 @@ function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-function localTimeFromIso(iso: string): string | null {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+function minutesBetweenIso(startIso: string, endIso: string): number | undefined {
+  const start = Date.parse(startIso);
+  const end = Date.parse(endIso);
+  if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+  const minutes = Math.round((end - start) / 60_000);
+  return minutes > 0 ? minutes : undefined;
+}
+
+function resolveCalendarSessionDurationMinutes(
+  session: WorkoutSession,
+  plannedMinutes?: number
+): number | undefined {
+  if (session.durationMinutes !== undefined && session.durationMinutes > 0) {
+    return session.durationMinutes;
+  }
+  const startHHMM = resolveSessionStartHHMM(session);
+  if (startHHMM && session.completedAtIso) {
+    const startIso = combineDateTimeToIso(session.date, startHHMM);
+    if (startIso) {
+      const elapsed = minutesBetweenIso(startIso, session.completedAtIso);
+      if (elapsed !== undefined) return elapsed;
+    }
+  }
+  if (plannedMinutes !== undefined && plannedMinutes > 0) return plannedMinutes;
+  return undefined;
+}
+
+function fitnessSessionKey(planId: string, date: string): string {
+  return `${planId}:${date}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -587,21 +624,21 @@ function collectFitnessItems(
     if (session.date < startDate || session.date > endDate) continue;
     if (!session.completedAtIso) continue;
 
-    const startTime = localTimeFromIso(session.completedAtIso);
+    const startTime = resolveSessionStartHHMM(session);
     if (!startTime) continue; // defensive: skip unparseable ISO
 
-    const hasDuration =
-      session.durationMinutes !== undefined && session.durationMinutes > 0;
-    const endTime = hasDuration
-      ? addMinutesToHHMM(startTime, session.durationMinutes!)
-      : undefined;
+    const durationMinutes = resolveCalendarSessionDurationMinutes(session);
+    const endTime =
+      durationMinutes !== undefined
+        ? addMinutesToHHMM(startTime, durationMinutes)
+        : undefined;
 
     const meta: CalendarItemSourceMeta = {
       kind: "workoutSession",
       sessionId: session.id,
       ...(session.planId ? { planId: session.planId } : {}),
       ...(session.focus ? { focus: session.focus } : {}),
-      ...(hasDuration ? { durationMinutes: session.durationMinutes } : {}),
+      ...(durationMinutes !== undefined ? { durationMinutes } : {}),
       completedAtIso: session.completedAtIso,
     };
 
@@ -627,6 +664,119 @@ function collectFitnessItems(
   }
 
   return items;
+}
+
+function plannedMinutesForScheduleItem(item: CalendarItem): number | undefined {
+  if (item.sourceMeta.kind !== "workoutScheduleBlock") return undefined;
+  const planned = item.sourceMeta.plannedMinutes;
+  return planned > 0 ? planned : undefined;
+}
+
+function withSessionDurationFallback(
+  item: CalendarItem,
+  session: WorkoutSession | undefined,
+  plannedMinutes: number | undefined
+): CalendarItem {
+  if (item.endTime || !item.startTime || !session) {
+    return { ...item, completionVisual: "completed" };
+  }
+  const durationMinutes = resolveCalendarSessionDurationMinutes(session, plannedMinutes);
+  if (durationMinutes === undefined) {
+    return { ...item, completionVisual: "completed" };
+  }
+  const next: CalendarItem = {
+    ...item,
+    completionVisual: "completed",
+    endTime: addMinutesToHHMM(item.startTime, durationMinutes),
+  };
+  if (next.sourceMeta.kind === "workoutSession") {
+    next.sourceMeta = { ...next.sourceMeta, durationMinutes };
+  }
+  return next;
+}
+
+/**
+ * One fitness block per plan occurrence per day: keep the scheduled slot unless
+ * a completed session started at a different HH:MM, in which case emit only the
+ * session timed block.
+ */
+function mergeFitnessScheduleAndHistory(
+  scheduleItems: CalendarItem[],
+  sessionItems: CalendarItem[],
+  sessions: WorkoutSession[],
+  includeHistory: boolean
+): CalendarItem[] {
+  const merged: CalendarItem[] = [];
+  const absorbedSessionIds = new Set<string>();
+
+  for (const item of scheduleItems) {
+    if (item.sourceMeta.kind !== "workoutScheduleBlock") {
+      merged.push(item);
+      continue;
+    }
+
+    const session = findSessionForPlanDate(sessions, item.sourceMeta.planId, item.date);
+    if (!session) {
+      merged.push({ ...item, completionVisual: "planned" });
+      continue;
+    }
+
+    if (isWorkoutSessionInProgress(session)) {
+      merged.push({
+        ...item,
+        completionVisual: "in_progress",
+        progressLabel: `${countCompletedExercises(session)}/${session.exercises.length}`,
+      });
+      absorbedSessionIds.add(session.id);
+      continue;
+    }
+
+    const startHHMM = resolveSessionStartHHMM(session);
+    const sameSlot = startHHMM === undefined || startHHMM === item.startTime;
+    if (sameSlot || !includeHistory) {
+      merged.push({ ...item, completionVisual: "completed" });
+      absorbedSessionIds.add(session.id);
+      continue;
+    }
+    // Retimed completed session: suppress this day's schedule block.
+  }
+
+  if (!includeHistory) return merged;
+
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
+  const plannedMinutesByPlanDate = new Map<string, number>();
+  for (const item of scheduleItems) {
+    if (item.sourceMeta.kind !== "workoutScheduleBlock") continue;
+    const planned = plannedMinutesForScheduleItem(item);
+    if (planned === undefined) continue;
+    const key = fitnessSessionKey(item.sourceMeta.planId, item.date);
+    if (!plannedMinutesByPlanDate.has(key)) {
+      plannedMinutesByPlanDate.set(key, planned);
+    }
+  }
+
+  for (const item of sessionItems) {
+    if (item.sourceMeta.kind !== "workoutSession") {
+      merged.push(item);
+      continue;
+    }
+    if (absorbedSessionIds.has(item.sourceMeta.sessionId)) continue;
+
+    const planId = item.sourceMeta.planId;
+    const plannedMinutes =
+      planId !== undefined
+        ? plannedMinutesByPlanDate.get(fitnessSessionKey(planId, item.date))
+        : undefined;
+    merged.push(
+      withSessionDurationFallback(
+        item,
+        sessionById.get(item.sourceMeta.sessionId),
+        plannedMinutes
+      )
+    );
+  }
+
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -679,21 +829,27 @@ export function buildCalendarItemsForRange(
       )
     );
   }
-  if (includeFitnessHistory) {
+  if (includeFitnessHistory || includeWorkoutSchedules) {
+    const sessionItems = includeFitnessHistory
+      ? collectFitnessItems(
+          input.workoutSessions ?? [],
+          input.startDate,
+          input.endDate
+        )
+      : [];
+    const scheduleItems = includeWorkoutSchedules
+      ? collectWorkoutScheduleItems(
+          input.workoutPlans ?? [],
+          input.startDate,
+          input.endDate
+        )
+      : [];
     items.push(
-      ...collectFitnessItems(
+      ...mergeFitnessScheduleAndHistory(
+        scheduleItems,
+        sessionItems,
         input.workoutSessions ?? [],
-        input.startDate,
-        input.endDate
-      )
-    );
-  }
-  if (includeWorkoutSchedules) {
-    items.push(
-      ...collectWorkoutScheduleItems(
-        input.workoutPlans ?? [],
-        input.startDate,
-        input.endDate
+        includeFitnessHistory
       )
     );
   }

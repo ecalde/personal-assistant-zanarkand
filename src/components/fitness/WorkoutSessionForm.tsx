@@ -40,6 +40,16 @@ export function WorkoutSessionForm({
         </label>
 
         <label style={styles.label}>
+          Start time (optional)
+          <input
+            type="time"
+            value={form.startTime}
+            onChange={(e) => onChange({ ...form, startTime: e.target.value })}
+            style={styles.input}
+          />
+        </label>
+
+        <label style={styles.label}>
           Focus (optional)
           <select
             value={form.focus}

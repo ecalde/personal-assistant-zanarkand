@@ -660,12 +660,45 @@ export function formatSourceTypeLabel(item: CalendarItem): string {
     case "people":
       return "Birthday";
     case "fitness":
-      return "Workout";
+      return formatFitnessSourceTypeLabel(item);
     case "career":
       return "Career";
     default:
       return item.sourceType;
   }
+}
+
+function formatFitnessSourceTypeLabel(item: CalendarItem): string {
+  switch (item.completionVisual) {
+    case "planned":
+      return "Workout · Planned";
+    case "in_progress":
+      return "Workout · In progress";
+    case "completed":
+      return "Workout · Completed";
+    default:
+      return "Workout";
+  }
+}
+
+/** Status caption for fitness completion visuals (aria/title). */
+export function formatCalendarItemStatusLabel(item: CalendarItem): string | undefined {
+  switch (item.completionVisual) {
+    case "planned":
+      return "Planned";
+    case "in_progress":
+      return item.progressLabel ? `In progress ${item.progressLabel}` : "In progress";
+    case "completed":
+      return "Completed";
+    default:
+      return undefined;
+  }
+}
+
+/** Accessible name for a calendar item button, including fitness status. */
+export function formatCalendarItemButtonLabel(item: CalendarItem): string {
+  const status = formatCalendarItemStatusLabel(item);
+  return status ? `${item.title}, ${status}` : item.title;
 }
 
 /** Re-export for convenience so views import time-tier from one place. */

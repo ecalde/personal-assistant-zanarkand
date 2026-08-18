@@ -230,6 +230,7 @@ export type WorkoutSessionRow = {
   exercises: unknown;
   notes: string | null;
   duration_minutes: number | null;
+  started_at: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -1095,6 +1096,20 @@ export function parseExerciseEntries(value: unknown, field: string): ExerciseEnt
       }
     }
 
+    if (obj.completedAtIso !== undefined && obj.completedAtIso !== null) {
+      if (typeof obj.completedAtIso !== "string" || !isIsoTimestamp(obj.completedAtIso)) {
+        throw new MapperError(`Invalid ${field}: completedAtIso must be ISO timestamp`, field);
+      }
+      entry.completedAtIso = obj.completedAtIso;
+    }
+
+    if (obj.sourceExerciseId !== undefined && obj.sourceExerciseId !== null) {
+      if (typeof obj.sourceExerciseId !== "string" || !isUuid(obj.sourceExerciseId)) {
+        throw new MapperError(`Invalid ${field}: sourceExerciseId must be UUID`, field);
+      }
+      entry.sourceExerciseId = obj.sourceExerciseId;
+    }
+
     entries.push(entry);
   }
 
@@ -1117,6 +1132,31 @@ export function assertValidExerciseEntry(entry: ExerciseEntry): void {
   if (entry.notes !== undefined && typeof entry.notes !== "string") {
     throw new MapperError("Invalid exerciseEntry.notes", "exerciseEntry.notes");
   }
+  if (entry.completedAtIso !== undefined && !isIsoTimestamp(entry.completedAtIso)) {
+    throw new MapperError(
+      "Invalid exerciseEntry.completedAtIso",
+      "exerciseEntry.completedAtIso"
+    );
+  }
+  if (entry.sourceExerciseId !== undefined && !isUuid(entry.sourceExerciseId)) {
+    throw new MapperError(
+      "Invalid exerciseEntry.sourceExerciseId",
+      "exerciseEntry.sourceExerciseId"
+    );
+  }
+}
+
+/**
+ * Strips session-only fields (completion + source linkage) from exercises so
+ * plan templates never persist live-logging state.
+ */
+export function stripExerciseSessionFields(entries: ExerciseEntry[]): ExerciseEntry[] {
+  return entries.map((entry) => {
+    const next = { ...entry };
+    delete next.completedAtIso;
+    delete next.sourceExerciseId;
+    return next;
+  });
 }
 
 export function assertValidWorkoutPlan(plan: WorkoutPlan): void {
@@ -1183,6 +1223,9 @@ export function assertValidWorkoutSession(session: WorkoutSession): void {
       "Invalid workoutSession.durationMinutes",
       "workoutSession.durationMinutes"
     );
+  }
+  if (session.startedAtIso !== undefined) {
+    assertIsoTimestamp(session.startedAtIso, "workoutSession.startedAtIso");
   }
   if (session.completedAtIso !== undefined) {
     assertIsoTimestamp(session.completedAtIso, "workoutSession.completedAtIso");
@@ -1664,7 +1707,7 @@ export function workoutPlanToRow(plan: WorkoutPlan, userId: string): WorkoutPlan
     user_id: userId,
     name: plan.name.trim(),
     focus: plan.focus ?? null,
-    exercises: plan.exercises,
+    exercises: stripExerciseSessionFields(plan.exercises),
     notes: plan.notes?.trim() || null,
     schedule,
     schedule_series: plan.scheduleSeries
@@ -1737,6 +1780,7 @@ export function workoutSessionToRow(session: WorkoutSession, userId: string): Wo
     exercises: session.exercises,
     notes: session.notes?.trim() || null,
     duration_minutes: session.durationMinutes ?? null,
+    started_at: session.startedAtIso ?? null,
     completed_at: session.completedAtIso ?? null,
     created_at: session.createdAtIso,
     updated_at: session.updatedAtIso,
@@ -1786,6 +1830,10 @@ export function workoutSessionFromRow(row: WorkoutSessionRow): WorkoutSession {
       );
     }
     session.durationMinutes = row.duration_minutes;
+  }
+  if (row.started_at !== null) {
+    assertIsoTimestamp(row.started_at, "workout_sessions.started_at");
+    session.startedAtIso = row.started_at;
   }
   if (row.completed_at !== null) {
     assertIsoTimestamp(row.completed_at, "workout_sessions.completed_at");

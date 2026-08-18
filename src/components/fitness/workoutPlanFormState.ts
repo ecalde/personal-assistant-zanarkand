@@ -16,6 +16,10 @@ export type ExerciseEntryFormRow = {
   reps: string;
   weight: string;
   notes: string;
+  /** Session-only: preserved across the form round-trip (live logging). */
+  completedAtIso?: string;
+  /** Session-only: plan exercise this row was copied from. */
+  sourceExerciseId?: string;
 };
 
 export type WorkoutPlanFormState = {
@@ -49,8 +53,8 @@ export function emptyWorkoutPlanFormState(): WorkoutPlanFormState {
   };
 }
 
-function exerciseFormFromEntry(entry: ExerciseEntry): ExerciseEntryFormRow {
-  return {
+export function exerciseFormFromEntry(entry: ExerciseEntry): ExerciseEntryFormRow {
+  const row: ExerciseEntryFormRow = {
     id: entry.id,
     name: entry.name,
     sets: entry.sets !== undefined ? String(entry.sets) : "",
@@ -58,6 +62,9 @@ function exerciseFormFromEntry(entry: ExerciseEntry): ExerciseEntryFormRow {
     weight: entry.weight !== undefined ? String(entry.weight) : "",
     notes: entry.notes ?? "",
   };
+  if (entry.completedAtIso !== undefined) row.completedAtIso = entry.completedAtIso;
+  if (entry.sourceExerciseId !== undefined) row.sourceExerciseId = entry.sourceExerciseId;
+  return row;
 }
 
 export function workoutPlanFormFromPlan(plan: WorkoutPlan): WorkoutPlanFormState {

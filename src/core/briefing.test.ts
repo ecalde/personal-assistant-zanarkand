@@ -106,6 +106,7 @@ function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutS
     date: "2026-05-20",
     focus: "push",
     exercises: [{ id: "ex1", name: "Squat", sets: 3, reps: 5 }],
+    completedAtIso: ISO,
     createdAtIso: ISO,
     updatedAtIso: ISO,
     ...overrides,

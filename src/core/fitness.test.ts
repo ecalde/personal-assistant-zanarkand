@@ -1,25 +1,50 @@
 import { describe, expect, it } from "vitest";
 import type { ExerciseEntry, WorkoutPlan, WorkoutSession } from "./model";
 import {
+  addSessionExercise,
+  buildDashboardWorkoutLoggers,
   buildRecentSessions,
   buildWorkoutDayStatus,
   buildWorkoutWeekScheduleSummary,
   buildWorkoutWeekSummary,
+  combineDateTimeToIso,
   copyExercisesFromPlan,
+  countCompletedExercises,
+  createLiveSessionFromPlan,
   createSessionDraftFromPlan,
+  dashboardSetExerciseWeight,
+  dashboardToggleExercise,
+  DEFAULT_ADDED_EXERCISE_NAME,
+  ensureLiveSessionForPlan,
   expandWorkoutOccurrencesForDate,
+  FALLBACK_EXERCISE_NAME,
   filterAndSortPlans,
   filterAndSortSessions,
+  findSessionForPlanDate,
+  finishWorkoutSession,
   formatExerciseSummary,
   formatSessionDurationLabel,
   formatSessionHeadline,
   formatWorkoutFocus,
   isPlanSchedulable,
   isWorkoutOccurrenceComplete,
+  isWorkoutSessionComplete,
+  isWorkoutSessionInProgress,
+  markAllExercisesCompleted,
+  markAllExercisesCompletedAndFinish,
   matchSessionToScheduledOccurrence,
   planMatchesQuery,
+  plansForLiveLogger,
+  removeSessionExercise,
+  resolveSessionExerciseId,
+  resolveSessionStartHHMM,
   sessionMatchesQuery,
+  setExerciseWeight,
+  setSessionDurationMinutes,
+  setSessionStartHHMM,
   sumSessionDurationMinutes,
+  toggleExerciseCompleted,
+  updateSessionExercise,
 } from "./fitness";
 
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
@@ -57,6 +82,7 @@ function sampleWorkoutSession(overrides: Partial<WorkoutSession> = {}): WorkoutS
     focus: "push",
     planId: PLAN_ID,
     exercises: [sampleExercise({ name: "Incline press" })],
+    completedAtIso: NOW,
     createdAtIso: NOW,
     updatedAtIso: NOW,
     ...overrides,
@@ -167,11 +193,12 @@ describe("buildWorkoutWeekSummary", () => {
 });
 
 describe("plan to session workflow", () => {
-  it("copies exercises with new ids", () => {
+  it("copies exercises with new ids and source linkage", () => {
     const copied = copyExercisesFromPlan(samplePlan());
     expect(copied).toHaveLength(1);
     expect(copied[0]?.id).not.toBe(EXERCISE_ID);
     expect(copied[0]?.name).toBe("Bench press");
+    expect(copied[0]?.sourceExerciseId).toBe(EXERCISE_ID);
   });
 
   it("creates session draft from plan", () => {
@@ -208,6 +235,288 @@ describe("session duration helpers", () => {
       "45 min"
     );
     expect(formatSessionDurationLabel(sampleWorkoutSession())).toBeUndefined();
+  });
+});
+
+describe("live session helpers", () => {
+  it("distinguishes completed from in-progress sessions", () => {
+    expect(isWorkoutSessionComplete(sampleWorkoutSession())).toBe(true);
+    const inProgress = sampleWorkoutSession({ completedAtIso: undefined });
+    expect(isWorkoutSessionComplete(inProgress)).toBe(false);
+    expect(isWorkoutSessionInProgress(inProgress)).toBe(true);
+  });
+
+  it("toggles a single exercise's completion", () => {
+    const session = sampleWorkoutSession({
+      exercises: [sampleExercise({ id: "a" }), sampleExercise({ id: "b" })],
+    });
+    const toggled = toggleExerciseCompleted(session, "a", NOW);
+    expect(toggled.exercises[0]?.completedAtIso).toBe(NOW);
+    expect(toggled.exercises[1]?.completedAtIso).toBeUndefined();
+    expect(countCompletedExercises(toggled)).toBe(1);
+
+    const untoggled = toggleExerciseCompleted(toggled, "a", NOW);
+    expect(untoggled.exercises[0]?.completedAtIso).toBeUndefined();
+    // original session is not mutated
+    expect(session.exercises[0]?.completedAtIso).toBeUndefined();
+  });
+
+  it("sets and clears an exercise weight without mutating the input", () => {
+    const session = sampleWorkoutSession({
+      exercises: [sampleExercise({ id: "a", weight: 100 })],
+    });
+    const heavier = setExerciseWeight(session, "a", 145);
+    expect(heavier.exercises[0]?.weight).toBe(145);
+    expect(session.exercises[0]?.weight).toBe(100);
+
+    const cleared = setExerciseWeight(session, "a", undefined);
+    expect(cleared.exercises[0]?.weight).toBeUndefined();
+  });
+
+  it("marks all exercises complete", () => {
+    const session = sampleWorkoutSession({
+      exercises: [sampleExercise({ id: "a" }), sampleExercise({ id: "b" })],
+    });
+    const done = markAllExercisesCompleted(session, NOW);
+    expect(countCompletedExercises(done)).toBe(2);
+  });
+
+  it("finds the in-progress session for a plan and date", () => {
+    const completed = sampleWorkoutSession({ id: "done" });
+    const live = sampleWorkoutSession({ id: "live", completedAtIso: undefined });
+    const found = findSessionForPlanDate([completed, live], PLAN_ID, "2026-05-26");
+    expect(found?.id).toBe("live");
+  });
+
+  it("resolves start HH:MM from startedAtIso then completedAtIso", () => {
+    const withStart = sampleWorkoutSession({
+      startedAtIso: new Date(2026, 4, 26, 6, 30).toISOString(),
+    });
+    expect(resolveSessionStartHHMM(withStart)).toBe("06:30");
+    const legacy = sampleWorkoutSession({
+      startedAtIso: undefined,
+      completedAtIso: new Date(2026, 4, 26, 18, 5).toISOString(),
+    });
+    expect(resolveSessionStartHHMM(legacy)).toBe("18:05");
+  });
+
+  it("excludes in-progress sessions from week summary and occurrence completion", () => {
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    const inProgress = sampleWorkoutSession({ date: "2026-05-25", completedAtIso: undefined });
+    expect(buildWorkoutWeekSummary([inProgress], "2026-05-26").count).toBe(0);
+    expect(isWorkoutOccurrenceComplete(plan, "2026-05-25", "b1", [inProgress])).toBe(false);
+  });
+
+  it("patches exercise fields without emptying the name", () => {
+    const session = sampleWorkoutSession({
+      exercises: [sampleExercise({ id: "a", sets: 3, notes: "pause" })],
+    });
+    const patched = updateSessionExercise(session, "a", { sets: 4, name: "  ", notes: undefined });
+    expect(patched.exercises[0]?.sets).toBe(4);
+    expect(patched.exercises[0]?.name).toBe("Bench press");
+    expect(patched.exercises[0]?.notes).toBeUndefined();
+    expect(session.exercises[0]?.sets).toBe(3);
+
+    const unnamed = updateSessionExercise(
+      sampleWorkoutSession({ exercises: [sampleExercise({ id: "a", name: "" })] }),
+      "a",
+      { name: "   " }
+    );
+    expect(unnamed.exercises[0]?.name).toBe(FALLBACK_EXERCISE_NAME);
+  });
+
+  it("adds and refuses to remove the last exercise", () => {
+    const session = sampleWorkoutSession();
+    const withExtra = addSessionExercise(session);
+    expect(withExtra.exercises).toHaveLength(2);
+    expect(withExtra.exercises[1]?.name).toBe(DEFAULT_ADDED_EXERCISE_NAME);
+    const extraId = withExtra.exercises[1]?.id ?? "";
+    expect(removeSessionExercise(withExtra, extraId).exercises).toHaveLength(1);
+    expect(removeSessionExercise(session, EXERCISE_ID).exercises).toHaveLength(1);
+  });
+
+  it("finishes a partial session and marks all complete as the retro path", () => {
+    const session = sampleWorkoutSession({
+      completedAtIso: undefined,
+      exercises: [sampleExercise({ id: "a" }), sampleExercise({ id: "b" })],
+    });
+    const finished = finishWorkoutSession(session, NOW);
+    expect(finished.completedAtIso).toBe(NOW);
+    expect(countCompletedExercises(finished)).toBe(0);
+
+    const retro = markAllExercisesCompletedAndFinish(session, NOW);
+    expect(retro.completedAtIso).toBe(NOW);
+    expect(countCompletedExercises(retro)).toBe(2);
+  });
+
+  it("sets start time and duration from local HH:MM", () => {
+    const session = sampleWorkoutSession({ startedAtIso: undefined, durationMinutes: undefined });
+    const withStart = setSessionStartHHMM(session, "06:30");
+    expect(resolveSessionStartHHMM(withStart)).toBe("06:30");
+    expect(setSessionStartHHMM(withStart, "").startedAtIso).toBeUndefined();
+
+    const withDuration = setSessionDurationMinutes(session, 45);
+    expect(withDuration.durationMinutes).toBe(45);
+    expect(setSessionDurationMinutes(withDuration, undefined).durationMinutes).toBeUndefined();
+  });
+
+  it("round-trips combineDateTimeToIso with resolveSessionStartHHMM", () => {
+    const iso = combineDateTimeToIso("2026-05-26", "06:30");
+    expect(iso).toBeDefined();
+    expect(
+      resolveSessionStartHHMM(sampleWorkoutSession({ startedAtIso: iso, completedAtIso: undefined }))
+    ).toBe("06:30");
+    expect(combineDateTimeToIso("not-a-date", "06:30")).toBeUndefined();
+    expect(combineDateTimeToIso("2026-05-26", "25:00")).toBeUndefined();
+  });
+
+  it("lists scheduled plans without a completed session for the live logger", () => {
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    expect(plansForLiveLogger([plan], [], "2026-05-25")).toHaveLength(1);
+    expect(
+      plansForLiveLogger(
+        [plan],
+        [sampleWorkoutSession({ date: "2026-05-25", completedAtIso: undefined })],
+        "2026-05-25"
+      )
+    ).toHaveLength(1);
+    expect(
+      plansForLiveLogger([plan], [sampleWorkoutSession({ date: "2026-05-25" })], "2026-05-25")
+    ).toHaveLength(0);
+  });
+
+  it("seeds a live session from a plan with a stable id and scheduled start", () => {
+    const liveId = "44444444-4444-4444-8444-444444444444";
+    const plan = samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, liveId);
+    expect(live.id).toBe(liveId);
+    expect(live.completedAtIso).toBeUndefined();
+    expect(live.planId).toBe(PLAN_ID);
+    expect(live.durationMinutes).toBe(60);
+    expect(resolveSessionStartHHMM(live)).toBe("06:00");
+    expect(live.exercises[0]?.sourceExerciseId).toBe(EXERCISE_ID);
+    expect(live.exercises[0]?.name).toBe("Bench press");
+  });
+});
+
+describe("dashboard workout loggers", () => {
+  const LIVE_ID = "44444444-4444-4444-8444-444444444444";
+  const mondayPlan = () =>
+    samplePlan({
+      schedule: {
+        mon: [{ id: "b1", startTime: "06:00", minutes: 60 }],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    });
+
+  it("lists plan exercises when there is no session yet", () => {
+    const loggers = buildDashboardWorkoutLoggers([mondayPlan()], [], "2026-05-25");
+    expect(loggers).toHaveLength(1);
+    expect(loggers[0]?.planId).toBe(PLAN_ID);
+    expect(loggers[0]?.progressLabel).toBe("0/1");
+    expect(loggers[0]?.exercises[0]).toEqual({
+      exerciseId: EXERCISE_ID,
+      name: "Bench press",
+      weight: 135,
+      completed: false,
+    });
+  });
+
+  it("uses the in-progress session exercises and counts completions", () => {
+    const plan = mondayPlan();
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, LIVE_ID);
+    const toggled = toggleExerciseCompleted(live, live.exercises[0]!.id, NOW);
+    const loggers = buildDashboardWorkoutLoggers([plan], [toggled], "2026-05-25");
+    expect(loggers).toHaveLength(1);
+    expect(loggers[0]?.progressLabel).toBe("1/1");
+    expect(loggers[0]?.exercises[0]?.exerciseId).toBe(toggled.exercises[0]?.id);
+    expect(loggers[0]?.exercises[0]?.completed).toBe(true);
+  });
+
+  it("omits a plan once its session is finished", () => {
+    const plan = mondayPlan();
+    const done = sampleWorkoutSession({ date: "2026-05-25" });
+    expect(buildDashboardWorkoutLoggers([plan], [done], "2026-05-25")).toEqual([]);
+  });
+
+  it("resolves session exercise ids from the plan sourceExerciseId", () => {
+    const live = createLiveSessionFromPlan(mondayPlan(), "2026-05-25", NOW, LIVE_ID);
+    expect(resolveSessionExerciseId(live, live.exercises[0]!.id)).toBe(live.exercises[0]?.id);
+    expect(resolveSessionExerciseId(live, EXERCISE_ID)).toBe(live.exercises[0]?.id);
+    expect(resolveSessionExerciseId(live, "missing")).toBeUndefined();
+  });
+
+  it("reuses an in-progress session and refuses to mutate a completed one", () => {
+    const plan = mondayPlan();
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, LIVE_ID);
+    expect(ensureLiveSessionForPlan(plan, [live], "2026-05-25", NOW, "new-id")?.id).toBe(LIVE_ID);
+
+    const done = sampleWorkoutSession({ date: "2026-05-25" });
+    expect(ensureLiveSessionForPlan(plan, [done], "2026-05-25", NOW, "new-id")).toBeUndefined();
+
+    const seeded = ensureLiveSessionForPlan(plan, [], "2026-05-25", NOW, "new-id");
+    expect(seeded?.id).toBe("new-id");
+    expect(seeded?.completedAtIso).toBeUndefined();
+  });
+
+  it("toggles a plan exercise by creating an in-progress session, not finishing it", () => {
+    const plan = mondayPlan();
+    const next = dashboardToggleExercise(plan, [], EXERCISE_ID, "2026-05-25", NOW, LIVE_ID);
+    expect(next?.id).toBe(LIVE_ID);
+    expect(next?.completedAtIso).toBeUndefined();
+    expect(countCompletedExercises(next!)).toBe(1);
+    expect(isWorkoutOccurrenceComplete(plan, "2026-05-25", "b1", [next!])).toBe(false);
+  });
+
+  it("sets weight on first dashboard edit without completing the session", () => {
+    const plan = mondayPlan();
+    const next = dashboardSetExerciseWeight(
+      plan,
+      [],
+      EXERCISE_ID,
+      155,
+      "2026-05-25",
+      NOW,
+      LIVE_ID
+    );
+    expect(next?.completedAtIso).toBeUndefined();
+    expect(next?.exercises[0]?.weight).toBe(155);
+    expect(next?.exercises[0]?.sourceExerciseId).toBe(EXERCISE_ID);
   });
 });
 
