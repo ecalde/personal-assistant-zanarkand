@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CalendarColorPreferences, CareerTarget, CookingSession, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, PantryItem, Person, Recipe, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, CookingSession, CustomIngredient, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, PantryItem, Person, Recipe, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   calendarPreferencesFromRow,
@@ -38,6 +38,9 @@ import {
   cookingSessionToRow,
   pantryItemFromRow,
   pantryItemToRow,
+  customIngredientFromRow,
+  customIngredientToRow,
+  parsePer100g,
   sessionFromRow,
   sessionToRow,
   skillFromRow,
@@ -791,6 +794,7 @@ describe("workout mappers", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -831,11 +835,10 @@ describe("recipe mappers", () => {
     };
   }
 
-  it("round-trips a recipe", () => {
-    const recipe = sampleRecipe();
+  it("round-trips a cooking method", () => {
+    const recipe = sampleRecipe({ cookingMethod: "saute" });
     const row = recipeToRow(recipe, USER_ID);
-    expect(row.user_id).toBe(USER_ID);
-    expect(row.experience_level).toBe("beginner");
+    expect(row.cooking_method).toBe("saute");
     expect(recipeFromRow(row)).toEqual(recipe);
   });
 
@@ -1033,6 +1036,7 @@ describe("cooking session mappers", () => {
         recipes: [],
         cookingSessions: [sampleCookingSession()],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1066,6 +1070,48 @@ describe("pantry mappers", () => {
   it("round-trips a label-only pantry item", () => {
     const item = samplePantryItem({ ingredientId: undefined, label: "Mystery spice" });
     expect(pantryItemFromRow(pantryItemToRow(item, USER_ID))).toEqual(item);
+  });
+});
+
+describe("custom ingredient mappers", () => {
+  const CUSTOM_ID = "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c";
+
+  function sampleCustom(overrides: Partial<CustomIngredient> = {}): CustomIngredient {
+    return {
+      id: CUSTOM_ID,
+      name: "Guanciale",
+      category: "protein",
+      defaultUnit: "g",
+      gramsPerPiece: 20,
+      per100g: { kcal: 500, proteinG: 20, fatG: 45, carbG: 0, sodiumMg: 900 },
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips a custom ingredient with per-100g macros", () => {
+    const item = sampleCustom();
+    const row = customIngredientToRow(item, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.per_100g).toEqual({
+      kcal: 500,
+      protein_g: 20,
+      fat_g: 45,
+      carb_g: 0,
+      sodium_mg: 900,
+    });
+    expect(customIngredientFromRow(row)).toEqual(item);
+  });
+
+  it("parses snake_case per-100g objects", () => {
+    expect(parsePer100g({ kcal: 100, protein_g: 2, fat_g: 3, carb_g: 4, fiber_g: 1 }, "n")).toEqual({
+      kcal: 100,
+      proteinG: 2,
+      fatG: 3,
+      carbG: 4,
+      fiberG: 1,
+    });
   });
 });
 
@@ -1199,6 +1245,7 @@ describe("supplement mappers", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1222,6 +1269,7 @@ describe("supplement mappers", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1246,6 +1294,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1267,6 +1316,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1289,6 +1339,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1310,6 +1361,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1331,6 +1383,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1353,6 +1406,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1374,6 +1428,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1395,6 +1450,7 @@ describe("validatePayloadForUpload", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
         careerTarget: sampleCareerTarget(),
       })
@@ -1572,6 +1628,7 @@ describe("calendar preferences mappers", () => {
         recipes: [],
         cookingSessions: [],
         pantry: [],
+        customIngredients: [],
         focusFeedback: [],
         calendarPreferences: { categories: { skill: "bad.token" as never } },
       })

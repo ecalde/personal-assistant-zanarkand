@@ -3,6 +3,7 @@ import { SEED_INGREDIENT_CATALOG, seedIngredientIdFor } from "./ingredientCatalo
 import {
   INGREDIENT_FUZZY_THRESHOLD,
   computeRecipeAvailability,
+  matchCustomIngredient,
   matchIngredient,
   normalizeIngredientName,
   parseIngredientLine,
@@ -10,7 +11,7 @@ import {
   resolveRecipeIngredientLine,
   trigramSimilarity,
 } from "./ingredients";
-import type { PantryItem, Recipe, RecipeIngredientLine } from "./model";
+import type { CustomIngredient, PantryItem, Recipe, RecipeIngredientLine } from "./model";
 
 const NOW = "2026-08-19T12:00:00.000Z";
 const RECIPE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -213,5 +214,26 @@ describe("computeRecipeAvailability", () => {
     const pantry = [pantryItem({ label: "eggs" })];
     expect(recipeLineIsInPantry(dish.ingredients[0]!, pantry, catalog)).toBe(true);
     expect(computeRecipeAvailability(dish, pantry, catalog)).toBe("can_make");
+  });
+});
+
+describe("custom ingredient matching", () => {
+  const custom: CustomIngredient = {
+    id: "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+    name: "Guanciale",
+    createdAtIso: NOW,
+    updatedAtIso: NOW,
+  };
+
+  it("resolves an unmatched catalog line to a custom ingredient", () => {
+    expect(matchCustomIngredient("guanciale", [custom])?.customIngredientId).toBe(custom.id);
+    const resolved = resolveRecipeIngredientLine(
+      { id: LINE_A, rawText: "50 g guanciale" },
+      catalog,
+      [custom]
+    );
+    expect(resolved.customIngredientId).toBe(custom.id);
+    expect(resolved.ingredientId).toBeUndefined();
+    expect(resolved.matchConfidence).toBe(1);
   });
 });

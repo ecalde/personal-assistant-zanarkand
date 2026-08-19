@@ -231,6 +231,18 @@ export type RecipeExperienceLevel = "beginner" | "intermediate" | "advanced";
 
 export type RecipeSource = "manual" | "import" | "catalog";
 
+export type CookingMethod =
+  | "boil"
+  | "bake"
+  | "fry"
+  | "saute"
+  | "steam"
+  | "grill"
+  | "raw"
+  | "other";
+
+export type NutrientSource = "usda" | "off" | "custom";
+
 export type RecipeStepKind = "blocking" | "parallel" | "wait" | "timer";
 
 export type SanityImageRef = {
@@ -276,6 +288,7 @@ export type Recipe = {
   ingredients: RecipeIngredientLine[];
   steps: RecipeStep[];
   equipment: string[];
+  cookingMethod?: CookingMethod;
   heroImage?: SanityImageRef;
   gallery: SanityImageRef[];
   source: RecipeSource;
@@ -353,6 +366,56 @@ export type IngredientMatch = {
   ingredientId: string;
   confidence: number;
   matchedVia: IngredientMatchVia;
+};
+
+export type Per100g = {
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbG: number;
+  fiberG?: number;
+  sugarG?: number;
+  sodiumMg?: number;
+};
+
+export type IngredientNutrients = {
+  id: string;
+  ingredientId: string;
+  source: NutrientSource;
+  fdcId?: number;
+  per100g: Per100g;
+  fetchedAtIso: string;
+};
+
+export type RetentionFactor = {
+  id: string;
+  cookingMethod: CookingMethod;
+  nutrientKey: string;
+  factor: number;
+};
+
+export type CustomIngredient = {
+  id: string;
+  name: string;
+  category?: string;
+  defaultUnit?: string;
+  densityGPerMl?: number;
+  gramsPerPiece?: number;
+  per100g?: Per100g;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type NutritionConfidenceLabel = "high" | "medium" | "low";
+
+export type RecipeNutrition = {
+  recipeId: string;
+  total: Per100g;
+  perServing: Per100g;
+  confidence: number;
+  confidenceLabel: NutritionConfidenceLabel;
+  unresolvedLineIds: string[];
+  missingDataLineIds: string[];
 };
 
 export type WorkoutPlan = {
@@ -470,6 +533,7 @@ export type AppPayload = {
   recipes: Recipe[];
   cookingSessions: CookingSession[];
   pantry: PantryItem[];
+  customIngredients: CustomIngredient[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;

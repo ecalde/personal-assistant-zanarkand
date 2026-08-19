@@ -6,6 +6,7 @@
 
 import type { IngredientCatalog } from "./ingredientCatalog";
 import type {
+  CustomIngredient,
   Ingredient,
   IngredientAlias,
   IngredientMatch,
@@ -398,9 +399,24 @@ function roundConfidence(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+export function matchCustomIngredient(
+  rawName: string,
+  customIngredients: readonly CustomIngredient[]
+): { customIngredientId: string; confidence: number } | undefined {
+  const normalized = normalizeIngredientName(rawName);
+  if (!normalized) return undefined;
+  for (const item of customIngredients) {
+    if (normalizeIngredientName(item.name) === normalized) {
+      return { customIngredientId: item.id, confidence: 1 };
+    }
+  }
+  return undefined;
+}
+
 export function resolveRecipeIngredientLine(
   line: Pick<RecipeIngredientLine, "id" | "rawText" | "optional">,
-  catalog: IngredientCatalog | IndexedIngredientCatalog
+  catalog: IngredientCatalog | IndexedIngredientCatalog,
+  customIngredients?: readonly CustomIngredient[]
 ): RecipeIngredientLine {
   const parsed = parseIngredientLine(line.rawText);
   const match = matchIngredient(parsed.name || line.rawText, catalog);
@@ -414,6 +430,14 @@ export function resolveRecipeIngredientLine(
   if (match) {
     resolved.ingredientId = match.ingredientId;
     resolved.matchConfidence = match.confidence;
+    return resolved;
+  }
+  const custom = customIngredients?.length
+    ? matchCustomIngredient(parsed.name || line.rawText, customIngredients)
+    : undefined;
+  if (custom) {
+    resolved.customIngredientId = custom.customIngredientId;
+    resolved.matchConfidence = custom.confidence;
   }
   return resolved;
 }
@@ -421,7 +445,8 @@ export function resolveRecipeIngredientLine(
 export function resolveRecipeIngredients(
   lines: RecipeIngredientLine[],
   catalog: IngredientCatalog | IndexedIngredientCatalog,
-  previous?: readonly RecipeIngredientLine[]
+  previous?: readonly RecipeIngredientLine[],
+  customIngredients?: readonly CustomIngredient[]
 ): RecipeIngredientLine[] {
   const previousById = new Map((previous ?? []).map((line) => [line.id, line]));
   return lines.map((line) => {
@@ -432,14 +457,20 @@ export function resolveRecipeIngredients(
       else delete kept.optional;
       return kept;
     }
-    return resolveRecipeIngredientLine(line, catalog);
+    return resolveRecipeIngredientLine(line, catalog, customIngredients);
   });
 }
 
 export function ingredientDisplayName(
   ingredientId: string | undefined,
-  catalog: IngredientCatalog | IndexedIngredientCatalog
+  catalog: IngredientCatalog | IndexedIngredientCatalog,
+  customIngredients?: readonly CustomIngredient[],
+  customIngredientId?: string
 ): string | undefined {
+  if (customIngredientId && customIngredients) {
+    const custom = customIngredients.find((item) => item.id === customIngredientId);
+    if (custom) return custom.name;
+  }
   if (!ingredientId) return undefined;
   const indexed = "byId" in catalog ? catalog : indexIngredientCatalog(catalog);
   return indexed.byId.get(ingredientId)?.canonicalName;
@@ -447,6 +478,7 @@ export function ingredientDisplayName(
 
 type PantryIndex = {
   byIngredientId: Set<string>;
+  byCustomIngredientId: Set<string>;
   byNormalizedLabel: Set<string>;
 };
 
@@ -455,6 +487,7 @@ function indexPantry(
   catalog?: IngredientCatalog | IndexedIngredientCatalog
 ): PantryIndex {
   const byIngredientId = new Set<string>();
+  const byCustomIngredientId = new Set<string>();
   const byNormalizedLabel = new Set<string>();
   const indexed = catalog
     ? "byId" in catalog
@@ -465,6 +498,7 @@ function indexPantry(
   for (const item of pantry) {
     if (!item.available) continue;
     if (item.ingredientId) byIngredientId.add(item.ingredientId);
+    if (item.customIngredientId) byCustomIngredientId.add(item.customIngredientId);
     const labelNorm = normalizeIngredientName(item.label);
     if (labelNorm) byNormalizedLabel.add(labelNorm);
     if (!item.ingredientId && indexed) {
@@ -473,7 +507,7 @@ function indexPantry(
     }
   }
 
-  return { byIngredientId, byNormalizedLabel };
+  return { byIngredientId, byCustomIngredientId, byNormalizedLabel };
 }
 
 function resolvedIngredientIdForLine(
@@ -492,6 +526,9 @@ export function recipeLineIsInPantry(
   catalog?: IngredientCatalog | IndexedIngredientCatalog
 ): boolean {
   const index = indexPantry(pantry, catalog);
+  if (line.customIngredientId && index.byCustomIngredientId.has(line.customIngredientId)) {
+    return true;
+  }
   const ingredientId = resolvedIngredientIdForLine(line, catalog);
   if (ingredientId && index.byIngredientId.has(ingredientId)) return true;
   const parsed = parseIngredientLine(line.rawText);
@@ -514,6 +551,8 @@ export function computeRecipeAvailability(
     const ingredientId = resolvedIngredientIdForLine(line, catalog);
     const parsed = parseIngredientLine(line.rawText);
     const inPantry =
+      (line.customIngredientId !== undefined &&
+        index.byCustomIngredientId.has(line.customIngredientId)) ||
       (ingredientId !== undefined && index.byIngredientId.has(ingredientId)) ||
       (parsed.name !== "" && index.byNormalizedLabel.has(parsed.name)) ||
       index.byNormalizedLabel.has(normalizeIngredientName(line.rawText));
@@ -552,13 +591,22 @@ export function countRecipesByAvailability(
 
 export function describeIngredientMatch(
   rawText: string,
-  catalog: IngredientCatalog | IndexedIngredientCatalog
+  catalog: IngredientCatalog | IndexedIngredientCatalog,
+  customIngredients?: readonly CustomIngredient[]
 ): string | undefined {
   const parsed = parseIngredientLine(rawText);
   const match = matchIngredient(parsed.name || rawText, catalog);
-  if (!match) return undefined;
-  const name = ingredientDisplayName(match.ingredientId, catalog);
+  if (match) {
+    const name = ingredientDisplayName(match.ingredientId, catalog);
+    if (!name) return undefined;
+    const pct = Math.round(match.confidence * 100);
+    return `${name} · ${pct}%`;
+  }
+  const custom = customIngredients?.length
+    ? matchCustomIngredient(parsed.name || rawText, customIngredients)
+    : undefined;
+  if (!custom) return undefined;
+  const name = ingredientDisplayName(undefined, catalog, customIngredients, custom.customIngredientId);
   if (!name) return undefined;
-  const pct = Math.round(match.confidence * 100);
-  return `${name} · ${pct}%`;
+  return `${name} · custom`;
 }

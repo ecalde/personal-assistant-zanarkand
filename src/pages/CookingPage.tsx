@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildCompletedCookingSession,
   buildPlannedCookingSession,
@@ -27,11 +27,18 @@ import {
   buildRecipeAvailabilityMap,
   pantryIsInUse,
 } from "../core/ingredients";
-import type { CookingSession, PantryItem, Recipe } from "../core/model";
+import {
+  buildNutritionIndexes,
+  computeRecipeNutrition,
+  ingredientIdsNeedingFetch,
+} from "../core/nutrition";
+import type { CookingSession, CustomIngredient, PantryItem, Recipe } from "../core/model";
+import { fetchIngredientNutrition } from "../lib/nutritionFetch";
 import { clearActiveCookingSessionMirror } from "../core/cookingSessionStorage";
 import { formatLocalDateKey } from "../core/timeline";
 import { CookingCompletionDialog } from "../components/cooking/CookingCompletionDialog";
 import { PantryPanel } from "../components/cooking/PantryPanel";
+import { CustomIngredientsPanel } from "../components/cooking/CustomIngredientsPanel";
 import { RecipeDetail } from "../components/cooking/RecipeDetail";
 import { RecipeForm } from "../components/cooking/RecipeForm";
 import { RecipeGallery } from "../components/cooking/RecipeGallery";
@@ -53,6 +60,7 @@ export type CookingPageProps = {
   recipes: Recipe[];
   cookingSessions: CookingSession[];
   pantry: PantryItem[];
+  customIngredients: CustomIngredient[];
   onAddRecipe: (input: Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdateRecipe: (recipe: Recipe) => void;
   onDeleteRecipe: (recipeId: string) => void;
@@ -63,6 +71,10 @@ export type CookingPageProps = {
   onAddPantryItem: (input: Omit<PantryItem, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdatePantryItem: (item: PantryItem) => void;
   onDeletePantryItem: (itemId: string) => void;
+  onAddCustomIngredient: (
+    input: Omit<CustomIngredient, "id" | "createdAtIso" | "updatedAtIso">
+  ) => void;
+  onDeleteCustomIngredient: (itemId: string) => void;
 };
 
 type CookingView = "gallery" | "detail" | "form" | "guided" | "pantry";
@@ -71,6 +83,7 @@ export default function CookingPage({
   recipes,
   cookingSessions,
   pantry,
+  customIngredients,
   onAddRecipe,
   onUpdateRecipe,
   onDeleteRecipe,
@@ -79,6 +92,8 @@ export default function CookingPage({
   onAddPantryItem,
   onUpdatePantryItem,
   onDeletePantryItem,
+  onAddCustomIngredient,
+  onDeleteCustomIngredient,
 }: CookingPageProps) {
   const [view, setView] = useState<CookingView>("gallery");
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
@@ -93,7 +108,8 @@ export default function CookingPage({
   const [cookTimeFilter, setCookTimeFilter] = useState<RecipeCookTimeFilter>("all");
   const [masteryFilter, setMasteryFilter] = useState<RecipeMasteryFilter>("all");
   const [availabilityFilter, setAvailabilityFilter] = useState<RecipeAvailabilityFilter>("all");
-  const catalog = useCookingReferenceData();
+  const { catalog, nutrients, retentionFactors, mergeFetchedNutrients } =
+    useCookingReferenceData();
   const pantryActive = pantryIsInUse(pantry);
   const [loggingRecipeId, setLoggingRecipeId] = useState<string | null>(null);
   const [loggingSessionId, setLoggingSessionId] = useState<string | null>(null);
@@ -107,6 +123,34 @@ export default function CookingPage({
     () => buildRecipeAvailabilityMap(recipes, pantry, catalog),
     [recipes, pantry, catalog]
   );
+  const nutritionIndexes = useMemo(
+    () =>
+      buildNutritionIndexes({
+        catalog,
+        nutrients,
+        customIngredients,
+        retentionFactors,
+      }),
+    [catalog, nutrients, customIngredients, retentionFactors]
+  );
+
+  useEffect(() => {
+    const missing = ingredientIdsNeedingFetch(recipes, nutritionIndexes);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void fetchIngredientNutrition(missing)
+      .then((result) => {
+        if (!cancelled && result.nutrients.length > 0) {
+          mergeFetchedNutrients(result.nutrients);
+        }
+      })
+      .catch(() => {
+        // Seed cache still covers the catalog; live USDA is best-effort.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recipes, nutritionIndexes, mergeFetchedNutrients]);
 
   const galleryFilters = {
     query,
@@ -151,6 +195,9 @@ export default function CookingPage({
 
   const selectedRecipe = selectedRecipeId
     ? recipes.find((recipe) => recipe.id === selectedRecipeId)
+    : undefined;
+  const selectedRecipeNutrition = selectedRecipe
+    ? computeRecipeNutrition(selectedRecipe, nutritionIndexes)
     : undefined;
 
   const loggingRecipe = loggingRecipeId
@@ -231,6 +278,7 @@ export default function CookingPage({
 
     const payload = recipePayloadFromForm(form, {
       catalog,
+      customIngredients,
       previous: editingRecipeId
         ? recipes.find((recipe) => recipe.id === editingRecipeId)
         : undefined,
@@ -244,6 +292,7 @@ export default function CookingPage({
       }
       const nextRecipe: Recipe = { ...existing, ...payload };
       if (!payload.heroImage) delete nextRecipe.heroImage;
+      if (!payload.cookingMethod) delete nextRecipe.cookingMethod;
       onUpdateRecipe(nextRecipe);
       setSelectedRecipeId(existing.id);
       setForm(emptyRecipeFormState());
@@ -323,6 +372,7 @@ export default function CookingPage({
           onSubmit={handleSubmit}
           onCancel={resetForm}
           catalog={catalog}
+          customIngredients={customIngredients}
           onUploadImage={
             isSanityConfigured()
               ? (file, kind) =>
@@ -344,6 +394,8 @@ export default function CookingPage({
           showAvailability={pantryActive}
           pantry={pantry}
           catalog={catalog}
+          customIngredients={customIngredients}
+          nutrition={selectedRecipeNutrition}
           onBack={() => {
             setSelectedRecipeId(null);
             setView("gallery");
@@ -425,14 +477,23 @@ export default function CookingPage({
       )}
 
       {view === "pantry" && (
-        <PantryPanel
-          pantry={pantry}
-          catalog={catalog}
-          onAdd={onAddPantryItem}
-          onUpdate={onUpdatePantryItem}
-          onDelete={onDeletePantryItem}
-          onBack={() => setView("gallery")}
-        />
+        <div style={{ display: "grid", gap: 14 }}>
+          <PantryPanel
+            pantry={pantry}
+            catalog={catalog}
+            onAdd={onAddPantryItem}
+            onUpdate={onUpdatePantryItem}
+            onDelete={onDeletePantryItem}
+            onBack={() => setView("gallery")}
+          />
+          <div style={styles.card}>
+            <CustomIngredientsPanel
+              customIngredients={customIngredients}
+              onAdd={onAddCustomIngredient}
+              onDelete={onDeleteCustomIngredient}
+            />
+          </div>
+        </div>
       )}
 
       {view === "gallery" && (

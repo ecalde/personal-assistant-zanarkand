@@ -5,6 +5,7 @@
 import { COOKING_XP } from "./milestoneTables";
 import type {
   AppPayload,
+  CookingMethod,
   CookingSession,
   CookingSessionStatus,
   CookingTimerStatus,
@@ -47,6 +48,17 @@ export const RECIPE_STEP_KIND_LABELS: Record<RecipeStepKind, string> = {
   parallel: "Parallel",
   wait: "Wait",
   timer: "Timer",
+};
+
+export const COOKING_METHOD_LABELS: Record<CookingMethod, string> = {
+  boil: "Boil",
+  bake: "Bake",
+  fry: "Fry",
+  saute: "Sauté",
+  steam: "Steam",
+  grill: "Grill",
+  raw: "Raw",
+  other: "Other",
 };
 
 export type RecipesSortMode =
@@ -149,6 +161,17 @@ const RECIPE_EXPERIENCE_LEVELS: RecipeExperienceLevel[] = [
 const RECIPE_SOURCES: RecipeSource[] = ["manual", "import", "catalog"];
 
 const RECIPE_STEP_KINDS: RecipeStepKind[] = ["blocking", "parallel", "wait", "timer"];
+
+const COOKING_METHODS: CookingMethod[] = [
+  "boil",
+  "bake",
+  "fry",
+  "saute",
+  "steam",
+  "grill",
+  "raw",
+  "other",
+];
 
 const CATEGORY_SORT_ORDER: Record<RecipeCategory, number> = {
   breakfast: 0,
@@ -299,6 +322,18 @@ export function isRecipeSource(value: string): value is RecipeSource {
 
 export function isRecipeStepKind(value: string): value is RecipeStepKind {
   return RECIPE_STEP_KINDS.includes(value as RecipeStepKind);
+}
+
+export function isCookingMethod(value: string): value is CookingMethod {
+  return COOKING_METHODS.includes(value as CookingMethod);
+}
+
+export function getCookingMethodValues(): CookingMethod[] {
+  return [...COOKING_METHODS];
+}
+
+export function formatCookingMethod(method: CookingMethod): string {
+  return COOKING_METHOD_LABELS[method];
 }
 
 export function formatRecipeCategory(category: RecipeCategory): string {
@@ -1025,7 +1060,9 @@ export function buildCompletedCookingSession(
 
 export function sanitizeCookingReferences(payload: AppPayload): AppPayload {
   const recipeIds = new Set(payload.recipes.map((recipe) => recipe.id));
+  const customIds = new Set((payload.customIngredients ?? []).map((item) => item.id));
   let changed = false;
+
   const cookingSessions = (payload.cookingSessions ?? []).map((session) => {
     if (session.recipeId && !recipeIds.has(session.recipeId)) {
       changed = true;
@@ -1033,6 +1070,33 @@ export function sanitizeCookingReferences(payload: AppPayload): AppPayload {
     }
     return session;
   });
+
+  const recipes = payload.recipes.map((recipe) => {
+    let recipeChanged = false;
+    const ingredients = recipe.ingredients.map((line) => {
+      if (line.customIngredientId && !customIds.has(line.customIngredientId)) {
+        recipeChanged = true;
+        const next = { ...line };
+        delete next.customIngredientId;
+        return next;
+      }
+      return line;
+    });
+    if (!recipeChanged) return recipe;
+    changed = true;
+    return { ...recipe, ingredients };
+  });
+
+  const pantry = (payload.pantry ?? []).map((item) => {
+    if (item.customIngredientId && !customIds.has(item.customIngredientId)) {
+      changed = true;
+      const next = { ...item };
+      delete next.customIngredientId;
+      return next;
+    }
+    return item;
+  });
+
   if (!changed) return payload;
-  return { ...payload, cookingSessions };
+  return { ...payload, cookingSessions, recipes, pantry };
 }

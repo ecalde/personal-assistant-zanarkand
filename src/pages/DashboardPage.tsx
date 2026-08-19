@@ -241,6 +241,7 @@ export default function DashboardPage({
       recipes,
       cookingSessions,
       pantry: [],
+      customIngredients: [],
       focusFeedback,
       gamificationState,
     };

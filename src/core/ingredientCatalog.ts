@@ -4,6 +4,7 @@
  */
 
 import type { Ingredient, IngredientAlias } from "./model";
+import { seedNutritionMetaFor } from "./nutritionSeed";
 
 export type IngredientCatalog = {
   ingredients: Ingredient[];
@@ -484,6 +485,16 @@ export function buildSeedIngredientCatalog(): IngredientCatalog {
     if (seed.unit) ingredient.defaultUnit = seed.unit;
     if (seed.densityGPerMl !== undefined) ingredient.densityGPerMl = seed.densityGPerMl;
     if (seed.gramsPerPiece !== undefined) ingredient.gramsPerPiece = seed.gramsPerPiece;
+    const nutritionMeta = seedNutritionMetaFor(seed.n);
+    if (nutritionMeta) {
+      ingredient.fdcId = nutritionMeta.fdcId;
+      if (ingredient.densityGPerMl === undefined && nutritionMeta.densityGPerMl !== undefined) {
+        ingredient.densityGPerMl = nutritionMeta.densityGPerMl;
+      }
+      if (ingredient.gramsPerPiece === undefined && nutritionMeta.gramsPerPiece !== undefined) {
+        ingredient.gramsPerPiece = nutritionMeta.gramsPerPiece;
+      }
+    }
     ingredients.push(ingredient);
     addAlias(id, seed.name);
     for (const extra of seed.aliases ?? []) {

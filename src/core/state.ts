@@ -32,6 +32,7 @@ export function defaultPayload(): AppPayload {
     recipes: [],
     cookingSessions: [],
     pantry: [],
+    customIngredients: [],
     focusFeedback: [],
   };
 }

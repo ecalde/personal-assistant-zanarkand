@@ -19,6 +19,7 @@ import {
   recipeToRow,
   cookingSessionToRow,
   pantryItemToRow,
+  customIngredientToRow,
   sessionToRow,
   skillToRow,
   workoutPlanToRow,
@@ -36,6 +37,7 @@ import {
   type RecipeRow,
   type CookingSessionRow,
   type PantryItemRow,
+  type CustomIngredientRow,
   type SessionRow,
   type SkillRow,
   type WorkoutPlanRow,
@@ -60,6 +62,7 @@ type AppTable =
   | "recipes"
   | "cooking_sessions"
   | "user_pantry"
+  | "custom_ingredients"
   | "focus_feedback"
   | "calendar_preferences"
   | "gamification_state";
@@ -182,6 +185,21 @@ function syncFailureMessage(
     );
   }
 
+  if (
+    table === "custom_ingredients" &&
+    (error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      error.code === "PGRST204" ||
+      (msg.includes("schema cache") && msg.includes("custom_ingredient")) ||
+      (msg.includes("relation") && msg.includes("custom_ingredient")) ||
+      (msg.includes("column") && msg.includes("cooking_method")))
+  ) {
+    return (
+      "Could not sync cooking nutrition. Your Supabase database is missing the cooking " +
+      "nutrition migration (20260819140000_cooking_nutrition.sql). Apply it, then retry cloud save."
+    );
+  }
+
   return `Could not sync ${table}. Please try again.`;
 }
 
@@ -260,6 +278,7 @@ async function upsertRows(
     | RecipeRow[]
     | CookingSessionRow[]
     | PantryItemRow[]
+    | CustomIngredientRow[]
     | FocusFeedbackRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
@@ -324,7 +343,7 @@ async function replaceGamificationState(
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, customIngredientsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -340,6 +359,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("recipes").select("*").eq("user_id", userId),
     supabase.from("cooking_sessions").select("*").eq("user_id", userId),
     supabase.from("user_pantry").select("*").eq("user_id", userId),
+    supabase.from("custom_ingredients").select("*").eq("user_id", userId),
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
     supabase.from("calendar_preferences").select("*").eq("user_id", userId),
     supabase.from("gamification_state").select("*").eq("user_id", userId),
@@ -359,6 +379,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(recipesResult.error, "recipes");
   throwOnSupabaseError(cookingSessionsResult.error, "cooking_sessions");
   throwOnSupabaseError(pantryResult.error, "user_pantry");
+  throwOnSupabaseError(customIngredientsResult.error, "custom_ingredients");
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
   throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
   throwOnSupabaseError(gamificationStateResult.error, "gamification_state");
@@ -381,7 +402,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<SupplementIntakeLogRow>(supplementIntakeLogsResult.data),
       asRows<RecipeRow>(recipesResult.data),
       asRows<CookingSessionRow>(cookingSessionsResult.data),
-      asRows<PantryItemRow>(pantryResult.data)
+      asRows<PantryItemRow>(pantryResult.data),
+      asRows<CustomIngredientRow>(customIngredientsResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -425,6 +447,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
     cookingSessionToRow(session, userId)
   );
   const pantryRows = payload.pantry.map((item) => pantryItemToRow(item, userId));
+  const customIngredientRows = (payload.customIngredients ?? []).map((item) =>
+    customIngredientToRow(item, userId)
+  );
   const focusFeedbackRows = payload.focusFeedback.map((entry) =>
     focusFeedbackToRow(entry, userId)
   );
@@ -448,6 +473,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("supplement_intake_logs", supplementIntakeLogRows);
   await upsertRows("recipes", recipeRows);
   await upsertRows("cooking_sessions", cookingSessionRows);
+  await upsertRows("custom_ingredients", customIngredientRows);
   await upsertRows("user_pantry", pantryRows);
   await upsertRows("focus_feedback", focusFeedbackRows);
 
@@ -465,6 +491,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const recipeIds = payload.recipes.map((r) => r.id);
   const cookingSessionIds = payload.cookingSessions.map((s) => s.id);
   const pantryIds = payload.pantry.map((item) => item.id);
+  const customIngredientIds = (payload.customIngredients ?? []).map((item) => item.id);
   const focusFeedbackIds = payload.focusFeedback.map((f) => f.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
@@ -480,6 +507,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("cooking_sessions", userId, cookingSessionIds);
   await deleteRowsNotIn("recipes", userId, recipeIds);
   await deleteRowsNotIn("user_pantry", userId, pantryIds);
+  await deleteRowsNotIn("custom_ingredients", userId, customIngredientIds);
   await deleteRowsNotIn("supplement_protocols", userId, supplementProtocolIds);
   await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
 
@@ -503,6 +531,7 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.recipes.length > 0 ||
     payload.cookingSessions.length > 0 ||
     payload.pantry.length > 0 ||
+    (payload.customIngredients?.length ?? 0) > 0 ||
     payload.focusFeedback.length > 0 ||
     payload.calendarPreferences !== undefined ||
     payload.gamificationState !== undefined

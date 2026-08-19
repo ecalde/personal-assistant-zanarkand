@@ -289,6 +289,7 @@ describe("cleanupInvalidSkillScheduleSeries", () => {
       recipes: [],
       cookingSessions: [],
       pantry: [],
+      customIngredients: [],
       focusFeedback: [],
     };
     const cleaned = cleanupInvalidSkillScheduleSeries(payload);
@@ -312,6 +313,7 @@ describe("cleanupInvalidSkillScheduleSeries", () => {
       recipes: [],
       cookingSessions: [],
       pantry: [],
+      customIngredients: [],
       focusFeedback: [],
     };
     expect(cleanupInvalidSkillScheduleSeries(payload)).toBe(payload);

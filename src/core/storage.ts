@@ -70,6 +70,7 @@ export function normalizePayload(payload: unknown): AppPayload {
         recipes: Array.isArray(p.recipes) ? p.recipes : [],
         cookingSessions: Array.isArray(p.cookingSessions) ? p.cookingSessions : [],
         pantry: Array.isArray(p.pantry) ? p.pantry : [],
+        customIngredients: Array.isArray(p.customIngredients) ? p.customIngredients : [],
         focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
         calendarPreferences:
             p.calendarPreferences &&

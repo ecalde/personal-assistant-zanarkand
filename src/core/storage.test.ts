@@ -43,6 +43,7 @@ describe("normalizePayload calendar preferences", () => {
     expect(result.supplementIntakeLogs).toEqual([]);
     expect(result.recipes).toEqual([]);
     expect(result.cookingSessions).toEqual([]);
+    expect(result.customIngredients).toEqual([]);
   });
 });
 

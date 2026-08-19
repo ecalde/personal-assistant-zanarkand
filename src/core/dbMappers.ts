@@ -40,17 +40,22 @@ import type {
   RecipeIngredientLine,
   RecipeStep,
   RecipeStepKind,
+  CookingSession,
+  CookingTimer,
+  CustomIngredient,
   Ingredient,
   IngredientAlias,
+  IngredientNutrients,
   PantryItem,
+  Per100g,
+  NutrientSource,
+  RetentionFactor,
   RemotePolicy,
   SanityImageRef,
   ScheduleBlock,
   Session,
   Skill,
   SkillScheduleSeries,
-  CookingSession,
-  CookingTimer,
   Weekday,
   WeeklySchedule,
   WorkoutFocus,
@@ -68,6 +73,7 @@ import type {
   SupplementDoseSlot,
 } from "./model";
 import {
+  isCookingMethod,
   isCookingTimerStatus,
   isPersistedCookingSessionStatus,
   isRecipeCategory,
@@ -320,6 +326,7 @@ export type RecipeRow = {
   gallery: unknown;
   source: string;
   catalog_recipe_id: string | null;
+  cooking_method?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -373,6 +380,35 @@ export type PantryItemRow = {
   unit: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CustomIngredientRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string | null;
+  default_unit: string | null;
+  density_g_per_ml: number | string | null;
+  grams_per_piece: number | string | null;
+  per_100g: unknown | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IngredientNutrientsRow = {
+  id: string;
+  ingredient_id: string;
+  source: string;
+  fdc_id: number | null;
+  per_100g: unknown;
+  fetched_at: string;
+};
+
+export type RetentionFactorRow = {
+  id: string;
+  cooking_method: string;
+  nutrient_key: string;
+  factor: number | string;
 };
 
 export type FocusFeedbackRow = {
@@ -2608,6 +2644,9 @@ export function assertValidRecipe(recipe: Recipe): void {
   if (recipe.catalogRecipeId !== undefined) {
     assertUuid(recipe.catalogRecipeId, "recipe.catalogRecipeId");
   }
+  if (recipe.cookingMethod !== undefined && !isCookingMethod(recipe.cookingMethod)) {
+    throw new MapperError("Invalid recipe.cookingMethod", "recipe.cookingMethod");
+  }
   if (recipe.heroImage !== undefined) {
     parseSanityImageRef(recipe.heroImage, "recipe.heroImage");
   }
@@ -2648,6 +2687,7 @@ export function recipeToRow(recipe: Recipe, userId: string): RecipeRow {
     gallery: parseSanityImageRefList(recipe.gallery, "recipe.gallery"),
     source: recipe.source,
     catalog_recipe_id: recipe.catalogRecipeId ?? null,
+    cooking_method: recipe.cookingMethod ?? null,
     created_at: recipe.createdAtIso,
     updated_at: recipe.updatedAtIso,
   };
@@ -2680,6 +2720,9 @@ export function recipeFromRow(row: RecipeRow): Recipe {
   }
   if (row.catalog_recipe_id !== null) {
     assertUuid(row.catalog_recipe_id, "recipes.catalog_recipe_id");
+  }
+  if (row.cooking_method !== null && row.cooking_method !== undefined && !isCookingMethod(row.cooking_method)) {
+    throw new MapperError("Invalid recipes.cooking_method", "recipes.cooking_method");
   }
 
   const ingredients = parseRecipeIngredients(row.ingredients, "recipes.ingredients");
@@ -2719,6 +2762,9 @@ export function recipeFromRow(row: RecipeRow): Recipe {
   }
   if (row.catalog_recipe_id !== null) {
     recipe.catalogRecipeId = row.catalog_recipe_id;
+  }
+  if (row.cooking_method !== null && row.cooking_method !== undefined && isCookingMethod(row.cooking_method)) {
+    recipe.cookingMethod = row.cooking_method;
   }
 
   return recipe;
@@ -2947,6 +2993,48 @@ function parseOptionalNumeric(value: unknown, field: string): number | undefined
   return parsed;
 }
 
+function isNutrientSource(value: string): value is NutrientSource {
+  return value === "usda" || value === "off" || value === "custom";
+}
+
+export function parsePer100g(value: unknown, field: string): Per100g {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  const obj = value as Record<string, unknown>;
+  const kcal = parseOptionalNumeric(obj.kcal, `${field}.kcal`);
+  const proteinG = parseOptionalNumeric(
+    obj.proteinG ?? obj.protein_g,
+    `${field}.proteinG`
+  );
+  const fatG = parseOptionalNumeric(obj.fatG ?? obj.fat_g, `${field}.fatG`);
+  const carbG = parseOptionalNumeric(obj.carbG ?? obj.carb_g, `${field}.carbG`);
+  if (kcal === undefined || proteinG === undefined || fatG === undefined || carbG === undefined) {
+    throw new MapperError(`Invalid ${field}: kcal/protein/fat/carb required`, field);
+  }
+  const per100g: Per100g = { kcal, proteinG, fatG, carbG };
+  const fiberG = parseOptionalNumeric(obj.fiberG ?? obj.fiber_g, `${field}.fiberG`);
+  const sugarG = parseOptionalNumeric(obj.sugarG ?? obj.sugar_g, `${field}.sugarG`);
+  const sodiumMg = parseOptionalNumeric(obj.sodiumMg ?? obj.sodium_mg, `${field}.sodiumMg`);
+  if (fiberG !== undefined) per100g.fiberG = fiberG;
+  if (sugarG !== undefined) per100g.sugarG = sugarG;
+  if (sodiumMg !== undefined) per100g.sodiumMg = sodiumMg;
+  return per100g;
+}
+
+function per100gToRow(value: Per100g): Record<string, number> {
+  const row: Record<string, number> = {
+    kcal: value.kcal,
+    protein_g: value.proteinG,
+    fat_g: value.fatG,
+    carb_g: value.carbG,
+  };
+  if (value.fiberG !== undefined) row.fiber_g = value.fiberG;
+  if (value.sugarG !== undefined) row.sugar_g = value.sugarG;
+  if (value.sodiumMg !== undefined) row.sodium_mg = value.sodiumMg;
+  return row;
+}
+
 export function ingredientFromRow(row: IngredientRow): Ingredient {
   assertUuid(row.id, "ingredients.id");
   assertNonEmptyName(row.canonical_name, "ingredients.canonical_name");
@@ -3060,6 +3148,113 @@ export function pantryItemFromRow(row: PantryItemRow): PantryItem {
   }
   if (row.unit !== null && row.unit.trim()) item.unit = row.unit.trim();
   return item;
+}
+
+export function assertValidCustomIngredient(item: CustomIngredient): void {
+  assertUuid(item.id, "customIngredient.id");
+  assertNonEmptyName(item.name, "customIngredient.name");
+  assertIsoTimestamp(item.createdAtIso, "customIngredient.createdAtIso");
+  assertIsoTimestamp(item.updatedAtIso, "customIngredient.updatedAtIso");
+  if (item.category !== undefined && typeof item.category !== "string") {
+    throw new MapperError("Invalid customIngredient.category", "customIngredient.category");
+  }
+  if (item.defaultUnit !== undefined && typeof item.defaultUnit !== "string") {
+    throw new MapperError("Invalid customIngredient.defaultUnit", "customIngredient.defaultUnit");
+  }
+  if (item.densityGPerMl !== undefined && !Number.isFinite(item.densityGPerMl)) {
+    throw new MapperError("Invalid customIngredient.densityGPerMl", "customIngredient.densityGPerMl");
+  }
+  if (item.gramsPerPiece !== undefined && !Number.isFinite(item.gramsPerPiece)) {
+    throw new MapperError("Invalid customIngredient.gramsPerPiece", "customIngredient.gramsPerPiece");
+  }
+  if (item.per100g !== undefined) {
+    parsePer100g(item.per100g, "customIngredient.per100g");
+  }
+}
+
+export function customIngredientToRow(item: CustomIngredient, userId: string): CustomIngredientRow {
+  assertUuid(userId, "userId");
+  assertValidCustomIngredient(item);
+  return {
+    id: item.id,
+    user_id: userId,
+    name: item.name.trim(),
+    category: item.category?.trim() || null,
+    default_unit: item.defaultUnit?.trim() || null,
+    density_g_per_ml: item.densityGPerMl ?? null,
+    grams_per_piece: item.gramsPerPiece ?? null,
+    per_100g: item.per100g ? per100gToRow(item.per100g) : null,
+    created_at: item.createdAtIso,
+    updated_at: item.updatedAtIso,
+  };
+}
+
+export function customIngredientFromRow(row: CustomIngredientRow): CustomIngredient {
+  assertUuid(row.id, "custom_ingredients.id");
+  assertUuid(row.user_id, "custom_ingredients.user_id");
+  assertNonEmptyName(row.name, "custom_ingredients.name");
+  assertIsoTimestamp(row.created_at, "custom_ingredients.created_at");
+  assertIsoTimestamp(row.updated_at, "custom_ingredients.updated_at");
+
+  const item: CustomIngredient = {
+    id: row.id,
+    name: row.name.trim(),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+  if (row.category !== null && row.category.trim()) item.category = row.category.trim();
+  if (row.default_unit !== null && row.default_unit.trim()) item.defaultUnit = row.default_unit.trim();
+  const density = parseOptionalNumeric(row.density_g_per_ml, "custom_ingredients.density_g_per_ml");
+  if (density !== undefined) item.densityGPerMl = density;
+  const grams = parseOptionalNumeric(row.grams_per_piece, "custom_ingredients.grams_per_piece");
+  if (grams !== undefined) item.gramsPerPiece = grams;
+  if (row.per_100g !== null && row.per_100g !== undefined) {
+    item.per100g = parsePer100g(row.per_100g, "custom_ingredients.per_100g");
+  }
+  return item;
+}
+
+export function ingredientNutrientsFromRow(row: IngredientNutrientsRow): IngredientNutrients {
+  assertUuid(row.id, "ingredient_nutrients.id");
+  assertUuid(row.ingredient_id, "ingredient_nutrients.ingredient_id");
+  if (!isNutrientSource(row.source)) {
+    throw new MapperError("Invalid ingredient_nutrients.source", "ingredient_nutrients.source");
+  }
+  assertIsoTimestamp(row.fetched_at, "ingredient_nutrients.fetched_at");
+  const nutrients: IngredientNutrients = {
+    id: row.id,
+    ingredientId: row.ingredient_id,
+    source: row.source,
+    per100g: parsePer100g(row.per_100g, "ingredient_nutrients.per_100g"),
+    fetchedAtIso: row.fetched_at,
+  };
+  if (row.fdc_id !== null) {
+    if (!Number.isInteger(row.fdc_id) || row.fdc_id <= 0) {
+      throw new MapperError("Invalid ingredient_nutrients.fdc_id", "ingredient_nutrients.fdc_id");
+    }
+    nutrients.fdcId = row.fdc_id;
+  }
+  return nutrients;
+}
+
+export function retentionFactorFromRow(row: RetentionFactorRow): RetentionFactor {
+  assertUuid(row.id, "retention_factors.id");
+  if (!isCookingMethod(row.cooking_method)) {
+    throw new MapperError("Invalid retention_factors.cooking_method", "retention_factors.cooking_method");
+  }
+  if (typeof row.nutrient_key !== "string" || !row.nutrient_key.trim()) {
+    throw new MapperError("Invalid retention_factors.nutrient_key", "retention_factors.nutrient_key");
+  }
+  const factor = parseOptionalNumeric(row.factor, "retention_factors.factor");
+  if (factor === undefined || factor < 0 || factor > 1) {
+    throw new MapperError("Invalid retention_factors.factor", "retention_factors.factor");
+  }
+  return {
+    id: row.id,
+    cookingMethod: row.cooking_method,
+    nutrientKey: row.nutrient_key.trim(),
+    factor,
+  };
 }
 
 export function focusFeedbackToRow(entry: FocusFeedback, userId: string): FocusFeedbackRow {
@@ -3467,7 +3662,8 @@ export function payloadFromRows(
   supplementIntakeLogRows: SupplementIntakeLogRow[] = [],
   recipeRows: RecipeRow[] = [],
   cookingSessionRows: CookingSessionRow[] = [],
-  pantryRows: PantryItemRow[] = []
+  pantryRows: PantryItemRow[] = [],
+  customIngredientRows: CustomIngredientRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -3487,6 +3683,7 @@ export function payloadFromRows(
   const recipes = recipeRows.map((row) => recipeFromRow(row));
   const cookingSessions = cookingSessionRows.map((row) => cookingSessionFromRow(row));
   const pantry = pantryRows.map((row) => pantryItemFromRow(row));
+  const customIngredients = customIngredientRows.map((row) => customIngredientFromRow(row));
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -3527,6 +3724,7 @@ export function payloadFromRows(
     recipes,
     cookingSessions,
     pantry,
+    customIngredients,
     focusFeedback,
     calendarPreferences,
     gamificationState,
@@ -3736,6 +3934,38 @@ export function validatePayloadForUpload(payload: AppPayload): void {
         );
       }
       pantryIngredientIds.add(item.ingredientId);
+    }
+  }
+
+  const customIngredientIds = new Set<string>();
+  for (const item of payload.customIngredients ?? []) {
+    assertValidCustomIngredient(item);
+    if (customIngredientIds.has(item.id)) {
+      throw new MapperError(
+        `Duplicate custom ingredient id: ${item.id}`,
+        "customIngredients.id"
+      );
+    }
+    customIngredientIds.add(item.id);
+  }
+
+  for (const recipe of payload.recipes) {
+    for (const line of recipe.ingredients) {
+      if (line.customIngredientId && !customIngredientIds.has(line.customIngredientId)) {
+        throw new MapperError(
+          `Recipe ingredient references unknown custom ingredient: ${line.customIngredientId}`,
+          "recipes.ingredients"
+        );
+      }
+    }
+  }
+
+  for (const item of payload.pantry ?? []) {
+    if (item.customIngredientId && !customIngredientIds.has(item.customIngredientId)) {
+      throw new MapperError(
+        `Pantry item references unknown custom ingredient: ${item.customIngredientId}`,
+        "pantry.customIngredientId"
+      );
     }
   }
 

@@ -170,6 +170,11 @@ describe("recipePayloadFromForm", () => {
     expect(payload.ingredients[0]?.matchConfidence).toBeGreaterThanOrEqual(0.99);
     expect(payload.ingredients[0]?.quantity).toBe(2);
   });
+
+  it("includes cooking method when set", () => {
+    const payload = recipePayloadFromForm(filledForm({ cookingMethod: "boil" }));
+    expect(payload.cookingMethod).toBe("boil");
+  });
 });
 
 describe("recipeFormFromRecipe", () => {
@@ -183,6 +188,7 @@ describe("recipeFormFromRecipe", () => {
     expect(form.heroImage).toEqual(HERO_IMAGE);
     expect(form.gallery).toEqual([HERO_IMAGE]);
     expect(form.steps[0]?.kind).toBe("blocking");
+    expect(form.cookingMethod).toBe("");
   });
 
   it("round-trips wait-step timer fields", () => {

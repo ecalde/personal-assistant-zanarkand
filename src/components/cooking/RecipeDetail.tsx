@@ -1,4 +1,5 @@
 import {
+  formatCookingMethod,
   formatEstimatedMinutes,
   formatRecipeCategory,
   formatRecipeDifficulty,
@@ -11,10 +12,11 @@ import {
   ingredientDisplayName,
   recipeLineIsInPantry,
 } from "../../core/ingredients";
-import type { PantryItem, Recipe, RecipeAvailability } from "../../core/model";
+import type { CustomIngredient, PantryItem, Recipe, RecipeAvailability, RecipeNutrition } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { AvailabilityBadge } from "./AvailabilityBadge";
 import { MasteryBadge } from "./MasteryBadge";
+import { NutritionSummary } from "./NutritionSummary";
 import { RecipeImage } from "./RecipeImage";
 
 export type RecipeDetailProps = {
@@ -24,6 +26,8 @@ export type RecipeDetailProps = {
   showAvailability?: boolean;
   pantry?: PantryItem[];
   catalog?: IngredientCatalog;
+  customIngredients?: CustomIngredient[];
+  nutrition?: RecipeNutrition;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -40,6 +44,8 @@ export function RecipeDetail({
   showAvailability = false,
   pantry = [],
   catalog,
+  customIngredients = [],
+  nutrition,
   onBack,
   onEdit,
   onDelete,
@@ -118,6 +124,9 @@ export function RecipeDetail({
         </span>
         {mastery && <MasteryBadge mastery={mastery} />}
         {showAvailability && availability && <AvailabilityBadge status={availability} />}
+        {recipe.cookingMethod && (
+          <span style={styles.statusPill}>{formatCookingMethod(recipe.cookingMethod)}</span>
+        )}
         {cookTime && <span style={{ ...styles.textMuted, fontSize: 13 }}>{cookTime}</span>}
         {servings && <span style={{ ...styles.textMuted, fontSize: 13 }}>{servings}</span>}
       </div>
@@ -128,7 +137,12 @@ export function RecipeDetail({
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {recipe.ingredients.map((line) => {
               const matchedName = catalog
-                ? ingredientDisplayName(line.ingredientId, catalog)
+                ? ingredientDisplayName(
+                    line.ingredientId,
+                    catalog,
+                    customIngredients,
+                    line.customIngredientId
+                  )
                 : undefined;
               const inPantry = showAvailability
                 ? recipeLineIsInPantry(line, pantry, catalog)
@@ -157,6 +171,8 @@ export function RecipeDetail({
             })}
           </ul>
         </section>
+
+        {nutrition && <NutritionSummary nutrition={nutrition} recipe={recipe} />}
 
         <section style={styles.recipeDetailSection}>
           <div style={{ fontWeight: 700 }}>Steps</div>

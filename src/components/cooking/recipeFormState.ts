@@ -1,4 +1,5 @@
 import type {
+  CookingMethod,
   Recipe,
   RecipeCategory,
   RecipeDifficulty,
@@ -12,11 +13,13 @@ import {
   getRecipeCategoryValues,
   getRecipeDifficultyValues,
   getRecipeExperienceLevelValues,
+  isCookingMethod,
   isRecipeStepKind,
 } from "../../core/cooking";
 import { defaultsForStepKind } from "../../core/cookingSession";
 import type { IngredientCatalog } from "../../core/ingredientCatalog";
 import { resolveRecipeIngredients } from "../../core/ingredients";
+import type { CustomIngredient } from "../../core/model";
 
 export type IngredientFormRow = {
   id: string;
@@ -46,6 +49,7 @@ export type RecipeFormState = {
   experienceLevel: RecipeExperienceLevel | "";
   estimatedMinutes: string;
   servings: string;
+  cookingMethod: CookingMethod | "";
   notes: string;
   ingredients: IngredientFormRow[];
   steps: StepFormRow[];
@@ -100,6 +104,7 @@ export function emptyRecipeFormState(): RecipeFormState {
     experienceLevel: "beginner",
     estimatedMinutes: "",
     servings: "",
+    cookingMethod: "",
     notes: "",
     ingredients: [emptyIngredientFormRow()],
     steps: [emptyStepFormRow()],
@@ -135,6 +140,7 @@ export function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
     experienceLevel: recipe.experienceLevel,
     estimatedMinutes: recipe.estimatedMinutes !== undefined ? String(recipe.estimatedMinutes) : "",
     servings: recipe.servings !== undefined ? String(recipe.servings) : "",
+    cookingMethod: recipe.cookingMethod ?? "",
     notes: recipe.notes ?? "",
     ingredients:
       recipe.ingredients.length > 0
@@ -197,6 +203,9 @@ export function validateRecipeForm(form: RecipeFormState): string | null {
   if (typeof minutes === "string") return minutes;
   const servings = parsePositiveIntField(form.servings, "Servings");
   if (typeof servings === "string") return servings;
+  if (form.cookingMethod && !isCookingMethod(form.cookingMethod)) {
+    return "Choose a valid cooking method.";
+  }
 
   const ingredientRows = form.ingredients.filter((row) => row.rawText.trim());
   if (ingredientRows.length === 0) {
@@ -225,7 +234,11 @@ export function validateRecipeForm(form: RecipeFormState): string | null {
 
 export function recipePayloadFromForm(
   form: RecipeFormState,
-  options?: { catalog?: IngredientCatalog; previous?: Recipe }
+  options?: {
+    catalog?: IngredientCatalog;
+    previous?: Recipe;
+    customIngredients?: CustomIngredient[];
+  }
 ): Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso"> {
   const estimatedMinutes = parsePositiveIntField(form.estimatedMinutes, "Cook time");
   const servings = parsePositiveIntField(form.servings, "Servings");
@@ -241,7 +254,12 @@ export function recipePayloadFromForm(
       return line;
     });
   const ingredients = options?.catalog
-    ? resolveRecipeIngredients(rawIngredients, options.catalog, options.previous?.ingredients)
+    ? resolveRecipeIngredients(
+        rawIngredients,
+        options.catalog,
+        options.previous?.ingredients,
+        options.customIngredients
+      )
     : rawIngredients;
 
   const steps: RecipeStep[] = form.steps
@@ -280,6 +298,9 @@ export function recipePayloadFromForm(
 
   if (typeof estimatedMinutes === "number") payload.estimatedMinutes = estimatedMinutes;
   if (typeof servings === "number") payload.servings = servings;
+  if (form.cookingMethod && isCookingMethod(form.cookingMethod)) {
+    payload.cookingMethod = form.cookingMethod;
+  }
   if (form.notes.trim()) payload.notes = form.notes.trim();
   if (form.heroImage) payload.heroImage = { ...form.heroImage };
 

@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import {
+  COOKING_METHOD_LABELS,
   RECIPE_CATEGORY_LABELS,
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_EXPERIENCE_LABELS,
   RECIPE_STEP_KIND_LABELS,
+  getCookingMethodValues,
   getRecipeCategoryValues,
   getRecipeDifficultyValues,
   getRecipeExperienceLevelValues,
@@ -11,12 +13,12 @@ import {
 } from "../../core/cooking";
 import type { IngredientCatalog } from "../../core/ingredientCatalog";
 import { describeIngredientMatch } from "../../core/ingredients";
+import type { CustomIngredient, SanityImageRef } from "../../core/model";
 import {
   RECIPE_GALLERY_MAX_IMAGES,
   validateRecipeImageFile,
   type RecipeImageKind,
 } from "../../core/sanityUploadContract";
-import type { SanityImageRef } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { RecipeImage } from "./RecipeImage";
 import {
@@ -36,6 +38,7 @@ export type RecipeFormProps = {
   onCancel: () => void;
   onUploadImage?: (file: File, kind: RecipeImageKind) => Promise<SanityImageRef>;
   catalog?: IngredientCatalog;
+  customIngredients?: CustomIngredient[];
 };
 
 const compactLabel = { ...styles.label, fontSize: 12 };
@@ -50,6 +53,7 @@ export function RecipeForm({
   onCancel,
   onUploadImage,
   catalog,
+  customIngredients = [],
 }: RecipeFormProps) {
   const [uploadingKind, setUploadingKind] = useState<RecipeImageKind | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -211,6 +215,26 @@ export function RecipeForm({
               style={styles.inputCompact}
             />
           </label>
+          <label style={styles.label}>
+            Cooking method
+            <select
+              value={form.cookingMethod}
+              onChange={(e) =>
+                onChange({
+                  ...form,
+                  cookingMethod: e.target.value as RecipeFormState["cookingMethod"],
+                })
+              }
+              style={styles.inputCompact}
+            >
+              <option value="">Not set</option>
+              {getCookingMethodValues().map((method) => (
+                <option key={method} value={method}>
+                  {COOKING_METHOD_LABELS[method]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {(onUploadImage || form.heroImage || form.gallery.length > 0) && (
@@ -337,7 +361,8 @@ export function RecipeForm({
               </div>
               {catalog && row.rawText.trim() && (
                 <div style={{ ...styles.textMuted, fontSize: 12 }}>
-                  {describeIngredientMatch(row.rawText, catalog) ?? "Unmatched — save will keep the raw line"}
+                  {describeIngredientMatch(row.rawText, catalog, customIngredients) ??
+                    "Unmatched — save will keep the raw line"}
                 </div>
               )}
             </div>

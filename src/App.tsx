@@ -17,6 +17,7 @@ import type {
   Recipe,
   CookingSession,
   PantryItem,
+  CustomIngredient,
 } from "./core/model";
 import {
   cleanupExpiredFeedback,
@@ -1625,6 +1626,52 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, pantry } });
   }
 
+  function addCustomIngredient(
+    input: Omit<CustomIngredient, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+    const name = input.name.trim();
+    if (!name) return;
+    const now = new Date().toISOString();
+    const newItem: CustomIngredient = {
+      ...input,
+      id: id(),
+      name,
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        customIngredients: [...(app.payload.customIngredients ?? []), newItem],
+      },
+    });
+  }
+
+  function deleteCustomIngredient(itemId: string) {
+    if (!app) return;
+    const customIngredients = (app.payload.customIngredients ?? []).filter(
+      (item) => item.id !== itemId
+    );
+    const pantry = (app.payload.pantry ?? []).map((item) => {
+      if (item.customIngredientId !== itemId) return item;
+      const next = { ...item };
+      delete next.customIngredientId;
+      return next;
+    });
+    const recipes = (app.payload.recipes ?? []).map((recipe) => ({
+      ...recipe,
+      ingredients: recipe.ingredients.map((line) => {
+        if (line.customIngredientId !== itemId) return line;
+        const next = { ...line };
+        delete next.customIngredientId;
+        return next;
+      }),
+    }));
+    commit({ ...app, payload: { ...app.payload, customIngredients, pantry, recipes } });
+  }
+
   function upsertFocusFeedbackEntry(entry: FocusFeedback) {
     if (!app) return;
 
@@ -1886,6 +1933,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
           pantry={app.payload.pantry ?? []}
+          customIngredients={app.payload.customIngredients ?? []}
           onAddRecipe={addRecipe}
           onUpdateRecipe={updateRecipe}
           onDeleteRecipe={deleteRecipe}
@@ -1894,6 +1942,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           onAddPantryItem={addPantryItem}
           onUpdatePantryItem={updatePantryItem}
           onDeletePantryItem={deletePantryItem}
+          onAddCustomIngredient={addCustomIngredient}
+          onDeleteCustomIngredient={deleteCustomIngredient}
         />
       )}
 
