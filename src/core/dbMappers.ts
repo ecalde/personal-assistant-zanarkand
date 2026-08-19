@@ -36,11 +36,18 @@ import type {
   LifeEvent,
   Person,
   Priority,
+  Recipe,
+  RecipeIngredientLine,
+  RecipeStep,
+  RecipeStepKind,
   RemotePolicy,
+  SanityImageRef,
   ScheduleBlock,
   Session,
   Skill,
   SkillScheduleSeries,
+  CookingSession,
+  CookingTimer,
   Weekday,
   WeeklySchedule,
   WorkoutFocus,
@@ -57,6 +64,15 @@ import type {
   SupplementUnit,
   SupplementDoseSlot,
 } from "./model";
+import {
+  isCookingTimerStatus,
+  isPersistedCookingSessionStatus,
+  isRecipeCategory,
+  isRecipeDifficulty,
+  isRecipeExperienceLevel,
+  isRecipeSource,
+  isRecipeStepKind,
+} from "./cooking";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -280,6 +296,45 @@ export type SupplementIntakeLogRow = {
   intake_date: string;
   doses: unknown;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RecipeRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  category: string;
+  difficulty: string;
+  experience_level: string;
+  estimated_minutes: number | null;
+  servings: number | null;
+  notes: string | null;
+  ingredients: unknown;
+  steps: unknown;
+  equipment: unknown;
+  hero_image: unknown | null;
+  gallery: unknown;
+  source: string;
+  catalog_recipe_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CookingSessionRow = {
+  id: string;
+  user_id: string;
+  recipe_id: string | null;
+  recipe_title: string;
+  status: string;
+  cook_date: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_minutes: number | null;
+  servings_made: number | null;
+  notes: string | null;
+  current_step_index: number | null;
+  timers: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -2247,6 +2302,606 @@ export function supplementIntakeLogFromRow(row: SupplementIntakeLogRow): Supplem
   return log;
 }
 
+const DEFAULT_RECIPE_STEP_KIND: RecipeStepKind = "blocking";
+
+export function parseSanityImageRef(value: unknown, field: string): SanityImageRef {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.assetRef !== "string" || obj.assetRef.trim().length === 0) {
+    throw new MapperError(`Invalid ${field}: assetRef required`, field);
+  }
+  if (typeof obj.url !== "string" || obj.url.trim().length === 0) {
+    throw new MapperError(`Invalid ${field}: url required`, field);
+  }
+
+  const ref: SanityImageRef = {
+    assetRef: obj.assetRef.trim(),
+    url: obj.url.trim(),
+  };
+
+  if (obj.lqip !== undefined && obj.lqip !== null) {
+    if (typeof obj.lqip !== "string") {
+      throw new MapperError(`Invalid ${field}: lqip must be string`, field);
+    }
+    const lqip = obj.lqip.trim();
+    if (lqip) ref.lqip = lqip;
+  }
+  if (obj.width !== undefined && obj.width !== null) {
+    if (typeof obj.width !== "number" || !isPositiveInteger(obj.width)) {
+      throw new MapperError(`Invalid ${field}: width must be positive integer`, field);
+    }
+    ref.width = obj.width;
+  }
+  if (obj.height !== undefined && obj.height !== null) {
+    if (typeof obj.height !== "number" || !isPositiveInteger(obj.height)) {
+      throw new MapperError(`Invalid ${field}: height must be positive integer`, field);
+    }
+    ref.height = obj.height;
+  }
+  if (obj.alt !== undefined && obj.alt !== null) {
+    if (typeof obj.alt !== "string") {
+      throw new MapperError(`Invalid ${field}: alt must be string`, field);
+    }
+    const alt = obj.alt.trim();
+    if (alt) ref.alt = alt;
+  }
+
+  return ref;
+}
+
+export function parseSanityImageRefList(value: unknown, field: string): SanityImageRef[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  return value.map((item, index) => parseSanityImageRef(item, `${field}[${index}]`));
+}
+
+export function parseRecipeIngredients(value: unknown, field: string): RecipeIngredientLine[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const lines: RecipeIngredientLine[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of value) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const obj = item as Record<string, unknown>;
+    const lineId = obj.id;
+    if (typeof lineId !== "string" || !isUuid(lineId)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(lineId)) {
+      throw new MapperError(`Invalid ${field}: duplicate ingredient id`, field);
+    }
+    seenIds.add(lineId);
+
+    if (typeof obj.rawText !== "string" || obj.rawText.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: rawText required`, field);
+    }
+
+    const line: RecipeIngredientLine = {
+      id: lineId,
+      rawText: obj.rawText.trim(),
+    };
+
+    if (obj.quantity !== undefined && obj.quantity !== null) {
+      if (typeof obj.quantity !== "number" || !Number.isFinite(obj.quantity) || obj.quantity < 0) {
+        throw new MapperError(`Invalid ${field}: quantity must be a non-negative number`, field);
+      }
+      line.quantity = obj.quantity;
+    }
+    if (obj.unit !== undefined && obj.unit !== null) {
+      if (typeof obj.unit !== "string") {
+        throw new MapperError(`Invalid ${field}: unit must be string`, field);
+      }
+      const unit = obj.unit.trim();
+      if (unit) line.unit = unit;
+    }
+    if (obj.ingredientId !== undefined && obj.ingredientId !== null) {
+      if (typeof obj.ingredientId !== "string" || !isUuid(obj.ingredientId)) {
+        throw new MapperError(`Invalid ${field}: ingredientId must be UUID`, field);
+      }
+      line.ingredientId = obj.ingredientId;
+    }
+    if (obj.customIngredientId !== undefined && obj.customIngredientId !== null) {
+      if (typeof obj.customIngredientId !== "string" || !isUuid(obj.customIngredientId)) {
+        throw new MapperError(`Invalid ${field}: customIngredientId must be UUID`, field);
+      }
+      line.customIngredientId = obj.customIngredientId;
+    }
+    if (obj.matchConfidence !== undefined && obj.matchConfidence !== null) {
+      if (
+        typeof obj.matchConfidence !== "number" ||
+        !Number.isFinite(obj.matchConfidence) ||
+        obj.matchConfidence < 0 ||
+        obj.matchConfidence > 1
+      ) {
+        throw new MapperError(`Invalid ${field}: matchConfidence must be 0..1`, field);
+      }
+      line.matchConfidence = obj.matchConfidence;
+    }
+    if (obj.optional !== undefined && obj.optional !== null) {
+      if (typeof obj.optional !== "boolean") {
+        throw new MapperError(`Invalid ${field}: optional must be boolean`, field);
+      }
+      if (obj.optional) line.optional = true;
+    }
+
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+export function parseRecipeSteps(value: unknown, field: string): RecipeStep[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const steps: RecipeStep[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of value) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+
+    const obj = item as Record<string, unknown>;
+    const stepId = obj.id;
+    if (typeof stepId !== "string" || !isUuid(stepId)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(stepId)) {
+      throw new MapperError(`Invalid ${field}: duplicate step id`, field);
+    }
+    seenIds.add(stepId);
+
+    if (typeof obj.order !== "number" || !Number.isInteger(obj.order) || obj.order < 0) {
+      throw new MapperError(`Invalid ${field}: order must be a non-negative integer`, field);
+    }
+    if (typeof obj.text !== "string" || obj.text.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: step text required`, field);
+    }
+
+    let kind: RecipeStepKind = DEFAULT_RECIPE_STEP_KIND;
+    if (obj.kind !== undefined && obj.kind !== null) {
+      if (typeof obj.kind !== "string" || !isRecipeStepKind(obj.kind)) {
+        throw new MapperError(`Invalid ${field}: invalid step kind`, field);
+      }
+      kind = obj.kind;
+    }
+
+    let blocksProgress = true;
+    if (obj.blocksProgress !== undefined && obj.blocksProgress !== null) {
+      if (typeof obj.blocksProgress !== "boolean") {
+        throw new MapperError(`Invalid ${field}: blocksProgress must be boolean`, field);
+      }
+      blocksProgress = obj.blocksProgress;
+    }
+
+    const step: RecipeStep = {
+      id: stepId,
+      order: obj.order,
+      text: obj.text.trim(),
+      kind,
+      blocksProgress,
+    };
+
+    if (obj.timerSeconds !== undefined && obj.timerSeconds !== null) {
+      if (typeof obj.timerSeconds !== "number" || !isPositiveInteger(obj.timerSeconds)) {
+        throw new MapperError(`Invalid ${field}: timerSeconds must be positive integer`, field);
+      }
+      step.timerSeconds = obj.timerSeconds;
+    }
+    if (obj.timerLabel !== undefined && obj.timerLabel !== null) {
+      if (typeof obj.timerLabel !== "string") {
+        throw new MapperError(`Invalid ${field}: timerLabel must be string`, field);
+      }
+      const timerLabel = obj.timerLabel.trim();
+      if (timerLabel) step.timerLabel = timerLabel;
+    }
+    if (obj.canRunInBackground !== undefined && obj.canRunInBackground !== null) {
+      if (typeof obj.canRunInBackground !== "boolean") {
+        throw new MapperError(`Invalid ${field}: canRunInBackground must be boolean`, field);
+      }
+      if (obj.canRunInBackground) step.canRunInBackground = true;
+    }
+
+    steps.push(step);
+  }
+
+  return steps;
+}
+
+export function parseEquipmentList(value: unknown, field: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const items: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") {
+      throw new MapperError(`Invalid ${field}: expected strings`, field);
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      throw new MapperError(`Invalid ${field}: equipment names must be non-empty`, field);
+    }
+    items.push(trimmed);
+  }
+  return items;
+}
+
+export function assertValidRecipe(recipe: Recipe): void {
+  assertUuid(recipe.id, "recipe.id");
+  assertNonEmptyName(recipe.title, "recipe.title");
+  assertIsoTimestamp(recipe.createdAtIso, "recipe.createdAtIso");
+  assertIsoTimestamp(recipe.updatedAtIso, "recipe.updatedAtIso");
+
+  if (!isRecipeCategory(recipe.category)) {
+    throw new MapperError("Invalid recipe.category", "recipe.category");
+  }
+  if (!isRecipeDifficulty(recipe.difficulty)) {
+    throw new MapperError("Invalid recipe.difficulty", "recipe.difficulty");
+  }
+  if (!isRecipeExperienceLevel(recipe.experienceLevel)) {
+    throw new MapperError("Invalid recipe.experienceLevel", "recipe.experienceLevel");
+  }
+  if (!isRecipeSource(recipe.source)) {
+    throw new MapperError("Invalid recipe.source", "recipe.source");
+  }
+  if (
+    recipe.estimatedMinutes !== undefined &&
+    !isPositiveInteger(recipe.estimatedMinutes)
+  ) {
+    throw new MapperError("Invalid recipe.estimatedMinutes", "recipe.estimatedMinutes");
+  }
+  if (recipe.servings !== undefined && !isPositiveInteger(recipe.servings)) {
+    throw new MapperError("Invalid recipe.servings", "recipe.servings");
+  }
+  if (recipe.notes !== undefined && typeof recipe.notes !== "string") {
+    throw new MapperError("Invalid recipe.notes", "recipe.notes");
+  }
+  if (recipe.catalogRecipeId !== undefined) {
+    assertUuid(recipe.catalogRecipeId, "recipe.catalogRecipeId");
+  }
+  if (recipe.heroImage !== undefined) {
+    parseSanityImageRef(recipe.heroImage, "recipe.heroImage");
+  }
+
+  parseRecipeIngredients(recipe.ingredients, "recipe.ingredients");
+  parseRecipeSteps(recipe.steps, "recipe.steps");
+  parseEquipmentList(recipe.equipment, "recipe.equipment");
+  parseSanityImageRefList(recipe.gallery, "recipe.gallery");
+
+  if (recipe.ingredients.length === 0) {
+    throw new MapperError("recipe.ingredients must not be empty", "recipe.ingredients");
+  }
+  if (recipe.steps.length === 0) {
+    throw new MapperError("recipe.steps must not be empty", "recipe.steps");
+  }
+}
+
+export function recipeToRow(recipe: Recipe, userId: string): RecipeRow {
+  assertUuid(userId, "userId");
+  assertValidRecipe(recipe);
+
+  return {
+    id: recipe.id,
+    user_id: userId,
+    title: recipe.title.trim(),
+    category: recipe.category,
+    difficulty: recipe.difficulty,
+    experience_level: recipe.experienceLevel,
+    estimated_minutes: recipe.estimatedMinutes ?? null,
+    servings: recipe.servings ?? null,
+    notes: recipe.notes?.trim() || null,
+    ingredients: parseRecipeIngredients(recipe.ingredients, "recipe.ingredients"),
+    steps: parseRecipeSteps(recipe.steps, "recipe.steps"),
+    equipment: parseEquipmentList(recipe.equipment, "recipe.equipment"),
+    hero_image: recipe.heroImage
+      ? parseSanityImageRef(recipe.heroImage, "recipe.heroImage")
+      : null,
+    gallery: parseSanityImageRefList(recipe.gallery, "recipe.gallery"),
+    source: recipe.source,
+    catalog_recipe_id: recipe.catalogRecipeId ?? null,
+    created_at: recipe.createdAtIso,
+    updated_at: recipe.updatedAtIso,
+  };
+}
+
+export function recipeFromRow(row: RecipeRow): Recipe {
+  assertUuid(row.id, "recipes.id");
+  assertUuid(row.user_id, "recipes.user_id");
+  assertNonEmptyName(row.title, "recipes.title");
+  assertIsoTimestamp(row.created_at, "recipes.created_at");
+  assertIsoTimestamp(row.updated_at, "recipes.updated_at");
+
+  if (!isRecipeCategory(row.category)) {
+    throw new MapperError("Invalid recipes.category", "recipes.category");
+  }
+  if (!isRecipeDifficulty(row.difficulty)) {
+    throw new MapperError("Invalid recipes.difficulty", "recipes.difficulty");
+  }
+  if (!isRecipeExperienceLevel(row.experience_level)) {
+    throw new MapperError("Invalid recipes.experience_level", "recipes.experience_level");
+  }
+  if (!isRecipeSource(row.source)) {
+    throw new MapperError("Invalid recipes.source", "recipes.source");
+  }
+  if (row.estimated_minutes !== null && !isPositiveInteger(row.estimated_minutes)) {
+    throw new MapperError("Invalid recipes.estimated_minutes", "recipes.estimated_minutes");
+  }
+  if (row.servings !== null && !isPositiveInteger(row.servings)) {
+    throw new MapperError("Invalid recipes.servings", "recipes.servings");
+  }
+  if (row.catalog_recipe_id !== null) {
+    assertUuid(row.catalog_recipe_id, "recipes.catalog_recipe_id");
+  }
+
+  const ingredients = parseRecipeIngredients(row.ingredients, "recipes.ingredients");
+  const steps = parseRecipeSteps(row.steps, "recipes.steps");
+  const equipment = parseEquipmentList(row.equipment, "recipes.equipment");
+  const gallery = parseSanityImageRefList(row.gallery ?? [], "recipes.gallery");
+
+  if (ingredients.length === 0) {
+    throw new MapperError("recipes.ingredients must not be empty", "recipes.ingredients");
+  }
+  if (steps.length === 0) {
+    throw new MapperError("recipes.steps must not be empty", "recipes.steps");
+  }
+
+  const recipe: Recipe = {
+    id: row.id,
+    title: row.title.trim(),
+    category: row.category,
+    difficulty: row.difficulty,
+    experienceLevel: row.experience_level,
+    ingredients,
+    steps,
+    equipment,
+    gallery,
+    source: row.source,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.estimated_minutes !== null) recipe.estimatedMinutes = row.estimated_minutes;
+  if (row.servings !== null) recipe.servings = row.servings;
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    recipe.notes = row.notes.trim();
+  }
+  if (row.hero_image !== null && row.hero_image !== undefined) {
+    recipe.heroImage = parseSanityImageRef(row.hero_image, "recipes.hero_image");
+  }
+  if (row.catalog_recipe_id !== null) {
+    recipe.catalogRecipeId = row.catalog_recipe_id;
+  }
+
+  return recipe;
+}
+
+export function parseCookingTimers(value: unknown, field: string): CookingTimer[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+
+  const timers: CookingTimer[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.id !== "string" || !isUuid(obj.id)) {
+      throw new MapperError(`Invalid ${field}: id must be UUID`, field);
+    }
+    if (typeof obj.label !== "string" || obj.label.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: label must be non-empty`, field);
+    }
+    if (typeof obj.durationSeconds !== "number" || !isPositiveInteger(obj.durationSeconds)) {
+      throw new MapperError(`Invalid ${field}: durationSeconds must be a positive integer`, field);
+    }
+    if (typeof obj.status !== "string" || !isCookingTimerStatus(obj.status)) {
+      throw new MapperError(`Invalid ${field}: invalid status`, field);
+    }
+
+    const timer: CookingTimer = {
+      id: obj.id,
+      label: obj.label.trim(),
+      durationSeconds: obj.durationSeconds,
+      status: obj.status,
+    };
+
+    if (obj.stepId !== undefined && obj.stepId !== null) {
+      if (typeof obj.stepId !== "string" || !isUuid(obj.stepId)) {
+        throw new MapperError(`Invalid ${field}: stepId must be UUID`, field);
+      }
+      timer.stepId = obj.stepId;
+    }
+    if (obj.endsAtIso !== undefined && obj.endsAtIso !== null) {
+      if (typeof obj.endsAtIso !== "string") {
+        throw new MapperError(`Invalid ${field}: endsAtIso must be string`, field);
+      }
+      assertIsoTimestamp(obj.endsAtIso, `${field}.endsAtIso`);
+      timer.endsAtIso = obj.endsAtIso;
+    }
+    if (obj.remainingSecondsAtPause !== undefined && obj.remainingSecondsAtPause !== null) {
+      if (
+        typeof obj.remainingSecondsAtPause !== "number" ||
+        !isNonNegativeInteger(obj.remainingSecondsAtPause)
+      ) {
+        throw new MapperError(
+          `Invalid ${field}: remainingSecondsAtPause must be a non-negative integer`,
+          field
+        );
+      }
+      timer.remainingSecondsAtPause = obj.remainingSecondsAtPause;
+    }
+    if (obj.startedAtIso !== undefined && obj.startedAtIso !== null) {
+      if (typeof obj.startedAtIso !== "string") {
+        throw new MapperError(`Invalid ${field}: startedAtIso must be string`, field);
+      }
+      assertIsoTimestamp(obj.startedAtIso, `${field}.startedAtIso`);
+      timer.startedAtIso = obj.startedAtIso;
+    }
+
+    timers.push(timer);
+  }
+
+  return timers;
+}
+
+export function assertValidCookingSession(session: CookingSession): void {
+  assertUuid(session.id, "cookingSession.id");
+  assertNonEmptyName(session.recipeTitle, "cookingSession.recipeTitle");
+  assertIsoDate(session.cookDate, "cookingSession.cookDate");
+  assertIsoTimestamp(session.createdAtIso, "cookingSession.createdAtIso");
+  assertIsoTimestamp(session.updatedAtIso, "cookingSession.updatedAtIso");
+
+  if (session.recipeId !== null) {
+    assertUuid(session.recipeId, "cookingSession.recipeId");
+  }
+  if (!isPersistedCookingSessionStatus(session.status)) {
+    throw new MapperError("Invalid cookingSession.status", "cookingSession.status");
+  }
+  if (session.startedAtIso !== undefined) {
+    assertIsoTimestamp(session.startedAtIso, "cookingSession.startedAtIso");
+  }
+  if (session.finishedAtIso !== undefined) {
+    assertIsoTimestamp(session.finishedAtIso, "cookingSession.finishedAtIso");
+  }
+  if (session.status === "completed") {
+    if (session.startedAtIso === undefined || session.finishedAtIso === undefined) {
+      throw new MapperError(
+        "Completed cooking sessions require start and finish times",
+        "cookingSession.status"
+      );
+    }
+  }
+  if (
+    session.durationMinutes !== undefined &&
+    !isPositiveInteger(session.durationMinutes)
+  ) {
+    throw new MapperError("Invalid cookingSession.durationMinutes", "cookingSession.durationMinutes");
+  }
+  if (session.servingsMade !== undefined && !isPositiveInteger(session.servingsMade)) {
+    throw new MapperError("Invalid cookingSession.servingsMade", "cookingSession.servingsMade");
+  }
+  if (session.notes !== undefined && typeof session.notes !== "string") {
+    throw new MapperError("Invalid cookingSession.notes", "cookingSession.notes");
+  }
+  if (
+    session.currentStepIndex !== undefined &&
+    !isNonNegativeInteger(session.currentStepIndex)
+  ) {
+    throw new MapperError(
+      "Invalid cookingSession.currentStepIndex",
+      "cookingSession.currentStepIndex"
+    );
+  }
+
+  parseCookingTimers(session.timers, "cookingSession.timers");
+}
+
+export function cookingSessionToRow(
+  session: CookingSession,
+  userId: string
+): CookingSessionRow {
+  assertUuid(userId, "userId");
+  assertValidCookingSession(session);
+
+  return {
+    id: session.id,
+    user_id: userId,
+    recipe_id: session.recipeId,
+    recipe_title: session.recipeTitle.trim(),
+    status: session.status,
+    cook_date: session.cookDate,
+    started_at: session.startedAtIso ?? null,
+    finished_at: session.finishedAtIso ?? null,
+    duration_minutes: session.durationMinutes ?? null,
+    servings_made: session.servingsMade ?? null,
+    notes: session.notes?.trim() || null,
+    current_step_index: session.currentStepIndex ?? null,
+    timers: parseCookingTimers(session.timers, "cookingSession.timers"),
+    created_at: session.createdAtIso,
+    updated_at: session.updatedAtIso,
+  };
+}
+
+export function cookingSessionFromRow(row: CookingSessionRow): CookingSession {
+  assertUuid(row.id, "cooking_sessions.id");
+  assertUuid(row.user_id, "cooking_sessions.user_id");
+  assertNonEmptyName(row.recipe_title, "cooking_sessions.recipe_title");
+  assertIsoDate(row.cook_date, "cooking_sessions.cook_date");
+  assertIsoTimestamp(row.created_at, "cooking_sessions.created_at");
+  assertIsoTimestamp(row.updated_at, "cooking_sessions.updated_at");
+
+  if (row.recipe_id !== null) {
+    assertUuid(row.recipe_id, "cooking_sessions.recipe_id");
+  }
+  if (!isPersistedCookingSessionStatus(row.status)) {
+    throw new MapperError("Invalid cooking_sessions.status", "cooking_sessions.status");
+  }
+  if (row.started_at !== null) {
+    assertIsoTimestamp(row.started_at, "cooking_sessions.started_at");
+  }
+  if (row.finished_at !== null) {
+    assertIsoTimestamp(row.finished_at, "cooking_sessions.finished_at");
+  }
+  if (row.status === "completed" && (row.started_at === null || row.finished_at === null)) {
+    throw new MapperError(
+      "Completed cooking sessions require start and finish times",
+      "cooking_sessions.status"
+    );
+  }
+  if (row.duration_minutes !== null && !isPositiveInteger(row.duration_minutes)) {
+    throw new MapperError(
+      "Invalid cooking_sessions.duration_minutes",
+      "cooking_sessions.duration_minutes"
+    );
+  }
+  if (row.servings_made !== null && !isPositiveInteger(row.servings_made)) {
+    throw new MapperError(
+      "Invalid cooking_sessions.servings_made",
+      "cooking_sessions.servings_made"
+    );
+  }
+  if (row.current_step_index !== null && !isNonNegativeInteger(row.current_step_index)) {
+    throw new MapperError(
+      "Invalid cooking_sessions.current_step_index",
+      "cooking_sessions.current_step_index"
+    );
+  }
+
+  const session: CookingSession = {
+    id: row.id,
+    recipeId: row.recipe_id,
+    recipeTitle: row.recipe_title.trim(),
+    status: row.status,
+    cookDate: row.cook_date,
+    timers: parseCookingTimers(row.timers ?? [], "cooking_sessions.timers"),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.started_at !== null) session.startedAtIso = row.started_at;
+  if (row.finished_at !== null) session.finishedAtIso = row.finished_at;
+  if (row.duration_minutes !== null) session.durationMinutes = row.duration_minutes;
+  if (row.servings_made !== null) session.servingsMade = row.servings_made;
+  if (row.notes !== null && row.notes.trim().length > 0) session.notes = row.notes.trim();
+  if (row.current_step_index !== null) session.currentStepIndex = row.current_step_index;
+
+  return session;
+}
+
 export function focusFeedbackToRow(entry: FocusFeedback, userId: string): FocusFeedbackRow {
   assertUuid(userId, "userId");
   assertValidFocusFeedback(entry);
@@ -2649,7 +3304,9 @@ export function payloadFromRows(
   calendarPreferencesRows: CalendarPreferencesRow[] = [],
   gamificationStateRows: GamificationStateRow[] = [],
   supplementProtocolRows: SupplementProtocolRow[] = [],
-  supplementIntakeLogRows: SupplementIntakeLogRow[] = []
+  supplementIntakeLogRows: SupplementIntakeLogRow[] = [],
+  recipeRows: RecipeRow[] = [],
+  cookingSessionRows: CookingSessionRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -2666,6 +3323,8 @@ export function payloadFromRows(
   const supplementIntakeLogs = supplementIntakeLogRows.map((row) =>
     supplementIntakeLogFromRow(row)
   );
+  const recipes = recipeRows.map((row) => recipeFromRow(row));
+  const cookingSessions = cookingSessionRows.map((row) => cookingSessionFromRow(row));
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -2703,6 +3362,8 @@ export function payloadFromRows(
     workoutSessions,
     supplementProtocols,
     supplementIntakeLogs,
+    recipes,
+    cookingSessions,
     focusFeedback,
     calendarPreferences,
     gamificationState,
@@ -2867,6 +3528,33 @@ export function validatePayloadForUpload(payload: AppPayload): void {
       );
     }
     intakeDayKeys.add(dayKey);
+  }
+
+  const recipeIds = new Set<string>();
+  for (const recipe of payload.recipes) {
+    assertValidRecipe(recipe);
+    if (recipeIds.has(recipe.id)) {
+      throw new MapperError(`Duplicate recipe id: ${recipe.id}`, "recipes.id");
+    }
+    recipeIds.add(recipe.id);
+  }
+
+  const cookingSessionIds = new Set<string>();
+  for (const session of payload.cookingSessions) {
+    assertValidCookingSession(session);
+    if (cookingSessionIds.has(session.id)) {
+      throw new MapperError(
+        `Duplicate cooking session id: ${session.id}`,
+        "cookingSessions.id"
+      );
+    }
+    cookingSessionIds.add(session.id);
+    if (session.recipeId !== null && !recipeIds.has(session.recipeId)) {
+      throw new MapperError(
+        `Cooking session references unknown recipe: ${session.recipeId}`,
+        "cookingSessions.recipeId"
+      );
+    }
   }
 
   const focusFeedbackIds = new Set<string>();

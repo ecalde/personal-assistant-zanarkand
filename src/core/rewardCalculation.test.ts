@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { defaultPayload } from "./state";
 import { defaultWeeklySchedule } from "./state";
-import type { AppPayload, Session, Skill, SupplementIntakeLog, WorkoutSession } from "./model";
+import type { AppPayload, CookingSession, Session, Skill, SupplementIntakeLog, WorkoutSession } from "./model";
 import { buildProgressionContext } from "./progressionContext";
 import {
   applyDailyBonusCap,
   dedupeGrants,
   listXpGrants,
 } from "./rewardCalculation";
-import { skillTrackId, type XpGrant } from "./progressionModel";
-import { BONUS_XP, MAX_BONUS_XP_PER_DAY } from "./milestoneTables";
+import { skillTrackId, recipeTrackId, type XpGrant } from "./progressionModel";
+import { BONUS_XP, COOKING_XP, MAX_BONUS_XP_PER_DAY } from "./milestoneTables";
 
 const SKILL_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = new Date(2026, 4, 26, 12, 0, 0); // Tue May 26 2026, local
@@ -232,5 +232,120 @@ describe("rewardCalculation", () => {
       .filter((g) => g.source !== "skill_minutes")
       .reduce((sum, g) => sum + g.amount, 0);
     expect(bonusTotal).toBe(200);
+  });
+
+  it("grants first-cook, home-meal, and tier-up XP for a completed cooking session", () => {
+    const recipeId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const session: CookingSession = {
+      id: "cook-1",
+      recipeId,
+      recipeTitle: "Carbonara",
+      status: "completed",
+      cookDate: "2026-05-26",
+      startedAtIso: localIso(2026, 5, 26, 18),
+      finishedAtIso: localIso(2026, 5, 26, 19),
+      timers: [],
+      createdAtIso: NOW.toISOString(),
+      updatedAtIso: NOW.toISOString(),
+    };
+    const grants = listXpGrants(
+      buildProgressionContext(payloadWith({ cookingSessions: [session] }), NOW)
+    );
+
+    expect(
+      grants.find((g) => g.source === "cooking_first_cook")
+    ).toMatchObject({
+      trackId: recipeTrackId(recipeId),
+      amount: COOKING_XP.firstCook,
+      dayKey: "2026-05-26",
+    });
+    expect(
+      grants.find((g) => g.source === "cooking_home_meal")
+    ).toMatchObject({
+      trackId: "axis:body",
+      amount: COOKING_XP.homeCookedMeal,
+    });
+    expect(
+      grants.find((g) => g.source === "cooking_mastery_tier_up")
+    ).toMatchObject({
+      trackId: recipeTrackId(recipeId),
+      amount: COOKING_XP.masteryTierUp,
+    });
+    expect(grants.some((g) => g.source === "cooking_repeat")).toBe(false);
+  });
+
+  it("uses diminishing repeat XP and a one-time tier-up on the third cook", () => {
+    const recipeId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    function cook(id: string, date: string): CookingSession {
+      return {
+        id,
+        recipeId,
+        recipeTitle: "Carbonara",
+        status: "completed",
+        cookDate: date,
+        startedAtIso: `${date}T18:00:00.000Z`,
+        finishedAtIso: `${date}T18:30:00.000Z`,
+        timers: [],
+        createdAtIso: NOW.toISOString(),
+        updatedAtIso: NOW.toISOString(),
+      };
+    }
+    const grants = listXpGrants(
+      buildProgressionContext(
+        payloadWith({
+          cookingSessions: [
+            cook("c1", "2026-05-24"),
+            cook("c2", "2026-05-25"),
+            cook("c3", "2026-05-26"),
+          ],
+        }),
+        NOW
+      )
+    );
+    const repeats = grants.filter((g) => g.source === "cooking_repeat");
+    expect(repeats).toHaveLength(2);
+    expect(repeats.find((g) => g.id === "cooking_repeat:c2")?.amount).toBe(18);
+    expect(repeats.find((g) => g.id === "cooking_repeat:c3")?.amount).toBe(14);
+
+    const tierUps = grants.filter((g) => g.source === "cooking_mastery_tier_up");
+    expect(tierUps.map((g) => g.id)).toEqual([
+      "cooking_mastery_tier_up:c1:1",
+      "cooking_mastery_tier_up:c3:3",
+    ]);
+  });
+
+  it("does not grant cooking XP for adding a recipe with no sessions", () => {
+    const grants = listXpGrants(
+      buildProgressionContext(
+        payloadWith({
+          recipes: [
+            {
+              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              title: "Carbonara",
+              category: "dinner",
+              difficulty: "easy",
+              experienceLevel: "beginner",
+              ingredients: [{ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", rawText: "eggs" }],
+              steps: [
+                {
+                  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                  order: 0,
+                  text: "Cook",
+                  kind: "blocking",
+                  blocksProgress: true,
+                },
+              ],
+              equipment: [],
+              gallery: [],
+              source: "manual",
+              createdAtIso: NOW.toISOString(),
+              updatedAtIso: NOW.toISOString(),
+            },
+          ],
+        }),
+        NOW
+      )
+    );
+    expect(grants.some((g) => g.source.startsWith("cooking_"))).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { levelFromTotalXp } from "./progression";
 import {
   PROGRESSION_AXES,
   axisTrackId,
+  recipeTrackId,
   skillTrackId,
   GLOBAL_TRACK_ID,
   type LevelState,
@@ -24,6 +25,7 @@ export type TrackTotals = {
   global: number;
   byAxis: Record<ProgressionAxis, number>;
   bySkill: Map<string, number>;
+  byRecipe: Map<string, number>;
 };
 
 function emptyAxisTotals(): Record<ProgressionAxis, number> {
@@ -34,6 +36,10 @@ function parseSkillId(trackId: ProgressionTrackId): string | null {
   return trackId.startsWith("skill:") ? trackId.slice("skill:".length) : null;
 }
 
+function parseRecipeId(trackId: ProgressionTrackId): string | null {
+  return trackId.startsWith("recipe:") ? trackId.slice("recipe:".length) : null;
+}
+
 function parseAxis(trackId: ProgressionTrackId): ProgressionAxis | null {
   if (!trackId.startsWith("axis:")) return null;
   const axis = trackId.slice("axis:".length) as ProgressionAxis;
@@ -42,8 +48,8 @@ function parseAxis(trackId: ProgressionTrackId): ProgressionAxis | null {
 
 /**
  * Computes totals per track. Global aggregates every grant exactly once. Axis
- * totals include both direct axis grants and the skill grants routed to that
- * axis (via axisBySkillId).
+ * totals include both direct axis grants and the skill/recipe grants routed to
+ * that axis (skills via axisBySkillId, recipes always to creative).
  */
 export function computeTrackTotals(
   grants: XpGrant[],
@@ -51,6 +57,7 @@ export function computeTrackTotals(
 ): TrackTotals {
   const byAxis = emptyAxisTotals();
   const bySkill = new Map<string, number>();
+  const byRecipe = new Map<string, number>();
   let global = 0;
 
   for (const grant of grants) {
@@ -66,16 +73,23 @@ export function computeTrackTotals(
       continue;
     }
 
+    const recipeId = parseRecipeId(grant.trackId);
+    if (recipeId !== null) {
+      byRecipe.set(recipeId, (byRecipe.get(recipeId) ?? 0) + amount);
+      byAxis.creative += amount;
+      continue;
+    }
+
     const axis = parseAxis(grant.trackId);
     if (axis !== null) {
       byAxis[axis] += amount;
     }
   }
 
-  return { global, byAxis, bySkill };
+  return { global, byAxis, bySkill, byRecipe };
 }
 
-function bandSizeFor(kind: "global" | "axis" | "skill"): number {
+function bandSizeFor(kind: "global" | "axis" | "skill" | "recipe"): number {
   return XP_PER_LEVEL_BAND_GLOBAL * LEVEL_BAND_MULTIPLIERS[kind];
 }
 
@@ -120,5 +134,16 @@ export function buildSkillLevelState(
     skillTrackId(skillId),
     totals.bySkill.get(skillId) ?? 0,
     bandSizeFor("skill")
+  );
+}
+
+export function buildRecipeLevelState(
+  recipeId: string,
+  totals: TrackTotals
+): LevelState {
+  return computeLevelState(
+    recipeTrackId(recipeId),
+    totals.byRecipe.get(recipeId) ?? 0,
+    bandSizeFor("recipe")
   );
 }

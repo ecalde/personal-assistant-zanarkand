@@ -216,6 +216,106 @@ export type ExerciseEntry = {
   sourceExerciseId?: string;
 };
 
+export type RecipeCategory =
+  | "breakfast"
+  | "lunch"
+  | "dinner"
+  | "dessert"
+  | "snack"
+  | "beverage"
+  | "meal_prep";
+
+export type RecipeDifficulty = "easy" | "medium" | "hard";
+
+export type RecipeExperienceLevel = "beginner" | "intermediate" | "advanced";
+
+export type RecipeSource = "manual" | "import" | "catalog";
+
+export type RecipeStepKind = "blocking" | "parallel" | "wait" | "timer";
+
+export type SanityImageRef = {
+  assetRef: string;
+  url: string;
+  lqip?: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+};
+
+export type RecipeIngredientLine = {
+  id: string;
+  rawText: string;
+  quantity?: number;
+  unit?: string;
+  ingredientId?: string;
+  customIngredientId?: string;
+  matchConfidence?: number;
+  optional?: boolean;
+};
+
+export type RecipeStep = {
+  id: string;
+  order: number;
+  text: string;
+  kind: RecipeStepKind;
+  blocksProgress: boolean;
+  timerSeconds?: number;
+  timerLabel?: string;
+  canRunInBackground?: boolean;
+};
+
+export type Recipe = {
+  id: string;
+  title: string;
+  category: RecipeCategory;
+  difficulty: RecipeDifficulty;
+  experienceLevel: RecipeExperienceLevel;
+  estimatedMinutes?: number;
+  servings?: number;
+  notes?: string;
+  ingredients: RecipeIngredientLine[];
+  steps: RecipeStep[];
+  equipment: string[];
+  heroImage?: SanityImageRef;
+  gallery: SanityImageRef[];
+  source: RecipeSource;
+  catalogRecipeId?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type CookingSessionStatus = "planned" | "in_progress" | "completed" | "abandoned";
+
+export type CookingTimerStatus = "idle" | "running" | "paused" | "done";
+
+export type CookingTimer = {
+  id: string;
+  stepId?: string;
+  label: string;
+  durationSeconds: number;
+  status: CookingTimerStatus;
+  endsAtIso?: string;
+  remainingSecondsAtPause?: number;
+  startedAtIso?: string;
+};
+
+export type CookingSession = {
+  id: string;
+  recipeId: string | null;
+  recipeTitle: string;
+  status: CookingSessionStatus;
+  cookDate: string;
+  startedAtIso?: string;
+  finishedAtIso?: string;
+  durationMinutes?: number;
+  servingsMade?: number;
+  notes?: string;
+  currentStepIndex?: number;
+  timers: CookingTimer[];
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type WorkoutPlan = {
   id: string;
   name: string;
@@ -328,6 +428,8 @@ export type AppPayload = {
   workoutSessions: WorkoutSession[];
   supplementProtocols: SupplementProtocol[];
   supplementIntakeLogs: SupplementIntakeLog[];
+  recipes: Recipe[];
+  cookingSessions: CookingSession[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;

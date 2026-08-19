@@ -14,6 +14,8 @@ import type {
   SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
+  Recipe,
+  CookingSession,
 } from "./core/model";
 import {
   cleanupExpiredFeedback,
@@ -44,6 +46,7 @@ import EventsPage, {
   type EventSeriesEditIntent,
 } from "./pages/EventsPage";
 import FitnessPage from "./pages/FitnessPage";
+import CookingPage from "./pages/CookingPage";
 import ReviewPage from "./pages/ReviewPage";
 import PeoplePage, { type LinkedEventPreset } from "./pages/PeoplePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -1433,6 +1436,99 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: { ...app.payload, supplementIntakeLogs } });
   }
 
+  function addRecipe(input: Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso">) {
+    if (!app) return;
+    const trimmedTitle = input.title.trim();
+    if (!trimmedTitle || input.ingredients.length === 0 || input.steps.length === 0) return;
+
+    const now = new Date().toISOString();
+    const newRecipe: Recipe = {
+      ...input,
+      id: id(),
+      title: trimmedTitle,
+      ingredients: input.ingredients.map((line) => ({ ...line })),
+      steps: input.steps.map((step) => ({ ...step })),
+      equipment: [...input.equipment],
+      gallery: input.gallery.map((image) => ({ ...image })),
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    if (input.notes?.trim()) newRecipe.notes = input.notes.trim();
+    else delete newRecipe.notes;
+    if (input.heroImage) newRecipe.heroImage = { ...input.heroImage };
+    else delete newRecipe.heroImage;
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        recipes: [...(app.payload.recipes ?? []), newRecipe],
+      },
+    });
+  }
+
+  function updateRecipe(updated: Recipe) {
+    if (!app) return;
+    const trimmedTitle = updated.title.trim();
+    if (!trimmedTitle || updated.ingredients.length === 0 || updated.steps.length === 0) return;
+
+    const now = new Date().toISOString();
+    const nextRecipe: Recipe = {
+      ...updated,
+      title: trimmedTitle,
+      ingredients: updated.ingredients.map((line) => ({ ...line })),
+      steps: updated.steps.map((step) => ({ ...step })),
+      equipment: [...updated.equipment],
+      gallery: updated.gallery.map((image) => ({ ...image })),
+      updatedAtIso: now,
+    };
+
+    if (updated.notes?.trim()) nextRecipe.notes = updated.notes.trim();
+    else delete nextRecipe.notes;
+    if (updated.heroImage) nextRecipe.heroImage = { ...updated.heroImage };
+    else delete nextRecipe.heroImage;
+
+    const recipes = (app.payload.recipes ?? []).map((recipe) =>
+      recipe.id === updated.id ? nextRecipe : recipe
+    );
+    commit({ ...app, payload: { ...app.payload, recipes } });
+  }
+
+  function deleteRecipe(recipeId: string) {
+    if (!app) return;
+    const recipes = (app.payload.recipes ?? []).filter((recipe) => recipe.id !== recipeId);
+    const cookingSessions = (app.payload.cookingSessions ?? []).map((session) =>
+      session.recipeId === recipeId ? { ...session, recipeId: null } : session
+    );
+    commit({ ...app, payload: { ...app.payload, recipes, cookingSessions } });
+  }
+
+  function addCookingSession(
+    input: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso">
+  ) {
+    if (!app) return;
+    if (input.status !== "completed" || !input.startedAtIso || !input.finishedAtIso) return;
+
+    const now = new Date().toISOString();
+    const newSession: CookingSession = {
+      ...input,
+      id: id(),
+      recipeTitle: input.recipeTitle.trim(),
+      timers: [...input.timers],
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        cookingSessions: [...(app.payload.cookingSessions ?? []), newSession],
+      },
+    });
+  }
+
   function upsertFocusFeedbackEntry(entry: FocusFeedback) {
     if (!app) return;
 
@@ -1533,6 +1629,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutSessions={app.payload.workoutSessions ?? []}
           supplementProtocols={app.payload.supplementProtocols ?? []}
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
+          recipes={app.payload.recipes ?? []}
+          cookingSessions={app.payload.cookingSessions ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           gamificationState={app.payload.gamificationState}
@@ -1550,6 +1648,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenPeople={() => setPage("people")}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={openFitness}
+          onOpenCooking={() => setPage("cooking")}
           onOpenReview={() => setPage("review")}
           onOpenCalendar={() => setPage("calendar")}
           onToggleTodayExercise={toggleTodayExercise}
@@ -1676,6 +1775,17 @@ export default function App({ userId, onSignOut }: AppProps) {
           onUpdateProtocol={updateSupplementProtocol}
           onDeleteProtocol={deleteSupplementProtocol}
           onUpsertIntake={upsertSupplementIntake}
+        />
+      )}
+
+      {page === "cooking" && (
+        <CookingPage
+          recipes={app.payload.recipes ?? []}
+          cookingSessions={app.payload.cookingSessions ?? []}
+          onAddRecipe={addRecipe}
+          onUpdateRecipe={updateRecipe}
+          onDeleteRecipe={deleteRecipe}
+          onAddCookingSession={addCookingSession}
         />
       )}
 

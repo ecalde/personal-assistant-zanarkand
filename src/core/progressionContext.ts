@@ -7,6 +7,7 @@
 
 import type {
   AppPayload,
+  CookingSession,
   JobApplication,
   Person,
   Session,
@@ -31,6 +32,14 @@ import {
 } from "./fitness";
 import { listCompleteAdherenceDays, type CompleteAdherenceDay } from "./supplements";
 import type { ProgressionAxis } from "./progressionModel";
+import {
+  completionsByRecipeId,
+  distinctRecipesCookedCount,
+  homeCookedWeekStreak,
+  listCompletedCookingSessions,
+  maxRecipeMasteryTier,
+  type RecipeMasteryTier,
+} from "./cooking";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -107,6 +116,13 @@ export type ProgressionContext = {
 
   attendedEvents: AttendedEvent[];
   socialEventsAttendedCount: number;
+
+  cookingSessions: CookingSession[];
+  recipesCookedTotal: number;
+  distinctRecipesCooked: number;
+  homeCookedWeekStreak: number;
+  maxRecipeMasteryTier: RecipeMasteryTier | null;
+  completedCookingByRecipeId: Map<string, CookingSession[]>;
 };
 
 function isValidDateKey(key: string): boolean {
@@ -303,6 +319,9 @@ export function buildProgressionContext(
   }
   const socialEventsAttendedCount = attendedEvents.filter((e) => e.isSocial).length;
 
+  const cookingSessions = listCompletedCookingSessions(payload.cookingSessions ?? []);
+  const completedCookingByRecipeId = completionsByRecipeId(cookingSessions);
+
   return {
     now,
     todayKey,
@@ -333,5 +352,11 @@ export function buildProgressionContext(
     peopleContacts,
     attendedEvents,
     socialEventsAttendedCount,
+    cookingSessions,
+    recipesCookedTotal: cookingSessions.length,
+    distinctRecipesCooked: distinctRecipesCookedCount(cookingSessions),
+    homeCookedWeekStreak: homeCookedWeekStreak(cookingSessions, todayKey),
+    maxRecipeMasteryTier: maxRecipeMasteryTier(cookingSessions),
+    completedCookingByRecipeId,
   };
 }

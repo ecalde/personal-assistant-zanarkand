@@ -1,0 +1,600 @@
+/**
+ * Pure helpers for the Cooking domain (labels, search, filter/sort, mastery, XP).
+ */
+
+import { COOKING_XP } from "./milestoneTables";
+import type {
+  AppPayload,
+  CookingSession,
+  CookingSessionStatus,
+  CookingTimerStatus,
+  Recipe,
+  RecipeCategory,
+  RecipeDifficulty,
+  RecipeExperienceLevel,
+  RecipeSource,
+  RecipeStepKind,
+} from "./model";
+import { levelFromTotalXp } from "./progression";
+import { startOfWeekLocal } from "./dashboardStats";
+import { formatLocalDateKey } from "./timeline";
+
+export const RECIPE_CATEGORY_LABELS: Record<RecipeCategory, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  dessert: "Dessert",
+  snack: "Snack",
+  beverage: "Beverage",
+  meal_prep: "Meal Prep",
+};
+
+export const RECIPE_DIFFICULTY_LABELS: Record<RecipeDifficulty, string> = {
+  easy: "Easy",
+  medium: "Medium",
+  hard: "Hard",
+};
+
+export const RECIPE_EXPERIENCE_LABELS: Record<RecipeExperienceLevel, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+
+export type RecipesSortMode = "recent" | "title" | "category";
+export type RecipeCategoryFilter = RecipeCategory | "all";
+
+const RECIPE_CATEGORIES: RecipeCategory[] = [
+  "breakfast",
+  "lunch",
+  "dinner",
+  "dessert",
+  "snack",
+  "beverage",
+  "meal_prep",
+];
+
+const RECIPE_DIFFICULTIES: RecipeDifficulty[] = ["easy", "medium", "hard"];
+
+const RECIPE_EXPERIENCE_LEVELS: RecipeExperienceLevel[] = [
+  "beginner",
+  "intermediate",
+  "advanced",
+];
+
+const RECIPE_SOURCES: RecipeSource[] = ["manual", "import", "catalog"];
+
+const RECIPE_STEP_KINDS: RecipeStepKind[] = ["blocking", "parallel", "wait", "timer"];
+
+const CATEGORY_SORT_ORDER: Record<RecipeCategory, number> = {
+  breakfast: 0,
+  lunch: 1,
+  dinner: 2,
+  dessert: 3,
+  snack: 4,
+  beverage: 5,
+  meal_prep: 6,
+};
+
+export function getRecipeCategoryValues(): RecipeCategory[] {
+  return [...RECIPE_CATEGORIES];
+}
+
+export function getRecipeDifficultyValues(): RecipeDifficulty[] {
+  return [...RECIPE_DIFFICULTIES];
+}
+
+export function getRecipeExperienceLevelValues(): RecipeExperienceLevel[] {
+  return [...RECIPE_EXPERIENCE_LEVELS];
+}
+
+export function isRecipeCategory(value: string): value is RecipeCategory {
+  return RECIPE_CATEGORIES.includes(value as RecipeCategory);
+}
+
+export function isRecipeDifficulty(value: string): value is RecipeDifficulty {
+  return RECIPE_DIFFICULTIES.includes(value as RecipeDifficulty);
+}
+
+export function isRecipeExperienceLevel(value: string): value is RecipeExperienceLevel {
+  return RECIPE_EXPERIENCE_LEVELS.includes(value as RecipeExperienceLevel);
+}
+
+export function isRecipeSource(value: string): value is RecipeSource {
+  return RECIPE_SOURCES.includes(value as RecipeSource);
+}
+
+export function isRecipeStepKind(value: string): value is RecipeStepKind {
+  return RECIPE_STEP_KINDS.includes(value as RecipeStepKind);
+}
+
+export function formatRecipeCategory(category: RecipeCategory): string {
+  return RECIPE_CATEGORY_LABELS[category];
+}
+
+export function formatRecipeDifficulty(difficulty: RecipeDifficulty): string {
+  return RECIPE_DIFFICULTY_LABELS[difficulty];
+}
+
+export function formatRecipeExperienceLevel(level: RecipeExperienceLevel): string {
+  return RECIPE_EXPERIENCE_LABELS[level];
+}
+
+export function formatEstimatedMinutes(minutes?: number): string | undefined {
+  if (minutes === undefined) return undefined;
+  return `${minutes} min`;
+}
+
+export function formatServings(servings?: number): string | undefined {
+  if (servings === undefined) return undefined;
+  return servings === 1 ? "1 serving" : `${servings} servings`;
+}
+
+export function formatIngredientCount(recipe: Recipe): string {
+  const count = recipe.ingredients.length;
+  return count === 1 ? "1 ingredient" : `${count} ingredients`;
+}
+
+export function formatStepCount(recipe: Recipe): string {
+  const count = recipe.steps.length;
+  return count === 1 ? "1 step" : `${count} steps`;
+}
+
+function normalizeQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+export function recipeMatchesQuery(recipe: Recipe, query: string): boolean {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return true;
+
+  if (recipe.title.toLowerCase().includes(normalized)) return true;
+  if (recipe.notes?.toLowerCase().includes(normalized)) return true;
+  if (formatRecipeCategory(recipe.category).toLowerCase().includes(normalized)) return true;
+  if (formatRecipeDifficulty(recipe.difficulty).toLowerCase().includes(normalized)) return true;
+  if (formatRecipeExperienceLevel(recipe.experienceLevel).toLowerCase().includes(normalized)) {
+    return true;
+  }
+  if (recipe.ingredients.some((line) => line.rawText.toLowerCase().includes(normalized))) {
+    return true;
+  }
+  if (recipe.steps.some((step) => step.text.toLowerCase().includes(normalized))) {
+    return true;
+  }
+  if (recipe.equipment.some((item) => item.toLowerCase().includes(normalized))) {
+    return true;
+  }
+  return false;
+}
+
+function compareIsoDesc(a: string, b: string): number {
+  return b.localeCompare(a);
+}
+
+export function filterAndSortRecipes(
+  recipes: Recipe[],
+  opts: {
+    query?: string;
+    sortMode: RecipesSortMode;
+    categoryFilter?: RecipeCategoryFilter;
+  }
+): Recipe[] {
+  const query = opts.query ?? "";
+  const categoryFilter = opts.categoryFilter ?? "all";
+
+  let filtered = recipes.filter((recipe) => recipeMatchesQuery(recipe, query));
+  if (categoryFilter !== "all") {
+    filtered = filtered.filter((recipe) => recipe.category === categoryFilter);
+  }
+
+  const sorted = [...filtered];
+  switch (opts.sortMode) {
+    case "title":
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case "category":
+      sorted.sort((a, b) => {
+        const byCategory = CATEGORY_SORT_ORDER[a.category] - CATEGORY_SORT_ORDER[b.category];
+        if (byCategory !== 0) return byCategory;
+        return a.title.localeCompare(b.title);
+      });
+      break;
+    case "recent":
+    default:
+      sorted.sort((a, b) => compareIsoDesc(a.updatedAtIso, b.updatedAtIso));
+      break;
+  }
+
+  return sorted;
+}
+
+// ---------------------------------------------------------------------------
+// Sessions + mastery
+// ---------------------------------------------------------------------------
+
+export type RecipeMasteryTier = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type RecipeMasteryView = {
+  recipeId: string;
+  completionCount: number;
+  tier: RecipeMasteryTier | null;
+  tierName: string;
+  recentWeekStreak: number;
+  lifetimeXp: number;
+  level: number;
+};
+
+export const RECIPE_MASTERY_TIER_NAMES: Record<RecipeMasteryTier, string> = {
+  1: "Novice",
+  2: "Practiced",
+  3: "Proficient",
+  4: "Skilled",
+  5: "Expert",
+  6: "Master",
+};
+
+const COOKING_SESSION_STATUSES: CookingSessionStatus[] = [
+  "planned",
+  "in_progress",
+  "completed",
+  "abandoned",
+];
+
+const PERSISTED_COOKING_SESSION_STATUSES: CookingSessionStatus[] = [
+  "in_progress",
+  "completed",
+  "abandoned",
+];
+
+const COOKING_TIMER_STATUSES: CookingTimerStatus[] = ["idle", "running", "paused", "done"];
+
+const ISO_WEEK_KEY_RE = /^(\d{4})-W(\d{2})$/;
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isCookingSessionStatus(value: string): value is CookingSessionStatus {
+  return COOKING_SESSION_STATUSES.includes(value as CookingSessionStatus);
+}
+
+export function isPersistedCookingSessionStatus(
+  value: string
+): value is Exclude<CookingSessionStatus, "planned"> {
+  return PERSISTED_COOKING_SESSION_STATUSES.includes(value as CookingSessionStatus);
+}
+
+export function isCookingTimerStatus(value: string): value is CookingTimerStatus {
+  return COOKING_TIMER_STATUSES.includes(value as CookingTimerStatus);
+}
+
+export function isCompletedCookingSession(session: CookingSession): boolean {
+  return session.status === "completed";
+}
+
+export function compareCookingSessionsAsc(a: CookingSession, b: CookingSession): number {
+  const byDate = a.cookDate.localeCompare(b.cookDate);
+  if (byDate !== 0) return byDate;
+  const aStamp = a.finishedAtIso ?? a.startedAtIso ?? a.createdAtIso;
+  const bStamp = b.finishedAtIso ?? b.startedAtIso ?? b.createdAtIso;
+  const byStamp = aStamp.localeCompare(bStamp);
+  if (byStamp !== 0) return byStamp;
+  return a.id.localeCompare(b.id);
+}
+
+export function compareCookingSessionsDesc(a: CookingSession, b: CookingSession): number {
+  return compareCookingSessionsAsc(b, a);
+}
+
+export function listCompletedCookingSessions(sessions: CookingSession[]): CookingSession[] {
+  return sessions.filter(isCompletedCookingSession).sort(compareCookingSessionsAsc);
+}
+
+export function listRecentCookingSessions(
+  sessions: CookingSession[],
+  limit: number
+): CookingSession[] {
+  return [...listCompletedCookingSessions(sessions)]
+    .sort(compareCookingSessionsDesc)
+    .slice(0, Math.max(0, limit));
+}
+
+export function completionsByRecipeId(
+  sessions: CookingSession[]
+): Map<string, CookingSession[]> {
+  const map = new Map<string, CookingSession[]>();
+  for (const session of listCompletedCookingSessions(sessions)) {
+    if (!session.recipeId) continue;
+    const list = map.get(session.recipeId) ?? [];
+    list.push(session);
+    map.set(session.recipeId, list);
+  }
+  return map;
+}
+
+export function masteryTierFromCount(completionCount: number): RecipeMasteryTier | null {
+  if (!Number.isInteger(completionCount) || completionCount < 1) return null;
+  if (completionCount <= 2) return 1;
+  if (completionCount <= 9) return 2;
+  if (completionCount <= 24) return 3;
+  if (completionCount <= 49) return 4;
+  if (completionCount <= 99) return 5;
+  return 6;
+}
+
+export function masteryTierName(tier: RecipeMasteryTier | null): string {
+  return tier === null ? "Not yet cooked" : RECIPE_MASTERY_TIER_NAMES[tier];
+}
+
+export function crossedMasteryTier(priorCount: number, nextCount: number): boolean {
+  return masteryTierFromCount(nextCount) !== masteryTierFromCount(priorCount);
+}
+
+export function xpForCompletion(priorCompletions: number): number {
+  if (!Number.isInteger(priorCompletions) || priorCompletions < 0) return 0;
+  if (priorCompletions === 0) return COOKING_XP.firstCook;
+  const repeatXp = Math.round(COOKING_XP.repeatBase / (1 + Math.log(1 + priorCompletions)));
+  return Math.max(COOKING_XP.repeatMin, repeatXp);
+}
+
+export function recipeTrackXpFromCount(completionCount: number): number {
+  if (!Number.isInteger(completionCount) || completionCount < 0) return 0;
+  let xp = 0;
+  for (let prior = 0; prior < completionCount; prior += 1) {
+    xp += xpForCompletion(prior);
+    if (crossedMasteryTier(prior, prior + 1)) {
+      xp += COOKING_XP.masteryTierUp;
+    }
+  }
+  return xp;
+}
+
+export function isoWeekKeyFromDateKey(dateKey: string): string | null {
+  if (!DATE_KEY_RE.test(dateKey)) return null;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayNr = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - dayNr + 3);
+  const isoYear = date.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  const firstDayNr = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNr + 3);
+  const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / 604800000);
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
+export function previousIsoWeekKey(weekKey: string): string | null {
+  const match = ISO_WEEK_KEY_RE.exec(weekKey);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (!Number.isInteger(year) || !Number.isInteger(week) || week < 1) return null;
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = (jan4.getUTCDay() + 6) % 7;
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - jan4Day);
+  const thursday = new Date(week1Monday);
+  thursday.setUTCDate(week1Monday.getUTCDate() + (week - 1) * 7 + 3 - 7);
+  const y = thursday.getUTCFullYear();
+  const m = String(thursday.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(thursday.getUTCDate()).padStart(2, "0");
+  return isoWeekKeyFromDateKey(`${y}-${m}-${d}`);
+}
+
+export function recentCookWeekStreak(cookDates: string[]): number {
+  const weeks = new Set<string>();
+  let latest: string | null = null;
+  for (const dateKey of cookDates) {
+    const weekKey = isoWeekKeyFromDateKey(dateKey);
+    if (!weekKey) continue;
+    weeks.add(weekKey);
+    if (latest === null || weekKey > latest) latest = weekKey;
+  }
+  if (!latest) return 0;
+
+  let streak = 0;
+  let cursor: string | null = latest;
+  while (cursor && weeks.has(cursor)) {
+    streak += 1;
+    cursor = previousIsoWeekKey(cursor);
+  }
+  return streak;
+}
+
+export function homeCookedWeekStreak(sessions: CookingSession[], todayKey: string): number {
+  const weeks = new Set<string>();
+  for (const session of listCompletedCookingSessions(sessions)) {
+    const weekKey = isoWeekKeyFromDateKey(session.cookDate);
+    if (weekKey) weeks.add(weekKey);
+  }
+
+  const currentWeek = isoWeekKeyFromDateKey(todayKey);
+  if (!currentWeek) return 0;
+  const previousWeek = previousIsoWeekKey(currentWeek);
+  const start = weeks.has(currentWeek)
+    ? currentWeek
+    : previousWeek && weeks.has(previousWeek)
+      ? previousWeek
+      : null;
+  if (!start) return 0;
+
+  let streak = 0;
+  let cursor: string | null = start;
+  while (cursor && weeks.has(cursor)) {
+    streak += 1;
+    cursor = previousIsoWeekKey(cursor);
+  }
+  return streak;
+}
+
+export function distinctRecipesCookedCount(sessions: CookingSession[]): number {
+  const keys = new Set<string>();
+  for (const session of listCompletedCookingSessions(sessions)) {
+    keys.add(session.recipeId ?? `title:${session.recipeTitle}`);
+  }
+  return keys.size;
+}
+
+export function maxRecipeMasteryTier(sessions: CookingSession[]): RecipeMasteryTier | null {
+  let max: RecipeMasteryTier | null = null;
+  for (const list of completionsByRecipeId(sessions).values()) {
+    const tier = masteryTierFromCount(list.length);
+    if (tier !== null && (max === null || tier > max)) max = tier;
+  }
+  return max;
+}
+
+export function buildRecipeMasteryView(
+  recipeId: string,
+  sessions: CookingSession[]
+): RecipeMasteryView {
+  const completions = completionsByRecipeId(sessions).get(recipeId) ?? [];
+  const completionCount = completions.length;
+  const tier = masteryTierFromCount(completionCount);
+  const lifetimeXp = recipeTrackXpFromCount(completionCount);
+  return {
+    recipeId,
+    completionCount,
+    tier,
+    tierName: masteryTierName(tier),
+    recentWeekStreak: recentCookWeekStreak(completions.map((session) => session.cookDate)),
+    lifetimeXp,
+    level: levelFromTotalXp(lifetimeXp).level,
+  };
+}
+
+export function buildRecipeMasteryViews(
+  recipes: Recipe[],
+  sessions: CookingSession[]
+): Map<string, RecipeMasteryView> {
+  const map = new Map<string, RecipeMasteryView>();
+  for (const recipe of recipes) {
+    map.set(recipe.id, buildRecipeMasteryView(recipe.id, sessions));
+  }
+  return map;
+}
+
+export function listCompletedCookingSessionsInWeek(
+  sessions: CookingSession[],
+  todayKey: string
+): CookingSession[] {
+  if (!DATE_KEY_RE.test(todayKey)) return [];
+  const [year, month, day] = todayKey.split("-").map(Number);
+  if (!year || !month || !day) return [];
+  const weekStart = startOfWeekLocal(new Date(year, month - 1, day));
+  const startKey = formatLocalDateKey(weekStart);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const endKey = formatLocalDateKey(weekEnd);
+  return listCompletedCookingSessions(sessions).filter(
+    (session) => session.cookDate >= startKey && session.cookDate <= endKey
+  );
+}
+
+export function formatMasteryStreak(streak: number): string | undefined {
+  if (!Number.isInteger(streak) || streak < 1) return undefined;
+  return streak === 1 ? "cooked 1 week running" : `cooked ${streak} weeks running`;
+}
+
+export function formatCookDate(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return dateKey;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function toDatetimeLocalValue(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function fromDatetimeLocalValue(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
+export function defaultCookingWindow(
+  estimatedMinutes: number | undefined,
+  now: Date = new Date()
+): { startedAtIso: string; finishedAtIso: string } {
+  const minutes =
+    estimatedMinutes !== undefined && Number.isInteger(estimatedMinutes) && estimatedMinutes > 0
+      ? estimatedMinutes
+      : 30;
+  const finished = now;
+  const started = new Date(now.getTime() - minutes * 60_000);
+  return { startedAtIso: started.toISOString(), finishedAtIso: finished.toISOString() };
+}
+
+export function durationMinutesBetween(
+  startedAtIso: string,
+  finishedAtIso: string
+): number | undefined {
+  const start = new Date(startedAtIso).getTime();
+  const finish = new Date(finishedAtIso).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(finish) || finish <= start) return undefined;
+  return Math.max(1, Math.round((finish - start) / 60_000));
+}
+
+export function validateCookingCompletion(
+  startedAtIso: string,
+  finishedAtIso: string
+): string | undefined {
+  if (!startedAtIso || !finishedAtIso) return "Start and finish times are required.";
+  const start = new Date(startedAtIso).getTime();
+  const finish = new Date(finishedAtIso).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(finish)) {
+    return "Enter valid start and finish times.";
+  }
+  if (finish <= start) return "Finish time must be after the start time.";
+  return undefined;
+}
+
+export function cookDateFromIso(iso: string): string {
+  const date = new Date(iso);
+  return formatLocalDateKey(Number.isNaN(date.getTime()) ? new Date() : date);
+}
+
+export function buildCompletedCookingSession(
+  recipe: Recipe,
+  input: {
+    startedAtIso: string;
+    finishedAtIso: string;
+    servingsMade?: number;
+    notes?: string;
+  }
+): Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> {
+  const durationMinutes = durationMinutesBetween(input.startedAtIso, input.finishedAtIso);
+  const session: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> = {
+    recipeId: recipe.id,
+    recipeTitle: recipe.title,
+    status: "completed",
+    cookDate: cookDateFromIso(input.finishedAtIso),
+    startedAtIso: input.startedAtIso,
+    finishedAtIso: input.finishedAtIso,
+    timers: [],
+  };
+  if (durationMinutes !== undefined) session.durationMinutes = durationMinutes;
+  if (input.servingsMade !== undefined) session.servingsMade = input.servingsMade;
+  if (input.notes?.trim()) session.notes = input.notes.trim();
+  return session;
+}
+
+export function sanitizeCookingReferences(payload: AppPayload): AppPayload {
+  const recipeIds = new Set(payload.recipes.map((recipe) => recipe.id));
+  let changed = false;
+  const cookingSessions = (payload.cookingSessions ?? []).map((session) => {
+    if (session.recipeId && !recipeIds.has(session.recipeId)) {
+      changed = true;
+      return { ...session, recipeId: null };
+    }
+    return session;
+  });
+  if (!changed) return payload;
+  return { ...payload, cookingSessions };
+}

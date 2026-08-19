@@ -100,4 +100,61 @@ describe("buildProgressionSnapshot", () => {
       true
     );
   });
+
+  it("routes cooking XP to creative and body without granting XP for a recipe with no cooks", () => {
+    const recipeId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const emptyRecipe = payloadWith({
+      recipes: [
+        {
+          id: recipeId,
+          title: "Carbonara",
+          category: "dinner",
+          difficulty: "easy",
+          experienceLevel: "beginner",
+          ingredients: [{ id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", rawText: "eggs" }],
+          steps: [
+            {
+              id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              order: 0,
+              text: "Cook",
+              kind: "blocking",
+              blocksProgress: true,
+            },
+          ],
+          equipment: [],
+          gallery: [],
+          source: "manual",
+          createdAtIso: GEN,
+          updatedAtIso: GEN,
+        },
+      ],
+    });
+    const unused = buildProgressionSnapshot(emptyRecipe, undefined, NOW);
+    expect(unused.axes.creative.totalXp).toBe(0);
+
+    const cooked = buildProgressionSnapshot(
+      payloadWith({
+        cookingSessions: [
+          {
+            id: "cook-1",
+            recipeId,
+            recipeTitle: "Carbonara",
+            status: "completed",
+            cookDate: "2026-05-26",
+            startedAtIso: localIso(2026, 5, 26, 18),
+            finishedAtIso: localIso(2026, 5, 26, 19),
+            timers: [],
+            createdAtIso: GEN,
+            updatedAtIso: GEN,
+          },
+        ],
+      }),
+      undefined,
+      NOW
+    );
+    expect(cooked.axes.creative.totalXp).toBeGreaterThan(0);
+    expect(cooked.axes.body.totalXp).toBeGreaterThan(0);
+    expect(cooked.grantsToday.some((g) => g.source === "cooking_first_cook")).toBe(true);
+    expect(cooked.achievements.unlocked.some((u) => u.definitionId === "first_cook")).toBe(true);
+  });
 });

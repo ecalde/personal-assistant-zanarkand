@@ -74,6 +74,14 @@ function peopleContactsInPeriod(
   return context.peopleContacts.filter((c) => inPeriod(c.dayKey, bounds)).length;
 }
 
+function cookingSessionsInPeriod(
+  context: ProgressionContext,
+  bounds: PeriodBounds
+): number {
+  return context.cookingSessions.filter((session) => inPeriod(session.cookDate, bounds))
+    .length;
+}
+
 function scoreCondition(
   condition: QuestCondition,
   context: ProgressionContext,
@@ -104,6 +112,11 @@ function scoreCondition(
     case "log_people_contact":
       return {
         current: peopleContactsInPeriod(context, bounds),
+        target: condition.count ?? 1,
+      };
+    case "complete_cooking_session":
+      return {
+        current: cookingSessionsInPeriod(context, bounds),
         target: condition.count ?? 1,
       };
   }

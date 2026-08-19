@@ -37,6 +37,7 @@ export function AppShell({
     { id: "people", label: "People" },
     { id: "career", label: "Career" },
     { id: "fitness", label: "Fitness" },
+    { id: "cooking", label: "Cooking" },
     { id: "review", label: "Review" },
     { id: "settings", label: "Settings" },
   ];

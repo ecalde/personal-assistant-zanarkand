@@ -61,6 +61,15 @@ export const QUEST_CATALOG: readonly QuestDefinition[] = [
     rewardXp: 30,
     condition: { kind: "log_people_contact", count: 1 },
   },
+  {
+    id: "weekly_cook_3",
+    period: "weekly",
+    title: "Cook 3 home meals",
+    description: "Complete 3 home-cooked meals this week.",
+    axis: "creative",
+    rewardXp: 40,
+    condition: { kind: "complete_cooking_session", count: 3 },
+  },
 
   // ----- monthly -----
   {

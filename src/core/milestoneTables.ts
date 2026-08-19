@@ -11,6 +11,7 @@ export const LEVEL_BAND_MULTIPLIERS = {
   global: 1,
   axis: 1,
   skill: 1,
+  recipe: 1,
 } as const;
 
 /** Streak day thresholds that grant a one-time milestone bonus, and the XP each gives. */
@@ -65,6 +66,15 @@ export const BONUS_XP = {
   careerStatusForward: 30,
   careerApplication: 15,
   peopleFollowUp: 20,
+} as const;
+
+/** Cooking XP constants (Phase 2). Recipe creation grants 0; only completed sessions grant XP. */
+export const COOKING_XP = {
+  firstCook: 50,
+  homeCookedMeal: 10,
+  repeatBase: 30,
+  repeatMin: 5,
+  masteryTierUp: 40,
 } as const;
 
 /** Maximum bonus (non base-minutes) XP creditable per local day. */

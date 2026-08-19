@@ -100,6 +100,8 @@ describe("cleanupInvalidWorkoutScheduleSeries", () => {
       workoutSessions: [],
       supplementProtocols: [],
       supplementIntakeLogs: [],
+      recipes: [],
+      cookingSessions: [],
       focusFeedback: [],
     };
 
@@ -119,6 +121,8 @@ describe("cleanupInvalidWorkoutScheduleSeries", () => {
       workoutSessions: [],
       supplementProtocols: [],
       supplementIntakeLogs: [],
+      recipes: [],
+      cookingSessions: [],
       focusFeedback: [],
     };
     expect(cleanupInvalidWorkoutScheduleSeries(payload)).toBe(payload);

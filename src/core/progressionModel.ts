@@ -33,12 +33,13 @@ export const PROGRESSION_AXIS_LABELS: Record<ProgressionAxis, string> = {
   creative: "Creative",
 };
 
-export type ProgressionTrackKind = "global" | "axis" | "skill";
+export type ProgressionTrackKind = "global" | "axis" | "skill" | "recipe";
 
 export type ProgressionTrackId =
   | "global"
   | `axis:${ProgressionAxis}`
-  | `skill:${string}`;
+  | `skill:${string}`
+  | `recipe:${string}`;
 
 export const GLOBAL_TRACK_ID: ProgressionTrackId = "global";
 
@@ -48,6 +49,10 @@ export function axisTrackId(axis: ProgressionAxis): ProgressionTrackId {
 
 export function skillTrackId(skillId: string): ProgressionTrackId {
   return `skill:${skillId}`;
+}
+
+export function recipeTrackId(recipeId: string): ProgressionTrackId {
+  return `recipe:${recipeId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +73,11 @@ export type RewardSource =
   | "career_application"
   | "people_follow_up"
   | "quest_completion"
-  | "achievement_grant";
+  | "achievement_grant"
+  | "cooking_first_cook"
+  | "cooking_repeat"
+  | "cooking_home_meal"
+  | "cooking_mastery_tier_up";
 
 export type XpGrant = {
   /** Deterministic id used to dedupe identical grants across renders. */
@@ -114,7 +123,8 @@ export type AchievementCategory =
   | "fitness"
   | "learning"
   | "social"
-  | "career";
+  | "career"
+  | "cooking";
 
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum";
 
@@ -130,7 +140,11 @@ export type AchievementCondition =
   | { kind: "career_applications_gte"; count: number }
   | { kind: "career_status_reached"; status: ApplicationStatus }
   | { kind: "people_follow_ups_gte"; count: number }
-  | { kind: "events_social_attended_gte"; count: number };
+  | { kind: "events_social_attended_gte"; count: number }
+  | { kind: "recipes_cooked_gte"; count: number }
+  | { kind: "distinct_recipes_cooked_gte"; count: number }
+  | { kind: "recipe_mastery_tier_gte"; tier: number }
+  | { kind: "home_cooked_week_streak_gte"; weeks: number };
 
 export type AchievementDefinition = {
   /** Stable slug, e.g. "streak_global_7". */
@@ -175,7 +189,8 @@ export type QuestCondition =
   | { kind: "complete_scheduled_workout"; count?: number }
   | { kind: "extend_global_streak" }
   | { kind: "career_action"; minCount: number }
-  | { kind: "log_people_contact"; count?: number };
+  | { kind: "log_people_contact"; count?: number }
+  | { kind: "complete_cooking_session"; count?: number };
 
 export type QuestDefinition = {
   id: string;

@@ -104,6 +104,22 @@ function evaluateCondition(
       const current = context.socialEventsAttendedCount;
       return { current, target: condition.count, met: current >= condition.count };
     }
+    case "recipes_cooked_gte": {
+      const current = context.recipesCookedTotal;
+      return { current, target: condition.count, met: current >= condition.count };
+    }
+    case "distinct_recipes_cooked_gte": {
+      const current = context.distinctRecipesCooked;
+      return { current, target: condition.count, met: current >= condition.count };
+    }
+    case "recipe_mastery_tier_gte": {
+      const current = context.maxRecipeMasteryTier ?? 0;
+      return { current, target: condition.tier, met: current >= condition.tier };
+    }
+    case "home_cooked_week_streak_gte": {
+      const current = context.homeCookedWeekStreak;
+      return { current, target: condition.weeks, met: current >= condition.weeks };
+    }
   }
 }
 

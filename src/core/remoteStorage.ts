@@ -16,6 +16,8 @@ import {
   focusFeedbackToRow,
   payloadFromRows,
   personToRow,
+  recipeToRow,
+  cookingSessionToRow,
   sessionToRow,
   skillToRow,
   workoutPlanToRow,
@@ -30,6 +32,8 @@ import {
   type JobApplicationRow,
   type OverrideRow,
   type PersonRow,
+  type RecipeRow,
+  type CookingSessionRow,
   type SessionRow,
   type SkillRow,
   type WorkoutPlanRow,
@@ -51,6 +55,8 @@ type AppTable =
   | "workout_sessions"
   | "supplement_protocols"
   | "supplement_intake_logs"
+  | "recipes"
+  | "cooking_sessions"
   | "focus_feedback"
   | "calendar_preferences"
   | "gamification_state";
@@ -134,6 +140,32 @@ function syncFailureMessage(
     );
   }
 
+  if (
+    table === "recipes" &&
+    (error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      (msg.includes("schema cache") && msg.includes("recipe")) ||
+      (msg.includes("relation") && msg.includes("recipe")))
+  ) {
+    return (
+      "Could not sync recipes. Your Supabase database is missing the cooking " +
+      "recipes migration (20260818120000_cooking_recipes.sql). Apply it, then retry cloud save."
+    );
+  }
+
+  if (
+    table === "cooking_sessions" &&
+    (error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      (msg.includes("schema cache") && msg.includes("cooking_session")) ||
+      (msg.includes("relation") && msg.includes("cooking_session")))
+  ) {
+    return (
+      "Could not sync cooking sessions. Your Supabase database is missing the cooking " +
+      "sessions migration (20260818130000_cooking_sessions.sql). Apply it, then retry cloud save."
+    );
+  }
+
   return `Could not sync ${table}. Please try again.`;
 }
 
@@ -209,6 +241,8 @@ async function upsertRows(
     | WorkoutSessionRow[]
     | SupplementProtocolRow[]
     | SupplementIntakeLogRow[]
+    | RecipeRow[]
+    | CookingSessionRow[]
     | FocusFeedbackRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
@@ -273,7 +307,7 @@ async function replaceGamificationState(
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -286,6 +320,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("workout_sessions").select("*").eq("user_id", userId),
     supabase.from("supplement_protocols").select("*").eq("user_id", userId),
     supabase.from("supplement_intake_logs").select("*").eq("user_id", userId),
+    supabase.from("recipes").select("*").eq("user_id", userId),
+    supabase.from("cooking_sessions").select("*").eq("user_id", userId),
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
     supabase.from("calendar_preferences").select("*").eq("user_id", userId),
     supabase.from("gamification_state").select("*").eq("user_id", userId),
@@ -302,6 +338,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(workoutSessionsResult.error, "workout_sessions");
   throwOnSupabaseError(supplementProtocolsResult.error, "supplement_protocols");
   throwOnSupabaseError(supplementIntakeLogsResult.error, "supplement_intake_logs");
+  throwOnSupabaseError(recipesResult.error, "recipes");
+  throwOnSupabaseError(cookingSessionsResult.error, "cooking_sessions");
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
   throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
   throwOnSupabaseError(gamificationStateResult.error, "gamification_state");
@@ -321,7 +359,9 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<CalendarPreferencesRow>(calendarPreferencesResult.data),
       asRows<GamificationStateRow>(gamificationStateResult.data),
       asRows<SupplementProtocolRow>(supplementProtocolsResult.data),
-      asRows<SupplementIntakeLogRow>(supplementIntakeLogsResult.data)
+      asRows<SupplementIntakeLogRow>(supplementIntakeLogsResult.data),
+      asRows<RecipeRow>(recipesResult.data),
+      asRows<CookingSessionRow>(cookingSessionsResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -360,6 +400,10 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const supplementIntakeLogRows = payload.supplementIntakeLogs.map((log) =>
     supplementIntakeLogToRow(log, userId)
   );
+  const recipeRows = payload.recipes.map((recipe) => recipeToRow(recipe, userId));
+  const cookingSessionRows = payload.cookingSessions.map((session) =>
+    cookingSessionToRow(session, userId)
+  );
   const focusFeedbackRows = payload.focusFeedback.map((entry) =>
     focusFeedbackToRow(entry, userId)
   );
@@ -381,6 +425,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("workout_sessions", workoutSessionRows);
   await upsertRows("supplement_protocols", supplementProtocolRows);
   await upsertRows("supplement_intake_logs", supplementIntakeLogRows);
+  await upsertRows("recipes", recipeRows);
+  await upsertRows("cooking_sessions", cookingSessionRows);
   await upsertRows("focus_feedback", focusFeedbackRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
@@ -394,6 +440,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const workoutSessionIds = payload.workoutSessions.map((s) => s.id);
   const supplementProtocolIds = payload.supplementProtocols.map((p) => p.id);
   const supplementIntakeLogIds = payload.supplementIntakeLogs.map((l) => l.id);
+  const recipeIds = payload.recipes.map((r) => r.id);
+  const cookingSessionIds = payload.cookingSessions.map((s) => s.id);
   const focusFeedbackIds = payload.focusFeedback.map((f) => f.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
@@ -406,6 +454,8 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("workout_plans", userId, workoutPlanIds);
   await deleteRowsNotIn("workout_sessions", userId, workoutSessionIds);
   await deleteRowsNotIn("supplement_intake_logs", userId, supplementIntakeLogIds);
+  await deleteRowsNotIn("cooking_sessions", userId, cookingSessionIds);
+  await deleteRowsNotIn("recipes", userId, recipeIds);
   await deleteRowsNotIn("supplement_protocols", userId, supplementProtocolIds);
   await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
 
@@ -426,6 +476,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.workoutSessions.length > 0 ||
     payload.supplementProtocols.length > 0 ||
     payload.supplementIntakeLogs.length > 0 ||
+    payload.recipes.length > 0 ||
+    payload.cookingSessions.length > 0 ||
     payload.focusFeedback.length > 0 ||
     payload.calendarPreferences !== undefined ||
     payload.gamificationState !== undefined

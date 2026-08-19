@@ -3,6 +3,7 @@
 import type { AppPayload } from "./model";
 import { sanitizeEventReferences } from "./events";
 import { sanitizeSkillReferences } from "./sessions";
+import { sanitizeCookingReferences } from "./cooking";
 import { normalizeGamificationState } from "./progressionModel";
 import { defaultPayload } from "./state";
 
@@ -66,6 +67,8 @@ export function normalizePayload(payload: unknown): AppPayload {
         supplementIntakeLogs: Array.isArray(p.supplementIntakeLogs)
             ? p.supplementIntakeLogs
             : [],
+        recipes: Array.isArray(p.recipes) ? p.recipes : [],
+        cookingSessions: Array.isArray(p.cookingSessions) ? p.cookingSessions : [],
         focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
         calendarPreferences:
             p.calendarPreferences &&
@@ -76,7 +79,9 @@ export function normalizePayload(payload: unknown): AppPayload {
         gamificationState: normalizeGamificationState(p.gamificationState),
     };
 
-    return sanitizeEventReferences(sanitizeSkillReferences(normalized));
+    return sanitizeEventReferences(
+      sanitizeCookingReferences(sanitizeSkillReferences(normalized))
+    );
 }
 
 function parseStoredAppData(raw: string): AppData | null {

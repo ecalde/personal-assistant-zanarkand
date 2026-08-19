@@ -7,16 +7,19 @@
 
 import {
   axisTrackId,
+  recipeTrackId,
   skillTrackId,
   GLOBAL_TRACK_ID,
   type XpGrant,
 } from "./progressionModel";
 import {
   BONUS_XP,
+  COOKING_XP,
   MAX_BONUS_XP_PER_DAY,
   STREAK_MILESTONES,
 } from "./milestoneTables";
 import type { ProgressionContext } from "./progressionContext";
+import { crossedMasteryTier, xpForCompletion } from "./cooking";
 
 function pushGrant(grants: XpGrant[], grant: XpGrant): void {
   if (!Number.isFinite(grant.amount) || grant.amount <= 0) return;
@@ -173,6 +176,43 @@ export function listXpGrants(context: ProgressionContext): XpGrant[] {
       amount: BONUS_XP.eventAttended,
       dayKey: attended.dateKey,
     });
+  }
+
+  // Cooking completions -> recipe track (rolls into creative + global) + flat body grant.
+  for (const session of context.cookingSessions) {
+    pushGrant(grants, {
+      id: `cooking_home_meal:${session.id}`,
+      source: "cooking_home_meal",
+      trackId: axisTrackId("body"),
+      amount: COOKING_XP.homeCookedMeal,
+      dayKey: session.cookDate,
+    });
+
+    if (!session.recipeId) continue;
+    const ordered = context.completedCookingByRecipeId.get(session.recipeId) ?? [];
+    const priorCount = ordered.findIndex((item) => item.id === session.id);
+    if (priorCount < 0) continue;
+
+    const amount = xpForCompletion(priorCount);
+    const isFirstCook = priorCount === 0;
+    pushGrant(grants, {
+      id: `${isFirstCook ? "cooking_first_cook" : "cooking_repeat"}:${session.id}`,
+      source: isFirstCook ? "cooking_first_cook" : "cooking_repeat",
+      trackId: recipeTrackId(session.recipeId),
+      amount,
+      dayKey: session.cookDate,
+    });
+
+    if (crossedMasteryTier(priorCount, priorCount + 1)) {
+      const nextTier = priorCount + 1;
+      pushGrant(grants, {
+        id: `cooking_mastery_tier_up:${session.id}:${nextTier}`,
+        source: "cooking_mastery_tier_up",
+        trackId: recipeTrackId(session.recipeId),
+        amount: COOKING_XP.masteryTierUp,
+        dayKey: session.cookDate,
+      });
+    }
   }
 
   return dedupeGrants(grants);

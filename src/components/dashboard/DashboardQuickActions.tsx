@@ -6,6 +6,7 @@ export type DashboardQuickActionsProps = {
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: () => void;
+  onOpenCooking?: () => void;
   onOpenReview?: () => void;
   onOpenCalendar?: () => void;
 };
@@ -25,6 +26,7 @@ export function DashboardQuickActions({
   onOpenPeople,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
   onOpenReview,
   onOpenCalendar,
 }: DashboardQuickActionsProps) {
@@ -35,6 +37,7 @@ export function DashboardQuickActions({
     { label: "People", onClick: onOpenPeople },
     { label: "Career", onClick: onOpenCareer },
     { label: "Fitness", onClick: onOpenFitness },
+    { label: "Cooking", onClick: onOpenCooking },
     { label: "Review", onClick: onOpenReview },
   ];
 

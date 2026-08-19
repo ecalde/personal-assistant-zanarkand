@@ -5,7 +5,7 @@ import {
   buildSkillLevelState,
   computeTrackTotals,
 } from "./progressionEngine";
-import { axisTrackId, skillTrackId, type ProgressionAxis, type XpGrant } from "./progressionModel";
+import { axisTrackId, recipeTrackId, skillTrackId, type ProgressionAxis, type XpGrant } from "./progressionModel";
 
 const SKILL_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -51,5 +51,28 @@ describe("progressionEngine", () => {
     const skill = buildSkillLevelState(SKILL_A, totals);
     expect(skill.totalXp).toBe(0);
     expect(skill.level).toBe(1);
+  });
+
+  it("routes recipe grants into creative and tracks per-recipe totals", () => {
+    const recipeId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const grants: XpGrant[] = [
+      grant({
+        id: "c1",
+        trackId: recipeTrackId(recipeId),
+        amount: 50,
+        source: "cooking_first_cook",
+      }),
+      grant({
+        id: "c2",
+        trackId: axisTrackId("body"),
+        amount: 10,
+        source: "cooking_home_meal",
+      }),
+    ];
+    const totals = computeTrackTotals(grants, new Map());
+    expect(totals.global).toBe(60);
+    expect(totals.byRecipe.get(recipeId)).toBe(50);
+    expect(totals.byAxis.creative).toBe(50);
+    expect(totals.byAxis.body).toBe(10);
   });
 });

@@ -118,4 +118,28 @@ describe("achievementEngine", () => {
     const unlocked = evaluate(payloadWith({ supplementIntakeLogs: completeLogs }));
     expect(unlocked.unlocked.some((u) => u.definitionId === "supplement_days_7")).toBe(true);
   });
+
+  it("unlocks First Cook after a completed cooking session", () => {
+    const result = evaluate(
+      payloadWith({
+        cookingSessions: [
+          {
+            id: "cook-1",
+            recipeId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            recipeTitle: "Carbonara",
+            status: "completed",
+            cookDate: "2026-05-26",
+            startedAtIso: localIso(2026, 5, 26, 18),
+            finishedAtIso: localIso(2026, 5, 26, 19),
+            timers: [],
+            createdAtIso: GEN,
+            updatedAtIso: GEN,
+          },
+        ],
+      })
+    );
+    expect(result.unlocked.some((u) => u.definitionId === "first_cook")).toBe(true);
+    const homeChef = result.inProgress.find((u) => u.definitionId === "home_chef");
+    expect(homeChef?.progress).toEqual({ current: 1, target: 10 });
+  });
 });

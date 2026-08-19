@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CalendarColorPreferences, CareerTarget, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, CookingSession, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, Person, Recipe, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   calendarPreferencesFromRow,
@@ -30,6 +30,12 @@ import {
   payloadFromRows,
   personFromRow,
   personToRow,
+  parseSanityImageRef,
+  parseSanityImageRefList,
+  recipeFromRow,
+  recipeToRow,
+  cookingSessionFromRow,
+  cookingSessionToRow,
   sessionFromRow,
   sessionToRow,
   skillFromRow,
@@ -780,6 +786,211 @@ describe("workout mappers", () => {
         workoutSessions: [sampleWorkoutSession({ planId: PLAN_ID })],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
+        focusFeedback: [],
+      })
+    ).toThrow(MapperError);
+  });
+});
+
+describe("recipe mappers", () => {
+  const INGREDIENT_ID = "16161616-1616-4161-8161-161616161616";
+  const STEP_ID = "17171717-1717-4171-8171-171717171717";
+  const RECIPE_ID = "18181818-1818-4181-8181-181818181818";
+
+  function sampleRecipe(overrides: Partial<Recipe> = {}): Recipe {
+    return {
+      id: RECIPE_ID,
+      title: "Weeknight carbonara",
+      category: "dinner",
+      difficulty: "easy",
+      experienceLevel: "beginner",
+      estimatedMinutes: 25,
+      servings: 2,
+      notes: "Use guanciale if you have it.",
+      ingredients: [{ id: INGREDIENT_ID, rawText: "2 eggs" }],
+      steps: [
+        {
+          id: STEP_ID,
+          order: 0,
+          text: "Whisk the eggs.",
+          kind: "blocking",
+          blocksProgress: true,
+        },
+      ],
+      equipment: ["Skillet"],
+      gallery: [],
+      source: "manual",
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips a recipe", () => {
+    const recipe = sampleRecipe();
+    const row = recipeToRow(recipe, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.experience_level).toBe("beginner");
+    expect(recipeFromRow(row)).toEqual(recipe);
+  });
+
+  it("round-trips hero and gallery Sanity image refs", () => {
+    const hero = {
+      assetRef: "image-Tb9Ew8CXIwaY6R1kjMvI0uRR-2000x3000-jpg",
+      url: "https://cdn.sanity.io/images/abc123xy/production/Tb9Ew8CXIwaY6R1kjMvI0uRR-2000x3000.jpg",
+      lqip: "data:image/jpeg;base64,abc",
+      width: 2000,
+      height: 3000,
+      alt: "Carbonara",
+    };
+    const gallery = {
+      assetRef: "image-galleryone-800x600-png",
+      url: "https://cdn.sanity.io/images/abc123xy/production/galleryone-800x600.png",
+    };
+    const recipe = sampleRecipe({ heroImage: hero, gallery: [gallery] });
+    const row = recipeToRow(recipe, USER_ID);
+    expect(row.hero_image).toEqual(hero);
+    expect(row.gallery).toEqual([gallery]);
+    expect(recipeFromRow(row)).toEqual(recipe);
+  });
+
+  it("round-trips optional ingredient flags and empty equipment", () => {
+    const recipe = sampleRecipe({
+      estimatedMinutes: undefined,
+      servings: undefined,
+      notes: undefined,
+      equipment: [],
+      ingredients: [{ id: INGREDIENT_ID, rawText: "Parmesan", optional: true }],
+    });
+    const row = recipeToRow(recipe, USER_ID);
+    expect(row.estimated_minutes).toBeNull();
+    expect(recipeFromRow(row)).toEqual(recipe);
+  });
+
+  it("defaults missing step kind to blocking", () => {
+    const row = recipeToRow(sampleRecipe(), USER_ID);
+    const parsed = recipeFromRow({
+      ...row,
+      steps: [{ id: STEP_ID, order: 0, text: "Whisk the eggs." }],
+    });
+    expect(parsed.steps[0]?.kind).toBe("blocking");
+    expect(parsed.steps[0]?.blocksProgress).toBe(true);
+  });
+
+  it("rejects empty ingredients", () => {
+    expect(() => recipeToRow(sampleRecipe({ ingredients: [] }), USER_ID)).toThrow(MapperError);
+  });
+
+  it("rejects invalid category", () => {
+    expect(() =>
+      recipeToRow(sampleRecipe({ category: "brunch" as Recipe["category"] }), USER_ID)
+    ).toThrow(MapperError);
+  });
+});
+
+describe("parseSanityImageRef", () => {
+  const valid = {
+    assetRef: "image-Tb9Ew8CXIwaY6R1kjMvI0uRR-2000x3000-jpg",
+    url: "https://cdn.sanity.io/images/abc123xy/production/Tb9Ew8CXIwaY6R1kjMvI0uRR-2000x3000.jpg",
+  };
+
+  it("accepts a required assetRef + url and optional metadata", () => {
+    expect(
+      parseSanityImageRef(
+        { ...valid, lqip: "data:image/jpeg;base64,abc", width: 2000, height: 3000, alt: "Dinner" },
+        "hero"
+      )
+    ).toEqual({
+      ...valid,
+      lqip: "data:image/jpeg;base64,abc",
+      width: 2000,
+      height: 3000,
+      alt: "Dinner",
+    });
+  });
+
+  it("rejects missing assetRef or url", () => {
+    expect(() => parseSanityImageRef({ url: valid.url }, "hero")).toThrow(MapperError);
+    expect(() => parseSanityImageRef({ assetRef: valid.assetRef }, "hero")).toThrow(MapperError);
+    expect(() => parseSanityImageRef(null, "hero")).toThrow(MapperError);
+  });
+
+  it("parses a gallery list", () => {
+    expect(parseSanityImageRefList([valid], "gallery")).toEqual([valid]);
+    expect(() => parseSanityImageRefList(valid, "gallery")).toThrow(MapperError);
+  });
+});
+
+describe("cooking session mappers", () => {
+  const RECIPE_ID = "18181818-1818-4181-8181-181818181818";
+  const COOKING_SESSION_ID = "19191919-1919-4191-8191-191919191919";
+
+  function sampleCookingSession(overrides: Partial<CookingSession> = {}): CookingSession {
+    return {
+      id: COOKING_SESSION_ID,
+      recipeId: RECIPE_ID,
+      recipeTitle: "Weeknight carbonara",
+      status: "completed",
+      cookDate: "2026-08-18",
+      startedAtIso: "2026-08-18T17:35:00.000Z",
+      finishedAtIso: "2026-08-18T18:00:00.000Z",
+      durationMinutes: 25,
+      servingsMade: 2,
+      notes: "Used guanciale.",
+      timers: [],
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips a completed cooking session", () => {
+    const session = sampleCookingSession();
+    const row = cookingSessionToRow(session, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.recipe_id).toBe(RECIPE_ID);
+    expect(row.cook_date).toBe("2026-08-18");
+    expect(cookingSessionFromRow(row)).toEqual(session);
+  });
+
+  it("round-trips a session after the recipe was deleted", () => {
+    const session = sampleCookingSession({
+      recipeId: null,
+      durationMinutes: undefined,
+      servingsMade: undefined,
+      notes: undefined,
+    });
+    const row = cookingSessionToRow(session, USER_ID);
+    expect(row.recipe_id).toBeNull();
+    expect(cookingSessionFromRow(row)).toEqual(session);
+  });
+
+  it("rejects a completed session without start/finish times", () => {
+    expect(() =>
+      cookingSessionToRow(
+        sampleCookingSession({ startedAtIso: undefined, finishedAtIso: undefined }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+  });
+
+  it("rejects an unknown recipe id on upload validation", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        skills: [],
+        sessions: [],
+        overrides: [],
+        events: [],
+        people: [],
+        jobApplications: [],
+        workoutPlans: [],
+        workoutSessions: [],
+        supplementProtocols: [],
+        supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [sampleCookingSession()],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -913,6 +1124,8 @@ describe("supplement mappers", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [sampleLog()],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -933,6 +1146,8 @@ describe("supplement mappers", () => {
         workoutSessions: [],
         supplementProtocols: [protocol],
         supplementIntakeLogs: [log, { ...log, id: "17171717-1717-4171-8171-171717171717" }],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -954,6 +1169,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -972,6 +1189,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -991,6 +1210,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1009,6 +1230,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1027,6 +1250,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1046,6 +1271,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1064,6 +1291,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1082,6 +1311,8 @@ describe("validatePayloadForUpload", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
         careerTarget: sampleCareerTarget(),
       })
@@ -1256,6 +1487,8 @@ describe("calendar preferences mappers", () => {
         workoutSessions: [],
         supplementProtocols: [],
         supplementIntakeLogs: [],
+        recipes: [],
+        cookingSessions: [],
         focusFeedback: [],
         calendarPreferences: { categories: { skill: "bad.token" as never } },
       })

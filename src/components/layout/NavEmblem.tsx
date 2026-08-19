@@ -3,6 +3,7 @@ import type { Page } from "../../pages/types";
 import { styles } from "../../ui/appStyles";
 import calendarEmblem from "../../assets/nav/calendar.webp";
 import careerEmblem from "../../assets/nav/career.webp";
+import cookingEmblem from "../../assets/nav/cooking.webp";
 import dashboardEmblem from "../../assets/nav/dashboard.webp";
 import eventsEmblem from "../../assets/nav/events.webp";
 import fitnessEmblem from "../../assets/nav/fitness.webp";
@@ -19,6 +20,7 @@ const EMBLEMS: Record<Page, string> = {
   people: peopleEmblem,
   career: careerEmblem,
   fitness: fitnessEmblem,
+  cooking: cookingEmblem,
   review: reviewEmblem,
   settings: settingsEmblem,
 };

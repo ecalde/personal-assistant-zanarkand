@@ -168,6 +168,44 @@ export const ACHIEVEMENT_CATALOG: readonly AchievementDefinition[] = [
     grantXp: 50,
     condition: { kind: "career_status_reached", status: "onsite" },
   },
+
+  // ----- cooking -----
+  {
+    id: "first_cook",
+    category: "cooking",
+    tier: "bronze",
+    title: "First Cook",
+    description: "Complete your first home-cooked meal.",
+    axis: "creative",
+    condition: { kind: "recipes_cooked_gte", count: 1 },
+  },
+  {
+    id: "home_chef",
+    category: "cooking",
+    tier: "silver",
+    title: "Home Chef",
+    description: "Cook 10 distinct recipes.",
+    axis: "creative",
+    condition: { kind: "distinct_recipes_cooked_gte", count: 10 },
+  },
+  {
+    id: "master_of_one",
+    category: "cooking",
+    tier: "gold",
+    title: "Master of One",
+    description: "Reach Master tier on any recipe.",
+    axis: "creative",
+    condition: { kind: "recipe_mastery_tier_gte", tier: 6 },
+  },
+  {
+    id: "cooking_week_streak_3",
+    category: "cooking",
+    tier: "silver",
+    title: "Weeknight Rhythm",
+    description: "Cook at home 3 weeks in a row.",
+    axis: "creative",
+    condition: { kind: "home_cooked_week_streak_gte", weeks: 3 },
+  },
 ];
 
 export function getAchievementById(id: string): AchievementDefinition | undefined {

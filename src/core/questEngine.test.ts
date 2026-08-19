@@ -73,4 +73,38 @@ describe("questEngine", () => {
     expect(monthly?.instanceId).toBe("monthly:2026-05-01:monthly_minutes_600");
     expect(monthly?.completed).toBe(false);
   });
+
+  it("scores the weekly cook-3 quest from completed cooking sessions", () => {
+    function cook(id: string, date: string) {
+      return {
+        id,
+        recipeId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        recipeTitle: "Carbonara",
+        status: "completed" as const,
+        cookDate: date,
+        startedAtIso: `${date}T18:00:00.000Z`,
+        finishedAtIso: `${date}T18:30:00.000Z`,
+        timers: [],
+        createdAtIso: GEN,
+        updatedAtIso: GEN,
+      };
+    }
+    const quests = evaluateQuests(
+      buildProgressionContext(
+        payloadWith({
+          cookingSessions: [
+            cook("c1", "2026-05-25"),
+            cook("c2", "2026-05-26"),
+            cook("c3", "2026-05-26"),
+            cook("c4", "2026-05-18"),
+          ],
+        }),
+        NOW
+      ),
+      GEN
+    );
+    const weekly = quests.weekly.find((q) => q.definition.id === "weekly_cook_3");
+    expect(weekly?.progress).toEqual({ current: 3, target: 3 });
+    expect(weekly?.completed).toBe(true);
+  });
 });

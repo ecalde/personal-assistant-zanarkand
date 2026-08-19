@@ -29,6 +29,8 @@ export function defaultPayload(): AppPayload {
     workoutSessions: [],
     supplementProtocols: [],
     supplementIntakeLogs: [],
+    recipes: [],
+    cookingSessions: [],
     focusFeedback: [],
   };
 }

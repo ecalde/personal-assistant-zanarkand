@@ -39,6 +39,7 @@ import { DashboardQuickActions } from "../components/dashboard/DashboardQuickAct
 import { DailyBriefingSection } from "../components/dashboard/DailyBriefingSection";
 import { DailyFocusSection } from "../components/dashboard/DailyFocusSection";
 import { FitnessSummarySection } from "../components/dashboard/FitnessSummarySection";
+import { CookingSummarySection } from "../components/dashboard/CookingSummarySection";
 import { UpcomingEventsSection } from "../components/dashboard/UpcomingEventsSection";
 import { PeopleRemindersSection } from "../components/dashboard/PeopleRemindersSection";
 import { OverdueBehindSection } from "../components/dashboard/OverdueBehindSection";
@@ -71,6 +72,8 @@ import type {
   SupplementProtocol,
   WorkoutPlan,
   WorkoutSession,
+  Recipe,
+  CookingSession,
 } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -97,6 +100,8 @@ export type DashboardPageProps = {
   workoutSessions: WorkoutSession[];
   supplementProtocols: SupplementProtocol[];
   supplementIntakeLogs: SupplementIntakeLog[];
+  recipes: Recipe[];
+  cookingSessions: CookingSession[];
   focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
   onDismissFocusItem: (focusItemId: string, sourceSnapshot?: string) => void;
@@ -110,6 +115,7 @@ export type DashboardPageProps = {
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
+  onOpenCooking?: () => void;
   onOpenReview?: () => void;
   onOpenCalendar?: () => void;
   onToggleTodayExercise?: (planId: string, exerciseId: string) => void;
@@ -136,6 +142,8 @@ export default function DashboardPage({
   workoutSessions,
   supplementProtocols,
   supplementIntakeLogs,
+  recipes,
+  cookingSessions,
   focusFeedback,
   onAddSession,
   onDismissFocusItem,
@@ -148,6 +156,7 @@ export default function DashboardPage({
   onOpenPeople,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
   onOpenReview,
   onOpenCalendar,
   onToggleTodayExercise,
@@ -224,6 +233,8 @@ export default function DashboardPage({
       workoutSessions,
       supplementProtocols,
       supplementIntakeLogs,
+      recipes,
+      cookingSessions,
       focusFeedback,
       gamificationState,
     };
@@ -239,6 +250,8 @@ export default function DashboardPage({
     workoutSessions,
     supplementProtocols,
     supplementIntakeLogs,
+    recipes,
+    cookingSessions,
     focusFeedback,
     gamificationState,
   ]);
@@ -464,6 +477,7 @@ export default function DashboardPage({
       onOpenPeople={onOpenPeople}
       onOpenCareer={onOpenCareer}
       onOpenFitness={onOpenFitness ? () => onOpenFitness() : undefined}
+      onOpenCooking={onOpenCooking}
       onOpenReview={onOpenReview}
       onOpenCalendar={onOpenCalendar}
     />
@@ -502,6 +516,15 @@ export default function DashboardPage({
       onToggleTodayExercise={onToggleTodayExercise}
       onSetTodayExerciseWeight={onSetTodayExerciseWeight}
       onUpsertSupplementIntake={onUpsertSupplementIntake}
+    />
+  );
+
+  const cookingAlerts = (
+    <CookingSummarySection
+      recipes={recipes}
+      cookingSessions={cookingSessions}
+      todayKey={today}
+      onOpenCooking={onOpenCooking}
     />
   );
 
@@ -613,6 +636,7 @@ export default function DashboardPage({
             {achievementShowcase}
             {careerAlerts}
             {fitnessAlerts}
+            {cookingAlerts}
             {peopleAlerts}
           </div>
         </div>
@@ -632,6 +656,7 @@ export default function DashboardPage({
             {quickActions}
             {careerAlerts}
             {fitnessAlerts}
+            {cookingAlerts}
             {peopleAlerts}
           </div>
           {detailsBand}
