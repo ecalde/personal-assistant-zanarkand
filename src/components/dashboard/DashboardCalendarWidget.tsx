@@ -16,6 +16,7 @@ export type DashboardCalendarWidgetProps = {
   onOpenCalendar?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
+  onOpenCooking?: () => void;
 };
 
 /**
@@ -31,6 +32,7 @@ export function DashboardCalendarWidget({
   onOpenCalendar,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
 }: DashboardCalendarWidgetProps) {
   const nowMinutes = useNowMinutes();
 
@@ -91,6 +93,7 @@ export function DashboardCalendarWidget({
           onClose={() => controller.setSelectedItem(null)}
           onOpenCareer={onOpenCareer}
           onOpenFitness={onOpenFitness}
+          onOpenCooking={onOpenCooking}
         />
       ) : null}
     </section>

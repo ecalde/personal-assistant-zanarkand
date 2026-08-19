@@ -66,6 +66,22 @@ describe("resolution precedence", () => {
     ).toBe(DEFAULT_CATEGORY_COLOR_TOKENS.fitness);
   });
 
+  it("uses cooking category and subcategory defaults", () => {
+    expect(resolveCalendarItemColorToken({ categoryKey: "cooking" })).toBe("orange.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "cooking",
+        subcategoryKey: "planned",
+      })
+    ).toBe("orange.soft");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "cooking",
+        subcategoryKey: "completed",
+      })
+    ).toBe("orange.base");
+  });
+
   it("inherits the category color when the subcategory has no default or preference", () => {
     const token = resolveCalendarItemColorToken({
       categoryKey: "event",
@@ -196,9 +212,18 @@ describe("color usage labeling", () => {
 
   it("labels fitness subcategory overrides with readable names", () => {
     const prefs: CalendarColorPreferences = {
-      subcategories: { "fitness:workout": "orange.base" },
+      subcategories: { "fitness:workout": "lime.base" },
     };
-    expect(describeColorUsage("orange.base", prefs)).toBe("Workouts");
+    expect(describeColorUsage("lime.base", prefs)).toBe("Workouts");
+  });
+
+  it("labels cooking subcategory defaults with readable names", () => {
+    const index = buildColorUsageIndex();
+    expect(index.get("orange.base")?.some((usage) => usage.key === "cooking")).toBe(true);
+    expect(index.get("orange.soft")?.some((usage) => usage.key === "cooking:planned")).toBe(
+      true
+    );
+    expect(describeColorUsage("orange.soft")).toBe("Planned cooks");
   });
 
   it("labels legacy event subcategory overrides", () => {
@@ -242,6 +267,7 @@ describe("palette integrity", () => {
     expect(isCalendarColorToken("red.neon")).toBe(false);
     expect(isCalendarColorToken(undefined)).toBe(false);
     expect(isCalendarCategoryKey("event")).toBe(true);
+    expect(isCalendarCategoryKey("cooking")).toBe(true);
     expect(isCalendarCategoryKey("events")).toBe(false);
   });
 });

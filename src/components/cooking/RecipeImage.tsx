@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import type { SanityImageRef } from "../../core/model";
 import { recipeImageSrc, type RecipeImagePreset } from "../../lib/sanityImageUrl";
 import { styles } from "../../ui/appStyles";
@@ -29,12 +29,22 @@ export function RecipeImage({
   style?: CSSProperties;
 }) {
   const src = recipeImageSrc(image, preset);
-  if (!src) return <RecipeImagePlaceholder style={style} />;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (!src || failedSrc === src) {
+    return (
+      <RecipeImagePlaceholder
+        label={failedSrc === src ? "Photo unavailable" : "No photo"}
+        style={style}
+      />
+    );
+  }
 
   return (
     <img
       src={src}
       alt={image.alt?.trim() || alt}
+      loading="lazy"
+      onError={() => setFailedSrc(src)}
       style={style}
     />
   );

@@ -16,6 +16,7 @@ import type {
   WorkoutSession,
   Recipe,
   CookingSession,
+  PantryItem,
 } from "./core/model";
 import {
   cleanupExpiredFeedback,
@@ -1508,7 +1509,19 @@ export default function App({ userId, onSignOut }: AppProps) {
     input: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso">
   ) {
     if (!app) return;
-    if (input.status !== "completed" || !input.startedAtIso || !input.finishedAtIso) return;
+    if (input.status === "planned") {
+      if (!input.recipeTitle.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(input.cookDate)) return;
+    } else if (input.status === "completed") {
+      if (!input.startedAtIso || !input.finishedAtIso) return;
+    } else if (input.status === "in_progress") {
+      if (!input.recipeTitle.trim()) return;
+      const alreadyActive = (app.payload.cookingSessions ?? []).some(
+        (session) => session.status === "in_progress"
+      );
+      if (alreadyActive) return;
+    } else {
+      return;
+    }
 
     const now = new Date().toISOString();
     const newSession: CookingSession = {
@@ -1527,6 +1540,89 @@ export default function App({ userId, onSignOut }: AppProps) {
         cookingSessions: [...(app.payload.cookingSessions ?? []), newSession],
       },
     });
+  }
+
+  function updateCookingSession(updated: CookingSession) {
+    if (!app) return;
+    if (updated.status === "planned") {
+      if (!updated.recipeTitle.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(updated.cookDate)) return;
+    } else if (updated.status === "completed") {
+      if (!updated.startedAtIso || !updated.finishedAtIso) return;
+    } else if (updated.status === "in_progress" || updated.status === "abandoned") {
+      if (!updated.recipeTitle.trim()) return;
+    } else {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const cookingSessions = (app.payload.cookingSessions ?? []).map((session) =>
+      session.id === updated.id
+        ? {
+            ...updated,
+            recipeTitle: updated.recipeTitle.trim(),
+            timers: [...updated.timers],
+            updatedAtIso: now,
+          }
+        : session
+    );
+    commit({ ...app, payload: { ...app.payload, cookingSessions } });
+  }
+
+  function deleteCookingSession(sessionId: string) {
+    if (!app) return;
+    const existing = (app.payload.cookingSessions ?? []).find((session) => session.id === sessionId);
+    if (!existing || existing.status !== "planned") return;
+    const cookingSessions = (app.payload.cookingSessions ?? []).filter(
+      (session) => session.id !== sessionId
+    );
+    commit({ ...app, payload: { ...app.payload, cookingSessions } });
+  }
+
+  function addPantryItem(input: Omit<PantryItem, "id" | "createdAtIso" | "updatedAtIso">) {
+    if (!app) return;
+    const label = input.label.trim();
+    if (!label) return;
+
+    const existing = (app.payload.pantry ?? []).find(
+      (item) => input.ingredientId && item.ingredientId === input.ingredientId
+    );
+    if (existing) {
+      updatePantryItem({ ...existing, available: true, label });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const newItem: PantryItem = {
+      ...input,
+      id: id(),
+      label,
+      createdAtIso: now,
+      updatedAtIso: now,
+    };
+    commit({
+      ...app,
+      payload: {
+        ...app.payload,
+        pantry: [...(app.payload.pantry ?? []), newItem],
+      },
+    });
+  }
+
+  function updatePantryItem(updated: PantryItem) {
+    if (!app) return;
+    const label = updated.label.trim();
+    if (!label) return;
+    const now = new Date().toISOString();
+    const pantry = (app.payload.pantry ?? []).map((item) =>
+      item.id === updated.id ? { ...updated, label, updatedAtIso: now } : item
+    );
+    commit({ ...app, payload: { ...app.payload, pantry } });
+  }
+
+  function deletePantryItem(itemId: string) {
+    if (!app) return;
+    const pantry = (app.payload.pantry ?? []).filter((item) => item.id !== itemId);
+    commit({ ...app, payload: { ...app.payload, pantry } });
   }
 
   function upsertFocusFeedbackEntry(entry: FocusFeedback) {
@@ -1631,6 +1727,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
+          pantry={app.payload.pantry ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           gamificationState={app.payload.gamificationState}
@@ -1667,10 +1764,16 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutPlans={app.payload.workoutPlans ?? []}
           supplementProtocols={app.payload.supplementProtocols ?? []}
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
+          recipes={app.payload.recipes ?? []}
+          cookingSessions={app.payload.cookingSessions ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={openFitness}
+          onOpenCooking={() => setPage("cooking")}
+          onAddCookingSession={addCookingSession}
+          onUpdateCookingSession={updateCookingSession}
+          onDeleteCookingSession={deleteCookingSession}
           onEditOccurrence={openSeriesEdit}
           onSkipOccurrence={skipEventOccurrence}
           onMoveOccurrence={moveEventOccurrence}
@@ -1782,10 +1885,15 @@ export default function App({ userId, onSignOut }: AppProps) {
         <CookingPage
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
+          pantry={app.payload.pantry ?? []}
           onAddRecipe={addRecipe}
           onUpdateRecipe={updateRecipe}
           onDeleteRecipe={deleteRecipe}
           onAddCookingSession={addCookingSession}
+          onUpdateCookingSession={updateCookingSession}
+          onAddPantryItem={addPantryItem}
+          onUpdatePantryItem={updatePantryItem}
+          onDeletePantryItem={deletePantryItem}
         />
       )}
 

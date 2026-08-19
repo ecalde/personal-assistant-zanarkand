@@ -5,13 +5,18 @@ import type {
   RecipeExperienceLevel,
   RecipeIngredientLine,
   RecipeStep,
+  RecipeStepKind,
   SanityImageRef,
 } from "../../core/model";
 import {
   getRecipeCategoryValues,
   getRecipeDifficultyValues,
   getRecipeExperienceLevelValues,
+  isRecipeStepKind,
 } from "../../core/cooking";
+import { defaultsForStepKind } from "../../core/cookingSession";
+import type { IngredientCatalog } from "../../core/ingredientCatalog";
+import { resolveRecipeIngredients } from "../../core/ingredients";
 
 export type IngredientFormRow = {
   id: string;
@@ -22,6 +27,11 @@ export type IngredientFormRow = {
 export type StepFormRow = {
   id: string;
   text: string;
+  kind: RecipeStepKind;
+  blocksProgress: boolean;
+  canRunInBackground: boolean;
+  timerMinutes: string;
+  timerLabel: string;
 };
 
 export type EquipmentFormRow = {
@@ -53,9 +63,25 @@ export function emptyIngredientFormRow(): IngredientFormRow {
 }
 
 export function emptyStepFormRow(): StepFormRow {
+  const defaults = defaultsForStepKind("blocking");
   return {
     id: crypto.randomUUID(),
     text: "",
+    kind: "blocking",
+    blocksProgress: defaults.blocksProgress,
+    canRunInBackground: defaults.canRunInBackground,
+    timerMinutes: "",
+    timerLabel: "",
+  };
+}
+
+export function applyStepKindDefaults(row: StepFormRow, kind: RecipeStepKind): StepFormRow {
+  const defaults = defaultsForStepKind(kind);
+  return {
+    ...row,
+    kind,
+    blocksProgress: defaults.blocksProgress,
+    canRunInBackground: defaults.canRunInBackground,
   };
 }
 
@@ -83,6 +109,24 @@ export function emptyRecipeFormState(): RecipeFormState {
   };
 }
 
+function minutesFieldFromSeconds(seconds?: number): string {
+  if (seconds === undefined) return "";
+  const minutes = seconds / 60;
+  return Number.isInteger(minutes) ? String(minutes) : String(minutes);
+}
+
+function parseTimerMinutesField(raw: string): number | undefined | string {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return "Timer duration must be a positive number of minutes.";
+  }
+  const seconds = Math.round(parsed * 60);
+  if (seconds < 1) return "Timer duration must be at least 1 second.";
+  return seconds;
+}
+
 export function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
   return {
     title: recipe.title,
@@ -104,7 +148,15 @@ export function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
       recipe.steps.length > 0
         ? [...recipe.steps]
             .sort((a, b) => a.order - b.order)
-            .map((step) => ({ id: step.id, text: step.text }))
+            .map((step) => ({
+              id: step.id,
+              text: step.text,
+              kind: step.kind,
+              blocksProgress: step.blocksProgress,
+              canRunInBackground: step.canRunInBackground === true,
+              timerMinutes: minutesFieldFromSeconds(step.timerSeconds),
+              timerLabel: step.timerLabel ?? "",
+            }))
         : [emptyStepFormRow()],
     equipment:
       recipe.equipment.length > 0
@@ -156,16 +208,29 @@ export function validateRecipeForm(form: RecipeFormState): string | null {
     return "Add at least one step.";
   }
 
+  for (const [index, row] of stepRows.entries()) {
+    if (!isRecipeStepKind(row.kind)) {
+      return `Step ${index + 1} needs a valid kind.`;
+    }
+    const needsTimer = row.kind === "wait" || row.kind === "timer";
+    const timerSeconds = parseTimerMinutesField(row.timerMinutes);
+    if (typeof timerSeconds === "string") return `Step ${index + 1}: ${timerSeconds}`;
+    if (needsTimer && timerSeconds === undefined) {
+      return `Step ${index + 1} needs a timer duration.`;
+    }
+  }
+
   return null;
 }
 
 export function recipePayloadFromForm(
-  form: RecipeFormState
+  form: RecipeFormState,
+  options?: { catalog?: IngredientCatalog; previous?: Recipe }
 ): Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso"> {
   const estimatedMinutes = parsePositiveIntField(form.estimatedMinutes, "Cook time");
   const servings = parsePositiveIntField(form.servings, "Servings");
 
-  const ingredients: RecipeIngredientLine[] = form.ingredients
+  const rawIngredients: RecipeIngredientLine[] = form.ingredients
     .filter((row) => row.rawText.trim())
     .map((row) => {
       const line: RecipeIngredientLine = {
@@ -175,16 +240,27 @@ export function recipePayloadFromForm(
       if (row.optional) line.optional = true;
       return line;
     });
+  const ingredients = options?.catalog
+    ? resolveRecipeIngredients(rawIngredients, options.catalog, options.previous?.ingredients)
+    : rawIngredients;
 
   const steps: RecipeStep[] = form.steps
     .filter((row) => row.text.trim())
-    .map((row, index) => ({
-      id: row.id,
-      order: index,
-      text: row.text.trim(),
-      kind: "blocking",
-      blocksProgress: true,
-    }));
+    .map((row, index) => {
+      const kind = isRecipeStepKind(row.kind) ? row.kind : "blocking";
+      const step: RecipeStep = {
+        id: row.id,
+        order: index,
+        text: row.text.trim(),
+        kind,
+        blocksProgress: row.blocksProgress,
+      };
+      if (row.canRunInBackground) step.canRunInBackground = true;
+      const timerSeconds = parseTimerMinutesField(row.timerMinutes);
+      if (typeof timerSeconds === "number") step.timerSeconds = timerSeconds;
+      if (row.timerLabel.trim()) step.timerLabel = row.timerLabel.trim();
+      return step;
+    });
 
   const equipment = form.equipment
     .map((row) => row.name.trim())

@@ -8,9 +8,11 @@ import {
   type CalendarItem,
 } from "./calendar";
 import type {
+  CookingSession,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Skill,
   SupplementIntakeLog,
   SupplementPhase,
@@ -19,6 +21,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import { combineCookDateAndTime } from "./cooking";
 import { combineDateTimeToIso } from "./fitness";
 import { buildDoseSlotsFromPhase } from "./supplements";
 
@@ -1082,5 +1085,226 @@ describe("buildStableCalendarItemId", () => {
         "2026-08-18"
       )
     ).toBe("fitness:supplement:p1:2026-08-18");
+    expect(
+      buildStableCalendarItemId(
+        {
+          kind: "cooking",
+          sessionId: "c1",
+          recipeId: "r1",
+          status: "planned",
+          durationMinutes: 25,
+        },
+        "2026-08-20"
+      )
+    ).toBe("cooking:session:c1");
+  });
+});
+
+describe("cooking calendar items", () => {
+  const RECIPE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const PLANNED_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const COMPLETED_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const NOW = "2026-08-18T12:00:00.000Z";
+
+  function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
+    return {
+      id: RECIPE_ID,
+      title: "Weeknight carbonara",
+      category: "dinner",
+      difficulty: "easy",
+      experienceLevel: "beginner",
+      estimatedMinutes: 25,
+      servings: 2,
+      ingredients: [{ id: "ing1", rawText: "2 eggs" }],
+      steps: [
+        {
+          id: "step1",
+          order: 0,
+          text: "Whisk the eggs.",
+          kind: "blocking",
+          blocksProgress: true,
+        },
+      ],
+      equipment: [],
+      gallery: [],
+      source: "manual",
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  function makeCookingSession(
+    overrides: Partial<CookingSession> & { id: string; cookDate: string }
+  ): CookingSession {
+    return {
+      recipeId: RECIPE_ID,
+      recipeTitle: "Weeknight carbonara",
+      status: "planned",
+      timers: [],
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  const range = {
+    startDate: "2026-08-18",
+    endDate: "2026-08-24",
+    skills: [] as Skill[],
+    events: [] as LifeEvent[],
+    people: [] as Person[],
+  };
+
+  it("emits a planned all-day cook with recipe title, duration, and ingredients", () => {
+    const items = buildCalendarItemsForRange({
+      ...range,
+      recipes: [makeRecipe()],
+      cookingSessions: [
+        makeCookingSession({
+          id: PLANNED_ID,
+          cookDate: "2026-08-20",
+          durationMinutes: 25,
+        }),
+      ],
+    });
+    const cooking = items.filter((item) => item.sourceType === "cooking");
+    expect(cooking).toHaveLength(1);
+    expect(cooking[0]).toMatchObject({
+      id: `cooking:session:${PLANNED_ID}`,
+      title: "Weeknight carbonara",
+      date: "2026-08-20",
+      categoryKey: "cooking",
+      subcategoryKey: "planned",
+      allDay: true,
+      isTimed: false,
+      completionVisual: "planned",
+      description: "2 eggs",
+    });
+    expect(cooking[0]?.sourceMeta).toMatchObject({
+      kind: "cooking",
+      sessionId: PLANNED_ID,
+      recipeId: RECIPE_ID,
+      status: "planned",
+      durationMinutes: 25,
+    });
+  });
+
+  it("emits a timed planned cook when a start time is present", () => {
+    const startedAtIso = combineCookDateAndTime("2026-08-20", "18:00");
+    const items = buildCalendarItemsForRange({
+      ...range,
+      recipes: [makeRecipe()],
+      cookingSessions: [
+        makeCookingSession({
+          id: PLANNED_ID,
+          cookDate: "2026-08-20",
+          startedAtIso,
+          durationMinutes: 25,
+        }),
+      ],
+    });
+    const cooking = items.find((item) => item.sourceType === "cooking")!;
+    expect(cooking.isTimed).toBe(true);
+    expect(cooking.allDay).toBe(false);
+    expect(cooking.startTime).toBe("18:00");
+    expect(cooking.endTime).toBe("18:25");
+  });
+
+  it("emits a completed cook as a historical item on cook_date", () => {
+    const startedAtIso = combineCookDateAndTime("2026-08-18", "17:35");
+    const finishedAtIso = combineCookDateAndTime("2026-08-18", "18:00");
+    const items = buildCalendarItemsForRange({
+      ...range,
+      recipes: [makeRecipe()],
+      cookingSessions: [
+        makeCookingSession({
+          id: COMPLETED_ID,
+          cookDate: "2026-08-18",
+          status: "completed",
+          startedAtIso,
+          finishedAtIso,
+          durationMinutes: 25,
+        }),
+      ],
+    });
+    const cooking = items.find((item) => item.sourceType === "cooking")!;
+    expect(cooking.subcategoryKey).toBe("completed");
+    expect(cooking.completionVisual).toBe("completed");
+    expect(cooking.date).toBe("2026-08-18");
+    expect(cooking.startTime).toBe("17:35");
+    expect(cooking.endTime).toBe("18:00");
+  });
+
+  it("keeps a stable calendar item id when a planned cook is completed", () => {
+    const planned = makeCookingSession({
+      id: PLANNED_ID,
+      cookDate: "2026-08-20",
+      durationMinutes: 25,
+    });
+    const completed: CookingSession = {
+      ...planned,
+      status: "completed",
+      cookDate: "2026-08-20",
+      startedAtIso: combineCookDateAndTime("2026-08-20", "18:00"),
+      finishedAtIso: combineCookDateAndTime("2026-08-20", "18:25"),
+    };
+    const plannedItems = buildCalendarItemsForRange({
+      ...range,
+      cookingSessions: [planned],
+    });
+    const completedItems = buildCalendarItemsForRange({
+      ...range,
+      cookingSessions: [completed],
+    });
+    expect(plannedItems[0]?.id).toBe(`cooking:session:${PLANNED_ID}`);
+    expect(completedItems[0]?.id).toBe(plannedItems[0]?.id);
+    expect(plannedItems[0]?.subcategoryKey).toBe("planned");
+    expect(completedItems[0]?.subcategoryKey).toBe("completed");
+  });
+
+  it("filters cooking items to the query range and skips abandoned sessions", () => {
+    const items = buildCalendarItemsForRange({
+      ...range,
+      cookingSessions: [
+        makeCookingSession({ id: "out-before", cookDate: "2026-08-10" }),
+        makeCookingSession({ id: PLANNED_ID, cookDate: "2026-08-20" }),
+        makeCookingSession({
+          id: "abandoned",
+          cookDate: "2026-08-21",
+          status: "abandoned",
+        }),
+        makeCookingSession({ id: "out-after", cookDate: "2026-08-30" }),
+      ],
+    });
+    expect(items.map((item) => item.sourceId)).toEqual([PLANNED_ID]);
+  });
+
+  it("honors includeCookingPlanned and includeCookingHistory", () => {
+    const sessions = [
+      makeCookingSession({ id: PLANNED_ID, cookDate: "2026-08-20" }),
+      makeCookingSession({
+        id: COMPLETED_ID,
+        cookDate: "2026-08-18",
+        status: "completed",
+        startedAtIso: combineCookDateAndTime("2026-08-18", "17:00"),
+        finishedAtIso: combineCookDateAndTime("2026-08-18", "17:25"),
+      }),
+    ];
+    const plannedOnly = buildCalendarItemsForRange(
+      { ...range, cookingSessions: sessions },
+      { includeCookingHistory: false }
+    );
+    const historyOnly = buildCalendarItemsForRange(
+      { ...range, cookingSessions: sessions },
+      { includeCookingPlanned: false }
+    );
+    const neither = buildCalendarItemsForRange(
+      { ...range, cookingSessions: sessions },
+      { includeCookingPlanned: false, includeCookingHistory: false }
+    );
+    expect(plannedOnly.map((item) => item.sourceId)).toEqual([PLANNED_ID]);
+    expect(historyOnly.map((item) => item.sourceId)).toEqual([COMPLETED_ID]);
+    expect(neither).toEqual([]);
   });
 });

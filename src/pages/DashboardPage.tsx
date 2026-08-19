@@ -74,6 +74,7 @@ import type {
   WorkoutSession,
   Recipe,
   CookingSession,
+  PantryItem,
 } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -102,6 +103,7 @@ export type DashboardPageProps = {
   supplementIntakeLogs: SupplementIntakeLog[];
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  pantry?: PantryItem[];
   focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
   onDismissFocusItem: (focusItemId: string, sourceSnapshot?: string) => void;
@@ -144,6 +146,7 @@ export default function DashboardPage({
   supplementIntakeLogs,
   recipes,
   cookingSessions,
+  pantry = [],
   focusFeedback,
   onAddSession,
   onDismissFocusItem,
@@ -179,6 +182,8 @@ export default function DashboardPage({
     workoutPlans,
     supplementProtocols,
     supplementIntakeLogs,
+    cookingSessions,
+    recipes,
     todayKey: today,
     viewModeSurface: DASHBOARD_CALENDAR_VIEW_SURFACE,
     viewModeViewport: isDesktop ? "desktop" : "mobile",
@@ -235,6 +240,7 @@ export default function DashboardPage({
       supplementIntakeLogs,
       recipes,
       cookingSessions,
+      pantry: [],
       focusFeedback,
       gamificationState,
     };
@@ -301,6 +307,8 @@ export default function DashboardPage({
         workoutSessions,
         supplementProtocols,
         supplementIntakeLogs,
+        recipes,
+        cookingSessions,
         todayKey: today,
       }),
     [
@@ -314,6 +322,8 @@ export default function DashboardPage({
       workoutSessions,
       supplementProtocols,
       supplementIntakeLogs,
+      recipes,
+      cookingSessions,
       today,
     ]
   );
@@ -435,6 +445,7 @@ export default function DashboardPage({
       onOpenCalendar={onOpenCalendar}
       onOpenCareer={onOpenCareer}
       onOpenFitness={onOpenFitness}
+      onOpenCooking={onOpenCooking}
     />
   );
 
@@ -453,6 +464,7 @@ export default function DashboardPage({
       onOpenPeople={onOpenPeople}
       onOpenCareer={onOpenCareer}
       onOpenFitness={onOpenFitness}
+      onOpenCooking={onOpenCooking}
       onAddSession={onAddSession}
     />
   );
@@ -462,9 +474,11 @@ export default function DashboardPage({
       hiddenCategories={calendar.hiddenCategories}
       hiddenEventSubcategories={calendar.hiddenEventSubcategories}
       hiddenFitnessTypes={calendar.hiddenFitnessTypes}
+      hiddenCookingTypes={calendar.hiddenCookingTypes}
       onToggleCategory={calendar.toggleCategory}
       onToggleEventSubcategory={calendar.toggleEventSubcategory}
       onToggleFitnessType={calendar.toggleFitnessType}
+      onToggleCookingType={calendar.toggleCookingType}
       preferences={calendarPreferences}
       layout="horizontal"
     />
@@ -523,6 +537,7 @@ export default function DashboardPage({
     <CookingSummarySection
       recipes={recipes}
       cookingSessions={cookingSessions}
+      pantry={pantry}
       todayKey={today}
       onOpenCooking={onOpenCooking}
     />

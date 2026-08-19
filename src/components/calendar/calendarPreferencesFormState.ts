@@ -31,11 +31,17 @@ export const CALENDAR_SETTINGS_CAREER_SUBCATEGORIES = [
   "onsite",
 ] as const;
 
+export const CALENDAR_SETTINGS_COOKING_SUBCATEGORIES = [
+  "planned",
+  "completed",
+] as const;
+
 export type CalendarSettingsSectionKey =
   | "categories"
   | "events"
   | "fitness"
-  | "career";
+  | "career"
+  | "cooking";
 
 export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
   key: CalendarSettingsSectionKey;
@@ -45,7 +51,7 @@ export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
   {
     key: "categories",
     label: "Categories",
-    description: "Broad colors for Skills, Events, People, Fitness, and Career.",
+    description: "Broad colors for Skills, Events, People, Fitness, Career, and Cooking.",
   },
   {
     key: "events",
@@ -61,6 +67,11 @@ export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
     key: "career",
     label: "Career",
     description: "Colors for interview stages on job applications.",
+  },
+  {
+    key: "cooking",
+    label: "Cooking",
+    description: "Colors for planned cooks and cooked meals.",
   },
 ];
 
@@ -126,6 +137,11 @@ export function calendarPreferencesFormFromPrefs(
   for (const suffix of CALENDAR_SETTINGS_CAREER_SUBCATEGORIES) {
     const prefKey = subcategoryPrefKey("career", suffix);
     subcategories[prefKey] = effectiveSubcategoryToken("career", suffix, prefs);
+  }
+
+  for (const suffix of CALENDAR_SETTINGS_COOKING_SUBCATEGORIES) {
+    const prefKey = subcategoryPrefKey("cooking", suffix);
+    subcategories[prefKey] = effectiveSubcategoryToken("cooking", suffix, prefs);
   }
 
   for (const [prefKey, token] of Object.entries(prefs?.subcategories ?? {})) {

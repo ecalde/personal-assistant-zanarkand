@@ -784,3 +784,40 @@ describe("fitnessFocusFromFocusItem", () => {
     ).toBeUndefined();
   });
 });
+
+describe("cooking focus items", () => {
+  const SESSION_ID = "99999999-9999-4999-8999-999999999999";
+  const TIMER_ID = "88888888-8888-4888-8888-888888888888";
+
+  it("surfaces a finished timer and an active cook", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        cookingSessions: [
+          {
+            id: SESSION_ID,
+            recipeId: null,
+            recipeTitle: "Weeknight carbonara",
+            status: "in_progress",
+            cookDate: TODAY,
+            startedAtIso: ISO,
+            currentStepIndex: 0,
+            timers: [
+              {
+                id: TIMER_ID,
+                label: "Pasta",
+                durationSeconds: 60,
+                status: "done",
+              },
+            ],
+            createdAtIso: ISO,
+            updatedAtIso: ISO,
+          },
+        ],
+      })
+    );
+    const reasons = summary.items.flatMap((item) => item.reasonCodes);
+    expect(reasons).toContain("cooking_timer_done");
+    expect(reasons).toContain("cooking_active_session");
+    expect(summary.items.some((item) => item.suggestedActionType === "open_cooking")).toBe(true);
+  });
+});

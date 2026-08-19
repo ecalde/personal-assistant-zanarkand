@@ -1,10 +1,11 @@
 // Pure, read-only calendar derivation layer.
 //
-// Converts skills, life events, people birthdays, and optional fitness history
-// into common CalendarItem rows for an inclusive YYYY-MM-DD date range. This is
-// a broader, multi-day DTO than timeline.ts (which stays the today-focused merge
-// with conflict/workload detection). No UI, schema, dependencies, or side effects;
-// total functions that never mutate their inputs.
+// Converts skills, life events, people birthdays, optional fitness history,
+// career interviews, and cooking sessions into common CalendarItem rows for an
+// inclusive YYYY-MM-DD date range. This is a broader, multi-day DTO than
+// timeline.ts (which stays the today-focused merge with conflict/workload
+// detection). No UI, schema, dependencies, or side effects; total functions
+// that never mutate their inputs.
 //
 // Career application interviews emit as sourceType "career". Other career
 // milestones may still flow through life events (sourceType "event") when added.
@@ -15,11 +16,13 @@
 import type {
   ApplicationInterview,
   ApplicationStatus,
+  CookingSession,
   EventType,
   JobApplication,
   LifeEvent,
   Person,
   Priority,
+  Recipe,
   Skill,
   SupplementIntakeLog,
   SupplementPhaseKind,
@@ -33,6 +36,11 @@ import {
   formatInterviewHeadline,
   resolveInterviewStage,
 } from "./career";
+import {
+  formatRecipeIngredientSummary,
+  resolveCookingFinishHHMM,
+  resolveCookingStartHHMM,
+} from "./cooking";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import {
   combineDateTimeToIso,
@@ -67,7 +75,8 @@ export type CalendarSourceType =
   | "event"
   | "people"
   | "fitness"
-  | "career"; // reserved; no items emitted yet
+  | "career"
+  | "cooking";
 
 /** Planned vs live vs finished treatment for a fitness calendar block. */
 export type CalendarCompletionVisual = "planned" | "in_progress" | "completed";
@@ -139,6 +148,13 @@ export type CalendarItemSourceMeta =
       doseSummary: string;
       plannedDoses: number;
       takenDoses: number;
+    }
+  | {
+      kind: "cooking";
+      sessionId: string;
+      recipeId: string | null;
+      status: "planned" | "completed";
+      durationMinutes?: number;
     };
 
 export type CalendarItem = {
@@ -175,6 +191,8 @@ export type BuildCalendarItemsForRangeInput = {
   workoutPlans?: WorkoutPlan[];
   supplementProtocols?: SupplementProtocol[];
   supplementIntakeLogs?: SupplementIntakeLog[];
+  cookingSessions?: CookingSession[];
+  recipes?: Recipe[];
 };
 
 export type BuildCalendarItemsForRangeOptions = {
@@ -185,6 +203,8 @@ export type BuildCalendarItemsForRangeOptions = {
   includeFitnessHistory?: boolean; // default false
   includeWorkoutSchedules?: boolean; // default false
   includeSupplementSchedule?: boolean; // default true
+  includeCookingPlanned?: boolean; // default true
+  includeCookingHistory?: boolean; // default true
 };
 
 // ---------------------------------------------------------------------------
@@ -212,6 +232,8 @@ export function buildStableCalendarItemId(
       return `career:interview:${meta.applicationId}:${meta.interviewId}:${date}`;
     case "supplementIntake":
       return `fitness:supplement:${meta.protocolId}:${date}`;
+    case "cooking":
+      return `cooking:session:${meta.sessionId}`;
   }
 }
 
@@ -233,6 +255,7 @@ const SOURCE_SORT_ORDER: Record<CalendarSourceType, number> = {
   people: 2,
   fitness: 3,
   career: 4,
+  cooking: 5,
 };
 
 export function compareCalendarItems(a: CalendarItem, b: CalendarItem): number {
@@ -869,6 +892,72 @@ function mergeFitnessScheduleAndHistory(
   return merged;
 }
 
+function collectCookingItems(
+  sessions: CookingSession[],
+  recipes: Recipe[],
+  startDate: string,
+  endDate: string,
+  includePlanned: boolean,
+  includeHistory: boolean
+): CalendarItem[] {
+  const recipesById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+  const items: CalendarItem[] = [];
+
+  for (const session of sessions) {
+    if (session.cookDate < startDate || session.cookDate > endDate) continue;
+    const isPlanned = session.status === "planned";
+    const isCompleted = session.status === "completed";
+    if (isPlanned && !includePlanned) continue;
+    if (isCompleted && !includeHistory) continue;
+    if (!isPlanned && !isCompleted) continue;
+
+    const recipe = session.recipeId ? recipesById.get(session.recipeId) : undefined;
+    const startTime = resolveCookingStartHHMM(session);
+    const durationMinutes = session.durationMinutes ?? recipe?.estimatedMinutes;
+    const finishTime = isCompleted ? resolveCookingFinishHHMM(session) : undefined;
+    const endTime =
+      finishTime ??
+      (startTime && durationMinutes !== undefined
+        ? addMinutesToHHMM(startTime, durationMinutes)
+        : undefined);
+    const subcategoryKey = isPlanned ? "planned" : "completed";
+    const meta: CalendarItemSourceMeta = {
+      kind: "cooking",
+      sessionId: session.id,
+      recipeId: session.recipeId,
+      status: isPlanned ? "planned" : "completed",
+      ...(durationMinutes !== undefined ? { durationMinutes } : {}),
+    };
+
+    const item: CalendarItem = {
+      id: buildStableCalendarItemId(meta, session.cookDate),
+      sourceType: "cooking",
+      sourceId: session.id,
+      title: recipe?.title ?? session.recipeTitle,
+      date: session.cookDate,
+      allDay: !startTime,
+      categoryKey: "cooking",
+      subcategoryKey,
+      isTimed: Boolean(startTime),
+      isMultiDay: false,
+      sourceMeta: meta,
+      completionVisual: isPlanned ? "planned" : "completed",
+    };
+    if (startTime) item.startTime = startTime;
+    if (endTime) item.endTime = endTime;
+
+    const descriptionParts: string[] = [];
+    if (session.notes) descriptionParts.push(session.notes);
+    const ingredients = recipe ? formatRecipeIngredientSummary(recipe) : undefined;
+    if (ingredients) descriptionParts.push(ingredients);
+    if (descriptionParts.length > 0) item.description = descriptionParts.join(" · ");
+
+    items.push(item);
+  }
+
+  return items;
+}
+
 // ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
@@ -884,6 +973,8 @@ export function buildCalendarItemsForRange(
   const includeFitnessHistory = options.includeFitnessHistory ?? false;
   const includeWorkoutSchedules = options.includeWorkoutSchedules ?? false;
   const includeSupplementSchedule = options.includeSupplementSchedule ?? true;
+  const includeCookingPlanned = options.includeCookingPlanned ?? true;
+  const includeCookingHistory = options.includeCookingHistory ?? true;
 
   const dates = iterateDateRange(input.startDate, input.endDate);
   if (dates.length === 0) return [];
@@ -951,6 +1042,18 @@ export function buildCalendarItemsForRange(
         input.supplementIntakeLogs ?? [],
         input.startDate,
         input.endDate
+      )
+    );
+  }
+  if (includeCookingPlanned || includeCookingHistory) {
+    items.push(
+      ...collectCookingItems(
+        input.cookingSessions ?? [],
+        input.recipes ?? [],
+        input.startDate,
+        input.endDate,
+        includeCookingPlanned,
+        includeCookingHistory
       )
     );
   }

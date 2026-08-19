@@ -35,6 +35,9 @@ export type CalendarItemDetailModalProps = {
   onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
   onOpenCareer?: () => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
+  onOpenCooking?: () => void;
+  onLogCooking?: (sessionId: string) => void;
+  onCancelPlannedCook?: (sessionId: string) => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -81,6 +84,9 @@ export function CalendarItemDetailModal({
   onDeleteOccurrencesFromDate,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
+  onLogCooking,
+  onCancelPlannedCook,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColor(item, preferences);
@@ -114,6 +120,10 @@ export function CalendarItemDetailModal({
 
   const isCareerInterview = item.sourceMeta.kind === "applicationInterview";
   const isSupplementIntake = item.sourceMeta.kind === "supplementIntake";
+  const isCookingItem = item.sourceMeta.kind === "cooking";
+  const cookingStatus = isCookingItem
+    ? completionStatusLabel(item.completionVisual)
+    : undefined;
   const supplementStatus = isSupplementIntake
     ? completionStatusLabel(item.completionVisual)
     : undefined;
@@ -235,6 +245,17 @@ export function CalendarItemDetailModal({
               ) : null}
             </>
           ) : null}
+          {item.sourceMeta.kind === "cooking" ? (
+            <>
+              {cookingStatus ? <DetailRow label="Status" value={cookingStatus} /> : null}
+              {item.sourceMeta.durationMinutes !== undefined ? (
+                <DetailRow
+                  label="Duration"
+                  value={`${item.sourceMeta.durationMinutes} min`}
+                />
+              ) : null}
+            </>
+          ) : null}
           {item.description ? (
             <DetailRow label="Details" value={item.description} />
           ) : null}
@@ -265,6 +286,54 @@ export function CalendarItemDetailModal({
             >
               Open in Fitness
             </button>
+          </div>
+        ) : null}
+
+        {isCookingItem && (onOpenCooking || onLogCooking || onCancelPlannedCook) ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onOpenCooking ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  onOpenCooking();
+                  onClose();
+                }}
+              >
+                Open in Cooking
+              </button>
+            ) : null}
+            {item.sourceMeta.kind === "cooking" &&
+            item.sourceMeta.status === "planned" &&
+            onLogCooking ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  if (item.sourceMeta.kind !== "cooking") return;
+                  onLogCooking(item.sourceMeta.sessionId);
+                  onClose();
+                }}
+              >
+                Log cook
+              </button>
+            ) : null}
+            {item.sourceMeta.kind === "cooking" &&
+            item.sourceMeta.status === "planned" &&
+            onCancelPlannedCook ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  if (item.sourceMeta.kind !== "cooking") return;
+                  if (!window.confirm(`Cancel this planned cook of ${item.title}?`)) return;
+                  onCancelPlannedCook(item.sourceMeta.sessionId);
+                  onClose();
+                }}
+              >
+                Cancel planned cook
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -349,6 +418,10 @@ export function CalendarItemDetailModal({
         ) : item.sourceMeta.kind === "supplementIntake" ? (
           <p style={{ ...styles.helpText, margin: 0 }}>
             Read-only preview. Log doses on Fitness or the dashboard.
+          </p>
+        ) : item.sourceMeta.kind === "cooking" ? (
+          <p style={{ ...styles.helpText, margin: 0 }}>
+            Completing a planned cook keeps this calendar item and marks it as a cooked meal.
           </p>
         ) : (
           <p style={{ ...styles.helpText, margin: 0 }}>

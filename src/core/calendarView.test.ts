@@ -21,6 +21,7 @@ import {
   filterItemsByHiddenCategories,
   filterItemsByHiddenEventSubcategories,
   filterItemsByHiddenFitnessTypes,
+  filterItemsByHiddenCookingTypes,
   filterCalendarItems,
   formatHourLabel,
   formatItemTimeLabel,
@@ -36,6 +37,7 @@ import {
   threeDaySnapScrollLeft,
   timedItemsOverlapMinutes,
   TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
+  type CalendarCookingTypeFilter,
 } from "./calendarView";
 import type { CalendarCategoryKey } from "./calendarColors";
 import type { EventType, FitnessType, LifeEvent, Skill, WeeklySchedule } from "./model";
@@ -332,6 +334,61 @@ describe("fitness type filtering (render-only)", () => {
   });
 });
 
+describe("cooking type filtering (render-only)", () => {
+  function makeCookingItem(
+    id: string,
+    subcategoryKey: CalendarCookingTypeFilter
+  ): CalendarItem {
+    return {
+      id,
+      sourceType: "cooking",
+      sourceId: id,
+      title: "Weeknight carbonara",
+      date: "2026-08-20",
+      categoryKey: "cooking",
+      subcategoryKey,
+      isTimed: false,
+      isMultiDay: false,
+      allDay: true,
+      sourceMeta: {
+        kind: "cooking",
+        sessionId: id,
+        recipeId: "r1",
+        status: subcategoryKey,
+      },
+      completionVisual: subcategoryKey,
+    };
+  }
+
+  it("hides planned cooks without hiding cooked meals", () => {
+    const items: CalendarItem[] = [
+      makeCookingItem("planned-1", "planned"),
+      makeCookingItem("cooked-1", "completed"),
+      makeEventItem({ id: "e1" }),
+    ];
+    const filtered = filterCalendarItems(
+      items,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set<CalendarCookingTypeFilter>(["planned"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["cooked-1", "e1"]);
+  });
+
+  it("hides cooked meals without hiding planned cooks", () => {
+    const items: CalendarItem[] = [
+      makeCookingItem("planned-1", "planned"),
+      makeCookingItem("cooked-1", "completed"),
+    ];
+    const filtered = filterItemsByHiddenCookingTypes(
+      items,
+      new Set<CalendarCookingTypeFilter>(["completed"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["planned-1"]);
+  });
+});
+
 describe("day item layout", () => {
   it("splits all-day from timed items", () => {
     const items: CalendarItem[] = [
@@ -601,5 +658,36 @@ describe("formatSourceTypeLabel", () => {
       completionVisual: "in_progress",
     };
     expect(formatSourceTypeLabel(item)).toBe("Supplement · In progress");
+  });
+
+  it("labels cooking items as planned cooks or cooked meals", () => {
+    const planned: CalendarItem = {
+      ...makeEventItem({ id: "cook-planned" }),
+      sourceType: "cooking",
+      categoryKey: "cooking",
+      subcategoryKey: "planned",
+      title: "Weeknight carbonara",
+      sourceMeta: {
+        kind: "cooking",
+        sessionId: "c1",
+        recipeId: "r1",
+        status: "planned",
+      },
+      completionVisual: "planned",
+    };
+    const completed: CalendarItem = {
+      ...planned,
+      id: "cook-completed",
+      subcategoryKey: "completed",
+      sourceMeta: {
+        kind: "cooking",
+        sessionId: "c1",
+        recipeId: "r1",
+        status: "completed",
+      },
+      completionVisual: "completed",
+    };
+    expect(formatSourceTypeLabel(planned)).toBe("Planned cook");
+    expect(formatSourceTypeLabel(completed)).toBe("Cooked meal");
   });
 });

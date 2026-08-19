@@ -17,24 +17,30 @@ export type CookingCompletionValues = {
 
 export type CookingCompletionDialogProps = {
   recipe: Recipe;
+  initialNotes?: string;
+  initialStartedAtIso?: string;
   onConfirm: (values: CookingCompletionValues) => void;
   onCancel: () => void;
 };
 
 export function CookingCompletionDialog({
   recipe,
+  initialNotes,
+  initialStartedAtIso,
   onConfirm,
   onCancel,
 }: CookingCompletionDialogProps) {
   const defaults = defaultCookingWindow(recipe.estimatedMinutes);
-  const [startedLocal, setStartedLocal] = useState(toDatetimeLocalValue(defaults.startedAtIso));
+  const [startedLocal, setStartedLocal] = useState(
+    toDatetimeLocalValue(initialStartedAtIso ?? defaults.startedAtIso)
+  );
   const [finishedLocal, setFinishedLocal] = useState(
     toDatetimeLocalValue(defaults.finishedAtIso)
   );
   const [servings, setServings] = useState(
     recipe.servings !== undefined ? String(recipe.servings) : ""
   );
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(initialNotes ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

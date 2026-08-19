@@ -12,6 +12,9 @@ import {
   CALENDAR_EVENT_TYPE_FILTERS,
   CALENDAR_FITNESS_TYPE_FILTER_LABELS,
   CALENDAR_FITNESS_TYPE_FILTERS,
+  CALENDAR_COOKING_TYPE_FILTER_LABELS,
+  CALENDAR_COOKING_TYPE_FILTERS,
+  type CalendarCookingTypeFilter,
 } from "../../core/calendarView";
 import type { EventType, FitnessType } from "../../core/model";
 import { styles } from "../../ui/appStyles";
@@ -20,9 +23,11 @@ export type CalendarCategorySidebarProps = {
   hiddenCategories: ReadonlySet<CalendarCategoryKey>;
   hiddenEventSubcategories: ReadonlySet<EventType>;
   hiddenFitnessTypes: ReadonlySet<FitnessType>;
+  hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter>;
   onToggleCategory: (category: CalendarCategoryKey) => void;
   onToggleEventSubcategory: (eventType: EventType) => void;
   onToggleFitnessType: (fitnessType: FitnessType) => void;
+  onToggleCookingType: (cookingType: CalendarCookingTypeFilter) => void;
   preferences?: CalendarColorPreferences;
   /** Horizontal bar above the calendar; default vertical stack for the calendar page sidebar. */
   layout?: "horizontal" | "vertical";
@@ -76,9 +81,11 @@ export function CalendarCategorySidebar({
   hiddenCategories,
   hiddenEventSubcategories,
   hiddenFitnessTypes,
+  hiddenCookingTypes,
   onToggleCategory,
   onToggleEventSubcategory,
   onToggleFitnessType,
+  onToggleCookingType,
   preferences,
   layout = "vertical",
 }: CalendarCategorySidebarProps) {
@@ -146,6 +153,27 @@ export function CalendarCategorySidebar({
     );
   });
 
+  const cookingTypeToggles = CALENDAR_COOKING_TYPE_FILTERS.map((cookingType) => {
+    const hidden = hiddenCookingTypes.has(cookingType);
+    const token = resolveCalendarItemColorToken(
+      { categoryKey: "cooking", subcategoryKey: cookingType },
+      preferences
+    );
+    const swatch = getCalendarColorSwatch(token);
+    const label = CALENDAR_COOKING_TYPE_FILTER_LABELS[cookingType];
+
+    return (
+      <FilterToggle
+        key={cookingType}
+        label={label}
+        hidden={hidden}
+        swatchBackground={swatch.background}
+        onToggle={() => onToggleCookingType(cookingType)}
+        layout={layout}
+      />
+    );
+  });
+
   if (isHorizontal) {
     return (
       <aside
@@ -164,6 +192,10 @@ export function CalendarCategorySidebar({
           <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Fitness types</div>
           <div style={styles.calendarCategoryToggleRow}>{fitnessTypeToggles}</div>
         </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Cooking types</div>
+          <div style={styles.calendarCategoryToggleRow}>{cookingTypeToggles}</div>
+        </div>
       </aside>
     );
   }
@@ -176,6 +208,8 @@ export function CalendarCategorySidebar({
       <div style={{ display: "grid", gap: 8 }}>{eventTypeToggles}</div>
       <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>Fitness types</div>
       <div style={{ display: "grid", gap: 8 }}>{fitnessTypeToggles}</div>
+      <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>Cooking types</div>
+      <div style={{ display: "grid", gap: 8 }}>{cookingTypeToggles}</div>
     </aside>
   );
 }

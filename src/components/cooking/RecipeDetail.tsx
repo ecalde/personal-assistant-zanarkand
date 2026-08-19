@@ -6,27 +6,47 @@ import {
   formatServings,
   type RecipeMasteryView,
 } from "../../core/cooking";
-import type { Recipe } from "../../core/model";
+import type { IngredientCatalog } from "../../core/ingredientCatalog";
+import {
+  ingredientDisplayName,
+  recipeLineIsInPantry,
+} from "../../core/ingredients";
+import type { PantryItem, Recipe, RecipeAvailability } from "../../core/model";
 import { styles } from "../../ui/appStyles";
+import { AvailabilityBadge } from "./AvailabilityBadge";
 import { MasteryBadge } from "./MasteryBadge";
 import { RecipeImage } from "./RecipeImage";
 
 export type RecipeDetailProps = {
   recipe: Recipe;
   mastery?: RecipeMasteryView;
+  availability?: RecipeAvailability;
+  showAvailability?: boolean;
+  pantry?: PantryItem[];
+  catalog?: IngredientCatalog;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onStartCooking: () => void;
+  onLogCook: () => void;
+  onScheduleCook: () => void;
+  resumeLabel?: string;
 };
 
 export function RecipeDetail({
   recipe,
   mastery,
+  availability,
+  showAvailability = false,
+  pantry = [],
+  catalog,
   onBack,
   onEdit,
   onDelete,
   onStartCooking,
+  onLogCook,
+  onScheduleCook,
+  resumeLabel,
 }: RecipeDetailProps) {
   const cookTime = formatEstimatedMinutes(recipe.estimatedMinutes);
   const servings = formatServings(recipe.servings);
@@ -51,7 +71,13 @@ export function RecipeDetail({
         </button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button type="button" onClick={onStartCooking}>
-            Start Cooking
+            {resumeLabel ?? "Start Cooking"}
+          </button>
+          <button type="button" onClick={onLogCook}>
+            Log a past cook
+          </button>
+          <button type="button" onClick={onScheduleCook}>
+            Schedule this cook
           </button>
           <button type="button" onClick={onEdit}>
             Edit
@@ -91,6 +117,7 @@ export function RecipeDetail({
           {formatRecipeExperienceLevel(recipe.experienceLevel)}
         </span>
         {mastery && <MasteryBadge mastery={mastery} />}
+        {showAvailability && availability && <AvailabilityBadge status={availability} />}
         {cookTime && <span style={{ ...styles.textMuted, fontSize: 13 }}>{cookTime}</span>}
         {servings && <span style={{ ...styles.textMuted, fontSize: 13 }}>{servings}</span>}
       </div>
@@ -99,12 +126,35 @@ export function RecipeDetail({
         <section style={styles.recipeDetailSection}>
           <div style={{ fontWeight: 700 }}>Ingredients</div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {recipe.ingredients.map((line) => (
-              <li key={line.id} style={{ ...styles.textSecondary, marginBottom: 4 }}>
-                {line.rawText}
-                {line.optional ? " (optional)" : ""}
-              </li>
-            ))}
+            {recipe.ingredients.map((line) => {
+              const matchedName = catalog
+                ? ingredientDisplayName(line.ingredientId, catalog)
+                : undefined;
+              const inPantry = showAvailability
+                ? recipeLineIsInPantry(line, pantry, catalog)
+                : false;
+              const confidencePct =
+                line.matchConfidence !== undefined
+                  ? Math.round(line.matchConfidence * 100)
+                  : undefined;
+              return (
+                <li key={line.id} style={{ ...styles.textSecondary, marginBottom: 4 }}>
+                  {line.rawText}
+                  {line.optional ? " (optional)" : ""}
+                  {matchedName && (
+                    <span style={{ ...styles.textMuted, marginLeft: 6, fontSize: 12 }}>
+                      {matchedName}
+                      {confidencePct !== undefined ? ` · ${confidencePct}%` : ""}
+                    </span>
+                  )}
+                  {showAvailability && (
+                    <span style={{ ...styles.textMuted, marginLeft: 6, fontSize: 12 }}>
+                      {inPantry ? "in pantry" : "not in pantry"}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
 

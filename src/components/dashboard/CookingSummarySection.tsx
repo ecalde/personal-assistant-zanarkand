@@ -4,15 +4,20 @@ import {
   formatEstimatedMinutes,
   listCompletedCookingSessionsInWeek,
   listRecentCookingSessions,
+  listUpcomingPlannedCookingSessions,
   type RecipeMasteryView,
 } from "../../core/cooking";
-import type { CookingSession, Recipe } from "../../core/model";
+import { findActiveCookingSession } from "../../core/cookingSession";
+import { SEED_INGREDIENT_CATALOG } from "../../core/ingredientCatalog";
+import { countRecipesByAvailability, pantryIsInUse } from "../../core/ingredients";
+import type { CookingSession, PantryItem, Recipe } from "../../core/model";
 import { styles } from "../../ui/appStyles";
 import { MasteryBadge } from "../cooking/MasteryBadge";
 
 export type CookingSummarySectionProps = {
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  pantry?: PantryItem[];
   todayKey: string;
   onOpenCooking?: () => void;
 };
@@ -39,6 +44,7 @@ function masteryHighlights(
 export function CookingSummarySection({
   recipes,
   cookingSessions,
+  pantry = [],
   todayKey,
   onOpenCooking,
 }: CookingSummarySectionProps) {
@@ -46,8 +52,13 @@ export function CookingSummarySection({
 
   const weekCooks = listCompletedCookingSessionsInWeek(cookingSessions, todayKey);
   const recent = listRecentCookingSessions(cookingSessions, 3);
+  const upcoming = listUpcomingPlannedCookingSessions(cookingSessions, todayKey, 3);
+  const active = findActiveCookingSession(cookingSessions);
   const masteryByRecipeId = buildRecipeMasteryViews(recipes, cookingSessions);
   const highlights = masteryHighlights(recipes, masteryByRecipeId, 3);
+  const canMakeCount = pantryIsInUse(pantry)
+    ? countRecipesByAvailability(recipes, pantry, "can_make", SEED_INGREDIENT_CATALOG)
+    : 0;
 
   return (
     <section style={styles.dashboardSection} aria-label="Cooking summary">
@@ -74,8 +85,25 @@ export function CookingSummarySection({
         {recipes.length > 0
           ? ` · ${recipes.length} recipe${recipes.length === 1 ? "" : "s"}`
           : ""}
+        {canMakeCount > 0
+          ? ` · ${canMakeCount} you can make now`
+          : ""}
         .
       </p>
+
+      {active && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>In progress</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span>{active.recipeTitle}</span>
+            {onOpenCooking && (
+              <button type="button" onClick={onOpenCooking}>
+                Resume
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {highlights.length > 0 && (
         <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
@@ -85,6 +113,19 @@ export function CookingSummarySection({
               <MasteryBadge mastery={mastery} />
             </div>
           ))}
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Upcoming cooks</div>
+          <ul style={{ margin: 0, paddingLeft: 18, ...styles.textSecondary }}>
+            {upcoming.map((session) => (
+              <li key={session.id} style={{ marginBottom: 6 }}>
+                {formatCookDate(session.cookDate)} — {session.recipeTitle}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

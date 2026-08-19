@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { CookingSession, Recipe, RecipeIngredientLine, RecipeStep } from "./model";
 import { defaultPayload } from "./state";
 import {
+  buildCompletedCookingSession,
+  buildPlannedCookingSession,
   buildRecipeMasteryView,
+  buildRecipeMasteryViews,
+  completeCookingSession,
   crossedMasteryTier,
+  cookTimeBucket,
+  describeRecipeGalleryEmptyState,
   filterAndSortRecipes,
   formatEstimatedMinutes,
   formatIngredientCount,
@@ -15,8 +21,10 @@ import {
   homeCookedWeekStreak,
   isRecipeCategory,
   masteryTierFromCount,
+  recipeGalleryFiltersAreActive,
   recipeMatchesQuery,
   recipeTrackXpFromCount,
+  resolveCookingStartHHMM,
   sanitizeCookingReferences,
   xpForCompletion,
 } from "./cooking";
@@ -142,6 +150,234 @@ describe("filterAndSortRecipes", () => {
     ];
     const sorted = filterAndSortRecipes(recipes, { sortMode: "recent" });
     expect(sorted[0]?.title).toBe("New");
+  });
+
+  it("filters by difficulty and experience", () => {
+    const recipes = [
+      sampleRecipe({
+        id: "1",
+        title: "Easy beginner",
+        difficulty: "easy",
+        experienceLevel: "beginner",
+      }),
+      sampleRecipe({
+        id: "2",
+        title: "Hard advanced",
+        difficulty: "hard",
+        experienceLevel: "advanced",
+      }),
+      sampleRecipe({
+        id: "3",
+        title: "Easy advanced",
+        difficulty: "easy",
+        experienceLevel: "advanced",
+      }),
+    ];
+    const filtered = filterAndSortRecipes(recipes, {
+      sortMode: "title",
+      difficultyFilter: "easy",
+      experienceFilter: "advanced",
+    });
+    expect(filtered.map((recipe) => recipe.title)).toEqual(["Easy advanced"]);
+  });
+
+  it("sorts by difficulty then title", () => {
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Zest", difficulty: "easy" }),
+      sampleRecipe({ id: "2", title: "Broth", difficulty: "hard" }),
+      sampleRecipe({ id: "3", title: "Aioli", difficulty: "easy" }),
+    ];
+    const sorted = filterAndSortRecipes(recipes, { sortMode: "difficulty" });
+    expect(sorted.map((recipe) => recipe.title)).toEqual(["Aioli", "Zest", "Broth"]);
+  });
+
+  it("sorts by experience then title", () => {
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Souffle", experienceLevel: "advanced" }),
+      sampleRecipe({ id: "2", title: "Toast", experienceLevel: "beginner" }),
+      sampleRecipe({ id: "3", title: "Risotto", experienceLevel: "intermediate" }),
+    ];
+    const sorted = filterAndSortRecipes(recipes, { sortMode: "experience" });
+    expect(sorted.map((recipe) => recipe.title)).toEqual(["Toast", "Risotto", "Souffle"]);
+  });
+
+  it("buckets cook time and filters exclusive ranges", () => {
+    expect(cookTimeBucket(undefined)).toBe("unset");
+    expect(cookTimeBucket(15)).toBe("quick");
+    expect(cookTimeBucket(16)).toBe("moderate");
+    expect(cookTimeBucket(30)).toBe("moderate");
+    expect(cookTimeBucket(31)).toBe("hour");
+    expect(cookTimeBucket(60)).toBe("hour");
+    expect(cookTimeBucket(61)).toBe("long");
+
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Toast", estimatedMinutes: 10 }),
+      sampleRecipe({ id: "2", title: "Pasta", estimatedMinutes: 25 }),
+      sampleRecipe({ id: "3", title: "Roast", estimatedMinutes: 90 }),
+      sampleRecipe({ id: "4", title: "Mystery", estimatedMinutes: undefined }),
+    ];
+    expect(
+      filterAndSortRecipes(recipes, { sortMode: "title", cookTimeFilter: "quick" }).map(
+        (recipe) => recipe.title
+      )
+    ).toEqual(["Toast"]);
+    expect(
+      filterAndSortRecipes(recipes, { sortMode: "title", cookTimeFilter: "unset" }).map(
+        (recipe) => recipe.title
+      )
+    ).toEqual(["Mystery"]);
+  });
+
+  it("sorts by cook time with missing times last", () => {
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Roast", estimatedMinutes: 90 }),
+      sampleRecipe({ id: "2", title: "Toast", estimatedMinutes: 10 }),
+      sampleRecipe({ id: "3", title: "Mystery", estimatedMinutes: undefined }),
+    ];
+    const sorted = filterAndSortRecipes(recipes, { sortMode: "cookTime" });
+    expect(sorted.map((recipe) => recipe.title)).toEqual(["Toast", "Roast", "Mystery"]);
+  });
+
+  it("filters and sorts by mastery using completion views", () => {
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Carbonara" }),
+      sampleRecipe({ id: "2", title: "Oatmeal" }),
+      sampleRecipe({ id: "3", title: "Cake" }),
+    ];
+    const masteryByRecipeId = buildRecipeMasteryViews(recipes, [
+      {
+        id: "s1",
+        recipeId: "1",
+        recipeTitle: "Carbonara",
+        status: "completed",
+        cookDate: "2026-08-01",
+        timers: [],
+        createdAtIso: NOW,
+        updatedAtIso: NOW,
+      },
+      {
+        id: "s2",
+        recipeId: "1",
+        recipeTitle: "Carbonara",
+        status: "completed",
+        cookDate: "2026-08-08",
+        timers: [],
+        createdAtIso: NOW,
+        updatedAtIso: NOW,
+      },
+      {
+        id: "s3",
+        recipeId: "1",
+        recipeTitle: "Carbonara",
+        status: "completed",
+        cookDate: "2026-08-15",
+        timers: [],
+        createdAtIso: NOW,
+        updatedAtIso: NOW,
+      },
+      {
+        id: "s4",
+        recipeId: "3",
+        recipeTitle: "Cake",
+        status: "completed",
+        cookDate: "2026-08-18",
+        timers: [],
+        createdAtIso: NOW,
+        updatedAtIso: NOW,
+      },
+    ]);
+
+    const practiced = filterAndSortRecipes(recipes, {
+      sortMode: "title",
+      masteryFilter: "practiced",
+      masteryByRecipeId,
+    });
+    expect(practiced.map((recipe) => recipe.title)).toEqual(["Carbonara"]);
+
+    const uncooked = filterAndSortRecipes(recipes, {
+      sortMode: "title",
+      masteryFilter: "uncooked",
+      masteryByRecipeId,
+    });
+    expect(uncooked.map((recipe) => recipe.title)).toEqual(["Oatmeal"]);
+
+    const byMastery = filterAndSortRecipes(recipes, {
+      sortMode: "mastery",
+      masteryByRecipeId,
+    });
+    expect(byMastery.map((recipe) => recipe.title)).toEqual(["Carbonara", "Cake", "Oatmeal"]);
+  });
+
+  it("composes query, category, cook time, and difficulty as AND filters", () => {
+    const recipes = [
+      sampleRecipe({
+        id: "1",
+        title: "Weeknight tacos",
+        category: "dinner",
+        difficulty: "easy",
+        estimatedMinutes: 20,
+      }),
+      sampleRecipe({
+        id: "2",
+        title: "Slow tacos",
+        category: "dinner",
+        difficulty: "hard",
+        estimatedMinutes: 90,
+      }),
+      sampleRecipe({
+        id: "3",
+        title: "Breakfast tacos",
+        category: "breakfast",
+        difficulty: "easy",
+        estimatedMinutes: 15,
+      }),
+      sampleRecipe({
+        id: "4",
+        title: "Chili",
+        category: "dinner",
+        difficulty: "easy",
+        estimatedMinutes: 25,
+      }),
+    ];
+    const filtered = filterAndSortRecipes(recipes, {
+      query: "taco",
+      sortMode: "title",
+      categoryFilter: "dinner",
+      difficultyFilter: "easy",
+      cookTimeFilter: "moderate",
+    });
+    expect(filtered.map((recipe) => recipe.title)).toEqual(["Weeknight tacos"]);
+  });
+
+  it("describes empty gallery states from active filters", () => {
+    expect(describeRecipeGalleryEmptyState({})).toBe("No recipes yet.");
+    expect(describeRecipeGalleryEmptyState({ query: "  pho  " })).toBe(
+      "No matches for “pho”."
+    );
+    expect(describeRecipeGalleryEmptyState({ categoryFilter: "dessert" })).toBe(
+      "No recipes match these filters."
+    );
+    expect(recipeGalleryFiltersAreActive({ query: "" })).toBe(false);
+    expect(recipeGalleryFiltersAreActive({ difficultyFilter: "hard" })).toBe(true);
+    expect(recipeGalleryFiltersAreActive({ availabilityFilter: "can_make" })).toBe(true);
+  });
+
+  it("filters by pantry availability", () => {
+    const recipes = [
+      sampleRecipe({ id: "1", title: "Omelette" }),
+      sampleRecipe({ id: "2", title: "Tacos" }),
+    ];
+    const availabilityByRecipeId = new Map([
+      ["1", "can_make" as const],
+      ["2", "missing" as const],
+    ]);
+    expect(
+      filterAndSortRecipes(recipes, {
+        sortMode: "title",
+        availabilityFilter: "can_make",
+        availabilityByRecipeId,
+      }).map((recipe) => recipe.title)
+    ).toEqual(["Omelette"]);
   });
 });
 
@@ -289,5 +525,58 @@ describe("sanitizeCookingReferences", () => {
     const sanitized = sanitizeCookingReferences(payload);
     expect(sanitized.cookingSessions[0]?.recipeId).toBeNull();
     expect(sanitized.cookingSessions[0]?.recipeTitle).toBe("Weeknight carbonara");
+  });
+});
+
+describe("planned cooking sessions", () => {
+  it("builds a planned session from a recipe date and optional start time", () => {
+    const planned = buildPlannedCookingSession(sampleRecipe(), {
+      cookDate: "2026-08-20",
+      startTime: "18:00",
+    });
+    expect(planned).toMatchObject({
+      recipeId: RECIPE_ID,
+      recipeTitle: "Weeknight carbonara",
+      status: "planned",
+      cookDate: "2026-08-20",
+      durationMinutes: 25,
+    });
+    expect(planned?.startedAtIso).toBeDefined();
+    expect(resolveCookingStartHHMM({
+      id: RECIPE_ID,
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...planned!,
+    })).toBe("18:00");
+  });
+
+  it("rejects an invalid cook date", () => {
+    expect(
+      buildPlannedCookingSession(sampleRecipe(), { cookDate: "not-a-date" })
+    ).toBeUndefined();
+  });
+
+  it("completes a planned session while keeping recipe identity", () => {
+    const planned = buildPlannedCookingSession(sampleRecipe(), { cookDate: "2026-08-20" });
+    expect(planned).toBeDefined();
+    const completed = completeCookingSession(planned!, {
+      startedAtIso: "2026-08-20T23:00:00.000Z",
+      finishedAtIso: "2026-08-20T23:25:00.000Z",
+      notes: "Extra pepper.",
+    });
+    expect(completed.status).toBe("completed");
+    expect(completed.recipeId).toBe(RECIPE_ID);
+    expect(completed.recipeTitle).toBe("Weeknight carbonara");
+    expect(completed.notes).toBe("Extra pepper.");
+  });
+
+  it("buildCompletedCookingSession still creates a fresh completed cook", () => {
+    const completed = buildCompletedCookingSession(sampleRecipe(), {
+      startedAtIso: "2026-08-18T17:00:00.000Z",
+      finishedAtIso: "2026-08-18T17:25:00.000Z",
+    });
+    expect(completed.status).toBe("completed");
+    expect(completed.cookDate).toBeTruthy();
+    expect(completed.durationMinutes).toBe(25);
   });
 });

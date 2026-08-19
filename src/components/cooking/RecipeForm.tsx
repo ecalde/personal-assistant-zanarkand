@@ -3,10 +3,14 @@ import {
   RECIPE_CATEGORY_LABELS,
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_EXPERIENCE_LABELS,
+  RECIPE_STEP_KIND_LABELS,
   getRecipeCategoryValues,
   getRecipeDifficultyValues,
   getRecipeExperienceLevelValues,
+  getRecipeStepKindValues,
 } from "../../core/cooking";
+import type { IngredientCatalog } from "../../core/ingredientCatalog";
+import { describeIngredientMatch } from "../../core/ingredients";
 import {
   RECIPE_GALLERY_MAX_IMAGES,
   validateRecipeImageFile,
@@ -19,6 +23,7 @@ import {
   emptyEquipmentFormRow,
   emptyIngredientFormRow,
   emptyStepFormRow,
+  applyStepKindDefaults,
   type RecipeFormState,
 } from "./recipeFormState";
 
@@ -30,6 +35,7 @@ export type RecipeFormProps = {
   onSubmit: () => void;
   onCancel: () => void;
   onUploadImage?: (file: File, kind: RecipeImageKind) => Promise<SanityImageRef>;
+  catalog?: IngredientCatalog;
 };
 
 const compactLabel = { ...styles.label, fontSize: 12 };
@@ -43,6 +49,7 @@ export function RecipeForm({
   onSubmit,
   onCancel,
   onUploadImage,
+  catalog,
 }: RecipeFormProps) {
   const [uploadingKind, setUploadingKind] = useState<RecipeImageKind | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -296,37 +303,43 @@ export function RecipeForm({
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Ingredients</div>
           {form.ingredients.map((row, index) => (
-            <div
-              key={row.id}
-              style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}
-            >
-              <input
-                value={row.rawText}
-                onChange={(e) => updateIngredient(index, { rawText: e.target.value })}
-                placeholder='e.g., "2 eggs"'
-                style={styles.inputCompact}
-              />
-              <label style={{ ...compactLabel, display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={row.optional}
-                  onChange={(e) => updateIngredient(index, { optional: e.target.checked })}
-                />
-                Optional
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  if (form.ingredients.length <= 1) return;
-                  onChange({
-                    ...form,
-                    ingredients: form.ingredients.filter((_, i) => i !== index),
-                  });
-                }}
-                disabled={form.ingredients.length <= 1}
+            <div key={row.id} style={{ display: "grid", gap: 4 }}>
+              <div
+                style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}
               >
-                Remove
-              </button>
+                <input
+                  value={row.rawText}
+                  onChange={(e) => updateIngredient(index, { rawText: e.target.value })}
+                  placeholder='e.g., "2 eggs"'
+                  style={styles.inputCompact}
+                />
+                <label style={{ ...compactLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={row.optional}
+                    onChange={(e) => updateIngredient(index, { optional: e.target.checked })}
+                  />
+                  Optional
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (form.ingredients.length <= 1) return;
+                    onChange({
+                      ...form,
+                      ingredients: form.ingredients.filter((_, i) => i !== index),
+                    });
+                  }}
+                  disabled={form.ingredients.length <= 1}
+                >
+                  Remove
+                </button>
+              </div>
+              {catalog && row.rawText.trim() && (
+                <div style={{ ...styles.textMuted, fontSize: 12 }}>
+                  {describeIngredientMatch(row.rawText, catalog) ?? "Unmatched — save will keep the raw line"}
+                </div>
+              )}
             </div>
           ))}
           <button
@@ -341,33 +354,106 @@ export function RecipeForm({
 
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Steps</div>
-          {form.steps.map((row, index) => (
-            <div key={row.id} style={{ display: "grid", gap: 6 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <span style={{ ...styles.textMuted, fontSize: 12 }}>Step {index + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (form.steps.length <= 1) return;
-                    onChange({
-                      ...form,
-                      steps: form.steps.filter((_, i) => i !== index),
-                    });
+          {form.steps.map((row, index) => {
+            const showTimerFields = row.kind === "wait" || row.kind === "timer" || row.timerMinutes.trim().length > 0;
+            return (
+              <div
+                key={row.id}
+                style={{
+                  display: "grid",
+                  gap: 8,
+                  padding: 10,
+                  borderRadius: 12,
+                  border: "1px solid var(--aether-panel-border, #e5e5e5)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ ...styles.textMuted, fontSize: 12 }}>Step {index + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (form.steps.length <= 1) return;
+                      onChange({
+                        ...form,
+                        steps: form.steps.filter((_, i) => i !== index),
+                      });
+                    }}
+                    disabled={form.steps.length <= 1}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <textarea
+                  value={row.text}
+                  onChange={(e) => updateStep(index, { text: e.target.value })}
+                  rows={2}
+                  placeholder="What to do in this step"
+                  style={styles.inputCompact}
+                />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: 8,
                   }}
-                  disabled={form.steps.length <= 1}
                 >
-                  Remove
-                </button>
+                  <label style={compactLabel}>
+                    Kind
+                    <select
+                      value={row.kind}
+                      onChange={(e) =>
+                        updateStep(index, applyStepKindDefaults(row, e.target.value as typeof row.kind))
+                      }
+                      style={styles.inputCompact}
+                    >
+                      {getRecipeStepKindValues().map((kind) => (
+                        <option key={kind} value={kind}>
+                          {RECIPE_STEP_KIND_LABELS[kind]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={compactLabel}>
+                    Timer (minutes)
+                    <input
+                      value={row.timerMinutes}
+                      onChange={(e) => updateStep(index, { timerMinutes: e.target.value })}
+                      placeholder={showTimerFields ? "10" : "Optional"}
+                      inputMode="decimal"
+                      style={styles.inputCompact}
+                    />
+                  </label>
+                  <label style={compactLabel}>
+                    Timer label
+                    <input
+                      value={row.timerLabel}
+                      onChange={(e) => updateStep(index, { timerLabel: e.target.value })}
+                      placeholder="Pasta"
+                      style={styles.inputCompact}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <label style={{ ...compactLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={row.blocksProgress}
+                      onChange={(e) => updateStep(index, { blocksProgress: e.target.checked })}
+                    />
+                    Blocks next step
+                  </label>
+                  <label style={{ ...compactLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={row.canRunInBackground}
+                      onChange={(e) => updateStep(index, { canRunInBackground: e.target.checked })}
+                    />
+                    Timer can run in background
+                  </label>
+                </div>
               </div>
-              <textarea
-                value={row.text}
-                onChange={(e) => updateStep(index, { text: e.target.value })}
-                rows={2}
-                placeholder="What to do in this step"
-                style={styles.inputCompact}
-              />
-            </div>
-          ))}
+            );
+          })}
           <button
             type="button"
             onClick={() => onChange({ ...form, steps: [...form.steps, emptyStepFormRow()] })}

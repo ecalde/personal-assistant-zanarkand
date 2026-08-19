@@ -316,6 +316,45 @@ export type CookingSession = {
   updatedAtIso: string;
 };
 
+export type Ingredient = {
+  id: string;
+  canonicalName: string;
+  category?: string;
+  defaultUnit?: string;
+  densityGPerMl?: number;
+  gramsPerPiece?: number;
+  fdcId?: number;
+};
+
+export type IngredientAlias = {
+  id: string;
+  ingredientId: string;
+  alias: string;
+  aliasNormalized: string;
+};
+
+export type PantryItem = {
+  id: string;
+  ingredientId?: string;
+  customIngredientId?: string;
+  label: string;
+  available: boolean;
+  quantity?: number;
+  unit?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type RecipeAvailability = "can_make" | "partial" | "missing";
+
+export type IngredientMatchVia = "alias" | "canonical" | "fuzzy";
+
+export type IngredientMatch = {
+  ingredientId: string;
+  confidence: number;
+  matchedVia: IngredientMatchVia;
+};
+
 export type WorkoutPlan = {
   id: string;
   name: string;
@@ -430,6 +469,7 @@ export type AppPayload = {
   supplementIntakeLogs: SupplementIntakeLog[];
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  pantry: PantryItem[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;

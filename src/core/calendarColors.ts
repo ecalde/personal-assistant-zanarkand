@@ -15,7 +15,8 @@ export type CalendarCategoryKey =
   | "event"
   | "people"
   | "fitness"
-  | "career";
+  | "career"
+  | "cooking";
 
 export type CalendarPaletteHue =
   | "red"
@@ -87,6 +88,7 @@ export const CALENDAR_CATEGORY_KEYS: readonly CalendarCategoryKey[] = [
   "people",
   "fitness",
   "career",
+  "cooking",
 ];
 
 const HUE_VARIANTS: readonly CalendarHueVariant[] = ["soft", "base", "strong"];
@@ -256,12 +258,15 @@ export const DEFAULT_CATEGORY_COLOR_TOKENS: Record<
   people: "pink.base",
   fitness: "green.base",
   career: "violet.base",
+  cooking: "orange.base",
 };
 
 // Sparse: unset subcategories intentionally inherit their category color.
 export const DEFAULT_SUBCATEGORY_COLOR_TOKENS: Record<string, CalendarColorToken> = {
   "event:birthday": "amber.base",
   "fitness:supplement": "cyan.base",
+  "cooking:planned": "orange.soft",
+  "cooking:completed": "orange.base",
 };
 
 export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
@@ -270,6 +275,7 @@ export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
   people: "People",
   fitness: "Fitness",
   career: "Career",
+  cooking: "Cooking",
 };
 
 // Readable labels for the supported subcategory keys (used for "color used by" copy).
@@ -292,6 +298,8 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "fitness:workout": "Workouts",
   "fitness:supplement": "Supplements",
   "skill:scheduleBlock": "Schedule blocks",
+  "cooking:planned": "Planned cooks",
+  "cooking:completed": "Cooked meals",
 };
 
 // Stable ordering for usage indexing and "used by" descriptions.
@@ -314,6 +322,8 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "fitness:workout",
   "fitness:supplement",
   "skill:scheduleBlock",
+  "cooking:planned",
+  "cooking:completed",
 ];
 
 export function isCalendarColorToken(value: unknown): value is CalendarColorToken {

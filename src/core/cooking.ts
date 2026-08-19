@@ -9,6 +9,7 @@ import type {
   CookingSessionStatus,
   CookingTimerStatus,
   Recipe,
+  RecipeAvailability,
   RecipeCategory,
   RecipeDifficulty,
   RecipeExperienceLevel,
@@ -41,8 +42,91 @@ export const RECIPE_EXPERIENCE_LABELS: Record<RecipeExperienceLevel, string> = {
   advanced: "Advanced",
 };
 
-export type RecipesSortMode = "recent" | "title" | "category";
+export const RECIPE_STEP_KIND_LABELS: Record<RecipeStepKind, string> = {
+  blocking: "Blocking",
+  parallel: "Parallel",
+  wait: "Wait",
+  timer: "Timer",
+};
+
+export type RecipesSortMode =
+  | "recent"
+  | "title"
+  | "category"
+  | "cookTime"
+  | "difficulty"
+  | "experience"
+  | "mastery";
+
 export type RecipeCategoryFilter = RecipeCategory | "all";
+export type RecipeDifficultyFilter = RecipeDifficulty | "all";
+export type RecipeExperienceFilter = RecipeExperienceLevel | "all";
+export type RecipeCookTimeFilter =
+  | "all"
+  | "quick"
+  | "moderate"
+  | "hour"
+  | "long"
+  | "unset";
+export type RecipeMasteryFilter =
+  | "all"
+  | "uncooked"
+  | "novice"
+  | "practiced"
+  | "proficient"
+  | "skilled"
+  | "expert"
+  | "master";
+
+export type RecipeAvailabilityFilter = RecipeAvailability | "all";
+
+export type RecipeGalleryFilters = {
+  query?: string;
+  sortMode: RecipesSortMode;
+  categoryFilter?: RecipeCategoryFilter;
+  difficultyFilter?: RecipeDifficultyFilter;
+  experienceFilter?: RecipeExperienceFilter;
+  cookTimeFilter?: RecipeCookTimeFilter;
+  masteryFilter?: RecipeMasteryFilter;
+  availabilityFilter?: RecipeAvailabilityFilter;
+};
+
+export const RECIPE_SORT_MODE_LABELS: Record<RecipesSortMode, string> = {
+  recent: "Recently updated",
+  title: "Title",
+  category: "Category",
+  cookTime: "Cook time",
+  difficulty: "Difficulty",
+  experience: "Experience",
+  mastery: "Mastery",
+};
+
+export const RECIPE_COOK_TIME_FILTER_LABELS: Record<RecipeCookTimeFilter, string> = {
+  all: "All cook times",
+  quick: "15 min or less",
+  moderate: "16–30 min",
+  hour: "31–60 min",
+  long: "Over 1 hour",
+  unset: "No cook time",
+};
+
+export const RECIPE_MASTERY_FILTER_LABELS: Record<RecipeMasteryFilter, string> = {
+  all: "All mastery",
+  uncooked: "Not yet cooked",
+  novice: "Novice",
+  practiced: "Practiced",
+  proficient: "Proficient",
+  skilled: "Skilled",
+  expert: "Expert",
+  master: "Master",
+};
+
+export const RECIPE_AVAILABILITY_FILTER_LABELS: Record<RecipeAvailabilityFilter, string> = {
+  all: "All pantry status",
+  can_make: "Can make now",
+  partial: "Partial pantry",
+  missing: "Missing ingredients",
+};
 
 const RECIPE_CATEGORIES: RecipeCategory[] = [
   "breakfast",
@@ -76,6 +160,67 @@ const CATEGORY_SORT_ORDER: Record<RecipeCategory, number> = {
   meal_prep: 6,
 };
 
+const DIFFICULTY_SORT_ORDER: Record<RecipeDifficulty, number> = {
+  easy: 0,
+  medium: 1,
+  hard: 2,
+};
+
+const EXPERIENCE_SORT_ORDER: Record<RecipeExperienceLevel, number> = {
+  beginner: 0,
+  intermediate: 1,
+  advanced: 2,
+};
+
+const RECIPE_SORT_MODES: RecipesSortMode[] = [
+  "recent",
+  "title",
+  "category",
+  "cookTime",
+  "difficulty",
+  "experience",
+  "mastery",
+];
+
+const RECIPE_COOK_TIME_FILTERS: RecipeCookTimeFilter[] = [
+  "all",
+  "quick",
+  "moderate",
+  "hour",
+  "long",
+  "unset",
+];
+
+const RECIPE_MASTERY_FILTERS: RecipeMasteryFilter[] = [
+  "all",
+  "uncooked",
+  "novice",
+  "practiced",
+  "proficient",
+  "skilled",
+  "expert",
+  "master",
+];
+
+const RECIPE_AVAILABILITY_FILTERS: RecipeAvailabilityFilter[] = [
+  "all",
+  "can_make",
+  "partial",
+  "missing",
+];
+
+const MASTERY_FILTER_TIER: Record<
+  Exclude<RecipeMasteryFilter, "all" | "uncooked">,
+  1 | 2 | 3 | 4 | 5 | 6
+> = {
+  novice: 1,
+  practiced: 2,
+  proficient: 3,
+  skilled: 4,
+  expert: 5,
+  master: 6,
+};
+
 export function getRecipeCategoryValues(): RecipeCategory[] {
   return [...RECIPE_CATEGORIES];
 }
@@ -88,6 +233,26 @@ export function getRecipeExperienceLevelValues(): RecipeExperienceLevel[] {
   return [...RECIPE_EXPERIENCE_LEVELS];
 }
 
+export function getRecipeStepKindValues(): RecipeStepKind[] {
+  return [...RECIPE_STEP_KINDS];
+}
+
+export function getRecipeSortModeValues(): RecipesSortMode[] {
+  return [...RECIPE_SORT_MODES];
+}
+
+export function getRecipeCookTimeFilterValues(): RecipeCookTimeFilter[] {
+  return RECIPE_COOK_TIME_FILTERS.filter((value) => value !== "all");
+}
+
+export function getRecipeMasteryFilterValues(): RecipeMasteryFilter[] {
+  return RECIPE_MASTERY_FILTERS.filter((value) => value !== "all");
+}
+
+export function getRecipeAvailabilityFilterValues(): RecipeAvailabilityFilter[] {
+  return RECIPE_AVAILABILITY_FILTERS.filter((value) => value !== "all");
+}
+
 export function isRecipeCategory(value: string): value is RecipeCategory {
   return RECIPE_CATEGORIES.includes(value as RecipeCategory);
 }
@@ -98,6 +263,34 @@ export function isRecipeDifficulty(value: string): value is RecipeDifficulty {
 
 export function isRecipeExperienceLevel(value: string): value is RecipeExperienceLevel {
   return RECIPE_EXPERIENCE_LEVELS.includes(value as RecipeExperienceLevel);
+}
+
+export function isRecipesSortMode(value: string): value is RecipesSortMode {
+  return RECIPE_SORT_MODES.includes(value as RecipesSortMode);
+}
+
+export function isRecipeCategoryFilter(value: string): value is RecipeCategoryFilter {
+  return value === "all" || isRecipeCategory(value);
+}
+
+export function isRecipeDifficultyFilter(value: string): value is RecipeDifficultyFilter {
+  return value === "all" || isRecipeDifficulty(value);
+}
+
+export function isRecipeExperienceFilter(value: string): value is RecipeExperienceFilter {
+  return value === "all" || isRecipeExperienceLevel(value);
+}
+
+export function isRecipeCookTimeFilter(value: string): value is RecipeCookTimeFilter {
+  return RECIPE_COOK_TIME_FILTERS.includes(value as RecipeCookTimeFilter);
+}
+
+export function isRecipeMasteryFilter(value: string): value is RecipeMasteryFilter {
+  return RECIPE_MASTERY_FILTERS.includes(value as RecipeMasteryFilter);
+}
+
+export function isRecipeAvailabilityFilter(value: string): value is RecipeAvailabilityFilter {
+  return RECIPE_AVAILABILITY_FILTERS.includes(value as RecipeAvailabilityFilter);
 }
 
 export function isRecipeSource(value: string): value is RecipeSource {
@@ -118,6 +311,10 @@ export function formatRecipeDifficulty(difficulty: RecipeDifficulty): string {
 
 export function formatRecipeExperienceLevel(level: RecipeExperienceLevel): string {
   return RECIPE_EXPERIENCE_LABELS[level];
+}
+
+export function formatRecipeStepKind(kind: RecipeStepKind): string {
+  return RECIPE_STEP_KIND_LABELS[kind];
 }
 
 export function formatEstimatedMinutes(minutes?: number): string | undefined {
@@ -171,21 +368,110 @@ function compareIsoDesc(a: string, b: string): number {
   return b.localeCompare(a);
 }
 
+export function cookTimeBucket(minutes?: number): Exclude<RecipeCookTimeFilter, "all"> {
+  if (minutes === undefined) return "unset";
+  if (minutes <= 15) return "quick";
+  if (minutes <= 30) return "moderate";
+  if (minutes <= 60) return "hour";
+  return "long";
+}
+
+export function recipeMatchesCookTimeFilter(
+  recipe: Recipe,
+  filter: RecipeCookTimeFilter
+): boolean {
+  if (filter === "all") return true;
+  return cookTimeBucket(recipe.estimatedMinutes) === filter;
+}
+
+export function recipeMatchesMasteryFilter(
+  recipeId: string,
+  filter: RecipeMasteryFilter,
+  masteryByRecipeId?: ReadonlyMap<string, RecipeMasteryView>
+): boolean {
+  if (filter === "all") return true;
+  const tier = masteryByRecipeId?.get(recipeId)?.tier ?? null;
+  if (filter === "uncooked") return tier === null;
+  return tier === MASTERY_FILTER_TIER[filter];
+}
+
+export function recipeMatchesAvailabilityFilter(
+  recipeId: string,
+  filter: RecipeAvailabilityFilter,
+  availabilityByRecipeId?: ReadonlyMap<string, RecipeAvailability>
+): boolean {
+  if (filter === "all") return true;
+  const status = availabilityByRecipeId?.get(recipeId) ?? "missing";
+  return status === filter;
+}
+
+export function recipeGalleryFiltersAreActive(
+  opts: Omit<RecipeGalleryFilters, "sortMode">
+): boolean {
+  return Boolean(
+    (opts.query ?? "").trim() ||
+      (opts.categoryFilter !== undefined && opts.categoryFilter !== "all") ||
+      (opts.difficultyFilter !== undefined && opts.difficultyFilter !== "all") ||
+      (opts.experienceFilter !== undefined && opts.experienceFilter !== "all") ||
+      (opts.cookTimeFilter !== undefined && opts.cookTimeFilter !== "all") ||
+      (opts.masteryFilter !== undefined && opts.masteryFilter !== "all") ||
+      (opts.availabilityFilter !== undefined && opts.availabilityFilter !== "all")
+  );
+}
+
+export function describeRecipeGalleryEmptyState(
+  opts: Omit<RecipeGalleryFilters, "sortMode">
+): string {
+  const query = (opts.query ?? "").trim();
+  if (query) return `No matches for “${query}”.`;
+  if (recipeGalleryFiltersAreActive(opts)) return "No recipes match these filters.";
+  return "No recipes yet.";
+}
+
+function masterySortKey(
+  recipeId: string,
+  masteryByRecipeId?: ReadonlyMap<string, RecipeMasteryView>
+): { tier: number; count: number } {
+  const view = masteryByRecipeId?.get(recipeId);
+  return {
+    tier: view?.tier ?? 0,
+    count: view?.completionCount ?? 0,
+  };
+}
+
 export function filterAndSortRecipes(
   recipes: Recipe[],
-  opts: {
-    query?: string;
-    sortMode: RecipesSortMode;
-    categoryFilter?: RecipeCategoryFilter;
+  opts: RecipeGalleryFilters & {
+    masteryByRecipeId?: ReadonlyMap<string, RecipeMasteryView>;
+    availabilityByRecipeId?: ReadonlyMap<string, RecipeAvailability>;
   }
 ): Recipe[] {
   const query = opts.query ?? "";
   const categoryFilter = opts.categoryFilter ?? "all";
+  const difficultyFilter = opts.difficultyFilter ?? "all";
+  const experienceFilter = opts.experienceFilter ?? "all";
+  const cookTimeFilter = opts.cookTimeFilter ?? "all";
+  const masteryFilter = opts.masteryFilter ?? "all";
+  const availabilityFilter = opts.availabilityFilter ?? "all";
+  const masteryByRecipeId = opts.masteryByRecipeId;
+  const availabilityByRecipeId = opts.availabilityByRecipeId;
 
-  let filtered = recipes.filter((recipe) => recipeMatchesQuery(recipe, query));
-  if (categoryFilter !== "all") {
-    filtered = filtered.filter((recipe) => recipe.category === categoryFilter);
-  }
+  const filtered = recipes.filter((recipe) => {
+    if (!recipeMatchesQuery(recipe, query)) return false;
+    if (categoryFilter !== "all" && recipe.category !== categoryFilter) return false;
+    if (difficultyFilter !== "all" && recipe.difficulty !== difficultyFilter) return false;
+    if (experienceFilter !== "all" && recipe.experienceLevel !== experienceFilter) {
+      return false;
+    }
+    if (!recipeMatchesCookTimeFilter(recipe, cookTimeFilter)) return false;
+    if (!recipeMatchesMasteryFilter(recipe.id, masteryFilter, masteryByRecipeId)) {
+      return false;
+    }
+    if (!recipeMatchesAvailabilityFilter(recipe.id, availabilityFilter, availabilityByRecipeId)) {
+      return false;
+    }
+    return true;
+  });
 
   const sorted = [...filtered];
   switch (opts.sortMode) {
@@ -196,6 +482,39 @@ export function filterAndSortRecipes(
       sorted.sort((a, b) => {
         const byCategory = CATEGORY_SORT_ORDER[a.category] - CATEGORY_SORT_ORDER[b.category];
         if (byCategory !== 0) return byCategory;
+        return a.title.localeCompare(b.title);
+      });
+      break;
+    case "cookTime":
+      sorted.sort((a, b) => {
+        const aMinutes = a.estimatedMinutes ?? Number.POSITIVE_INFINITY;
+        const bMinutes = b.estimatedMinutes ?? Number.POSITIVE_INFINITY;
+        if (aMinutes !== bMinutes) return aMinutes - bMinutes;
+        return a.title.localeCompare(b.title);
+      });
+      break;
+    case "difficulty":
+      sorted.sort((a, b) => {
+        const byDifficulty =
+          DIFFICULTY_SORT_ORDER[a.difficulty] - DIFFICULTY_SORT_ORDER[b.difficulty];
+        if (byDifficulty !== 0) return byDifficulty;
+        return a.title.localeCompare(b.title);
+      });
+      break;
+    case "experience":
+      sorted.sort((a, b) => {
+        const byExperience =
+          EXPERIENCE_SORT_ORDER[a.experienceLevel] - EXPERIENCE_SORT_ORDER[b.experienceLevel];
+        if (byExperience !== 0) return byExperience;
+        return a.title.localeCompare(b.title);
+      });
+      break;
+    case "mastery":
+      sorted.sort((a, b) => {
+        const aKey = masterySortKey(a.id, masteryByRecipeId);
+        const bKey = masterySortKey(b.id, masteryByRecipeId);
+        if (aKey.tier !== bKey.tier) return bKey.tier - aKey.tier;
+        if (aKey.count !== bKey.count) return bKey.count - aKey.count;
         return a.title.localeCompare(b.title);
       });
       break;
@@ -241,6 +560,7 @@ const COOKING_SESSION_STATUSES: CookingSessionStatus[] = [
 ];
 
 const PERSISTED_COOKING_SESSION_STATUSES: CookingSessionStatus[] = [
+  "planned",
   "in_progress",
   "completed",
   "abandoned",
@@ -250,15 +570,18 @@ const COOKING_TIMER_STATUSES: CookingTimerStatus[] = ["idle", "running", "paused
 
 const ISO_WEEK_KEY_RE = /^(\d{4})-W(\d{2})$/;
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function isCookingSessionStatus(value: string): value is CookingSessionStatus {
   return COOKING_SESSION_STATUSES.includes(value as CookingSessionStatus);
 }
 
-export function isPersistedCookingSessionStatus(
-  value: string
-): value is Exclude<CookingSessionStatus, "planned"> {
+export function isPersistedCookingSessionStatus(value: string): value is CookingSessionStatus {
   return PERSISTED_COOKING_SESSION_STATUSES.includes(value as CookingSessionStatus);
+}
+
+export function isPlannedCookingSession(session: CookingSession): boolean {
+  return session.status === "planned";
 }
 
 export function isCookingTimerStatus(value: string): value is CookingTimerStatus {
@@ -267,6 +590,80 @@ export function isCookingTimerStatus(value: string): value is CookingTimerStatus
 
 export function isCompletedCookingSession(session: CookingSession): boolean {
   return session.status === "completed";
+}
+
+export function listPlannedCookingSessions(sessions: CookingSession[]): CookingSession[] {
+  return sessions.filter(isPlannedCookingSession).sort(compareCookingSessionsAsc);
+}
+
+export function listUpcomingPlannedCookingSessions(
+  sessions: CookingSession[],
+  fromDateKey: string,
+  limit: number
+): CookingSession[] {
+  return listPlannedCookingSessions(sessions)
+    .filter((session) => session.cookDate >= fromDateKey)
+    .slice(0, Math.max(0, limit));
+}
+
+export function findPlannedCookingSession(
+  sessions: CookingSession[],
+  recipeId: string,
+  cookDate: string
+): CookingSession | undefined {
+  return sessions.find(
+    (session) =>
+      session.status === "planned" &&
+      session.recipeId === recipeId &&
+      session.cookDate === cookDate
+  );
+}
+
+export function combineCookDateAndTime(dateKey: string, hhmm: string): string | undefined {
+  if (!DATE_KEY_RE.test(dateKey) || !HHMM_RE.test(hhmm)) return undefined;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  if (!year || !month || !day) return undefined;
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return undefined;
+  const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
+export function resolveCookingStartHHMM(session: CookingSession): string | undefined {
+  return localHHMMFromIso(session.startedAtIso);
+}
+
+export function resolveCookingFinishHHMM(session: CookingSession): string | undefined {
+  return localHHMMFromIso(session.finishedAtIso);
+}
+
+function localHHMMFromIso(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+export function formatRecipeIngredientSummary(recipe: Recipe): string | undefined {
+  const lines = recipe.ingredients
+    .map((line) => line.rawText.trim())
+    .filter((text) => text.length > 0);
+  if (lines.length === 0) return undefined;
+  return lines.join(", ");
+}
+
+export function validateCookingSchedule(
+  cookDate: string,
+  startTime?: string
+): string | undefined {
+  if (!DATE_KEY_RE.test(cookDate)) return "Pick a cook date.";
+  if (startTime !== undefined && startTime.trim().length > 0 && !HHMM_RE.test(startTime)) {
+    return "Start time must be a valid time.";
+  }
+  return undefined;
 }
 
 export function compareCookingSessionsAsc(a: CookingSession, b: CookingSession): number {
@@ -560,8 +957,32 @@ export function cookDateFromIso(iso: string): string {
   return formatLocalDateKey(Number.isNaN(date.getTime()) ? new Date() : date);
 }
 
-export function buildCompletedCookingSession(
+export function buildPlannedCookingSession(
   recipe: Recipe,
+  input: { cookDate: string; startTime?: string; notes?: string }
+): Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> | undefined {
+  if (validateCookingSchedule(input.cookDate, input.startTime) !== undefined) return undefined;
+
+  const session: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> = {
+    recipeId: recipe.id,
+    recipeTitle: recipe.title,
+    status: "planned",
+    cookDate: input.cookDate,
+    timers: [],
+  };
+  if (recipe.estimatedMinutes !== undefined) session.durationMinutes = recipe.estimatedMinutes;
+  const startTime = input.startTime?.trim();
+  if (startTime) {
+    const startedAtIso = combineCookDateAndTime(input.cookDate, startTime);
+    if (!startedAtIso) return undefined;
+    session.startedAtIso = startedAtIso;
+  }
+  if (input.notes?.trim()) session.notes = input.notes.trim();
+  return session;
+}
+
+export function completeCookingSession(
+  base: Pick<CookingSession, "recipeId" | "recipeTitle" | "timers" | "notes" | "servingsMade">,
   input: {
     startedAtIso: string;
     finishedAtIso: string;
@@ -571,18 +992,35 @@ export function buildCompletedCookingSession(
 ): Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> {
   const durationMinutes = durationMinutesBetween(input.startedAtIso, input.finishedAtIso);
   const session: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> = {
-    recipeId: recipe.id,
-    recipeTitle: recipe.title,
+    recipeId: base.recipeId,
+    recipeTitle: base.recipeTitle,
     status: "completed",
     cookDate: cookDateFromIso(input.finishedAtIso),
     startedAtIso: input.startedAtIso,
     finishedAtIso: input.finishedAtIso,
-    timers: [],
+    timers: [...base.timers],
   };
   if (durationMinutes !== undefined) session.durationMinutes = durationMinutes;
-  if (input.servingsMade !== undefined) session.servingsMade = input.servingsMade;
-  if (input.notes?.trim()) session.notes = input.notes.trim();
+  const servingsMade = input.servingsMade ?? base.servingsMade;
+  if (servingsMade !== undefined) session.servingsMade = servingsMade;
+  const notes = input.notes?.trim() || base.notes;
+  if (notes) session.notes = notes;
   return session;
+}
+
+export function buildCompletedCookingSession(
+  recipe: Recipe,
+  input: {
+    startedAtIso: string;
+    finishedAtIso: string;
+    servingsMade?: number;
+    notes?: string;
+  }
+): Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso"> {
+  return completeCookingSession(
+    { recipeId: recipe.id, recipeTitle: recipe.title, timers: [] },
+    input
+  );
 }
 
 export function sanitizeCookingReferences(payload: AppPayload): AppPayload {

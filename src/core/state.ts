@@ -31,6 +31,7 @@ export function defaultPayload(): AppPayload {
     supplementIntakeLogs: [],
     recipes: [],
     cookingSessions: [],
+    pantry: [],
     focusFeedback: [],
   };
 }

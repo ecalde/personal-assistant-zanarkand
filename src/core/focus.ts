@@ -36,9 +36,11 @@ import {
 } from "./fitness";
 import type {
   CareerTarget,
+  CookingSession,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -47,6 +49,11 @@ import type {
   WorkoutSession,
 } from "./model";
 import { dueProtocolsWithRemainingDoses } from "./supplements";
+import {
+  findActiveCookingSession,
+  timerHasFinished,
+} from "./cookingSession";
+import { listPlannedCookingSessions } from "./cooking";
 import {
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
@@ -100,6 +107,9 @@ const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   fitness_workout_scheduled_today: 480,
   fitness_supplement_doses_remaining: 470,
   fitness_workout_missed_yesterday: 400,
+  cooking_timer_done: 880,
+  cooking_active_session: 640,
+  cooking_planned_today: 520,
 };
 
 const CATEGORY_TIEBREAK_ORDER: Record<FocusCategory, number> = {
@@ -109,6 +119,7 @@ const CATEGORY_TIEBREAK_ORDER: Record<FocusCategory, number> = {
   people: 3,
   career: 4,
   fitness: 5,
+  cooking: 6,
 };
 
 const FOCUS_CATEGORIES: FocusCategory[] = [
@@ -117,6 +128,7 @@ const FOCUS_CATEGORIES: FocusCategory[] = [
   "people",
   "career",
   "fitness",
+  "cooking",
   "timeline",
 ];
 
@@ -132,6 +144,7 @@ const FOCUS_CATEGORY_LABELS: Record<FocusCategory, string> = {
   people: "People",
   career: "Career",
   fitness: "Fitness",
+  cooking: "Cooking",
   timeline: "Timeline",
 };
 
@@ -152,6 +165,7 @@ export type FocusCategory =
   | "people"
   | "career"
   | "fitness"
+  | "cooking"
   | "timeline";
 
 export type FocusPriority = "critical" | "high" | "medium" | "low";
@@ -179,6 +193,9 @@ export type FocusReasonCode =
   | "fitness_workout_scheduled_today"
   | "fitness_supplement_doses_remaining"
   | "fitness_workout_missed_yesterday"
+  | "cooking_timer_done"
+  | "cooking_active_session"
+  | "cooking_planned_today"
   | "timeline_schedule_conflict"
   | "timeline_high_blocked_time"
   | "timeline_low_available_skill_time";
@@ -189,6 +206,7 @@ export type FocusActionType =
   | "open_people"
   | "open_career"
   | "open_fitness"
+  | "open_cooking"
   | "log_skill_minutes"
   | "contact_person"
   | "apply_to_job"
@@ -241,6 +259,8 @@ export type BuildDailyFocusInput = {
   workoutSessions: WorkoutSession[];
   supplementProtocols?: SupplementProtocol[];
   supplementIntakeLogs?: SupplementIntakeLog[];
+  recipes?: Recipe[];
+  cookingSessions?: CookingSession[];
   todayKey: string;
   now?: Date;
   opts?: { maxItems?: number; perCategoryCap?: number };
@@ -276,6 +296,7 @@ function emptyByCategory(): Record<FocusCategory, FocusItem[]> {
     people: [],
     career: [],
     fitness: [],
+    cooking: [],
     timeline: [],
   };
 }
@@ -390,6 +411,8 @@ export function formatFocusActionLabel(actionType: FocusActionType): string {
       return "Open skills";
     case "open_fitness":
       return "View fitness";
+    case "open_cooking":
+      return "Open cooking";
   }
 }
 
@@ -559,6 +582,7 @@ function capByCategory(
     people: 0,
     career: 0,
     fitness: 0,
+    cooking: 0,
     timeline: 0,
   };
 
@@ -1232,6 +1256,80 @@ function appendSupplementRemainingDoseFocus(
   );
 }
 
+export function collectCookingFocusItems(
+  cookingSessions: CookingSession[],
+  recipes: Recipe[],
+  todayKey: string,
+  now: Date
+): FocusItemDraft[] {
+  const drafts: FocusItemDraft[] = [];
+  const dayEnd = endOfLocalDayIso(todayKey);
+  const active = findActiveCookingSession(cookingSessions);
+  const recipeTitle = (session: CookingSession) =>
+    recipes.find((recipe) => recipe.id === session.recipeId)?.title ?? session.recipeTitle;
+
+  if (active) {
+    const doneTimers = active.timers.filter((timer) => timerHasFinished(timer, now));
+    for (const timer of doneTimers) {
+      drafts.push(
+        makeDraft({
+          id: `cooking:timer-done:${active.id}:${timer.id}`,
+          category: "cooking",
+          sourceId: timer.id,
+          title: `${timer.label} is done`,
+          description: `Timer finished while cooking ${recipeTitle(active)}.`,
+          suggestedActionType: "open_cooking",
+          actionTargetId: active.id,
+          expiresAtIso: dayEnd,
+          reasonCodes: ["cooking_timer_done"],
+          score: {
+            categoryBase: CATEGORY_BASE.cooking_timer_done!,
+          },
+        })
+      );
+    }
+
+    drafts.push(
+      makeDraft({
+        id: `cooking:active:${active.id}`,
+        category: "cooking",
+        sourceId: active.id,
+        title: `Resume ${recipeTitle(active)}`,
+        description: "You have a cook in progress.",
+        suggestedActionType: "open_cooking",
+        actionTargetId: active.id,
+        expiresAtIso: dayEnd,
+        reasonCodes: ["cooking_active_session"],
+        score: {
+          categoryBase: CATEGORY_BASE.cooking_active_session!,
+        },
+      })
+    );
+  }
+
+  for (const session of listPlannedCookingSessions(cookingSessions)) {
+    if (session.cookDate !== todayKey) continue;
+    drafts.push(
+      makeDraft({
+        id: `cooking:planned:${session.id}`,
+        category: "cooking",
+        sourceId: session.id,
+        title: `Cook ${recipeTitle(session)} today`,
+        description: "A planned cook is on the calendar for today.",
+        suggestedActionType: "open_cooking",
+        actionTargetId: session.id,
+        expiresAtIso: dayEnd,
+        reasonCodes: ["cooking_planned_today"],
+        score: {
+          categoryBase: CATEGORY_BASE.cooking_planned_today!,
+        },
+      })
+    );
+  }
+
+  return drafts;
+}
+
 /** Maps a fitness focus CTA onto the Fitness page deep-link union. */
 export function fitnessFocusFromFocusItem(
   item: FocusItem,
@@ -1486,6 +1584,12 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
       input.todayKey,
       input.supplementProtocols ?? [],
       input.supplementIntakeLogs ?? []
+    ),
+    ...collectCookingFocusItems(
+      input.cookingSessions ?? [],
+      input.recipes ?? [],
+      input.todayKey,
+      now
     ),
     ...timelineDrafts,
   ];

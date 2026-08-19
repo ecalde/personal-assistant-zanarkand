@@ -18,6 +18,7 @@ import {
   shiftThreeDay,
   shiftWeek,
   THREE_DAY_VISIBLE_COUNT,
+  type CalendarCookingTypeFilter,
   type CalendarViewMode,
 } from "../../core/calendarView";
 import {
@@ -27,11 +28,13 @@ import {
   type CalendarViewViewport,
 } from "../../core/calendarViewPreferences";
 import type {
+  CookingSession,
   EventType,
   FitnessType,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Skill,
   SupplementIntakeLog,
   SupplementProtocol,
@@ -49,6 +52,8 @@ export type UseCalendarControllerInput = {
   jobApplications: JobApplication[];
   supplementProtocols?: SupplementProtocol[];
   supplementIntakeLogs?: SupplementIntakeLog[];
+  cookingSessions?: CookingSession[];
+  recipes?: Recipe[];
   /** Local `YYYY-MM-DD` for "today" — drives the default anchor and Today button. */
   todayKey: string;
   initialViewMode?: CalendarViewMode;
@@ -66,6 +71,7 @@ export type CalendarController = {
   hiddenCategories: ReadonlySet<CalendarCategoryKey>;
   hiddenEventSubcategories: ReadonlySet<EventType>;
   hiddenFitnessTypes: ReadonlySet<FitnessType>;
+  hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter>;
   selectedItem: CalendarItem | null;
   itemsByDate: Map<string, CalendarItem[]>;
   title: string;
@@ -79,6 +85,7 @@ export type CalendarController = {
   toggleCategory: (category: CalendarCategoryKey) => void;
   toggleEventSubcategory: (eventType: EventType) => void;
   toggleFitnessType: (fitnessType: FitnessType) => void;
+  toggleCookingType: (cookingType: CalendarCookingTypeFilter) => void;
 };
 
 function getViewModePersistenceContext(
@@ -104,6 +111,8 @@ export function useCalendarController({
   workoutPlans,
   supplementProtocols = [],
   supplementIntakeLogs = [],
+  cookingSessions = [],
+  recipes = [],
   todayKey,
   initialViewMode = "week",
   viewModeSurface,
@@ -130,6 +139,9 @@ export function useCalendarController({
     () => new Set()
   );
   const [hiddenFitnessTypes, setHiddenFitnessTypes] = useState<Set<FitnessType>>(() => new Set());
+  const [hiddenCookingTypes, setHiddenCookingTypes] = useState<Set<CalendarCookingTypeFilter>>(
+    () => new Set()
+  );
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
 
   useEffect(() => {
@@ -162,18 +174,23 @@ export function useCalendarController({
         workoutPlans,
         supplementProtocols,
         supplementIntakeLogs,
+        cookingSessions,
+        recipes,
       },
       {
         includeFitnessHistory: true,
         includeWorkoutSchedules: true,
         includeSupplementSchedule: true,
+        includeCookingPlanned: true,
+        includeCookingHistory: true,
       }
     );
     const visible = filterCalendarItems(
       items,
       hiddenCategories,
       hiddenEventSubcategories,
-      hiddenFitnessTypes
+      hiddenFitnessTypes,
+      hiddenCookingTypes
     );
     return groupCalendarItemsByDate(visible);
   }, [
@@ -186,9 +203,12 @@ export function useCalendarController({
     workoutPlans,
     supplementProtocols,
     supplementIntakeLogs,
+    cookingSessions,
+    recipes,
     hiddenCategories,
     hiddenEventSubcategories,
     hiddenFitnessTypes,
+    hiddenCookingTypes,
   ]);
 
   const title = useMemo(() => {
@@ -275,12 +295,25 @@ export function useCalendarController({
     });
   }
 
+  function toggleCookingType(cookingType: CalendarCookingTypeFilter) {
+    setHiddenCookingTypes((current) => {
+      const next = new Set(current);
+      if (next.has(cookingType)) {
+        next.delete(cookingType);
+      } else {
+        next.add(cookingType);
+      }
+      return next;
+    });
+  }
+
   return {
     viewMode,
     anchorKey,
     hiddenCategories,
     hiddenEventSubcategories,
     hiddenFitnessTypes,
+    hiddenCookingTypes,
     selectedItem,
     itemsByDate,
     title,
@@ -294,5 +327,6 @@ export function useCalendarController({
     toggleCategory,
     toggleEventSubcategory,
     toggleFitnessType,
+    toggleCookingType,
   };
 }

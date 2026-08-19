@@ -4,9 +4,11 @@ import type {
 } from "../core/calendarColors";
 import { formatLocalDateKey } from "../core/timeline";
 import type {
+  CookingSession,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Skill,
   SupplementIntakeLog,
   SupplementProtocol,
@@ -21,7 +23,13 @@ import { CalendarUndoSnackbar } from "../components/calendar/CalendarUndoSnackba
 import { MonthView } from "../components/calendar/MonthView";
 import { ThreeDayView } from "../components/calendar/ThreeDayView";
 import { WeekView } from "../components/calendar/WeekView";
+import { CookingCompletionDialog } from "../components/cooking/CookingCompletionDialog";
+import { ScheduleCookDialog } from "../components/cooking/ScheduleCookDialog";
 import { useCalendarController } from "../components/calendar/useCalendarController";
+import {
+  buildPlannedCookingSession,
+  completeCookingSession,
+} from "../core/cooking";
 import {
   buildEventDraftFromCalendarSelection,
   type CalendarEventDraftSeed,
@@ -43,6 +51,8 @@ export type CalendarPageProps = {
   workoutPlans: WorkoutPlan[];
   supplementProtocols: SupplementProtocol[];
   supplementIntakeLogs: SupplementIntakeLog[];
+  recipes: Recipe[];
+  cookingSessions: CookingSession[];
   calendarPreferences?: CalendarColorPreferences;
   onSaveCalendarPreferences: (prefs: CalendarColorPreferences | undefined) => void;
   onEditOccurrence?: (
@@ -69,6 +79,12 @@ export type CalendarPageProps = {
   onUndoCalendarEvent?: (payload: CalendarEventUndoPayload) => void;
   onOpenCareer?: () => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
+  onOpenCooking?: () => void;
+  onAddCookingSession?: (
+    input: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso">
+  ) => void;
+  onUpdateCookingSession?: (session: CookingSession) => void;
+  onDeleteCookingSession?: (sessionId: string) => void;
 };
 
 export default function CalendarPage({
@@ -80,10 +96,16 @@ export default function CalendarPage({
   workoutPlans,
   supplementProtocols,
   supplementIntakeLogs,
+  recipes,
+  cookingSessions,
   calendarPreferences,
   onSaveCalendarPreferences,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
+  onAddCookingSession,
+  onUpdateCookingSession,
+  onDeleteCookingSession,
   onEditOccurrence,
   onSkipOccurrence,
   onMoveOccurrence,
@@ -108,12 +130,16 @@ export default function CalendarPage({
     workoutPlans,
     supplementProtocols,
     supplementIntakeLogs,
+    cookingSessions,
+    recipes,
     todayKey,
     viewModeSurface: "calendarPage",
     viewModeViewport: isDesktop ? "desktop" : "mobile",
   });
 
   const [pendingUndo, setPendingUndo] = useState<CalendarEventUndoPayload | null>(null);
+  const [scheduleCookOpen, setScheduleCookOpen] = useState(false);
+  const [loggingSessionId, setLoggingSessionId] = useState<string | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearUndoTimer = useCallback(() => {
@@ -190,6 +216,13 @@ export default function CalendarPage({
     [onOpenEventDraft]
   );
 
+  const loggingSession = loggingSessionId
+    ? cookingSessions.find((session) => session.id === loggingSessionId)
+    : undefined;
+  const loggingRecipe = loggingSession?.recipeId
+    ? recipes.find((recipe) => recipe.id === loggingSession.recipeId)
+    : undefined;
+
   return (
     <div style={{ display: "grid", gap: 0 }}>
       <div style={styles.card}>
@@ -205,11 +238,22 @@ export default function CalendarPage({
               onNext={calendar.handleNext}
               onToday={calendar.handleToday}
               settingsSlot={
-                <CalendarSettingsSection
-                  key={JSON.stringify(calendarPreferences ?? null)}
-                  preferences={calendarPreferences}
-                  onSave={onSaveCalendarPreferences}
-                />
+                <>
+                  {onAddCookingSession && recipes.length > 0 ? (
+                    <button
+                      type="button"
+                      style={styles.smallBtn}
+                      onClick={() => setScheduleCookOpen(true)}
+                    >
+                      Schedule cook
+                    </button>
+                  ) : null}
+                  <CalendarSettingsSection
+                    key={JSON.stringify(calendarPreferences ?? null)}
+                    preferences={calendarPreferences}
+                    onSave={onSaveCalendarPreferences}
+                  />
+                </>
               }
             />
 
@@ -254,9 +298,11 @@ export default function CalendarPage({
             hiddenCategories={calendar.hiddenCategories}
             hiddenEventSubcategories={calendar.hiddenEventSubcategories}
             hiddenFitnessTypes={calendar.hiddenFitnessTypes}
+            hiddenCookingTypes={calendar.hiddenCookingTypes}
             onToggleCategory={calendar.toggleCategory}
             onToggleEventSubcategory={calendar.toggleEventSubcategory}
             onToggleFitnessType={calendar.toggleFitnessType}
+            onToggleCookingType={calendar.toggleCookingType}
             preferences={calendarPreferences}
           />
         </div>
@@ -268,6 +314,13 @@ export default function CalendarPage({
             onClose={() => calendar.setSelectedItem(null)}
             onOpenCareer={onOpenCareer}
             onOpenFitness={onOpenFitness}
+            onOpenCooking={onOpenCooking}
+            onLogCooking={
+              onUpdateCookingSession
+                ? (sessionId) => setLoggingSessionId(sessionId)
+                : undefined
+            }
+            onCancelPlannedCook={onDeleteCookingSession}
             onEditEntireSeries={
               onEditOccurrence
                 ? (eventId, occurrenceDate) =>
@@ -292,6 +345,36 @@ export default function CalendarPage({
           />
         ) : null}
       </div>
+
+      {scheduleCookOpen && onAddCookingSession ? (
+        <ScheduleCookDialog
+          recipes={recipes}
+          initialDate={todayKey}
+          onCancel={() => setScheduleCookOpen(false)}
+          onConfirm={(values) => {
+            const recipe = recipes.find((item) => item.id === values.recipeId);
+            if (!recipe) return;
+            const planned = buildPlannedCookingSession(recipe, values);
+            if (planned) onAddCookingSession(planned);
+            setScheduleCookOpen(false);
+          }}
+        />
+      ) : null}
+
+      {loggingRecipe && loggingSession && onUpdateCookingSession ? (
+        <CookingCompletionDialog
+          recipe={loggingRecipe}
+          initialNotes={loggingSession.notes}
+          onCancel={() => setLoggingSessionId(null)}
+          onConfirm={(values) => {
+            onUpdateCookingSession({
+              ...loggingSession,
+              ...completeCookingSession(loggingSession, values),
+            });
+            setLoggingSessionId(null);
+          }}
+        />
+      ) : null}
 
       {pendingUndo ? (
         <CalendarUndoSnackbar

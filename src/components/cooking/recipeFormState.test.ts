@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Recipe } from "../../core/model";
+import { SEED_INGREDIENT_CATALOG, seedIngredientIdFor } from "../../core/ingredientCatalog";
 import {
   emptyRecipeFormState,
   recipeFormFromRecipe,
@@ -30,7 +31,17 @@ function filledForm(overrides: Partial<RecipeFormState> = {}): RecipeFormState {
     servings: "2",
     notes: "Use guanciale if you have it.",
     ingredients: [{ id: INGREDIENT_ID, rawText: "2 eggs", optional: false }],
-    steps: [{ id: STEP_ID, text: "Whisk the eggs." }],
+    steps: [
+      {
+        id: STEP_ID,
+        text: "Whisk the eggs.",
+        kind: "blocking",
+        blocksProgress: true,
+        canRunInBackground: false,
+        timerMinutes: "",
+        timerLabel: "",
+      },
+    ],
     equipment: [{ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "Skillet" }],
     ...overrides,
   };
@@ -76,9 +87,23 @@ describe("validateRecipeForm", () => {
     expect(
       validateRecipeForm(filledForm({ ingredients: [{ id: INGREDIENT_ID, rawText: "  ", optional: false }] }))
     ).toBe("Add at least one ingredient.");
-    expect(validateRecipeForm(filledForm({ steps: [{ id: STEP_ID, text: " " }] }))).toBe(
-      "Add at least one step."
-    );
+    expect(
+      validateRecipeForm(
+        filledForm({
+          steps: [
+            {
+              id: STEP_ID,
+              text: " ",
+              kind: "blocking",
+              blocksProgress: true,
+              canRunInBackground: false,
+              timerMinutes: "",
+              timerLabel: "",
+            },
+          ],
+        })
+      )
+    ).toBe("Add at least one step.");
   });
 
   it("rejects non-positive cook time and servings", () => {
@@ -107,6 +132,7 @@ describe("recipePayloadFromForm", () => {
       kind: "blocking",
       blocksProgress: true,
     });
+    expect(payload.steps[0]?.timerSeconds).toBeUndefined();
     expect(payload.equipment).toEqual(["Skillet"]);
   });
 
@@ -135,6 +161,15 @@ describe("recipePayloadFromForm", () => {
     expect(payload.ingredients[0]?.optional).toBe(true);
     expect(payload.equipment).toEqual([]);
   });
+
+  it("resolves known ingredient lines against the catalog", () => {
+    const payload = recipePayloadFromForm(filledForm({
+      ingredients: [{ id: INGREDIENT_ID, rawText: "2 tortillas", optional: false }],
+    }), { catalog: SEED_INGREDIENT_CATALOG });
+    expect(payload.ingredients[0]?.ingredientId).toBe(seedIngredientIdFor(1));
+    expect(payload.ingredients[0]?.matchConfidence).toBeGreaterThanOrEqual(0.99);
+    expect(payload.ingredients[0]?.quantity).toBe(2);
+  });
 });
 
 describe("recipeFormFromRecipe", () => {
@@ -147,5 +182,61 @@ describe("recipeFormFromRecipe", () => {
     expect(form.equipment[0]?.name).toBe("Skillet");
     expect(form.heroImage).toEqual(HERO_IMAGE);
     expect(form.gallery).toEqual([HERO_IMAGE]);
+    expect(form.steps[0]?.kind).toBe("blocking");
+  });
+
+  it("round-trips wait-step timer fields", () => {
+    const form = recipeFormFromRecipe({
+      ...sampleRecipe(),
+      steps: [
+        {
+          id: STEP_ID,
+          order: 0,
+          text: "Boil pasta 10 min",
+          kind: "wait",
+          blocksProgress: false,
+          canRunInBackground: true,
+          timerSeconds: 600,
+          timerLabel: "Pasta",
+        },
+      ],
+    });
+    expect(form.steps[0]).toMatchObject({
+      kind: "wait",
+      blocksProgress: false,
+      canRunInBackground: true,
+      timerMinutes: "10",
+      timerLabel: "Pasta",
+    });
+    const payload = recipePayloadFromForm(form);
+    expect(payload.steps[0]).toMatchObject({
+      kind: "wait",
+      blocksProgress: false,
+      canRunInBackground: true,
+      timerSeconds: 600,
+      timerLabel: "Pasta",
+    });
+  });
+});
+
+describe("step workflow validation", () => {
+  it("requires a timer duration on wait and timer steps", () => {
+    expect(
+      validateRecipeForm(
+        filledForm({
+          steps: [
+            {
+              id: STEP_ID,
+              text: "Boil pasta",
+              kind: "wait",
+              blocksProgress: false,
+              canRunInBackground: true,
+              timerMinutes: "",
+              timerLabel: "Pasta",
+            },
+          ],
+        })
+      )
+    ).toBe("Step 1 needs a timer duration.");
   });
 });

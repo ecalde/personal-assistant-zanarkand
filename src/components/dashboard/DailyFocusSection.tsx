@@ -31,6 +31,7 @@ export type DailyFocusSectionProps = {
   onOpenPeople?: () => void;
   onOpenCareer?: () => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
+  onOpenCooking?: () => void;
   onAddSession?: (skillId: string, minutes: number) => void;
 };
 
@@ -67,6 +68,8 @@ function resolveFocusActionHandler(
       return props.onOpenFitness
         ? () => props.onOpenFitness!(fitnessFocusFromFocusItem(item, todayKey))
         : undefined;
+    case "open_cooking":
+      return props.onOpenCooking;
     case "log_skill_minutes":
       return undefined;
   }
@@ -279,6 +282,7 @@ export function DailyFocusSection({
   onOpenPeople,
   onOpenCareer,
   onOpenFitness,
+  onOpenCooking,
   onAddSession,
 }: DailyFocusSectionProps) {
   const drawerId = useId();
@@ -304,6 +308,7 @@ export function DailyFocusSection({
     onOpenPeople,
     onOpenCareer,
     onOpenFitness,
+    onOpenCooking,
     onAddSession,
   };
 

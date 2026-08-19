@@ -43,6 +43,16 @@ export const CALENDAR_FITNESS_TYPE_FILTER_LABELS: Record<CalendarFitnessTypeFilt
   supplement: "Supplement",
 };
 
+/** Cooking session statuses exposed as calendar filter toggles. */
+export const CALENDAR_COOKING_TYPE_FILTERS = ["planned", "completed"] as const;
+
+export type CalendarCookingTypeFilter = (typeof CALENDAR_COOKING_TYPE_FILTERS)[number];
+
+export const CALENDAR_COOKING_TYPE_FILTER_LABELS: Record<CalendarCookingTypeFilter, string> = {
+  planned: "Planned cooks",
+  completed: "Cooked meals",
+};
+
 export type CalendarViewMode = "month" | "week" | "threeDay";
 
 /** Number of consecutive days shown in the 3-day view. */
@@ -562,18 +572,35 @@ export function filterItemsByHiddenFitnessTypes(
   });
 }
 
+export function filterItemsByHiddenCookingTypes(
+  items: CalendarItem[],
+  hidden: ReadonlySet<CalendarCookingTypeFilter>
+): CalendarItem[] {
+  if (hidden.size === 0) return items;
+  return items.filter((item) => {
+    if (item.categoryKey !== "cooking") return true;
+    const subcategory = item.subcategoryKey as CalendarCookingTypeFilter | undefined;
+    if (subcategory === undefined) return true;
+    return !hidden.has(subcategory);
+  });
+}
+
 export function filterCalendarItems(
   items: CalendarItem[],
   hiddenCategories: ReadonlySet<CalendarCategoryKey>,
   hiddenEventSubcategories: ReadonlySet<EventType>,
-  hiddenFitnessTypes: ReadonlySet<FitnessType> = new Set()
+  hiddenFitnessTypes: ReadonlySet<FitnessType> = new Set(),
+  hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter> = new Set()
 ): CalendarItem[] {
-  return filterItemsByHiddenFitnessTypes(
-    filterItemsByHiddenEventSubcategories(
-      filterItemsByHiddenCategories(items, hiddenCategories),
-      hiddenEventSubcategories
+  return filterItemsByHiddenCookingTypes(
+    filterItemsByHiddenFitnessTypes(
+      filterItemsByHiddenEventSubcategories(
+        filterItemsByHiddenCategories(items, hiddenCategories),
+        hiddenEventSubcategories
+      ),
+      hiddenFitnessTypes
     ),
-    hiddenFitnessTypes
+    hiddenCookingTypes
   );
 }
 
@@ -690,6 +717,8 @@ export function formatSourceTypeLabel(item: CalendarItem): string {
       return formatFitnessSourceTypeLabel(item);
     case "career":
       return "Career";
+    case "cooking":
+      return formatCookingSourceTypeLabel(item);
     default:
       return item.sourceType;
   }
@@ -707,6 +736,16 @@ function formatFitnessSourceTypeLabel(item: CalendarItem): string {
     default:
       return kindLabel;
   }
+}
+
+function formatCookingSourceTypeLabel(item: CalendarItem): string {
+  if (item.subcategoryKey === "planned" || item.completionVisual === "planned") {
+    return "Planned cook";
+  }
+  if (item.subcategoryKey === "completed" || item.completionVisual === "completed") {
+    return "Cooked meal";
+  }
+  return "Cooking";
 }
 
 /** Status caption for fitness completion visuals (aria/title). */
