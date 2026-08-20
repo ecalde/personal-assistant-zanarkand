@@ -74,16 +74,29 @@ import {
   dashboardSetExerciseWeight,
   dashboardToggleExercise,
   FALLBACK_EXERCISE_NAME,
+  findActiveWorkoutSession,
+  isWorkoutSessionInProgress,
   normalizeFitnessFocus,
+  resolvePlanName,
   type FitnessFocus,
   type LegacyFitnessFocus,
+  type WorkoutLoggerDraft,
 } from "./core/fitness";
+import { findActiveCookingSession } from "./core/cookingSession";
+import {
+  clearFocusPhase,
+  readFocusPhase,
+  writeFocusPhase,
+  writeWorkoutFocusDraft,
+} from "./core/focusPhaseStorage";
+import type { FocusPhaseState } from "./core/focusPhase";
 import { formatLocalDateKey } from "./core/timeline";
 import { formatLocal } from "./ui/format";
 import { useAppearanceTheme } from "./ui/useAppearanceTheme";
 import { useCookingNotifications } from "./components/cooking/useCookingNotifications";
 import { GlobalEffectStyles } from "./components/effects/GlobalEffectStyles";
 import { ThemeEffectsLayer } from "./components/effects/ThemeEffectsLayer";
+import { FocusPhaseBanner } from "./components/layout/FocusPhaseBanner";
 
 const EMPTY_COOKING_SESSIONS: CookingSession[] = [];
 
@@ -228,6 +241,8 @@ export default function App({ userId, onSignOut }: AppProps) {
     onOpenCooking: openCookingPage,
   });
   const [fitnessFocus, setFitnessFocus] = useState<FitnessFocus | undefined>();
+  const [focusPhase, setFocusPhase] = useState<FocusPhaseState | undefined>(() => readFocusPhase());
+  const restoredFocusRef = useRef(false);
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
   const [eventDraftKey, setEventDraftKey] = useState(0);
   const [seriesEditIntent, setSeriesEditIntent] = useState<EventSeriesEditIntent | null>(null);
@@ -314,6 +329,38 @@ export default function App({ userId, onSignOut }: AppProps) {
       clearDebounce();
     };
   }, [runInitialSync, clearDebounce]);
+
+  useEffect(() => {
+    if (!app || dataLoading || restoredFocusRef.current) return;
+    restoredFocusRef.current = true;
+
+    const stored = readFocusPhase();
+    if (!stored) {
+      setFocusPhase(undefined);
+      return;
+    }
+
+    if (stored.kind === "workout") {
+      const session = (app.payload.workoutSessions ?? []).find((item) => item.id === stored.sessionId);
+      if (!session || !isWorkoutSessionInProgress(session)) {
+        clearFocusPhase();
+        setFocusPhase(undefined);
+        return;
+      }
+      setFocusPhase(stored);
+      setPage("fitness");
+      return;
+    }
+
+    const cooking = findActiveCookingSession(app.payload.cookingSessions ?? []);
+    if (!cooking || cooking.id !== stored.sessionId) {
+      clearFocusPhase();
+      setFocusPhase(undefined);
+      return;
+    }
+    setFocusPhase(stored);
+    setPage("cooking");
+  }, [app, dataLoading]);
 
   function commit(next: AppData) {
     if (!syncReadyRef.current) return;
@@ -1296,6 +1343,7 @@ export default function App({ userId, onSignOut }: AppProps) {
     );
 
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
+    if (nextSession.completedAtIso) clearWorkoutFocusIfMatching(nextSession.id);
   }
 
   function upsertWorkoutSession(session: WorkoutSession) {
@@ -1316,11 +1364,49 @@ export default function App({ userId, onSignOut }: AppProps) {
       : [...list, nextSession];
 
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
+    if (nextSession.completedAtIso) clearWorkoutFocusIfMatching(nextSession.id);
   }
 
   function goToPage(next: Page) {
     setFitnessFocus(undefined);
     setPage(next);
+  }
+
+  function enterWorkoutFocus(session: WorkoutSession, planId?: string) {
+    const resolvedPlanId = planId ?? session.planId;
+    if (
+      focusPhase?.kind === "workout" &&
+      focusPhase.sessionId === session.id &&
+      focusPhase.planId === resolvedPlanId
+    ) {
+      return;
+    }
+    const next: FocusPhaseState = { kind: "workout", sessionId: session.id };
+    if (resolvedPlanId) next.planId = resolvedPlanId;
+    writeFocusPhase(next);
+    setFocusPhase(next);
+  }
+
+  function enterCookingFocus(sessionId: string) {
+    if (focusPhase?.kind === "cooking" && focusPhase.sessionId === sessionId) return;
+    const next: FocusPhaseState = { kind: "cooking", sessionId };
+    writeFocusPhase(next);
+    setFocusPhase(next);
+  }
+
+  function exitFocusPhase() {
+    clearFocusPhase();
+    setFocusPhase(undefined);
+  }
+
+  function clearWorkoutFocusIfMatching(sessionId: string) {
+    if (focusPhase?.kind === "workout" && focusPhase.sessionId === sessionId) {
+      exitFocusPhase();
+    }
+  }
+
+  function handleWorkoutDraftChange(draft: WorkoutLoggerDraft) {
+    writeWorkoutFocusDraft(draft);
   }
 
   function openFitness(focus?: FitnessFocus | LegacyFitnessFocus) {
@@ -1370,6 +1456,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       (session) => session.id !== sessionId
     );
     commit({ ...app, payload: { ...app.payload, workoutSessions } });
+    clearWorkoutFocusIfMatching(sessionId);
   }
 
   function addSupplementProtocol(
@@ -1575,6 +1662,11 @@ export default function App({ userId, onSignOut }: AppProps) {
         : session
     );
     commit({ ...app, payload: { ...app.payload, cookingSessions } });
+    if (updated.status !== "in_progress") {
+      if (focusPhase?.kind === "cooking" && focusPhase.sessionId === updated.id) {
+        exitFocusPhase();
+      }
+    }
   }
 
   function deleteCookingSession(sessionId: string) {
@@ -1767,6 +1859,25 @@ export default function App({ userId, onSignOut }: AppProps) {
       onRetryCloudSave={onRetryCloudSave}
       page={page}
       onPageChange={goToPage}
+      banner={
+        focusPhase &&
+        ((focusPhase.kind === "workout" && page !== "fitness") ||
+          (focusPhase.kind === "cooking" && page !== "cooking")) ? (
+          <FocusPhaseBanner
+            kind={focusPhase.kind}
+            title={
+              focusPhase.kind === "workout"
+                ? resolvePlanName(focusPhase.planId, app.payload.workoutPlans ?? []) ??
+                  findActiveWorkoutSession(app.payload.workoutSessions ?? [])?.exercises[0]?.name ??
+                  "In-progress workout"
+                : findActiveCookingSession(app.payload.cookingSessions ?? [])?.recipeTitle ??
+                  "In-progress cook"
+            }
+            onResume={() => setPage(focusPhase.kind === "workout" ? "fitness" : "cooking")}
+            onExit={exitFocusPhase}
+          />
+        ) : undefined
+      }
     >
       {page === "dashboard" && (
         <DashboardPage
@@ -1919,11 +2030,28 @@ export default function App({ userId, onSignOut }: AppProps) {
 
       {page === "fitness" && (
         <FitnessPage
+          key={
+            fitnessFocus?.kind === "workout"
+              ? `workout:${fitnessFocus.planId}:${fitnessFocus.date}`
+              : fitnessFocus?.kind === "supplement"
+                ? `supplement:${fitnessFocus.protocolId}:${fitnessFocus.date}`
+                : focusPhase?.kind === "workout"
+                  ? `focus:${focusPhase.sessionId}`
+                  : "fitness"
+          }
           workoutPlans={app.payload.workoutPlans ?? []}
           workoutSessions={app.payload.workoutSessions ?? []}
           supplementProtocols={app.payload.supplementProtocols ?? []}
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           fitnessFocus={fitnessFocus}
+          workoutFocus={
+            focusPhase?.kind === "workout"
+              ? {
+                  sessionId: focusPhase.sessionId,
+                  ...(focusPhase.planId ? { planId: focusPhase.planId } : {}),
+                }
+              : undefined
+          }
           onAddPlan={addWorkoutPlan}
           onUpdatePlan={updateWorkoutPlan}
           onDeletePlan={deleteWorkoutPlan}
@@ -1931,6 +2059,9 @@ export default function App({ userId, onSignOut }: AppProps) {
           onUpdateSession={updateWorkoutSession}
           onUpsertSession={upsertWorkoutSession}
           onDeleteSession={deleteWorkoutSession}
+          onEnterWorkoutFocus={enterWorkoutFocus}
+          onExitWorkoutFocus={exitFocusPhase}
+          onWorkoutDraftChange={handleWorkoutDraftChange}
           onAddProtocol={addSupplementProtocol}
           onUpdateProtocol={updateSupplementProtocol}
           onDeleteProtocol={deleteSupplementProtocol}
@@ -1949,6 +2080,9 @@ export default function App({ userId, onSignOut }: AppProps) {
           onDeleteRecipe={deleteRecipe}
           onAddCookingSession={addCookingSession}
           onUpdateCookingSession={updateCookingSession}
+          cookingFocusActive={focusPhase?.kind === "cooking"}
+          onEnterCookingFocus={enterCookingFocus}
+          onExitCookingFocus={exitFocusPhase}
           onAddPantryItem={addPantryItem}
           onUpdatePantryItem={updatePantryItem}
           onDeletePantryItem={deletePantryItem}

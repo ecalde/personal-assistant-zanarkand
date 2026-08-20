@@ -1,39 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  addSessionExercise,
   createLiveSessionFromPlan,
-  createSessionDraftFromPlan,
   filterAndSortPlans,
   filterAndSortSessions,
+  findActiveWorkoutSession,
   findSessionForPlanDate,
-  finishWorkoutSession,
   isWorkoutSessionInProgress,
-  markAllExercisesCompletedAndFinish,
   plansForLiveLogger,
-  removeSessionExercise,
-  setSessionDurationMinutes,
-  setSessionStartHHMM,
-  toggleExerciseCompleted,
-  updateSessionExercise,
   type FitnessFocus,
   type PlansSortMode,
   type SessionsSortMode,
   type WorkoutFocusFilter,
+  type WorkoutLoggerDraft,
 } from "../core/fitness";
 import { buildExerciseProgressions } from "../core/exerciseProgression";
 import type { SupplementIntakeLog, SupplementProtocol, WorkoutPlan, WorkoutSession } from "../core/model";
 import { formatLocalDateKey } from "../core/timeline";
+import { groupWorkoutSessionsForHistory } from "../core/workoutHistory";
+import { readFocusPhase } from "../core/focusPhaseStorage";
 import { ExerciseProgressionChart } from "../components/fitness/ExerciseProgressionChart";
 import {
   FitnessSectionSwitcher,
   type FitnessSection,
 } from "../components/fitness/FitnessSectionSwitcher";
 import { FitnessToolbar } from "../components/fitness/FitnessToolbar";
-import { LiveWorkoutLogger } from "../components/fitness/LiveWorkoutLogger";
+import { PlanLiveLogger } from "../components/fitness/PlanLiveLogger";
+import { SessionHistoryGroups } from "../components/fitness/SessionHistoryGroups";
 import { SupplementTrackerSection } from "../components/fitness/SupplementTrackerSection";
 import { WorkoutPlanCard } from "../components/fitness/WorkoutPlanCard";
 import { WorkoutPlanForm } from "../components/fitness/WorkoutPlanForm";
-import { WorkoutSessionCard } from "../components/fitness/WorkoutSessionCard";
 import { WorkoutSessionForm } from "../components/fitness/WorkoutSessionForm";
 import {
   emptyWorkoutPlanFormState,
@@ -53,12 +48,18 @@ import { styles } from "../ui/appStyles";
 
 export type { FitnessFocus };
 
+export type WorkoutFocusResume = {
+  sessionId: string;
+  planId?: string;
+};
+
 export type FitnessPageProps = {
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
   supplementProtocols: SupplementProtocol[];
   supplementIntakeLogs: SupplementIntakeLog[];
   fitnessFocus?: FitnessFocus;
+  workoutFocus?: WorkoutFocusResume;
   onAddPlan: (input: Omit<WorkoutPlan, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdatePlan: (plan: WorkoutPlan) => void;
   onDeletePlan: (planId: string) => void;
@@ -66,6 +67,9 @@ export type FitnessPageProps = {
   onUpdateSession: (session: WorkoutSession) => void;
   onUpsertSession: (session: WorkoutSession) => void;
   onDeleteSession: (sessionId: string) => void;
+  onEnterWorkoutFocus: (session: WorkoutSession, planId?: string) => void;
+  onExitWorkoutFocus: () => void;
+  onWorkoutDraftChange: (draft: WorkoutLoggerDraft) => void;
   onAddProtocol: (
     input: Omit<SupplementProtocol, "id" | "createdAtIso" | "updatedAtIso">
   ) => void;
@@ -74,59 +78,17 @@ export type FitnessPageProps = {
   onUpsertIntake: (log: SupplementIntakeLog) => void;
 };
 
-type TodayRailItemProps = {
-  plan: WorkoutPlan;
-  dateKey: string;
-  persistedSession?: WorkoutSession;
-  highlighted: boolean;
-  onCommit: (session: WorkoutSession) => void;
-  onLogDifferentSession: () => void;
-};
-
-function TodayRailItem({
-  plan,
-  dateKey,
-  persistedSession,
-  highlighted,
-  onCommit,
-  onLogDifferentSession,
-}: TodayRailItemProps) {
-  const [draft] = useState(() =>
-    createLiveSessionFromPlan(plan, dateKey, new Date().toISOString(), crypto.randomUUID())
-  );
-  const session = persistedSession ?? draft;
-
-  return (
-    <LiveWorkoutLogger
-      planName={plan.name}
-      session={session}
-      highlighted={highlighted}
-      onToggleExercise={(exerciseId) =>
-        onCommit(toggleExerciseCompleted(session, exerciseId, new Date().toISOString()))
-      }
-      onUpdateExercise={(exerciseId, patch) =>
-        onCommit(updateSessionExercise(session, exerciseId, patch))
-      }
-      onAddExercise={() => onCommit(addSessionExercise(session))}
-      onRemoveExercise={(exerciseId) => onCommit(removeSessionExercise(session, exerciseId))}
-      onStartTimeChange={(hhmm) => onCommit(setSessionStartHHMM(session, hhmm))}
-      onDurationChange={(raw) => {
-        const trimmed = raw.trim();
-        if (!trimmed) {
-          onCommit(setSessionDurationMinutes(session, undefined));
-          return;
-        }
-        const parsed = Number(trimmed);
-        if (!Number.isInteger(parsed) || parsed <= 0) return;
-        onCommit(setSessionDurationMinutes(session, parsed));
-      }}
-      onFinish={() => onCommit(finishWorkoutSession(session, new Date().toISOString()))}
-      onMarkAllComplete={() =>
-        onCommit(markAllExercisesCompletedAndFinish(session, new Date().toISOString()))
-      }
-      onLogDifferentSession={onLogDifferentSession}
-    />
-  );
+function planForSession(session: WorkoutSession, plans: WorkoutPlan[]): WorkoutPlan {
+  const existing = session.planId ? plans.find((plan) => plan.id === session.planId) : undefined;
+  if (existing) return existing;
+  return {
+    id: session.planId ?? session.id,
+    name: "Workout",
+    ...(session.focus ? { focus: session.focus } : {}),
+    exercises: session.exercises,
+    createdAtIso: session.createdAtIso,
+    updatedAtIso: session.updatedAtIso,
+  };
 }
 
 export default function FitnessPage({
@@ -135,6 +97,7 @@ export default function FitnessPage({
   supplementProtocols,
   supplementIntakeLogs,
   fitnessFocus,
+  workoutFocus,
   onAddPlan,
   onUpdatePlan,
   onDeletePlan,
@@ -142,6 +105,9 @@ export default function FitnessPage({
   onUpdateSession,
   onUpsertSession,
   onDeleteSession,
+  onEnterWorkoutFocus,
+  onExitWorkoutFocus,
+  onWorkoutDraftChange,
   onAddProtocol,
   onUpdateProtocol,
   onDeleteProtocol,
@@ -159,7 +125,16 @@ export default function FitnessPage({
   const [planQuery, setPlanQuery] = useState("");
   const [planSortMode, setPlanSortMode] = useState<PlansSortMode>("recent");
   const [planFocusFilter, setPlanFocusFilter] = useState<WorkoutFocusFilter>("all");
-  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+  const [activePlanId, setActivePlanId] = useState<string | null>(
+    () =>
+      workoutFocus?.planId ??
+      (fitnessFocus?.kind === "workout" ? fitnessFocus.planId : null)
+  );
+  const [loggerEpoch, setLoggerEpoch] = useState(0);
+  const [loggerDraft, setLoggerDraft] = useState<WorkoutLoggerDraft | undefined>(() => {
+    const phase = readFocusPhase();
+    return phase?.kind === "workout" ? phase.draft : undefined;
+  });
 
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -170,7 +145,6 @@ export default function FitnessPage({
   const [sessionQuery, setSessionQuery] = useState("");
   const [sessionSortMode, setSessionSortMode] = useState<SessionsSortMode>("recent");
   const [sessionFocusFilter, setSessionFocusFilter] = useState<WorkoutFocusFilter>("all");
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
   const filteredPlans = useMemo(
     () =>
@@ -192,6 +166,11 @@ export default function FitnessPage({
     [workoutSessions, sessionQuery, sessionSortMode, sessionFocusFilter]
   );
 
+  const sessionGroups = useMemo(
+    () => groupWorkoutSessionsForHistory(filteredSessions, todayKey),
+    [filteredSessions, todayKey]
+  );
+
   const focusPlanId = fitnessFocus?.kind === "workout" ? fitnessFocus.planId : undefined;
   const focusProtocolId =
     fitnessFocus?.kind === "supplement" ? fitnessFocus.protocolId : undefined;
@@ -210,13 +189,21 @@ export default function FitnessPage({
     [workoutPlans, workoutSessions]
   );
 
-  useEffect(() => {
-    if (fitnessFocus?.kind === "supplement") {
-      setSection("supplements");
-    } else if (fitnessFocus?.kind === "workout") {
-      setSection("workouts");
-    }
-  }, [fitnessFocus]);
+  const activePlan = activePlanId
+    ? workoutPlans.find((plan) => plan.id === activePlanId)
+    : undefined;
+  const activeLiveSession = activePlan
+    ? findSessionForPlanDate(workoutSessions, activePlan.id, todayKey)
+    : workoutFocus
+      ? workoutSessions.find((session) => session.id === workoutFocus.sessionId)
+      : undefined;
+  const loggerPlan = activePlan
+    ?? (activeLiveSession ? planForSession(activeLiveSession, workoutPlans) : undefined);
+  const focusActive = Boolean(
+    workoutFocus &&
+      (workoutFocus.sessionId === activeLiveSession?.id ||
+        (activePlan && workoutFocus.planId === activePlan.id))
+  );
 
   useEffect(() => {
     if (fitnessFocus?.kind === "workout") {
@@ -290,33 +277,52 @@ export default function FitnessPage({
     setShowSessionForm(true);
   }
 
-  function openSessionFormFromPlan(plan: WorkoutPlan) {
-    const draft = createSessionDraftFromPlan(plan, todayKey);
-    setSessionForm({
-      date: draft.date,
-      startTime: "",
-      focus: draft.focus ?? "",
-      planId: draft.planId ?? "",
-      durationMinutes: "",
-      notes: draft.notes ?? "",
-      exercises: draft.exercises.map((entry) => {
-        const row = {
-          id: entry.id,
-          name: entry.name,
-          sets: entry.sets !== undefined ? String(entry.sets) : "",
-          reps: entry.reps !== undefined ? String(entry.reps) : "",
-          weight: entry.weight !== undefined ? String(entry.weight) : "",
-          notes: entry.notes ?? "",
-        } as WorkoutSessionFormState["exercises"][number];
-        if (entry.sourceExerciseId !== undefined) {
-          row.sourceExerciseId = entry.sourceExerciseId;
-        }
-        return row;
-      }),
-    });
-    setEditingSessionId(null);
-    setSessionFormError(null);
-    setShowSessionForm(true);
+  function ensureLiveSession(plan: WorkoutPlan): WorkoutSession {
+    const existing = findSessionForPlanDate(workoutSessions, plan.id, todayKey);
+    if (existing && isWorkoutSessionInProgress(existing)) return existing;
+    return createLiveSessionFromPlan(plan, todayKey, new Date().toISOString(), crypto.randomUUID());
+  }
+
+  function openPlanLogger(plan: WorkoutPlan, opts: { focus: boolean }) {
+    setSection("workouts");
+    setActivePlanId(plan.id);
+    if (!opts.focus) return;
+    setLoggerDraft(undefined);
+    const session = ensureLiveSession(plan);
+    onUpsertSession(session);
+    onEnterWorkoutFocus(session, plan.id);
+  }
+
+  function resumeSession(session: WorkoutSession, opts: { focus: boolean }) {
+    setSection("workouts");
+    const plan = planForSession(session, workoutPlans);
+    setActivePlanId(plan.id);
+    if (!opts.focus) return;
+    onUpsertSession(session);
+    onEnterWorkoutFocus(session, session.planId);
+  }
+
+  function handleToggleFocus(session: WorkoutSession) {
+    if (focusActive) {
+      onExitWorkoutFocus();
+      setLoggerDraft(undefined);
+      setLoggerEpoch((value) => value + 1);
+      return;
+    }
+    onUpsertSession(session);
+    onEnterWorkoutFocus(session, session.planId ?? activePlanId ?? undefined);
+  }
+
+  function handleDraftChange(draft: WorkoutLoggerDraft) {
+    setLoggerDraft(draft);
+    onWorkoutDraftChange(draft);
+  }
+
+  function handleFinished(session: WorkoutSession) {
+    onUpsertSession(session);
+    onExitWorkoutFocus();
+    setLoggerDraft(undefined);
+    setActivePlanId(null);
   }
 
   function openEditSessionForm(session: WorkoutSession) {
@@ -343,12 +349,13 @@ export default function FitnessPage({
       }
       onUpdateSession({ ...existing, ...payload });
     } else {
-      // Manual "Log session" is a retro completed log.
       onAddSession({ ...payload, completedAtIso: new Date().toISOString() });
     }
 
     resetSessionForm();
   }
+
+  const showDedicatedLogger = Boolean(loggerPlan) && section === "workouts";
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -368,7 +375,7 @@ export default function FitnessPage({
         </div>
         <div style={{ ...styles.textSecondary }}>
           {section === "workouts"
-            ? "Track workout plans and log completed sessions with sets, reps, and weight."
+            ? "Open a plan to tap exercises complete. Focus mode keeps the session if you close the tab."
             : "Track supplement protocols and tap each dose as you take it."}
         </div>
       </div>
@@ -386,11 +393,38 @@ export default function FitnessPage({
         />
       )}
 
-      {section === "workouts" && todayRailPlans.length > 0 && (
+      {showDedicatedLogger && loggerPlan && (
+        <div style={styles.card}>
+          <PlanLiveLogger
+            key={`${loggerPlan.id}:${loggerEpoch}:${workoutFocus?.sessionId ?? "idle"}`}
+            plan={loggerPlan}
+            dateKey={todayKey}
+            persistedSession={
+              activeLiveSession && isWorkoutSessionInProgress(activeLiveSession)
+                ? activeLiveSession
+                : undefined
+            }
+            highlighted={focusPlanId === loggerPlan.id}
+            focusActive={focusActive}
+            persistDrafts={focusActive}
+            draft={focusActive ? loggerDraft : undefined}
+            showExit
+            onDraftChange={handleDraftChange}
+            onCommit={onUpsertSession}
+            onLogDifferentSession={openCreateSessionForm}
+            onToggleFocus={handleToggleFocus}
+            onExit={() => setActivePlanId(null)}
+            onFinished={handleFinished}
+          />
+        </div>
+      )}
+
+      {section === "workouts" && !showDedicatedLogger && todayRailPlans.length > 0 && (
         <div style={styles.card}>
           <div style={styles.cardTitle}>Today</div>
           <div style={{ ...styles.textSecondary, marginBottom: 12 }}>
-            Tap complete as you go. Each change saves immediately.
+            Tap complete as you go. Each checked exercise saves immediately and stays off the
+            calendar until you finish the session.
           </div>
           <div style={{ display: "grid", gap: 12 }}>
             {todayRailPlans.map((plan) => {
@@ -398,14 +432,23 @@ export default function FitnessPage({
               const persistedSession =
                 existing && isWorkoutSessionInProgress(existing) ? existing : undefined;
               return (
-                <TodayRailItem
+                <PlanLiveLogger
                   key={`${plan.id}:${todayKey}`}
                   plan={plan}
                   dateKey={todayKey}
                   persistedSession={persistedSession}
                   highlighted={focusPlanId === plan.id}
+                  focusActive={workoutFocus?.planId === plan.id}
+                  persistDrafts={workoutFocus?.planId === plan.id}
+                  draft={workoutFocus?.planId === plan.id ? loggerDraft : undefined}
+                  onDraftChange={handleDraftChange}
                   onCommit={onUpsertSession}
                   onLogDifferentSession={openCreateSessionForm}
+                  onToggleFocus={(session) => {
+                    setActivePlanId(plan.id);
+                    handleToggleFocus(session);
+                  }}
+                  onFinished={handleFinished}
                 />
               );
             })}
@@ -413,7 +456,7 @@ export default function FitnessPage({
         </div>
       )}
 
-      {section === "workouts" && (
+      {section === "workouts" && !showDedicatedLogger && (
         <>
       <ExerciseProgressionChart exercises={exerciseProgressions} />
 
@@ -430,7 +473,7 @@ export default function FitnessPage({
         >
           <div style={styles.cardTitle}>Workout plans</div>
           {!showPlanForm && (
-            <button type="button" onClick={openCreatePlanForm}>
+            <button type="button" onClick={openCreatePlanForm} style={styles.actionBtn}>
               Add plan
             </button>
           )}
@@ -455,7 +498,7 @@ export default function FitnessPage({
               Create a plan to reuse your usual exercises.
             </div>
             {!showPlanForm && (
-              <button type="button" onClick={openCreatePlanForm}>
+              <button type="button" onClick={openCreatePlanForm} style={styles.actionBtn}>
                 Add your first plan
               </button>
             )}
@@ -479,20 +522,23 @@ export default function FitnessPage({
                 No matches for &ldquo;{planQuery.trim()}&rdquo;.
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {filteredPlans.map((plan) => (
-                  <WorkoutPlanCard
-                    key={plan.id}
-                    plan={plan}
-                    expanded={expandedPlanId === plan.id}
-                    onToggleExpand={() =>
-                      setExpandedPlanId((current) => (current === plan.id ? null : plan.id))
-                    }
-                    onLogSession={() => openSessionFormFromPlan(plan)}
-                    onEdit={() => openEditPlanForm(plan)}
-                    onDelete={() => onDeletePlan(plan.id)}
-                  />
-                ))}
+              <div style={styles.workoutGalleryGrid}>
+                {filteredPlans.map((plan) => {
+                  const existing = findSessionForPlanDate(workoutSessions, plan.id, todayKey);
+                  return (
+                    <WorkoutPlanCard
+                      key={plan.id}
+                      plan={plan}
+                      liveSession={
+                        existing && isWorkoutSessionInProgress(existing) ? existing : undefined
+                      }
+                      onOpen={() => openPlanLogger(plan, { focus: false })}
+                      onLogSession={() => openPlanLogger(plan, { focus: true })}
+                      onEdit={() => openEditPlanForm(plan)}
+                      onDelete={() => onDeletePlan(plan.id)}
+                    />
+                  );
+                })}
               </div>
             )}
           </>
@@ -511,11 +557,25 @@ export default function FitnessPage({
           }}
         >
           <div style={styles.cardTitle}>Workout sessions</div>
-          {!showSessionForm && (
-            <button type="button" onClick={openCreateSessionForm}>
-              Log session
-            </button>
-          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {findActiveWorkoutSession(workoutSessions) && (
+              <button
+                type="button"
+                style={styles.actionBtn}
+                onClick={() => {
+                  const active = findActiveWorkoutSession(workoutSessions);
+                  if (active) resumeSession(active, { focus: true });
+                }}
+              >
+                Focus mode
+              </button>
+            )}
+            {!showSessionForm && (
+              <button type="button" onClick={openCreateSessionForm} style={styles.actionBtn}>
+                Log session
+              </button>
+            )}
+          </div>
         </div>
 
         {showSessionForm && (
@@ -536,7 +596,7 @@ export default function FitnessPage({
           <div>
             <div style={{ marginBottom: 12 }}>Log a workout when you&apos;re done.</div>
             {!showSessionForm && (
-              <button type="button" onClick={openCreateSessionForm}>
+              <button type="button" onClick={openCreateSessionForm} style={styles.actionBtn}>
                 Log your first session
               </button>
             )}
@@ -560,23 +620,13 @@ export default function FitnessPage({
                 No matches for &ldquo;{sessionQuery.trim()}&rdquo;.
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {filteredSessions.map((session) => (
-                  <WorkoutSessionCard
-                    key={session.id}
-                    session={session}
-                    plans={workoutPlans}
-                    expanded={expandedSessionId === session.id}
-                    onToggleExpand={() =>
-                      setExpandedSessionId((current) =>
-                        current === session.id ? null : session.id
-                      )
-                    }
-                    onEdit={() => openEditSessionForm(session)}
-                    onDelete={() => onDeleteSession(session.id)}
-                  />
-                ))}
-              </div>
+              <SessionHistoryGroups
+                groups={sessionGroups}
+                plans={workoutPlans}
+                onResume={(session) => resumeSession(session, { focus: true })}
+                onEdit={openEditSessionForm}
+                onDelete={onDeleteSession}
+              />
             )}
           </>
         )}

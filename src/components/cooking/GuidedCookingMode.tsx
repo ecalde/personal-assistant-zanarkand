@@ -13,19 +13,23 @@ import { useCookingSession } from "./useCookingSession";
 export type GuidedCookingModeProps = {
   recipe: Recipe;
   session: CookingSession;
+  focusActive?: boolean;
   onChange: (next: CookingSession) => void;
   onFinish: () => void;
   onAbandon: () => void;
   onLeave: () => void;
+  onExitFocus?: () => void;
 };
 
 export function GuidedCookingMode({
   recipe,
   session,
+  focusActive = false,
   onChange,
   onFinish,
   onAbandon,
   onLeave,
+  onExitFocus,
 }: GuidedCookingModeProps) {
   const { now, alerts, dismissAlert, start, pause, resume, restart, next, back } =
     useCookingSession({ session, recipe, onChange });
@@ -51,6 +55,11 @@ export function GuidedCookingMode({
             Back to recipes
           </button>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {focusActive && onExitFocus && (
+              <button type="button" onClick={onExitFocus}>
+                Exit focus mode
+              </button>
+            )}
             <button type="button" onClick={onFinish}>
               Finish cook
             </button>
@@ -60,6 +69,11 @@ export function GuidedCookingMode({
           </div>
         </div>
         <div style={styles.cardTitle}>{recipe.title}</div>
+        {focusActive && (
+          <div style={{ ...styles.textMuted, fontSize: 13, marginBottom: 8 }}>
+            Focus is on — closing the tab will resume this cook when you return.
+          </div>
+        )}
         <div style={{ ...styles.textMuted, fontSize: 13, marginBottom: 10 }}>
           Step {stepNumber} of {progress.total}
         </div>

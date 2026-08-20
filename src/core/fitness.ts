@@ -59,6 +59,9 @@ export type WorkoutOccurrence = {
 
 export type WorkoutDayStatus = "planned" | "completed" | "missed" | "not_scheduled";
 
+/** Calendar duration when the user finishes without choosing minutes. */
+export const DEFAULT_WORKOUT_DURATION_MINUTES = 60;
+
 const WORKOUT_FOCUSES: WorkoutFocus[] = [
   "push",
   "pull",
@@ -322,6 +325,61 @@ export function countCompletedExercises(session: WorkoutSession): number {
   return session.exercises.filter(isExerciseCompleted).length;
 }
 
+/** Earliest per-exercise completion stamp, used as the default calendar start. */
+export function firstExerciseCompletedAtIso(session: WorkoutSession): string | undefined {
+  const stamps = session.exercises
+    .map((entry) => entry.completedAtIso)
+    .filter((iso): iso is string => typeof iso === "string" && iso.length > 0)
+    .sort();
+  return stamps[0];
+}
+
+function minutesBetweenIso(startIso: string, endIso: string): number | undefined {
+  const start = Date.parse(startIso);
+  const end = Date.parse(endIso);
+  if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+  const minutes = Math.round((end - start) / 60_000);
+  return minutes > 0 ? minutes : undefined;
+}
+
+/**
+ * Fills calendar start/duration when finishing. Start prefers an explicit
+ * `startedAtIso`, then the first exercise tap, then the finish stamp. Duration
+ * prefers an explicit value, then elapsed start→finish, then 60 minutes.
+ * Does not emit a calendar item on its own — callers still omit `completedAtIso`
+ * until this helper runs.
+ */
+export function applyWorkoutFinishDefaults(
+  session: WorkoutSession,
+  completedAtIso: string
+): WorkoutSession {
+  const startedAtIso =
+    session.startedAtIso ?? firstExerciseCompletedAtIso(session) ?? completedAtIso;
+  const durationMinutes =
+    session.durationMinutes ??
+    minutesBetweenIso(startedAtIso, completedAtIso) ??
+    DEFAULT_WORKOUT_DURATION_MINUTES;
+  return {
+    ...session,
+    startedAtIso,
+    durationMinutes,
+    completedAtIso,
+  };
+}
+
+/** Most recently updated in-progress session, if any. */
+export function findActiveWorkoutSession(
+  sessions: readonly WorkoutSession[]
+): WorkoutSession | undefined {
+  const active = sessions.filter(isWorkoutSessionInProgress);
+  if (active.length === 0) return undefined;
+  return [...active].sort((a, b) => {
+    const byUpdated = b.updatedAtIso.localeCompare(a.updatedAtIso);
+    if (byUpdated !== 0) return byUpdated;
+    return b.id.localeCompare(a.id);
+  })[0];
+}
+
 /**
  * Finds an existing session for a plan on a given date. Prefers an in-progress
  * session so live logging resumes rather than starting over.
@@ -343,19 +401,27 @@ export function toggleExerciseCompleted(
   exerciseId: string,
   nowIso: string
 ): WorkoutSession {
-  return {
+  const next: WorkoutSession = {
     ...session,
     exercises: session.exercises.map((entry) => {
       if (entry.id !== exerciseId) return entry;
-      const next = { ...entry };
+      const cloned = { ...entry };
       if (isExerciseCompleted(entry)) {
-        delete next.completedAtIso;
+        delete cloned.completedAtIso;
       } else {
-        next.completedAtIso = nowIso;
+        cloned.completedAtIso = nowIso;
       }
-      return next;
+      return cloned;
     }),
   };
+
+  // First tap becomes the calendar start unless the user already set one.
+  if (!next.startedAtIso) {
+    const firstComplete = firstExerciseCompletedAtIso(next);
+    if (firstComplete) next.startedAtIso = firstComplete;
+  }
+
+  return next;
 }
 
 /** Fallback when a live-session exercise name would otherwise be empty. */
@@ -423,6 +489,77 @@ export function updateSessionExercise(
       return next;
     }),
   };
+}
+
+export type WorkoutLoggerExerciseDraft = {
+  name?: string;
+  sets?: string;
+  reps?: string;
+  weight?: string;
+};
+
+/** Uncommitted live-logger field strings. Only kept while workout focus is on. */
+export type WorkoutLoggerDraft = {
+  duration?: string;
+  notes?: string;
+  exercises: Record<string, WorkoutLoggerExerciseDraft>;
+};
+
+function parseDraftPositiveInt(raw: string | undefined): number | undefined | "skip" {
+  if (raw === undefined) return "skip";
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== trimmed) return "skip";
+  return parsed;
+}
+
+function parseDraftNonNegativeNumber(raw: string | undefined): number | undefined | "skip" {
+  if (raw === undefined) return "skip";
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== trimmed) return "skip";
+  return parsed;
+}
+
+/**
+ * Applies in-progress logger typing onto a session clone. Incomplete/invalid
+ * numbers are skipped so a mid-keystroke value does not wipe a saved field.
+ */
+export function applyWorkoutLoggerDraft(
+  session: WorkoutSession,
+  draft: WorkoutLoggerDraft | undefined
+): WorkoutSession {
+  if (!draft) return session;
+
+  let next = session;
+  const durationParsed = parseDraftPositiveInt(draft.duration);
+  if (durationParsed !== "skip") {
+    next = setSessionDurationMinutes(next, durationParsed);
+  }
+  if (draft.notes !== undefined) {
+    const notes = draft.notes.trim();
+    next = { ...next };
+    if (notes) next.notes = notes;
+    else delete next.notes;
+  }
+
+  for (const [exerciseId, fields] of Object.entries(draft.exercises)) {
+    const patch: Partial<Pick<ExerciseEntry, "name" | "sets" | "reps" | "weight">> = {};
+    if (fields.name !== undefined) patch.name = fields.name;
+    const sets = parseDraftPositiveInt(fields.sets);
+    if (sets !== "skip") patch.sets = sets;
+    const reps = parseDraftPositiveInt(fields.reps);
+    if (reps !== "skip") patch.reps = reps;
+    const weight = parseDraftNonNegativeNumber(fields.weight);
+    if (weight !== "skip") patch.weight = weight;
+    if (Object.keys(patch).length > 0) {
+      next = updateSessionExercise(next, exerciseId, patch);
+    }
+  }
+
+  return next;
 }
 
 /** Marks every exercise complete at `nowIso`. Returns a new session clone. */
@@ -504,7 +641,7 @@ export function setSessionDurationMinutes(
 
 /** Stamps `completedAtIso` without requiring every exercise to be checked off. */
 export function finishWorkoutSession(session: WorkoutSession, nowIso: string): WorkoutSession {
-  return { ...session, completedAtIso: nowIso };
+  return applyWorkoutFinishDefaults(session, nowIso);
 }
 
 /** Retro path: every exercise complete plus a finished session stamp. */
@@ -589,8 +726,8 @@ export function createLiveSessionFromPlan(
   const occurrence = expandWorkoutOccurrencesForDate([plan], dateKey)[0];
   if (occurrence) {
     session.durationMinutes = occurrence.block.minutes;
-    const startedAtIso = combineDateTimeToIso(dateKey, occurrence.block.startTime);
-    if (startedAtIso) session.startedAtIso = startedAtIso;
+    // Start time is stamped on the first exercise tap (or a manual edit), so a
+    // finished session lands on the calendar at the real workout time.
   }
 
   return session;

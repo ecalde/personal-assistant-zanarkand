@@ -83,6 +83,9 @@ export type CookingPageProps = {
     input: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso">
   ) => void;
   onUpdateCookingSession: (session: CookingSession) => void;
+  cookingFocusActive?: boolean;
+  onEnterCookingFocus?: (sessionId: string) => void;
+  onExitCookingFocus?: () => void;
   onAddPantryItem: (input: Omit<PantryItem, "id" | "createdAtIso" | "updatedAtIso">) => void;
   onUpdatePantryItem: (item: PantryItem) => void;
   onDeletePantryItem: (itemId: string) => void;
@@ -111,13 +114,18 @@ export default function CookingPage({
   onDeleteRecipe,
   onAddCookingSession,
   onUpdateCookingSession,
+  cookingFocusActive = false,
+  onEnterCookingFocus,
+  onExitCookingFocus,
   onAddPantryItem,
   onUpdatePantryItem,
   onDeletePantryItem,
   onAddCustomIngredient,
   onDeleteCustomIngredient,
 }: CookingPageProps) {
-  const [view, setView] = useState<CookingView>("gallery");
+  const [view, setView] = useState<CookingView>(() =>
+    cookingFocusActive ? "guided" : "gallery"
+  );
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedCatalogRecipeId, setSelectedCatalogRecipeId] = useState<string | null>(null);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
@@ -287,6 +295,12 @@ export default function CookingPage({
   const guidedRecipe = guidedSession?.recipeId
     ? recipes.find((recipe) => recipe.id === guidedSession.recipeId)
     : undefined;
+
+  useEffect(() => {
+    if (view === "guided" && activeSession) {
+      onEnterCookingFocus?.(activeSession.id);
+    }
+  }, [view, activeSession, onEnterCookingFocus]);
 
   function startGuided(recipe: Recipe) {
     const existing = findActiveCookingSession(cookingSessions);
@@ -597,8 +611,10 @@ export default function CookingPage({
         <GuidedCookingMode
           recipe={guidedRecipe}
           session={guidedSession}
+          focusActive={cookingFocusActive}
           onChange={onUpdateCookingSession}
           onLeave={leaveGuided}
+          onExitFocus={onExitCookingFocus}
           onFinish={() => {
             setLoggingRecipeId(guidedRecipe.id);
             setLoggingSessionId(guidedSession.id);
@@ -606,6 +622,7 @@ export default function CookingPage({
           onAbandon={() => {
             onUpdateCookingSession(abandonCookingSession(guidedSession));
             clearActiveCookingSessionMirror(guidedSession.id);
+            onExitCookingFocus?.();
             setView(selectedRecipeId ? "detail" : "gallery");
           }}
         />

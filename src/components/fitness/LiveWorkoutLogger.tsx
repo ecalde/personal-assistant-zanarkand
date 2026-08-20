@@ -3,6 +3,8 @@ import {
   countCompletedExercises,
   isExerciseCompleted,
   resolveSessionStartHHMM,
+  type WorkoutLoggerDraft,
+  type WorkoutLoggerExerciseDraft,
 } from "../../core/fitness";
 import type { ExerciseEntry, WorkoutSession } from "../../core/model";
 import { AETHER_TEXT, styles } from "../../ui/appStyles";
@@ -16,6 +18,10 @@ export type LiveWorkoutLoggerProps = {
   planName: string;
   session: WorkoutSession;
   highlighted?: boolean;
+  persistDrafts?: boolean;
+  draft?: WorkoutLoggerDraft;
+  focusActive?: boolean;
+  onDraftChange?: (draft: WorkoutLoggerDraft) => void;
   onToggleExercise: (exerciseId: string) => void;
   onUpdateExercise: (exerciseId: string, patch: LiveExercisePatch) => void;
   onAddExercise: () => void;
@@ -25,6 +31,8 @@ export type LiveWorkoutLoggerProps = {
   onFinish: () => void;
   onMarkAllComplete: () => void;
   onLogDifferentSession: () => void;
+  onToggleFocus?: () => void;
+  onExit?: () => void;
 };
 
 const compactLabel: CSSProperties = { ...styles.label, fontSize: 12 };
@@ -61,15 +69,15 @@ const cellIncomplete: CSSProperties = {
 
 const loggerHighlight: CSSProperties = {
   border: "2px solid var(--aether-accent, #46c6ff)",
-  borderRadius: 12,
-  padding: 12,
+  borderRadius: 16,
+  padding: 14,
   background: "var(--aether-accent-soft, rgba(70,198,255,0.08))",
 };
 
 const loggerPlain: CSSProperties = {
   border: "1px solid var(--aether-border, #ddd)",
-  borderRadius: 12,
-  padding: 12,
+  borderRadius: 16,
+  padding: 14,
   background: "var(--aether-surface, transparent)",
 };
 
@@ -91,9 +99,22 @@ function isCompleteNonNegativeNumber(raw: string): boolean {
   return Number.isFinite(parsed) && parsed >= 0 && String(parsed) === trimmed;
 }
 
+function patchExerciseDraft(
+  draft: WorkoutLoggerDraft | undefined,
+  exerciseId: string,
+  fields: WorkoutLoggerExerciseDraft
+): WorkoutLoggerDraft {
+  const exercises = { ...(draft?.exercises ?? {}) };
+  exercises[exerciseId] = { ...(exercises[exerciseId] ?? {}), ...fields };
+  return { ...(draft ?? { exercises: {} }), exercises };
+}
+
 type LiveExerciseCellProps = {
   entry: ExerciseEntry;
   canRemove: boolean;
+  persistDrafts: boolean;
+  draftFields?: WorkoutLoggerExerciseDraft;
+  onDraftFields: (fields: WorkoutLoggerExerciseDraft) => void;
   onToggle: () => void;
   onUpdate: (patch: LiveExercisePatch) => void;
   onRemove: () => void;
@@ -102,15 +123,22 @@ type LiveExerciseCellProps = {
 function LiveExerciseCell({
   entry,
   canRemove,
+  persistDrafts,
+  draftFields,
+  onDraftFields,
   onToggle,
   onUpdate,
   onRemove,
 }: LiveExerciseCellProps) {
   const completed = isExerciseCompleted(entry);
-  const [name, setName] = useState(entry.name);
-  const [sets, setSets] = useState(fieldString(entry.sets));
-  const [reps, setReps] = useState(fieldString(entry.reps));
-  const [weight, setWeight] = useState(fieldString(entry.weight));
+  const [name, setName] = useState(draftFields?.name ?? entry.name);
+  const [sets, setSets] = useState(draftFields?.sets ?? fieldString(entry.sets));
+  const [reps, setReps] = useState(draftFields?.reps ?? fieldString(entry.reps));
+  const [weight, setWeight] = useState(draftFields?.weight ?? fieldString(entry.weight));
+
+  function maybeDraft(fields: WorkoutLoggerExerciseDraft) {
+    if (persistDrafts) onDraftFields(fields);
+  }
 
   function commitName() {
     const trimmed = name.trim();
@@ -163,7 +191,10 @@ function LiveExerciseCell({
         Exercise
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            maybeDraft({ name: e.target.value });
+          }}
           onBlur={commitName}
           style={styles.inputCompact}
         />
@@ -176,6 +207,7 @@ function LiveExerciseCell({
             value={sets}
             onChange={(e) => {
               setSets(e.target.value);
+              maybeDraft({ sets: e.target.value });
               if (isCompletePositiveInt(e.target.value)) {
                 commitPositiveInt(e.target.value, "sets", entry.sets);
               }
@@ -191,6 +223,7 @@ function LiveExerciseCell({
             value={reps}
             onChange={(e) => {
               setReps(e.target.value);
+              maybeDraft({ reps: e.target.value });
               if (isCompletePositiveInt(e.target.value)) {
                 commitPositiveInt(e.target.value, "reps", entry.reps);
               }
@@ -206,6 +239,7 @@ function LiveExerciseCell({
             value={weight}
             onChange={(e) => {
               setWeight(e.target.value);
+              maybeDraft({ weight: e.target.value });
               if (isCompleteNonNegativeNumber(e.target.value)) {
                 commitWeight(e.target.value);
               }
@@ -230,6 +264,10 @@ export function LiveWorkoutLogger({
   planName,
   session,
   highlighted = false,
+  persistDrafts = false,
+  draft,
+  focusActive = false,
+  onDraftChange,
   onToggleExercise,
   onUpdateExercise,
   onAddExercise,
@@ -239,28 +277,64 @@ export function LiveWorkoutLogger({
   onFinish,
   onMarkAllComplete,
   onLogDifferentSession,
+  onToggleFocus,
+  onExit,
 }: LiveWorkoutLoggerProps) {
   const completedCount = countCompletedExercises(session);
   const startTime = resolveSessionStartHHMM(session) ?? "";
   const [duration, setDuration] = useState(
-    session.durationMinutes !== undefined ? String(session.durationMinutes) : ""
+    draft?.duration ?? (session.durationMinutes !== undefined ? String(session.durationMinutes) : "")
   );
 
   const canRemove = session.exercises.length > 1;
 
+  function updateDraft(patch: Partial<WorkoutLoggerDraft>) {
+    if (!persistDrafts || !onDraftChange) return;
+    onDraftChange({
+      duration: patch.duration ?? draft?.duration ?? duration,
+      notes: patch.notes ?? draft?.notes,
+      exercises: patch.exercises ?? draft?.exercises ?? {},
+    });
+  }
+
   return (
     <div
       id={`live-workout-${session.planId ?? session.id}`}
-      style={highlighted ? loggerHighlight : loggerPlain}
+      style={highlighted || focusActive ? loggerHighlight : loggerPlain}
     >
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {onExit && (
+            <button type="button" onClick={onExit} style={styles.ghostBtn}>
+              Back
+            </button>
+          )}
           <div style={{ ...styles.cardTitle, marginBottom: 0 }}>{planName}</div>
           <WorkoutFocusBadge focus={session.focus} />
           <span style={styles.captionText}>
             {completedCount}/{session.exercises.length} complete
           </span>
+          {focusActive && <span style={styles.statusPill}>Focus on</span>}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onToggleFocus && (
+              <button
+                type="button"
+                onClick={onToggleFocus}
+                aria-pressed={focusActive}
+                style={styles.actionBtn}
+              >
+                {focusActive ? "Exit focus mode" : "Focus mode"}
+              </button>
+            )}
+          </div>
         </div>
+
+        {focusActive && (
+          <div style={{ ...styles.textSecondary, fontSize: 13 }}>
+            Focus keeps this session and anything you are typing after you close the
+            tab. Turn it off to discard unfinished typing.
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
           <label style={compactLabel}>
@@ -278,12 +352,13 @@ export function LiveWorkoutLogger({
               value={duration}
               onChange={(e) => {
                 setDuration(e.target.value);
+                updateDraft({ duration: e.target.value });
                 if (isCompletePositiveInt(e.target.value)) {
                   onDurationChange(e.target.value);
                 }
               }}
               onBlur={() => onDurationChange(duration)}
-              placeholder="45"
+              placeholder="60"
               inputMode="numeric"
               style={styles.minInput}
             />
@@ -296,6 +371,13 @@ export function LiveWorkoutLogger({
               key={entry.id}
               entry={entry}
               canRemove={canRemove}
+              persistDrafts={persistDrafts}
+              draftFields={draft?.exercises[entry.id]}
+              onDraftFields={(fields) =>
+                updateDraft({
+                  exercises: patchExerciseDraft(draft, entry.id, fields).exercises,
+                })
+              }
               onToggle={() => onToggleExercise(entry.id)}
               onUpdate={(patch) => onUpdateExercise(entry.id, patch)}
               onRemove={() => onRemoveExercise(entry.id)}

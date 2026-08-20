@@ -91,6 +91,7 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 49 | **Supplement calendar filters** | One all-day Fitness item per due protocol per day; workout items use `subcategoryKey: workout`; sidebar **Fitness types** hide workouts vs supplements independently. |
 | 50 | **Supplement focus / briefing / review** | Remaining-doses Daily Focus signal, briefing/review adherence under Fitness, `fitnessFocus` deep-link to a protocol row. |
 | 51 | **Supplement XP + polish** | Full-day `body` XP (`supplement_adherence_day`, not per dose) under `MAX_BONUS_XP_PER_DAY`; protocol-card due-day streak; calendar modal progress + **Open in Fitness**; `supplement_days_7` achievement. |
+| 52 | **Fitness/cooking focus phase + gallery** | Responsive plan/session card grids; session history grouped by week/month/year; per-exercise taps from a plan do not emit a calendar block until finish (first tap + 60 min default, optional completion time); `pa.focusPhase.v1` resumes an in-progress workout or cook after tab close and keeps logger typing only while focus is on. |
 
 **Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 

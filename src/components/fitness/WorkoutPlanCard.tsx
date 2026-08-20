@@ -1,13 +1,19 @@
-import { formatExerciseSummary, isPlanSchedulable } from "../../core/fitness";
-import type { WorkoutPlan } from "../../core/model";
+import {
+  countCompletedExercises,
+  formatExerciseSummary,
+  isExerciseCompleted,
+  isPlanSchedulable,
+  isWorkoutSessionInProgress,
+} from "../../core/fitness";
+import type { WorkoutPlan, WorkoutSession } from "../../core/model";
 import { formatWorkoutScheduleSeriesLabel } from "../../core/workoutSeries";
 import { styles } from "../../ui/appStyles";
 import { WorkoutFocusBadge } from "./WorkoutFocusBadge";
 
 export type WorkoutPlanCardProps = {
   plan: WorkoutPlan;
-  expanded: boolean;
-  onToggleExpand: () => void;
+  liveSession?: WorkoutSession;
+  onOpen: () => void;
   onLogSession: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -15,65 +21,81 @@ export type WorkoutPlanCardProps = {
 
 export function WorkoutPlanCard({
   plan,
-  expanded,
-  onToggleExpand,
+  liveSession,
+  onOpen,
   onLogSession,
   onEdit,
   onDelete,
 }: WorkoutPlanCardProps) {
+  const live =
+    liveSession && isWorkoutSessionInProgress(liveSession) ? liveSession : undefined;
+  const entries = live?.exercises ?? plan.exercises;
+  const completed = live ? countCompletedExercises(live) : 0;
+  const total = entries.length;
+  const progressRatio = total > 0 ? completed / total : 0;
+
   return (
-    <div style={{ ...styles.listRow, minWidth: 0 }}>
-      <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
+    <article style={styles.workoutCard}>
+      <div style={styles.workoutCardAccent} aria-hidden="true" />
+      <div style={styles.workoutCardBody}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <strong>{plan.name}</strong>
+          <h3 style={{ ...styles.workoutCardTitle, margin: 0 }}>{plan.name}</h3>
           <WorkoutFocusBadge focus={plan.focus} />
-          <span style={{ ...styles.textMuted, fontSize: 13 }}>
-            {plan.exercises.length} exercise{plan.exercises.length === 1 ? "" : "s"}
-          </span>
-          {isPlanSchedulable(plan) && (
-            <span style={{ ...styles.textMuted, fontSize: 12 }}>
-              {formatWorkoutScheduleSeriesLabel(plan)}
-            </span>
-          )}
         </div>
 
-        {!expanded && (
-          <div style={{ ...styles.textSecondary, fontSize: 13 }}>
-            {plan.exercises.slice(0, 2).map((entry) => formatExerciseSummary(entry)).join(" · ")}
-            {plan.exercises.length > 2 ? " …" : ""}
+        <div style={{ ...styles.textMuted, fontSize: 13 }}>
+          {total} exercise{total === 1 ? "" : "s"}
+          {isPlanSchedulable(plan) ? ` · ${formatWorkoutScheduleSeriesLabel(plan)}` : ""}
+          {live ? ` · ${completed}/${total} in progress` : ""}
+        </div>
+
+        {live && (
+          <div
+            style={styles.workoutProgressTrack}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={completed}
+            aria-label={`${completed} of ${total} exercises complete`}
+          >
+            <div style={{ ...styles.workoutProgressFill, width: `${Math.round(progressRatio * 100)}%` }} />
           </div>
         )}
 
-        {expanded && (
-          <div style={{ display: "grid", gap: 6 }}>
-            {plan.exercises.map((entry) => (
-              <div key={entry.id} style={{ fontSize: 13, ...styles.textSecondary }}>
-                {formatExerciseSummary(entry)}
-              </div>
-            ))}
-            {plan.notes && (
-              <div style={{ fontSize: 13, ...styles.textSecondary, whiteSpace: "pre-wrap" }}>
-                {plan.notes}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" onClick={onToggleExpand}>
-            {expanded ? "Hide details" : "Details"}
-          </button>
-          <button type="button" onClick={onLogSession}>
-            Log session
-          </button>
-          <button type="button" onClick={onEdit}>
-            Edit
-          </button>
-          <button type="button" onClick={onDelete}>
-            Delete
-          </button>
+        <div style={{ display: "grid", gap: 4 }}>
+          {entries.slice(0, 3).map((entry) => (
+            <div
+              key={entry.id}
+              style={{
+                ...styles.textSecondary,
+                fontSize: 13,
+                textDecoration: isExerciseCompleted(entry) ? "line-through" : "none",
+              }}
+            >
+              {isExerciseCompleted(entry) ? "✓ " : ""}
+              {formatExerciseSummary(entry)}
+            </div>
+          ))}
+          {entries.length > 3 ? (
+            <div style={{ ...styles.textMuted, fontSize: 12 }}>+{entries.length - 3} more</div>
+          ) : null}
         </div>
       </div>
-    </div>
+
+      <div style={styles.workoutCardActions}>
+        <button type="button" onClick={onOpen} style={styles.actionBtn}>
+          Open
+        </button>
+        <button type="button" onClick={onLogSession} style={styles.actionBtn}>
+          Log session
+        </button>
+        <button type="button" onClick={onEdit} style={styles.ghostBtn}>
+          Edit
+        </button>
+        <button type="button" onClick={onDelete} style={styles.ghostBtn}>
+          Delete
+        </button>
+      </div>
+    </article>
   );
 }

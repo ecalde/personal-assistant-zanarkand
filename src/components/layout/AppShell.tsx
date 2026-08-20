@@ -13,6 +13,7 @@ export type AppShellProps = {
   onRetryCloudSave: () => void;
   page: Page;
   onPageChange: (page: Page) => void;
+  banner?: ReactNode;
   children: ReactNode;
 };
 
@@ -24,6 +25,7 @@ export function AppShell({
   onRetryCloudSave,
   page,
   onPageChange,
+  banner,
   children,
 }: AppShellProps) {
   const isDesktop = useIsDesktopViewport();
@@ -115,6 +117,7 @@ export function AppShell({
         })}
       </nav>
 
+      {banner}
       <main style={isDesktop ? styles.main : styles.mainMobile}>{children}</main>
     </div>
   );

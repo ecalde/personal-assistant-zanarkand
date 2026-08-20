@@ -424,7 +424,7 @@ describe("live session helpers", () => {
     expect(live.completedAtIso).toBeUndefined();
     expect(live.planId).toBe(PLAN_ID);
     expect(live.durationMinutes).toBe(60);
-    expect(resolveSessionStartHHMM(live)).toBe("06:00");
+    expect(resolveSessionStartHHMM(live)).toBeUndefined();
     expect(live.exercises[0]?.sourceExerciseId).toBe(EXERCISE_ID);
     expect(live.exercises[0]?.name).toBe("Bench press");
   });
