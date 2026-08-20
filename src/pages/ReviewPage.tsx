@@ -251,7 +251,7 @@ export default function ReviewPage({
         )}
       </SectionBlock>
 
-      </SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
+      <SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
         {review.fitness.count > 0 && (
           <p style={{ margin: 0, fontSize: 14 }}>{review.fitness.summaryLine}</p>
         )}
