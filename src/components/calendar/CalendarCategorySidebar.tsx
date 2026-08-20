@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   CALENDAR_CATEGORY_KEYS,
   DEFAULT_CATEGORY_COLOR_TOKENS,
@@ -65,15 +66,33 @@ function FilterToggle({
       <span
         style={{
           ...styles.calendarCategorySwatch,
+          ...(isHorizontal ? { width: 8, height: 8, borderRadius: 99 } : {}),
           background: swatchBackground,
         }}
         aria-hidden="true"
       />
       <span style={isHorizontal ? undefined : { flex: 1 }}>{label}</span>
-      <span aria-hidden="true" style={{ fontSize: 11, ...styles.textDisabled }}>
-        {hidden ? "Off" : "On"}
-      </span>
+      {isHorizontal ? null : (
+        <span aria-hidden="true" style={{ fontSize: 11, ...styles.textDisabled }}>
+          {hidden ? "Off" : "On"}
+        </span>
+      )}
     </button>
+  );
+}
+
+function FilterGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div style={styles.calendarCategoryGroup}>
+      <div style={styles.calendarCategoryGroupLabel}>{label}</div>
+      {children}
+    </div>
   );
 }
 
@@ -176,26 +195,11 @@ export function CalendarCategorySidebar({
 
   if (isHorizontal) {
     return (
-      <aside
-        style={{ ...styles.calendarCategoryBar, flexDirection: "column", alignItems: "stretch" }}
-        aria-label="Calendar filters"
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Categories</div>
-          <div style={styles.calendarCategoryToggleRow}>{categoryToggles}</div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Event types</div>
-          <div style={styles.calendarCategoryToggleRow}>{eventTypeToggles}</div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Fitness types</div>
-          <div style={styles.calendarCategoryToggleRow}>{fitnessTypeToggles}</div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Cooking types</div>
-          <div style={styles.calendarCategoryToggleRow}>{cookingTypeToggles}</div>
-        </div>
+      <aside style={styles.calendarCategoryBar} aria-label="Calendar filters">
+        <FilterGroup label="Categories">{categoryToggles}</FilterGroup>
+        <FilterGroup label="Event types">{eventTypeToggles}</FilterGroup>
+        <FilterGroup label="Fitness types">{fitnessTypeToggles}</FilterGroup>
+        <FilterGroup label="Cooking types">{cookingTypeToggles}</FilterGroup>
       </aside>
     );
   }
