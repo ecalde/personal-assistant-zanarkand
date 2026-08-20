@@ -115,3 +115,16 @@ The earlier phases are deliberately structured to enable AI cheaply later:
 2. Add substitutions (B) and recipe enrichment (G) once P7/P8 are stable.
 3. Layer meal planning (C) and nutrition coaching (D) after P8/P12.
 4. Add conversational/assistant features (E, F) and recommendations (H) last; they polish an already-rich domain.
+
+## 6. Phase 12 groundwork (shipped)
+
+Rule-based, advisory-only implementations live in [`src/core/cookingSuggestions.ts`](../../src/core/cookingSuggestions.ts). LLM wrappers can rank or explain these DTOs later without changing the save/schedule confirmation rule.
+
+| Opportunity | Shape | Surface |
+| --- | --- | --- |
+| A pantry suggestions | `PantryRecipeSuggestion` / `suggestRecipesFromPantry` | Cooking page Make now rail; Daily Focus `cooking_make_now` |
+| B substitutions | `SubstitutionSuggestion` / `suggestSubstitutionsForRecipe` | Recipe detail (same-category pantry matches) |
+| C meal planning | `MealPlanDraft` / `draftWeeklyMealPlan` | Cooking page Plan my week (per-slot Schedule) |
+| D nutrition coaching | `NutritionCoachingInsight` / `buildNutritionCoachingInsights` | Weekly Review `CookingWeekSection` |
+
+None of these write recipes, planned cooks, or XP without an explicit user action.

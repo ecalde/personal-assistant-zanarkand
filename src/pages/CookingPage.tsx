@@ -17,12 +17,22 @@ import {
   type RecipesSortMode,
 } from "../core/cooking";
 import {
+  draftWeeklyMealPlan,
+  suggestRecipesFromPantry,
+} from "../core/cookingSuggestions";
+import { getLocalWeekRange } from "../core/review";
+import {
   abandonCookingSession,
   buildInProgressCookingSession,
   findActiveCookingSession,
   startGuidedFromPlanned,
 } from "../core/cookingSession";
 import { useCookingReferenceData } from "../core/cookingReferenceData";
+import {
+  catalogRecipeAsRecipe,
+  cloneCatalogRecipe,
+  findClonedCatalogRecipe,
+} from "../core/recipeCatalog";
 import {
   buildRecipeAvailabilityMap,
   pantryIsInUse,
@@ -37,13 +47,18 @@ import { fetchIngredientNutrition } from "../lib/nutritionFetch";
 import { clearActiveCookingSessionMirror } from "../core/cookingSessionStorage";
 import { formatLocalDateKey } from "../core/timeline";
 import { CookingCompletionDialog } from "../components/cooking/CookingCompletionDialog";
-import { PantryPanel } from "../components/cooking/PantryPanel";
 import { CustomIngredientsPanel } from "../components/cooking/CustomIngredientsPanel";
+import { ImportWizard } from "../components/cooking/ImportWizard";
+import { CatalogBrowser } from "../components/cooking/CatalogBrowser";
+import { PantryPanel } from "../components/cooking/PantryPanel";
 import { RecipeDetail } from "../components/cooking/RecipeDetail";
 import { RecipeForm } from "../components/cooking/RecipeForm";
 import { RecipeGallery } from "../components/cooking/RecipeGallery";
 import { RecipesToolbar } from "../components/cooking/RecipesToolbar";
+import { MakeNowRail } from "../components/cooking/MakeNowRail";
+import { MealPlanDraftCard } from "../components/cooking/MealPlanDraftCard";
 import { ScheduleCookDialog } from "../components/cooking/ScheduleCookDialog";
+import { CookingNotificationBanner } from "../components/cooking/CookingNotificationBanner";
 import { GuidedCookingMode } from "../components/cooking/GuidedCookingMode";
 import {
   emptyRecipeFormState,
@@ -77,7 +92,14 @@ export type CookingPageProps = {
   onDeleteCustomIngredient: (itemId: string) => void;
 };
 
-type CookingView = "gallery" | "detail" | "form" | "guided" | "pantry";
+type CookingView =
+  | "gallery"
+  | "detail"
+  | "form"
+  | "guided"
+  | "pantry"
+  | "import"
+  | "catalog";
 
 export default function CookingPage({
   recipes,
@@ -97,6 +119,7 @@ export default function CookingPage({
 }: CookingPageProps) {
   const [view, setView] = useState<CookingView>("gallery");
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [selectedCatalogRecipeId, setSelectedCatalogRecipeId] = useState<string | null>(null);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [form, setForm] = useState<RecipeFormState>(emptyRecipeFormState());
   const [formError, setFormError] = useState<string | null>(null);
@@ -108,7 +131,7 @@ export default function CookingPage({
   const [cookTimeFilter, setCookTimeFilter] = useState<RecipeCookTimeFilter>("all");
   const [masteryFilter, setMasteryFilter] = useState<RecipeMasteryFilter>("all");
   const [availabilityFilter, setAvailabilityFilter] = useState<RecipeAvailabilityFilter>("all");
-  const { catalog, nutrients, retentionFactors, mergeFetchedNutrients } =
+  const { catalog, nutrients, retentionFactors, recipeCatalog, mergeFetchedNutrients } =
     useCookingReferenceData();
   const pantryActive = pantryIsInUse(pantry);
   const [loggingRecipeId, setLoggingRecipeId] = useState<string | null>(null);
@@ -135,7 +158,10 @@ export default function CookingPage({
   );
 
   useEffect(() => {
-    const missing = ingredientIdsNeedingFetch(recipes, nutritionIndexes);
+    const missing = ingredientIdsNeedingFetch(
+      [...recipes, ...recipeCatalog.map(catalogRecipeAsRecipe)],
+      nutritionIndexes
+    );
     if (missing.length === 0) return;
     let cancelled = false;
     void fetchIngredientNutrition(missing)
@@ -150,7 +176,7 @@ export default function CookingPage({
     return () => {
       cancelled = true;
     };
-  }, [recipes, nutritionIndexes, mergeFetchedNutrients]);
+  }, [recipes, recipeCatalog, nutritionIndexes, mergeFetchedNutrients]);
 
   const galleryFilters = {
     query,
@@ -196,8 +222,23 @@ export default function CookingPage({
   const selectedRecipe = selectedRecipeId
     ? recipes.find((recipe) => recipe.id === selectedRecipeId)
     : undefined;
+  const selectedCatalogRecipe = selectedCatalogRecipeId
+    ? recipeCatalog.find((entry) => entry.id === selectedCatalogRecipeId)
+    : undefined;
+  const clonedCatalogIds = useMemo(
+    () =>
+      new Set(
+        recipes
+          .map((recipe) => recipe.catalogRecipeId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    [recipes]
+  );
   const selectedRecipeNutrition = selectedRecipe
     ? computeRecipeNutrition(selectedRecipe, nutritionIndexes)
+    : undefined;
+  const selectedCatalogNutrition = selectedCatalogRecipe
+    ? computeRecipeNutrition(catalogRecipeAsRecipe(selectedCatalogRecipe), nutritionIndexes)
     : undefined;
 
   const loggingRecipe = loggingRecipeId
@@ -210,6 +251,37 @@ export default function CookingPage({
     ? recipes.find((recipe) => recipe.id === schedulingRecipeId)
     : undefined;
   const todayKey = formatLocalDateKey(new Date());
+  const week = getLocalWeekRange(todayKey);
+  const pantrySuggestions = useMemo(
+    () =>
+      suggestRecipesFromPantry({
+        recipes,
+        pantry,
+        catalog,
+        limit: 5,
+      }),
+    [recipes, pantry, catalog]
+  );
+  const mealPlanDraft = useMemo(
+    () =>
+      draftWeeklyMealPlan({
+        recipes,
+        cookingSessions,
+        pantry,
+        weekStartKey: week.weekStartKey,
+        weekEndKey: week.weekEndKey,
+        catalog,
+      }),
+    [recipes, cookingSessions, pantry, week.weekStartKey, week.weekEndKey, catalog]
+  );
+  const scheduledMealPlanKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const session of cookingSessions) {
+      if (session.status === "abandoned" || !session.recipeId) continue;
+      keys.add(`${session.recipeId}:${session.cookDate}`);
+    }
+    return keys;
+  }, [cookingSessions]);
   const activeSession = findActiveCookingSession(cookingSessions);
   const guidedSession = view === "guided" ? activeSession : undefined;
   const guidedRecipe = guidedSession?.recipeId
@@ -249,12 +321,35 @@ export default function CookingPage({
     setView(selectedRecipeId ? "detail" : "gallery");
   }
 
-  function openCreateForm() {
-    setForm(emptyRecipeFormState());
+  function openCreateForm(prefill?: { notes?: string; title?: string }) {
+    const next = emptyRecipeFormState();
+    if (prefill?.notes) next.notes = prefill.notes;
+    if (prefill?.title) next.title = prefill.title;
+    setForm(next);
     setEditingRecipeId(null);
     setFormError(null);
     setSelectedRecipeId(null);
     setView("form");
+  }
+
+  function openCatalog() {
+    setFormError(null);
+    setEditingRecipeId(null);
+    setSelectedRecipeId(null);
+    setSelectedCatalogRecipeId(null);
+    setView("catalog");
+  }
+
+  function handleCloneCatalogRecipe() {
+    if (!selectedCatalogRecipe) return;
+    onAddRecipe(cloneCatalogRecipe(selectedCatalogRecipe, { createId: () => crypto.randomUUID() }));
+  }
+
+  function openImport() {
+    setFormError(null);
+    setEditingRecipeId(null);
+    setSelectedRecipeId(null);
+    setView("import");
   }
 
   function openEditForm(recipe: Recipe) {
@@ -351,7 +446,17 @@ export default function CookingPage({
               </button>
             )}
             {view === "gallery" && (
-              <button type="button" onClick={openCreateForm}>
+              <button type="button" onClick={openCatalog}>
+                Browse catalog
+              </button>
+            )}
+            {view === "gallery" && (
+              <button type="button" onClick={openImport}>
+                Import recipe
+              </button>
+            )}
+            {view === "gallery" && (
+              <button type="button" onClick={() => openCreateForm()}>
                 Add recipe
               </button>
             )}
@@ -362,6 +467,60 @@ export default function CookingPage({
           Creative XP and recipe mastery.
         </div>
       </div>
+
+      <CookingNotificationBanner />
+
+      {view === "catalog" && selectedCatalogRecipe && (
+        <RecipeDetail
+          recipe={catalogRecipeAsRecipe(selectedCatalogRecipe)}
+          nutrition={selectedCatalogNutrition}
+          catalog={catalog}
+          customIngredients={customIngredients}
+          onBack={() => setSelectedCatalogRecipeId(null)}
+          catalogActions={{
+            alreadyInLibrary: Boolean(
+              findClonedCatalogRecipe(recipes, selectedCatalogRecipe.id)
+            ),
+            onClone: handleCloneCatalogRecipe,
+            onOpenCloned: () => {
+              const cloned = findClonedCatalogRecipe(recipes, selectedCatalogRecipe.id);
+              if (!cloned) return;
+              setSelectedCatalogRecipeId(null);
+              openDetail(cloned.id);
+            },
+          }}
+        />
+      )}
+
+      {view === "catalog" && !selectedCatalogRecipe && (
+        <CatalogBrowser
+          recipes={recipeCatalog}
+          clonedCatalogIds={clonedCatalogIds}
+          onBack={() => setView("gallery")}
+          onOpenRecipe={(catalogRecipeId) => setSelectedCatalogRecipeId(catalogRecipeId)}
+        />
+      )}
+      {view === "import" && (
+        <ImportWizard
+          catalog={catalog}
+          customIngredients={customIngredients}
+          onCancel={() => setView("gallery")}
+          onEnterManually={(prefill) => openCreateForm(prefill)}
+          onSave={(payload) => {
+            onAddRecipe(payload);
+            setView("gallery");
+          }}
+          onUploadImage={
+            isSanityConfigured()
+              ? (file, kind) =>
+                  uploadRecipeImage(file, {
+                    kind,
+                    alt: "Imported recipe",
+                  })
+              : undefined
+          }
+        />
+      )}
 
       {view === "form" && (
         <RecipeForm
@@ -501,14 +660,38 @@ export default function CookingPage({
           {recipes.length === 0 ? (
             <div>
               <div style={{ marginBottom: 12 }}>
-                Add a recipe with ingredients and steps to get started.
+                Add a recipe, import from a photo or pasted text, or clone a starter from the
+                catalog.
               </div>
-              <button type="button" onClick={openCreateForm}>
-                Add your first recipe
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => openCreateForm()}>
+                  Add your first recipe
+                </button>
+                <button type="button" onClick={openCatalog}>
+                  Browse catalog
+                </button>
+                <button type="button" onClick={openImport}>
+                  Import recipe
+                </button>
+              </div>
             </div>
           ) : (
             <>
+              {pantryActive && (
+                <MakeNowRail suggestions={pantrySuggestions} onOpenRecipe={openDetail} />
+              )}
+              {pantryActive && (
+                <MealPlanDraftCard
+                  draft={mealPlanDraft}
+                  scheduledRecipeIdsByDate={scheduledMealPlanKeys}
+                  onSchedule={(slot) => {
+                    const match = recipes.find((item) => item.id === slot.recipeId);
+                    if (!match) return;
+                    const planned = buildPlannedCookingSession(match, { cookDate: slot.dateKey });
+                    if (planned) onAddCookingSession(planned);
+                  }}
+                />
+              )}
               <RecipesToolbar
                 query={query}
                 sortMode={sortMode}

@@ -1,10 +1,12 @@
 import type {
   CookingMethod,
+  CustomIngredient,
   Recipe,
   RecipeCategory,
   RecipeDifficulty,
   RecipeExperienceLevel,
   RecipeIngredientLine,
+  RecipeSource,
   RecipeStep,
   RecipeStepKind,
   SanityImageRef,
@@ -19,7 +21,10 @@ import {
 import { defaultsForStepKind } from "../../core/cookingSession";
 import type { IngredientCatalog } from "../../core/ingredientCatalog";
 import { resolveRecipeIngredients } from "../../core/ingredients";
-import type { CustomIngredient } from "../../core/model";
+import {
+  applyIngredientAssignments,
+  type ImportReviewFormSnapshot,
+} from "../../core/recipeImport";
 
 export type IngredientFormRow = {
   id: string;
@@ -232,12 +237,28 @@ export function validateRecipeForm(form: RecipeFormState): string | null {
   return null;
 }
 
+export function recipeFormReviewSnapshot(form: RecipeFormState): ImportReviewFormSnapshot {
+  return {
+    title: form.title,
+    servings: form.servings,
+    estimatedMinutes: form.estimatedMinutes,
+    category: form.category,
+    difficulty: form.difficulty,
+    experienceLevel: form.experienceLevel,
+    notes: form.notes,
+    ingredients: form.ingredients.map((row) => ({ id: row.id, rawText: row.rawText })),
+    steps: form.steps.map((row) => ({ id: row.id, text: row.text })),
+  };
+}
+
 export function recipePayloadFromForm(
   form: RecipeFormState,
   options?: {
     catalog?: IngredientCatalog;
     previous?: Recipe;
     customIngredients?: CustomIngredient[];
+    source?: RecipeSource;
+    ingredientAssignments?: Record<string, string>;
   }
 ): Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso"> {
   const estimatedMinutes = parsePositiveIntField(form.estimatedMinutes, "Cook time");
@@ -253,14 +274,17 @@ export function recipePayloadFromForm(
       if (row.optional) line.optional = true;
       return line;
     });
-  const ingredients = options?.catalog
-    ? resolveRecipeIngredients(
-        rawIngredients,
-        options.catalog,
-        options.previous?.ingredients,
-        options.customIngredients
-      )
-    : rawIngredients;
+  const ingredients = applyIngredientAssignments(
+    options?.catalog
+      ? resolveRecipeIngredients(
+          rawIngredients,
+          options.catalog,
+          options.previous?.ingredients,
+          options.customIngredients
+        )
+      : rawIngredients,
+    options?.ingredientAssignments ?? {}
+  );
 
   const steps: RecipeStep[] = form.steps
     .filter((row) => row.text.trim())
@@ -293,7 +317,7 @@ export function recipePayloadFromForm(
     steps,
     equipment,
     gallery: form.gallery.map((image) => ({ ...image })),
-    source: "manual",
+    source: options?.source ?? options?.previous?.source ?? "manual",
   };
 
   if (typeof estimatedMinutes === "number") payload.estimatedMinutes = estimatedMinutes;
@@ -303,6 +327,9 @@ export function recipePayloadFromForm(
   }
   if (form.notes.trim()) payload.notes = form.notes.trim();
   if (form.heroImage) payload.heroImage = { ...form.heroImage };
+  if (options?.previous?.catalogRecipeId) {
+    payload.catalogRecipeId = options.previous.catalogRecipeId;
+  }
 
   return payload;
 }

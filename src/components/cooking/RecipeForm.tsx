@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import {
   COOKING_METHOD_LABELS,
   RECIPE_CATEGORY_LABELS,
@@ -12,7 +12,7 @@ import {
   getRecipeStepKindValues,
 } from "../../core/cooking";
 import type { IngredientCatalog } from "../../core/ingredientCatalog";
-import { describeIngredientMatch } from "../../core/ingredients";
+import { describeIngredientMatch, type IngredientSuggestion } from "../../core/ingredients";
 import type { CustomIngredient, SanityImageRef } from "../../core/model";
 import {
   RECIPE_GALLERY_MAX_IMAGES,
@@ -29,6 +29,14 @@ import {
   type RecipeFormState,
 } from "./recipeFormState";
 
+export type RecipeFormReviewHints = {
+  highlightedFieldKeys: ReadonlySet<string>;
+  unresolvedIngredientLineIds: string[];
+  ingredientAssignments: Record<string, string>;
+  onAssignIngredient: (lineId: string, ingredientId: string | undefined) => void;
+  suggestionsFor: (rawText: string) => IngredientSuggestion[];
+};
+
 export type RecipeFormProps = {
   editing: boolean;
   form: RecipeFormState;
@@ -39,10 +47,28 @@ export type RecipeFormProps = {
   onUploadImage?: (file: File, kind: RecipeImageKind) => Promise<SanityImageRef>;
   catalog?: IngredientCatalog;
   customIngredients?: CustomIngredient[];
+  heading?: string;
+  submitLabel?: string;
+  submitDisabled?: boolean;
+  review?: RecipeFormReviewHints;
 };
 
 const compactLabel = { ...styles.label, fontSize: 12 };
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+
+function fieldStyle(
+  base: CSSProperties,
+  key: string,
+  highlighted?: ReadonlySet<string>
+): CSSProperties {
+  if (!highlighted?.has(key)) return base;
+  return { ...base, ...styles.lowConfidenceField };
+}
+
+function ConfirmHint({ show }: { show: boolean }) {
+  if (!show) return null;
+  return <div style={{ ...styles.textMuted, fontSize: 12 }}>Low confidence — please confirm</div>;
+}
 
 export function RecipeForm({
   editing,
@@ -54,6 +80,10 @@ export function RecipeForm({
   onUploadImage,
   catalog,
   customIngredients = [],
+  heading,
+  submitLabel,
+  submitDisabled,
+  review,
 }: RecipeFormProps) {
   const [uploadingKind, setUploadingKind] = useState<RecipeImageKind | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -109,9 +139,11 @@ export function RecipeForm({
     });
   }
 
+  const highlighted = review?.highlightedFieldKeys;
+
   return (
     <div style={styles.card}>
-      <div style={styles.cardTitle}>{editing ? "Edit recipe" : "Add recipe"}</div>
+      <div style={styles.cardTitle}>{heading ?? (editing ? "Edit recipe" : "Add recipe")}</div>
       <div style={{ display: "grid", gap: 12 }}>
         <label style={styles.label}>
           Title
@@ -119,8 +151,9 @@ export function RecipeForm({
             value={form.title}
             onChange={(e) => onChange({ ...form, title: e.target.value })}
             placeholder='e.g., "Weeknight carbonara"'
-            style={styles.input}
+            style={fieldStyle(styles.input, "title", highlighted)}
           />
+          <ConfirmHint show={Boolean(highlighted?.has("title"))} />
         </label>
 
         <div
@@ -137,7 +170,7 @@ export function RecipeForm({
               onChange={(e) =>
                 onChange({ ...form, category: e.target.value as RecipeFormState["category"] })
               }
-              style={styles.inputCompact}
+              style={fieldStyle(styles.inputCompact, "category", highlighted)}
             >
               {getRecipeCategoryValues().map((category) => (
                 <option key={category} value={category}>
@@ -145,6 +178,7 @@ export function RecipeForm({
                 </option>
               ))}
             </select>
+            <ConfirmHint show={Boolean(highlighted?.has("category"))} />
           </label>
 
           <label style={styles.label}>
@@ -157,7 +191,7 @@ export function RecipeForm({
                   difficulty: e.target.value as RecipeFormState["difficulty"],
                 })
               }
-              style={styles.inputCompact}
+              style={fieldStyle(styles.inputCompact, "difficulty", highlighted)}
             >
               {getRecipeDifficultyValues().map((difficulty) => (
                 <option key={difficulty} value={difficulty}>
@@ -165,6 +199,7 @@ export function RecipeForm({
                 </option>
               ))}
             </select>
+            <ConfirmHint show={Boolean(highlighted?.has("difficulty"))} />
           </label>
 
           <label style={styles.label}>
@@ -177,7 +212,7 @@ export function RecipeForm({
                   experienceLevel: e.target.value as RecipeFormState["experienceLevel"],
                 })
               }
-              style={styles.inputCompact}
+              style={fieldStyle(styles.inputCompact, "experienceLevel", highlighted)}
             >
               {getRecipeExperienceLevelValues().map((level) => (
                 <option key={level} value={level}>
@@ -185,6 +220,7 @@ export function RecipeForm({
                 </option>
               ))}
             </select>
+            <ConfirmHint show={Boolean(highlighted?.has("experienceLevel"))} />
           </label>
         </div>
 
@@ -202,8 +238,9 @@ export function RecipeForm({
               onChange={(e) => onChange({ ...form, estimatedMinutes: e.target.value })}
               placeholder="30"
               inputMode="numeric"
-              style={styles.inputCompact}
+              style={fieldStyle(styles.inputCompact, "estimatedMinutes", highlighted)}
             />
+            <ConfirmHint show={Boolean(highlighted?.has("estimatedMinutes"))} />
           </label>
           <label style={styles.label}>
             Servings
@@ -212,8 +249,9 @@ export function RecipeForm({
               onChange={(e) => onChange({ ...form, servings: e.target.value })}
               placeholder="4"
               inputMode="numeric"
-              style={styles.inputCompact}
+              style={fieldStyle(styles.inputCompact, "servings", highlighted)}
             />
+            <ConfirmHint show={Boolean(highlighted?.has("servings"))} />
           </label>
           <label style={styles.label}>
             Cooking method
@@ -326,7 +364,17 @@ export function RecipeForm({
 
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ fontWeight: 700 }}>Ingredients</div>
-          {form.ingredients.map((row, index) => (
+          {form.ingredients.map((row, index) => {
+            const ingredientKey = `ingredient:${row.id}`;
+            const assignedId = review?.ingredientAssignments[row.id];
+            const suggestions =
+              review && row.rawText.trim() ? review.suggestionsFor(row.rawText) : [];
+            const needsPicker = Boolean(
+              review &&
+                row.rawText.trim() &&
+                (review.unresolvedIngredientLineIds.includes(row.id) || assignedId)
+            );
+            return (
             <div key={row.id} style={{ display: "grid", gap: 4 }}>
               <div
                 style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}
@@ -335,7 +383,7 @@ export function RecipeForm({
                   value={row.rawText}
                   onChange={(e) => updateIngredient(index, { rawText: e.target.value })}
                   placeholder='e.g., "2 eggs"'
-                  style={styles.inputCompact}
+                  style={fieldStyle(styles.inputCompact, ingredientKey, highlighted)}
                 />
                 <label style={{ ...compactLabel, display: "flex", alignItems: "center", gap: 6 }}>
                   <input
@@ -359,14 +407,37 @@ export function RecipeForm({
                   Remove
                 </button>
               </div>
+              {needsPicker && review && (
+                <label style={compactLabel}>
+                  Match to catalog
+                  <select
+                    value={assignedId ?? ""}
+                    onChange={(e) =>
+                      review.onAssignIngredient(row.id, e.target.value ? e.target.value : undefined)
+                    }
+                    style={styles.inputCompact}
+                  >
+                    <option value="">Keep unmatched</option>
+                    {suggestions.map((suggestion) => (
+                      <option key={suggestion.ingredientId} value={suggestion.ingredientId}>
+                        {suggestion.name} · {Math.round(suggestion.confidence * 100)}%
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {catalog && row.rawText.trim() && (
                 <div style={{ ...styles.textMuted, fontSize: 12 }}>
-                  {describeIngredientMatch(row.rawText, catalog, customIngredients) ??
-                    "Unmatched — save will keep the raw line"}
+                  {assignedId
+                    ? `${suggestions.find((item) => item.ingredientId === assignedId)?.name ?? "Matched"} · you chose`
+                    : describeIngredientMatch(row.rawText, catalog, customIngredients) ??
+                      "Unmatched — save will keep the raw line"}
                 </div>
               )}
+              <ConfirmHint show={Boolean(highlighted?.has(ingredientKey))} />
             </div>
-          ))}
+            );
+          })}
           <button
             type="button"
             onClick={() =>
@@ -413,8 +484,9 @@ export function RecipeForm({
                   onChange={(e) => updateStep(index, { text: e.target.value })}
                   rows={2}
                   placeholder="What to do in this step"
-                  style={styles.inputCompact}
+                  style={fieldStyle(styles.inputCompact, `step:${row.id}`, highlighted)}
                 />
+                <ConfirmHint show={Boolean(highlighted?.has(`step:${row.id}`))} />
                 <div
                   style={{
                     display: "grid",
@@ -533,15 +605,16 @@ export function RecipeForm({
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             rows={3}
-            style={styles.input}
+            style={fieldStyle(styles.input, "notes", highlighted)}
           />
+          <ConfirmHint show={Boolean(highlighted?.has("notes"))} />
         </label>
 
         {formError && <div style={styles.errorInline}>{formError}</div>}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" onClick={onSubmit} disabled={uploadingKind !== null}>
-            {editing ? "Save recipe" : "Add recipe"}
+          <button type="button" onClick={onSubmit} disabled={uploadingKind !== null || submitDisabled}>
+            {submitLabel ?? (editing ? "Save recipe" : "Add recipe")}
           </button>
           <button type="button" onClick={onCancel}>
             Cancel

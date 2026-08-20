@@ -297,6 +297,26 @@ export type Recipe = {
   updatedAtIso: string;
 };
 
+export type CatalogRecipe = {
+  id: string;
+  title: string;
+  category: RecipeCategory;
+  difficulty: RecipeDifficulty;
+  experienceLevel: RecipeExperienceLevel;
+  estimatedMinutes?: number;
+  servings?: number;
+  notes?: string;
+  ingredients: RecipeIngredientLine[];
+  steps: RecipeStep[];
+  equipment: string[];
+  cookingMethod?: CookingMethod;
+  heroImage?: SanityImageRef;
+  gallery: SanityImageRef[];
+  isPublished: boolean;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type CookingSessionStatus = "planned" | "in_progress" | "completed" | "abandoned";
 
 export type CookingTimerStatus = "idle" | "running" | "paused" | "done";
@@ -416,6 +436,36 @@ export type RecipeNutrition = {
   confidenceLabel: NutritionConfidenceLabel;
   unresolvedLineIds: string[];
   missingDataLineIds: string[];
+};
+
+export type ExtractedRecipeIngredient = {
+  rawText: string;
+  quantity: number | null;
+  unit: string | null;
+  name: string | null;
+};
+
+export type ExtractedRecipeStep = {
+  order: number;
+  text: string;
+};
+
+export type ExtractedRecipe = {
+  title: string | null;
+  servings: number | null;
+  cookTimeMinutes: number | null;
+  ingredients: ExtractedRecipeIngredient[];
+  steps: ExtractedRecipeStep[];
+  equipment: string[];
+  notes: string | null;
+};
+
+export type ImportedRecipePayload = Omit<Recipe, "id" | "createdAtIso" | "updatedAtIso">;
+
+export type RecipeImportDraft = {
+  recipe: ImportedRecipePayload;
+  fieldConfidence: Record<string, number>;
+  unresolvedIngredientLineIds: string[];
 };
 
 export type WorkoutPlan = {

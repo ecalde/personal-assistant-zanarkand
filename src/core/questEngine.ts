@@ -82,6 +82,28 @@ function cookingSessionsInPeriod(
     .length;
 }
 
+function newRecipesCookedInPeriod(
+  context: ProgressionContext,
+  bounds: PeriodBounds
+): number {
+  const counted = new Set<string>();
+  let count = 0;
+  for (const session of context.cookingSessions) {
+    if (!inPeriod(session.cookDate, bounds)) continue;
+    const key = session.recipeId ?? `title:${session.recipeTitle}`;
+    if (counted.has(key)) continue;
+    counted.add(key);
+    const history = session.recipeId
+      ? (context.completedCookingByRecipeId.get(session.recipeId) ?? [])
+      : context.cookingSessions.filter(
+          (item) => !item.recipeId && item.recipeTitle === session.recipeTitle
+        );
+    const first = history[0];
+    if (first && inPeriod(first.cookDate, bounds)) count += 1;
+  }
+  return count;
+}
+
 function scoreCondition(
   condition: QuestCondition,
   context: ProgressionContext,
@@ -117,6 +139,11 @@ function scoreCondition(
     case "complete_cooking_session":
       return {
         current: cookingSessionsInPeriod(context, bounds),
+        target: condition.count ?? 1,
+      };
+    case "cook_new_recipe":
+      return {
+        current: newRecipesCookedInPeriod(context, bounds),
         target: condition.count ?? 1,
       };
   }

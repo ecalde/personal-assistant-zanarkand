@@ -107,4 +107,45 @@ describe("questEngine", () => {
     expect(weekly?.progress).toEqual({ current: 3, target: 3 });
     expect(weekly?.completed).toBe(true);
   });
+
+  it("scores the try-something-new quest only for first-ever cooks in the week", () => {
+    function cook(id: string, date: string, recipeId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
+      return {
+        id,
+        recipeId,
+        recipeTitle: "Carbonara",
+        status: "completed" as const,
+        cookDate: date,
+        startedAtIso: `${date}T18:00:00.000Z`,
+        finishedAtIso: `${date}T18:30:00.000Z`,
+        timers: [],
+        createdAtIso: GEN,
+        updatedAtIso: GEN,
+      };
+    }
+    const repeat = evaluateQuests(
+      buildProgressionContext(
+        payloadWith({
+          cookingSessions: [cook("c1", "2026-05-18"), cook("c2", "2026-05-26")],
+        }),
+        NOW
+      ),
+      GEN
+    );
+    expect(repeat.weekly.find((q) => q.definition.id === "weekly_new_recipe")?.completed).toBe(
+      false
+    );
+
+    const first = evaluateQuests(
+      buildProgressionContext(
+        payloadWith({
+          cookingSessions: [cook("c1", "2026-05-26", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")],
+        }),
+        NOW
+      ),
+      GEN
+    );
+    expect(first.weekly.find((q) => q.definition.id === "weekly_new_recipe")?.completed).toBe(true);
+    expect(first.daily.find((q) => q.definition.id === "daily_cook")?.completed).toBe(true);
+  });
 });

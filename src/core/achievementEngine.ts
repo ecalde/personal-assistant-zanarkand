@@ -120,6 +120,10 @@ function evaluateCondition(
       const current = context.homeCookedWeekStreak;
       return { current, target: condition.weeks, met: current >= condition.weeks };
     }
+    case "recipes_with_nutrition_gte": {
+      const current = context.recipesWithNutritionCount;
+      return { current, target: condition.count, met: current >= condition.count };
+    }
   }
 }
 

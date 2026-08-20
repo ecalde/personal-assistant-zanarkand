@@ -301,6 +301,24 @@ export const styles: Record<string, CSSProperties> = {
     display: "block",
     background: SURFACE.sunken,
   },
+  lowConfidenceField: {
+    border: "1px solid #c47b17",
+    background: "rgba(196, 123, 23, 0.12)",
+  },
+  importWizardLayout: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 14,
+    alignItems: "start",
+  },
+  importSourcePreview: {
+    width: "100%",
+    maxHeight: 360,
+    objectFit: "contain" as const,
+    display: "block",
+    borderRadius: 12,
+    background: SURFACE.sunken,
+  },
   recipeMetaRow: {
     display: "flex",
     gap: 8,
@@ -359,6 +377,18 @@ export const styles: Record<string, CSSProperties> = {
     border: "1px solid var(--aether-chip-success-border, #b9e6c7)",
     background: "var(--aether-chip-success-bg, #ecfff1)",
     color: "var(--aether-chip-success-text, #1b5e20)",
+  },
+  notificationPrompt: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap" as const,
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid var(--aether-chip-info-border, var(--aether-border, #d5deee))",
+    background: "var(--aether-chip-info-bg, var(--aether-surface-sunken, #f4f7fc))",
+    color: AETHER_TEXT.primary,
   },
   recipeStepItem: {
     display: "grid",

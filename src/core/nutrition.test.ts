@@ -7,6 +7,7 @@ import {
   computeRecipeNutrition,
   indexRetentionFactors,
   nutritionConfidenceLabel,
+  recipeIsNutritionLinked,
   scalePer100g,
   toGrams,
 } from "./nutrition";
@@ -292,5 +293,20 @@ describe("computeRecipeNutrition", () => {
     );
     expect(nutrition.missingDataLineIds).toEqual([]);
     expect(nutrition.total.sodiumMg).toBeGreaterThan(0);
+  });
+});
+
+describe("recipeIsNutritionLinked", () => {
+  it("requires a majority of required lines to be resolved", () => {
+    expect(
+      recipeIsNutritionLinked(
+        recipe({
+          ingredients: [line({ id: LINE_A, rawText: "2 eggs", ingredientId: EGG_ID })],
+        })
+      )
+    ).toBe(true);
+    expect(
+      recipeIsNutritionLinked(recipe({ ingredients: [line({ id: LINE_A, rawText: "2 eggs" })] }))
+    ).toBe(false);
   });
 });

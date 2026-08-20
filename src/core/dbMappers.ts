@@ -27,6 +27,7 @@ import type {
   ApplicationInterview,
   ApplicationStatus,
   CareerTarget,
+  CatalogRecipe,
   GamificationState,
   EventType,
   ExerciseEntry,
@@ -327,6 +328,26 @@ export type RecipeRow = {
   source: string;
   catalog_recipe_id: string | null;
   cooking_method?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CatalogRecipeRow = {
+  id: string;
+  title: string;
+  category: string;
+  difficulty: string;
+  experience_level: string;
+  estimated_minutes: number | null;
+  servings: number | null;
+  notes: string | null;
+  ingredients: unknown;
+  steps: unknown;
+  equipment: unknown;
+  hero_image: unknown | null;
+  gallery: unknown;
+  cooking_method?: string | null;
+  is_published: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -2762,6 +2783,152 @@ export function recipeFromRow(row: RecipeRow): Recipe {
   }
   if (row.catalog_recipe_id !== null) {
     recipe.catalogRecipeId = row.catalog_recipe_id;
+  }
+  if (row.cooking_method !== null && row.cooking_method !== undefined && isCookingMethod(row.cooking_method)) {
+    recipe.cookingMethod = row.cooking_method;
+  }
+
+  return recipe;
+}
+
+export function assertValidCatalogRecipe(recipe: CatalogRecipe): void {
+  assertUuid(recipe.id, "catalogRecipe.id");
+  assertNonEmptyName(recipe.title, "catalogRecipe.title");
+  assertIsoTimestamp(recipe.createdAtIso, "catalogRecipe.createdAtIso");
+  assertIsoTimestamp(recipe.updatedAtIso, "catalogRecipe.updatedAtIso");
+
+  if (!isRecipeCategory(recipe.category)) {
+    throw new MapperError("Invalid catalogRecipe.category", "catalogRecipe.category");
+  }
+  if (!isRecipeDifficulty(recipe.difficulty)) {
+    throw new MapperError("Invalid catalogRecipe.difficulty", "catalogRecipe.difficulty");
+  }
+  if (!isRecipeExperienceLevel(recipe.experienceLevel)) {
+    throw new MapperError("Invalid catalogRecipe.experienceLevel", "catalogRecipe.experienceLevel");
+  }
+  if (typeof recipe.isPublished !== "boolean") {
+    throw new MapperError("Invalid catalogRecipe.isPublished", "catalogRecipe.isPublished");
+  }
+  if (
+    recipe.estimatedMinutes !== undefined &&
+    !isPositiveInteger(recipe.estimatedMinutes)
+  ) {
+    throw new MapperError("Invalid catalogRecipe.estimatedMinutes", "catalogRecipe.estimatedMinutes");
+  }
+  if (recipe.servings !== undefined && !isPositiveInteger(recipe.servings)) {
+    throw new MapperError("Invalid catalogRecipe.servings", "catalogRecipe.servings");
+  }
+  if (recipe.notes !== undefined && typeof recipe.notes !== "string") {
+    throw new MapperError("Invalid catalogRecipe.notes", "catalogRecipe.notes");
+  }
+  if (recipe.cookingMethod !== undefined && !isCookingMethod(recipe.cookingMethod)) {
+    throw new MapperError("Invalid catalogRecipe.cookingMethod", "catalogRecipe.cookingMethod");
+  }
+  if (recipe.heroImage !== undefined) {
+    parseSanityImageRef(recipe.heroImage, "catalogRecipe.heroImage");
+  }
+
+  parseRecipeIngredients(recipe.ingredients, "catalogRecipe.ingredients");
+  parseRecipeSteps(recipe.steps, "catalogRecipe.steps");
+  parseEquipmentList(recipe.equipment, "catalogRecipe.equipment");
+  parseSanityImageRefList(recipe.gallery, "catalogRecipe.gallery");
+
+  if (recipe.ingredients.length === 0) {
+    throw new MapperError("catalogRecipe.ingredients must not be empty", "catalogRecipe.ingredients");
+  }
+  if (recipe.steps.length === 0) {
+    throw new MapperError("catalogRecipe.steps must not be empty", "catalogRecipe.steps");
+  }
+}
+
+export function catalogRecipeToRow(recipe: CatalogRecipe): CatalogRecipeRow {
+  assertValidCatalogRecipe(recipe);
+
+  return {
+    id: recipe.id,
+    title: recipe.title.trim(),
+    category: recipe.category,
+    difficulty: recipe.difficulty,
+    experience_level: recipe.experienceLevel,
+    estimated_minutes: recipe.estimatedMinutes ?? null,
+    servings: recipe.servings ?? null,
+    notes: recipe.notes?.trim() || null,
+    ingredients: parseRecipeIngredients(recipe.ingredients, "catalogRecipe.ingredients"),
+    steps: parseRecipeSteps(recipe.steps, "catalogRecipe.steps"),
+    equipment: parseEquipmentList(recipe.equipment, "catalogRecipe.equipment"),
+    hero_image: recipe.heroImage
+      ? parseSanityImageRef(recipe.heroImage, "catalogRecipe.heroImage")
+      : null,
+    gallery: parseSanityImageRefList(recipe.gallery, "catalogRecipe.gallery"),
+    cooking_method: recipe.cookingMethod ?? null,
+    is_published: recipe.isPublished,
+    created_at: recipe.createdAtIso,
+    updated_at: recipe.updatedAtIso,
+  };
+}
+
+export function catalogRecipeFromRow(row: CatalogRecipeRow): CatalogRecipe {
+  assertUuid(row.id, "recipe_catalog.id");
+  assertNonEmptyName(row.title, "recipe_catalog.title");
+  assertIsoTimestamp(row.created_at, "recipe_catalog.created_at");
+  assertIsoTimestamp(row.updated_at, "recipe_catalog.updated_at");
+
+  if (!isRecipeCategory(row.category)) {
+    throw new MapperError("Invalid recipe_catalog.category", "recipe_catalog.category");
+  }
+  if (!isRecipeDifficulty(row.difficulty)) {
+    throw new MapperError("Invalid recipe_catalog.difficulty", "recipe_catalog.difficulty");
+  }
+  if (!isRecipeExperienceLevel(row.experience_level)) {
+    throw new MapperError("Invalid recipe_catalog.experience_level", "recipe_catalog.experience_level");
+  }
+  if (typeof row.is_published !== "boolean") {
+    throw new MapperError("Invalid recipe_catalog.is_published", "recipe_catalog.is_published");
+  }
+  if (row.estimated_minutes !== null && !isPositiveInteger(row.estimated_minutes)) {
+    throw new MapperError("Invalid recipe_catalog.estimated_minutes", "recipe_catalog.estimated_minutes");
+  }
+  if (row.servings !== null && !isPositiveInteger(row.servings)) {
+    throw new MapperError("Invalid recipe_catalog.servings", "recipe_catalog.servings");
+  }
+  if (row.cooking_method !== null && row.cooking_method !== undefined && !isCookingMethod(row.cooking_method)) {
+    throw new MapperError("Invalid recipe_catalog.cooking_method", "recipe_catalog.cooking_method");
+  }
+
+  const ingredients = parseRecipeIngredients(row.ingredients, "recipe_catalog.ingredients");
+  const steps = parseRecipeSteps(row.steps, "recipe_catalog.steps");
+  const equipment = parseEquipmentList(row.equipment, "recipe_catalog.equipment");
+  const gallery = parseSanityImageRefList(row.gallery ?? [], "recipe_catalog.gallery");
+
+  if (ingredients.length === 0) {
+    throw new MapperError("recipe_catalog.ingredients must not be empty", "recipe_catalog.ingredients");
+  }
+  if (steps.length === 0) {
+    throw new MapperError("recipe_catalog.steps must not be empty", "recipe_catalog.steps");
+  }
+
+  const recipe: CatalogRecipe = {
+    id: row.id,
+    title: row.title.trim(),
+    category: row.category,
+    difficulty: row.difficulty,
+    experienceLevel: row.experience_level,
+    ingredients,
+    steps,
+    equipment,
+    gallery,
+    isPublished: row.is_published,
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+
+  if (row.estimated_minutes !== null) recipe.estimatedMinutes = row.estimated_minutes;
+  if (row.servings !== null) recipe.servings = row.servings;
+  if (row.notes !== null && row.notes.trim().length > 0) {
+    recipe.notes = row.notes.trim();
+  }
+  if (row.hero_image !== null && row.hero_image !== undefined) {
+    recipe.heroImage = parseSanityImageRef(row.hero_image, "recipe_catalog.hero_image");
   }
   if (row.cooking_method !== null && row.cooking_method !== undefined && isCookingMethod(row.cooking_method)) {
     recipe.cookingMethod = row.cooking_method;

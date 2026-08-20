@@ -7,6 +7,7 @@ import {
   formatServings,
   type RecipeMasteryView,
 } from "../../core/cooking";
+import { suggestSubstitutionsForRecipe } from "../../core/cookingSuggestions";
 import type { IngredientCatalog } from "../../core/ingredientCatalog";
 import {
   ingredientDisplayName,
@@ -29,12 +30,17 @@ export type RecipeDetailProps = {
   customIngredients?: CustomIngredient[];
   nutrition?: RecipeNutrition;
   onBack: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onStartCooking: () => void;
-  onLogCook: () => void;
-  onScheduleCook: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onStartCooking?: () => void;
+  onLogCook?: () => void;
+  onScheduleCook?: () => void;
   resumeLabel?: string;
+  catalogActions?: {
+    alreadyInLibrary: boolean;
+    onClone: () => void;
+    onOpenCloned?: () => void;
+  };
 };
 
 export function RecipeDetail({
@@ -53,12 +59,17 @@ export function RecipeDetail({
   onLogCook,
   onScheduleCook,
   resumeLabel,
+  catalogActions,
 }: RecipeDetailProps) {
   const cookTime = formatEstimatedMinutes(recipe.estimatedMinutes);
   const servings = formatServings(recipe.servings);
   const orderedSteps = [...recipe.steps].sort((a, b) => a.order - b.order);
   const heroImage = recipe.heroImage ?? recipe.gallery[0];
   const galleryImages = recipe.heroImage ? recipe.gallery : recipe.gallery.slice(1);
+  const substitutions =
+    showAvailability && catalog
+      ? suggestSubstitutionsForRecipe(recipe, pantry, catalog)
+      : [];
 
   return (
     <div style={styles.card}>
@@ -73,24 +84,39 @@ export function RecipeDetail({
         }}
       >
         <button type="button" onClick={onBack}>
-          Back to recipes
+          {catalogActions ? "Back to catalog" : "Back to recipes"}
         </button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" onClick={onStartCooking}>
-            {resumeLabel ?? "Start Cooking"}
-          </button>
-          <button type="button" onClick={onLogCook}>
-            Log a past cook
-          </button>
-          <button type="button" onClick={onScheduleCook}>
-            Schedule this cook
-          </button>
-          <button type="button" onClick={onEdit}>
-            Edit
-          </button>
-          <button type="button" onClick={onDelete}>
-            Delete
-          </button>
+          {catalogActions ? (
+            <>
+              {catalogActions.alreadyInLibrary && catalogActions.onOpenCloned && (
+                <button type="button" onClick={catalogActions.onOpenCloned}>
+                  Open in library
+                </button>
+              )}
+              <button type="button" onClick={catalogActions.onClone}>
+                {catalogActions.alreadyInLibrary ? "Clone again" : "Add to my recipes"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onStartCooking}>
+                {resumeLabel ?? "Start Cooking"}
+              </button>
+              <button type="button" onClick={onLogCook}>
+                Log a past cook
+              </button>
+              <button type="button" onClick={onScheduleCook}>
+                Schedule this cook
+              </button>
+              <button type="button" onClick={onEdit}>
+                Edit
+              </button>
+              <button type="button" onClick={onDelete}>
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -171,6 +197,23 @@ export function RecipeDetail({
             })}
           </ul>
         </section>
+
+        {substitutions.length > 0 && (
+          <section style={styles.recipeDetailSection}>
+            <div style={{ fontWeight: 700 }}>Substitution ideas</div>
+            <p style={{ margin: "4px 0 8px 0", fontSize: 13, ...styles.textMuted }}>
+              Advisory pantry matches in the same ingredient category.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {substitutions.map((item) => (
+                <li key={item.missingLineId} style={{ ...styles.textSecondary, marginBottom: 4 }}>
+                  Out of {item.missingLabel}? Try{" "}
+                  {item.candidates.map((candidate) => candidate.pantryLabel).join(" or ")}.
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {nutrition && <NutritionSummary nutrition={nutrition} recipe={recipe} />}
 

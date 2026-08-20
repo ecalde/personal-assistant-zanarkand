@@ -820,4 +820,47 @@ describe("cooking focus items", () => {
     expect(reasons).toContain("cooking_active_session");
     expect(summary.items.some((item) => item.suggestedActionType === "open_cooking")).toBe(true);
   });
+
+  it("surfaces a make-now suggestion when the pantry covers a recipe", () => {
+    const eggId = "a7e10000-0000-4000-8000-000000000009";
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        recipes: [
+          {
+            id: SKILL_A,
+            title: "Scramble",
+            category: "breakfast",
+            difficulty: "easy",
+            experienceLevel: "beginner",
+            ingredients: [{ id: SKILL_B, rawText: "2 eggs", ingredientId: eggId }],
+            steps: [
+              {
+                id: EVENT_ID,
+                order: 0,
+                text: "Cook.",
+                kind: "blocking",
+                blocksProgress: true,
+              },
+            ],
+            equipment: [],
+            gallery: [],
+            source: "manual",
+            createdAtIso: ISO,
+            updatedAtIso: ISO,
+          },
+        ],
+        pantry: [
+          {
+            id: APP_ID,
+            label: "Eggs",
+            available: true,
+            ingredientId: eggId,
+            createdAtIso: ISO,
+            updatedAtIso: ISO,
+          },
+        ],
+      })
+    );
+    expect(summary.items.some((item) => item.reasonCodes.includes("cooking_make_now"))).toBe(true);
+  });
 });

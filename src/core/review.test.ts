@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
 import type {
+  CookingSession,
   FocusFeedback,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -13,6 +15,7 @@ import type {
 } from "./model";
 import {
   buildCareerWeekSection,
+  buildCookingWeekSection,
   buildEventsWeekSection,
   buildFitnessWeekSection,
   buildFocusFeedbackWeekSection,
@@ -26,6 +29,7 @@ import {
   formatIsoWeekKey,
   getLocalWeekRange,
   isCareerSectionVisible,
+  isCookingSectionVisible,
   isEventsSectionVisible,
   isFitnessSectionVisible,
   isFocusFeedbackSectionVisible,
@@ -168,6 +172,48 @@ function sampleReviewLog(overrides: Partial<SupplementIntakeLog> = {}): Suppleme
       { id: "d1", slotIndex: 0, amount: 5, takenAtIso: ISO },
       { id: "d2", slotIndex: 1, amount: 5, takenAtIso: ISO },
     ],
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
+function sampleRecipe(overrides: Partial<Recipe> = {}): Recipe {
+  return {
+    id: SKILL_A,
+    title: "Weeknight carbonara",
+    category: "dinner",
+    difficulty: "easy",
+    experienceLevel: "beginner",
+    estimatedMinutes: 25,
+    ingredients: [{ id: SKILL_B, rawText: "2 eggs" }],
+    steps: [
+      {
+        id: EVENT_ID,
+        order: 0,
+        text: "Cook.",
+        kind: "blocking",
+        blocksProgress: true,
+      },
+    ],
+    equipment: [],
+    gallery: [],
+    source: "manual",
+    createdAtIso: ISO,
+    updatedAtIso: ISO,
+    ...overrides,
+  };
+}
+
+function sampleCook(overrides: Partial<CookingSession> = {}): CookingSession {
+  return {
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    recipeId: SKILL_A,
+    recipeTitle: "Weeknight carbonara",
+    status: "completed",
+    cookDate: "2026-05-26",
+    durationMinutes: 30,
+    timers: [],
     createdAtIso: ISO,
     updatedAtIso: ISO,
     ...overrides,
@@ -375,6 +421,30 @@ describe("buildFitnessWeekSection", () => {
   });
 });
 
+describe("buildCookingWeekSection", () => {
+  it("summarizes completed cooks, first cooks, and missed plans", () => {
+    const week = getLocalWeekRange(TODAY, NOW);
+    const section = buildCookingWeekSection(
+      [
+        sampleCook(),
+        sampleCook({ id: "c2", cookDate: "2026-05-27", recipeId: SKILL_B, recipeTitle: "Tacos" }),
+        sampleCook({ id: "c3", status: "planned", cookDate: "2026-05-25" }),
+      ],
+      [sampleRecipe(), sampleRecipe({ id: SKILL_B, title: "Tacos" })],
+      week,
+      TODAY
+    );
+
+    expect(section.completedCount).toBe(2);
+    expect(section.distinctRecipes).toBe(2);
+    expect(section.cookDays).toBe(2);
+    expect(section.firstCooks).toBe(2);
+    expect(section.missedPlanned).toBe(1);
+    expect(section.summaryLine).toContain("2");
+    expect(isCookingSectionVisible(section)).toBe(true);
+  });
+});
+
 describe("buildCareerWeekSection", () => {
   it("lists updated apps and attention items", () => {
     const week = getLocalWeekRange(TODAY, NOW);
@@ -487,6 +557,31 @@ describe("wins and risks", () => {
     expect(wins.some((w) => w.includes("workout"))).toBe(true);
   });
 
+  it("collects cooking wins for several home meals and a first cook", () => {
+    const review = buildWeeklyReview({
+      skills: [],
+      sessions: [],
+      events: [],
+      people: [],
+      jobApplications: [],
+      workoutPlans: [],
+      workoutSessions: [],
+      recipes: [sampleRecipe()],
+      cookingSessions: [
+        sampleCook({ id: "c1", cookDate: "2026-05-25" }),
+        sampleCook({ id: "c2", cookDate: "2026-05-26" }),
+        sampleCook({ id: "c3", cookDate: "2026-05-27" }),
+      ],
+      focusFeedback: [],
+      todayKey: TODAY,
+      now: NOW,
+    });
+
+    const wins = collectWeeklyWins(review);
+    expect(wins.some((w) => w.toLowerCase().includes("meal"))).toBe(true);
+    expect(wins.some((w) => w.includes("new recipe"))).toBe(true);
+  });
+
   it("collects risks for overdue follow-ups and repeated focus hiding", () => {
     const review = buildWeeklyReview({
       skills: [],
@@ -514,6 +609,24 @@ describe("wins and risks", () => {
     expect(risks.some((r) => r.includes("follow-up"))).toBe(true);
     expect(risks.some((r) => r.includes("application"))).toBe(true);
     expect(risks.some((r) => r.includes("hidden repeatedly"))).toBe(true);
+  });
+
+  it("flags a quiet cooking week when the recipe library is in use", () => {
+    const review = buildWeeklyReview({
+      skills: [],
+      sessions: [],
+      events: [],
+      people: [],
+      jobApplications: [],
+      workoutPlans: [],
+      workoutSessions: [],
+      recipes: [sampleRecipe()],
+      cookingSessions: [],
+      focusFeedback: [],
+      todayKey: TODAY,
+      now: NOW,
+    });
+    expect(collectWeeklyRisks(review, TODAY).some((r) => r.includes("home cooking"))).toBe(true);
   });
 });
 
@@ -622,6 +735,7 @@ describe("section visibility helpers", () => {
     expect(isPeopleSectionVisible(empty.people)).toBe(false);
     expect(isEventsSectionVisible(empty.events)).toBe(false);
     expect(isFocusFeedbackSectionVisible(empty.focusFeedback)).toBe(false);
+    expect(isCookingSectionVisible(empty.cooking)).toBe(false);
   });
 
   it("returns true when section data exists", () => {

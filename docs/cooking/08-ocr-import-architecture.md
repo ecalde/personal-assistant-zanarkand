@@ -133,3 +133,9 @@ The user can edit every field. Nothing is persisted until they explicitly save.
 - Phase 7 (ingredient matching) — for resolving extracted ingredient lines with confidence.
 - Phase 3 (image handling) — for attaching the source/hero image.
 - New: OpenAI API key in the `ocr-extract` Edge Function environment.
+
+## 12. Setup (implementation)
+
+- Deploy `supabase/functions/ocr-extract`.
+- Set secrets with `supabase secrets set OPENAI_API_KEY=...` (never `VITE_*`). Optional `OPENAI_MODEL` (default `gpt-4o-mini`).
+- The client calls the function via the user's Supabase JWT. If the key is missing, import returns 503 and the wizard offers manual entry.

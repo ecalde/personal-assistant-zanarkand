@@ -310,6 +310,7 @@ export default function DashboardPage({
         supplementIntakeLogs,
         recipes,
         cookingSessions,
+        pantry,
         todayKey: today,
       }),
     [
@@ -325,6 +326,7 @@ export default function DashboardPage({
       supplementIntakeLogs,
       recipes,
       cookingSessions,
+      pantry,
       today,
     ]
   );
@@ -381,6 +383,8 @@ export default function DashboardPage({
         jobApplications,
         workoutPlans,
         workoutSessions,
+        recipes,
+        cookingSessions,
         supplementProtocols,
         supplementIntakeLogs,
         focusSummary: dailyFocusSummary,
@@ -396,6 +400,8 @@ export default function DashboardPage({
       jobApplications,
       workoutPlans,
       workoutSessions,
+      recipes,
+      cookingSessions,
       supplementProtocols,
       supplementIntakeLogs,
       dailyFocusSummary,
@@ -417,6 +423,8 @@ export default function DashboardPage({
         workoutSessions,
         supplementProtocols,
         supplementIntakeLogs,
+        recipes,
+        cookingSessions,
         focusFeedback,
         todayKey: today,
       }),
@@ -430,6 +438,8 @@ export default function DashboardPage({
       workoutSessions,
       supplementProtocols,
       supplementIntakeLogs,
+      recipes,
+      cookingSessions,
       focusFeedback,
       today,
     ]

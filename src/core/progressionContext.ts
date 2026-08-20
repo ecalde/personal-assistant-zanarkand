@@ -40,6 +40,7 @@ import {
   maxRecipeMasteryTier,
   type RecipeMasteryTier,
 } from "./cooking";
+import { countNutritionLinkedRecipes } from "./nutrition";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -122,6 +123,7 @@ export type ProgressionContext = {
   distinctRecipesCooked: number;
   homeCookedWeekStreak: number;
   maxRecipeMasteryTier: RecipeMasteryTier | null;
+  recipesWithNutritionCount: number;
   completedCookingByRecipeId: Map<string, CookingSession[]>;
 };
 
@@ -357,6 +359,7 @@ export function buildProgressionContext(
     distinctRecipesCooked: distinctRecipesCookedCount(cookingSessions),
     homeCookedWeekStreak: homeCookedWeekStreak(cookingSessions, todayKey),
     maxRecipeMasteryTier: maxRecipeMasteryTier(cookingSessions),
+    recipesWithNutritionCount: countNutritionLinkedRecipes(payload.recipes ?? []),
     completedCookingByRecipeId,
   };
 }

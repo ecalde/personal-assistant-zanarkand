@@ -904,6 +904,49 @@ export function buildRecipeMasteryViews(
   return map;
 }
 
+export function listCompletedCookingSessionsInRange(
+  sessions: CookingSession[],
+  startKey: string,
+  endKey: string
+): CookingSession[] {
+  if (!DATE_KEY_RE.test(startKey) || !DATE_KEY_RE.test(endKey) || startKey > endKey) {
+    return [];
+  }
+  return listCompletedCookingSessions(sessions).filter(
+    (session) => session.cookDate >= startKey && session.cookDate <= endKey
+  );
+}
+
+export function listFirstCookSessionsInRange(
+  sessions: CookingSession[],
+  startKey: string,
+  endKey: string
+): CookingSession[] {
+  const inRange = listCompletedCookingSessionsInRange(sessions, startKey, endKey);
+  const byRecipe = completionsByRecipeId(sessions);
+  const firsts: CookingSession[] = [];
+  const seen = new Set<string>();
+
+  for (const session of inRange) {
+    const key = session.recipeId ?? `title:${session.recipeTitle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (session.recipeId) {
+      const history = byRecipe.get(session.recipeId) ?? [];
+      if (history[0]?.id === session.id) firsts.push(session);
+      continue;
+    }
+
+    const titleHistory = listCompletedCookingSessions(sessions).filter(
+      (item) => !item.recipeId && item.recipeTitle === session.recipeTitle
+    );
+    if (titleHistory[0]?.id === session.id) firsts.push(session);
+  }
+
+  return firsts;
+}
+
 export function listCompletedCookingSessionsInWeek(
   sessions: CookingSession[],
   todayKey: string

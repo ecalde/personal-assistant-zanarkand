@@ -221,7 +221,7 @@ export function normalizeIngredientName(value: string): string {
   return tokens.join(" ").trim();
 }
 
-function parseQuantityToken(raw: string): number | undefined {
+export function parseIngredientQuantity(raw: string): number | undefined {
   const mixed = MIXED_FRACTION_RE.exec(raw);
   if (mixed) {
     const whole = Number(mixed[1]);
@@ -243,8 +243,11 @@ function parseQuantityToken(raw: string): number | undefined {
   return undefined;
 }
 
-function canonicalUnit(raw: string): string | undefined {
-  return UNIT_ALIASES[raw.toLowerCase()];
+export function canonicalizeIngredientUnit(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  return UNIT_ALIASES[trimmed];
 }
 
 /** Parse quantity + unit from a raw recipe line. */
@@ -259,9 +262,9 @@ export function parseIngredientLine(rawText: string): ParsedIngredientLine {
 
   let quantity: number | undefined;
   if (qtyMatch[1]) {
-    quantity = parseQuantityToken(qtyMatch[1]);
+    quantity = parseIngredientQuantity(qtyMatch[1]);
   } else if (qtyMatch[2]) {
-    quantity = parseQuantityToken(qtyMatch[2]);
+    quantity = parseIngredientQuantity(qtyMatch[2]);
   } else if (qtyMatch[3] && qtyMatch[4]) {
     const low = Number(qtyMatch[3]);
     const high = Number(qtyMatch[4]);
@@ -271,7 +274,7 @@ export function parseIngredientLine(rawText: string): ParsedIngredientLine {
   } else if (qtyMatch[5]) {
     quantity = UNICODE_FRACTIONS[qtyMatch[5]];
   } else if (qtyMatch[6]) {
-    quantity = parseQuantityToken(qtyMatch[6]);
+    quantity = parseIngredientQuantity(qtyMatch[6]);
   }
 
   const rest = primary.slice(qtyMatch[0].length).trim();
@@ -279,7 +282,7 @@ export function parseIngredientLine(rawText: string): ParsedIngredientLine {
   let unit: string | undefined;
   let nameWords = words;
   if (words[0]) {
-    const unitMatch = canonicalUnit(words[0]);
+    const unitMatch = canonicalizeIngredientUnit(words[0]);
     if (unitMatch) {
       unit = unitMatch;
       nameWords = words.slice(1);
@@ -510,7 +513,7 @@ function indexPantry(
   return { byIngredientId, byCustomIngredientId, byNormalizedLabel };
 }
 
-function resolvedIngredientIdForLine(
+export function resolvedIngredientIdForLine(
   line: RecipeIngredientLine,
   catalog?: IngredientCatalog | IndexedIngredientCatalog
 ): string | undefined {
@@ -518,6 +521,21 @@ function resolvedIngredientIdForLine(
   if (!catalog) return undefined;
   const parsed = parseIngredientLine(line.rawText);
   return matchIngredient(parsed.name || line.rawText, catalog)?.ingredientId;
+}
+
+export function ingredientLineLabel(line: RecipeIngredientLine): string {
+  const parsed = parseIngredientLine(line.rawText);
+  return parsed.name || line.rawText.trim();
+}
+
+export function listMissingIngredientLines(
+  recipe: Recipe,
+  pantry: readonly PantryItem[],
+  catalog?: IngredientCatalog | IndexedIngredientCatalog
+): RecipeIngredientLine[] {
+  return recipe.ingredients.filter(
+    (line) => !line.optional && !recipeLineIsInPantry(line, pantry, catalog)
+  );
 }
 
 export function recipeLineIsInPantry(
@@ -587,6 +605,77 @@ export function countRecipesByAvailability(
     if (computeRecipeAvailability(recipe, pantry, catalog) === status) count += 1;
   }
   return count;
+}
+
+export type IngredientSuggestion = IngredientMatch & {
+  name: string;
+};
+
+/** Ranked catalog suggestions for a raw ingredient line (match picker). */
+export function suggestIngredientMatches(
+  rawName: string,
+  catalog: IngredientCatalog | IndexedIngredientCatalog,
+  limit = 6
+): IngredientSuggestion[] {
+  const indexed = "byId" in catalog ? catalog : indexIngredientCatalog(catalog);
+  const parsed = parseIngredientLine(rawName);
+  const query = parsed.name || normalizeIngredientName(rawName);
+  if (!query || limit <= 0) return [];
+
+  const bestById = new Map<string, { confidence: number; matchedVia: IngredientMatch["matchedVia"] }>();
+
+  const consider = (
+    ingredientId: string,
+    candidate: string,
+    matchedVia: IngredientMatch["matchedVia"],
+    exactConfidence?: number
+  ) => {
+    if (!candidate || !indexed.byId.has(ingredientId)) return;
+    if (exactConfidence !== undefined) {
+      const current = bestById.get(ingredientId);
+      if (!current || exactConfidence > current.confidence) {
+        bestById.set(ingredientId, { confidence: exactConfidence, matchedVia });
+      }
+      return;
+    }
+    const similarity = trigramSimilarity(query, candidate);
+    if (similarity < INGREDIENT_FUZZY_THRESHOLD) return;
+    const current = bestById.get(ingredientId);
+    if (current && current.matchedVia !== "fuzzy") return;
+    if (!current || similarity > current.confidence) {
+      bestById.set(ingredientId, {
+        confidence: roundConfidence(similarity),
+        matchedVia,
+      });
+    }
+  };
+
+  const exactAlias = indexed.aliasByNormalized.get(query);
+  if (exactAlias) {
+    consider(exactAlias.ingredientId, query, "alias", INGREDIENT_EXACT_ALIAS_CONFIDENCE);
+  }
+  const exactCanonical = indexed.canonicalByNormalized.get(query);
+  if (exactCanonical) {
+    consider(exactCanonical.id, query, "canonical", INGREDIENT_EXACT_CANONICAL_CONFIDENCE);
+  }
+
+  for (const ingredient of indexed.ingredients) {
+    consider(ingredient.id, normalizeIngredientName(ingredient.canonicalName), "fuzzy");
+  }
+  for (const alias of indexed.aliases) {
+    consider(alias.ingredientId, alias.aliasNormalized, "fuzzy");
+    consider(alias.ingredientId, normalizeIngredientName(alias.alias), "fuzzy");
+  }
+
+  return [...bestById.entries()]
+    .map(([ingredientId, meta]) => ({
+      ingredientId,
+      name: indexed.byId.get(ingredientId)?.canonicalName ?? ingredientId,
+      confidence: meta.confidence,
+      matchedVia: meta.matchedVia,
+    }))
+    .sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name))
+    .slice(0, limit);
 }
 
 export function describeIngredientMatch(

@@ -34,6 +34,16 @@ export const QUEST_CATALOG: readonly QuestDefinition[] = [
     condition: { kind: "complete_workout", count: 1 },
   },
 
+  {
+    id: "daily_cook",
+    period: "daily",
+    title: "Cook tonight",
+    description: "Complete one home-cooked meal today.",
+    axis: "creative",
+    rewardXp: 15,
+    condition: { kind: "complete_cooking_session", count: 1 },
+  },
+
   // ----- weekly -----
   {
     id: "weekly_minutes_120",
@@ -70,6 +80,15 @@ export const QUEST_CATALOG: readonly QuestDefinition[] = [
     rewardXp: 40,
     condition: { kind: "complete_cooking_session", count: 3 },
   },
+  {
+    id: "weekly_new_recipe",
+    period: "weekly",
+    title: "Try something new",
+    description: "Cook a recipe you have never completed before.",
+    axis: "creative",
+    rewardXp: 30,
+    condition: { kind: "cook_new_recipe", count: 1 },
+  },
 
   // ----- monthly -----
   {
@@ -88,6 +107,15 @@ export const QUEST_CATALOG: readonly QuestDefinition[] = [
     axis: "career",
     rewardXp: 80,
     condition: { kind: "career_action", minCount: 1 },
+  },
+  {
+    id: "monthly_cook_12",
+    period: "monthly",
+    title: "A dozen home meals",
+    description: "Complete 12 home-cooked meals this month.",
+    axis: "creative",
+    rewardXp: 80,
+    condition: { kind: "complete_cooking_session", count: 12 },
   },
 ];
 

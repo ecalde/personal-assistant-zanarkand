@@ -117,7 +117,7 @@ export function scalePer100g(per100g: Per100g, grams: number): Per100g {
   return scaleNutrients(per100g, factor);
 }
 
-function scaleNutrients(value: Per100g, factor: number): Per100g {
+export function scaleNutrients(value: Per100g, factor: number): Per100g {
   const next: Per100g = {
     kcal: value.kcal * factor,
     proteinG: value.proteinG * factor,
@@ -425,6 +425,35 @@ export function computeRecipeNutrition(
     unresolvedLineIds,
     missingDataLineIds,
   };
+}
+
+/** Majority of required lines are linked to a canonical or custom ingredient. */
+export function recipeIsNutritionLinked(recipe: Recipe): boolean {
+  const required = recipe.ingredients.filter((line) => !line.optional);
+  if (required.length === 0) return false;
+  const resolved = required.filter(
+    (line) => Boolean(line.ingredientId) || Boolean(line.customIngredientId)
+  );
+  return resolved.length * 2 >= required.length;
+}
+
+export function countNutritionLinkedRecipes(recipes: readonly Recipe[]): number {
+  let count = 0;
+  for (const recipe of recipes) {
+    if (recipeIsNutritionLinked(recipe)) count += 1;
+  }
+  return count;
+}
+
+export function buildRecipeNutritionMap(
+  recipes: readonly Recipe[],
+  indexes: NutritionIndexes
+): Map<string, RecipeNutrition> {
+  const map = new Map<string, RecipeNutrition>();
+  for (const recipe of recipes) {
+    map.set(recipe.id, computeRecipeNutrition(recipe, indexes));
+  }
+  return map;
 }
 
 export function ingredientIdsNeedingFetch(

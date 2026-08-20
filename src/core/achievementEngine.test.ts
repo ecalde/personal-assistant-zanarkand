@@ -142,4 +142,53 @@ describe("achievementEngine", () => {
     const homeChef = result.inProgress.find((u) => u.definitionId === "home_chef");
     expect(homeChef?.progress).toEqual({ current: 1, target: 10 });
   });
+
+  it("unlocks Know Your Macros when 3 recipes have linked ingredients", () => {
+    const line = (id: string, ingredientId: string) => ({
+      id,
+      rawText: "1 item",
+      ingredientId,
+    });
+    const makeRecipe = (id: string) => ({
+      id,
+      title: id,
+      category: "dinner" as const,
+      difficulty: "easy" as const,
+      experienceLevel: "beginner" as const,
+      ingredients: [line(`${id}-line`, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")],
+      steps: [
+        {
+          id: `${id}-step`,
+          order: 0,
+          text: "Cook.",
+          kind: "blocking" as const,
+          blocksProgress: true,
+        },
+      ],
+      equipment: [],
+      gallery: [],
+      source: "manual" as const,
+      createdAtIso: GEN,
+      updatedAtIso: GEN,
+    });
+    const inProgress = evaluate(
+      payloadWith({
+        recipes: [makeRecipe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")],
+      })
+    );
+    expect(inProgress.inProgress.find((u) => u.definitionId === "know_your_macros")?.progress).toEqual(
+      { current: 1, target: 3 }
+    );
+
+    const unlocked = evaluate(
+      payloadWith({
+        recipes: [
+          makeRecipe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+          makeRecipe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+          makeRecipe("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+        ],
+      })
+    );
+    expect(unlocked.unlocked.some((u) => u.definitionId === "know_your_macros")).toBe(true);
+  });
 });

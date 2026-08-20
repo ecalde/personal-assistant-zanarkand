@@ -67,6 +67,9 @@ export function RecipeCard({
           <span>{formatStepCount(recipe)}</span>
         </div>
         {mastery && <MasteryBadge mastery={mastery} showStreak={false} />}
+        {recipe.source === "catalog" && (
+          <span style={{ ...styles.statusPill, fontSize: 12 }}>From catalog</span>
+        )}
         {preview && (
           <div style={{ ...styles.textSecondary, fontSize: 13 }}>
             {preview}

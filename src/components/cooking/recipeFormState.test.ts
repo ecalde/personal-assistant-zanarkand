@@ -136,6 +136,28 @@ describe("recipePayloadFromForm", () => {
     expect(payload.equipment).toEqual(["Skillet"]);
   });
 
+  it("can mark the payload as an assisted import and lock a chosen ingredient", () => {
+    const payload = recipePayloadFromForm(filledForm(), {
+      source: "import",
+      catalog: SEED_INGREDIENT_CATALOG,
+      ingredientAssignments: { [INGREDIENT_ID]: seedIngredientIdFor(11) },
+    });
+    expect(payload.source).toBe("import");
+    expect(payload.ingredients[0]?.ingredientId).toBe(seedIngredientIdFor(11));
+    expect(payload.ingredients[0]?.matchConfidence).toBe(1);
+  });
+
+  it("preserves catalog provenance when editing a cloned recipe", () => {
+    const previous: Recipe = {
+      ...sampleRecipe(),
+      source: "catalog",
+      catalogRecipeId: "ca7a1000-0000-4000-8000-000000000001",
+    };
+    const payload = recipePayloadFromForm(filledForm(), { previous });
+    expect(payload.source).toBe("catalog");
+    expect(payload.catalogRecipeId).toBe(previous.catalogRecipeId);
+  });
+
   it("preserves hero and gallery image refs", () => {
     const payload = recipePayloadFromForm(
       filledForm({

@@ -206,6 +206,33 @@ export const ACHIEVEMENT_CATALOG: readonly AchievementDefinition[] = [
     axis: "creative",
     condition: { kind: "home_cooked_week_streak_gte", weeks: 3 },
   },
+  {
+    id: "know_your_macros",
+    category: "cooking",
+    tier: "bronze",
+    title: "Know Your Macros",
+    description: "Link ingredients on 3 recipes so nutrition can be calculated.",
+    axis: "creative",
+    condition: { kind: "recipes_with_nutrition_gte", count: 3 },
+  },
+  {
+    id: "regular_in_the_kitchen",
+    category: "cooking",
+    tier: "gold",
+    title: "Regular in the Kitchen",
+    description: "Complete 25 home-cooked meals.",
+    axis: "creative",
+    condition: { kind: "recipes_cooked_gte", count: 25 },
+  },
+  {
+    id: "home_cook_month",
+    category: "cooking",
+    tier: "gold",
+    title: "Home Cook Month",
+    description: "Cook at home 8 weeks in a row.",
+    axis: "creative",
+    condition: { kind: "home_cooked_week_streak_gte", weeks: 8 },
+  },
 ];
 
 export function getAchievementById(id: string): AchievementDefinition | undefined {

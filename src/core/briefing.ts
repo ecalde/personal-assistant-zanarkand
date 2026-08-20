@@ -10,9 +10,11 @@
  */
 
 import { buildInterviewStageSummary } from "./career";
+import { listRecentCookingSessions } from "./cooking";
 import { daysBetweenDateKeys } from "./events";
 import { expandWorkoutOccurrencesForDate, getLastSession } from "./fitness";
 import {
+  COOKING_LONG_GAP_DAYS,
   EVENING_HOUR,
   FITNESS_LONG_GAP_DAYS,
   HIGH_BLOCKED_MINUTES,
@@ -24,9 +26,11 @@ import {
   type FocusReasonCode,
 } from "./focus";
 import type {
+  CookingSession,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -90,9 +94,9 @@ const BUSY_DAY_OPENERS: Record<Exclude<WorkloadLevel, "light">, string[]> = {
 };
 
 const ON_TRACK_FOCUS_TEMPLATES = [
-  "Skills, fitness, and people reminders look on track.",
-  "You're in good shape on skills, fitness, and people follow-ups.",
-  "Nothing urgent across skills, fitness, or people today.",
+  "Skills, fitness, cooking, and people reminders look on track.",
+  "You're in good shape on skills, fitness, cooking, and people follow-ups.",
+  "Nothing urgent across skills, fitness, cooking, or people today.",
 ];
 
 const RECOMMENDATION_FALLBACK_TEMPLATES = [
@@ -131,6 +135,8 @@ export type BuildDailyBriefingInput = {
   jobApplications: JobApplication[];
   workoutPlans: WorkoutPlan[];
   workoutSessions: WorkoutSession[];
+  recipes?: Recipe[];
+  cookingSessions?: CookingSession[];
   supplementProtocols?: SupplementProtocol[];
   supplementIntakeLogs?: SupplementIntakeLog[];
   focusSummary: DailyFocusSummary;
@@ -506,6 +512,13 @@ export function focusItemToRecommendation(
       const protocolName = item.title.replace(/^(Take|Finish) /, "");
       return `Take remaining ${protocolName} doses today.`;
     }
+    case "cooking_timer_done":
+    case "cooking_active_session":
+      return item.title.endsWith(".") ? item.title : `${item.title}.`;
+    case "cooking_planned_today":
+      return item.title.endsWith(".") ? item.title : `${item.title}.`;
+    case "cooking_make_now":
+      return item.title.endsWith(".") ? item.title : `${item.title}.`;
     case "timeline_high_blocked_time":
       return "Review your calendar — today is heavily blocked.";
     case "timeline_low_available_skill_time":
@@ -541,8 +554,16 @@ export function buildRecommendations(
 
 export function collectRiskFlags(input: BuildDailyBriefingInput): string[] {
   const now = input.now ?? new Date();
-  const { focusSummary, workload, unifiedTimelineDay, workoutPlans, workoutSessions, todayKey } =
-    input;
+  const {
+    focusSummary,
+    workload,
+    unifiedTimelineDay,
+    workoutPlans,
+    workoutSessions,
+    recipes = [],
+    cookingSessions = [],
+    todayKey,
+  } = input;
   const context = focusSummary.context;
   const conflictCount = scheduleConflictCount(unifiedTimelineDay);
   const flags: string[] = [];
@@ -564,6 +585,18 @@ export function collectRiskFlags(input: BuildDailyBriefingInput): string[] {
       }
     } else {
       flags.push("No workouts recently");
+    }
+  }
+
+  if (recipes.length > 0 || cookingSessions.length > 0) {
+    const lastCook = listRecentCookingSessions(cookingSessions, 1)[0];
+    if (lastCook) {
+      const daysSince = daysBetweenDateKeys(lastCook.cookDate, todayKey);
+      if (daysSince !== null && daysSince >= COOKING_LONG_GAP_DAYS) {
+        flags.push("No home cooking recently");
+      }
+    } else if (recipes.length > 0) {
+      flags.push("No home cooking recently");
     }
   }
 

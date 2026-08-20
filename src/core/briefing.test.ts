@@ -553,6 +553,40 @@ describe("collectRiskFlags", () => {
     expect(flags).toContain("No workouts recently");
   });
 
+  it("flags no home cooking recently when the recipe library is idle", () => {
+    const flags = collectRiskFlags(
+      buildBriefingInput({
+        recipes: [
+          {
+            id: SKILL_A,
+            title: "Carbonara",
+            category: "dinner",
+            difficulty: "easy",
+            experienceLevel: "beginner",
+            ingredients: [{ id: APP_ID, rawText: "2 eggs" }],
+            steps: [
+              {
+                id: EVENT_ID,
+                order: 0,
+                text: "Cook.",
+                kind: "blocking",
+                blocksProgress: true,
+              },
+            ],
+            equipment: [],
+            gallery: [],
+            source: "manual",
+            createdAtIso: ISO,
+            updatedAtIso: ISO,
+          },
+        ],
+        cookingSessions: [],
+      })
+    );
+
+    expect(flags).toContain("No home cooking recently");
+  });
+
   it("flags too many overdue skills", () => {
     const skills = Array.from({ length: 3 }, (_, i) =>
       sampleSkill({

@@ -4,10 +4,12 @@ import {
   type ApplicationAttentionReason,
 } from "../core/career";
 import type {
+  CookingSession,
   FocusFeedback,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -18,6 +20,7 @@ import type {
 import {
   buildWeeklyReview,
   isCareerSectionVisible,
+  isCookingSectionVisible,
   isEventsSectionVisible,
   isFitnessSectionVisible,
   isFocusFeedbackSectionVisible,
@@ -27,6 +30,10 @@ import {
   isWinsSectionVisible,
   type WeeklyReview,
 } from "../core/review";
+import { formatCookDate } from "../core/cooking";
+import { SEED_INGREDIENT_CATALOG } from "../core/ingredientCatalog";
+import { buildNutritionIndexes, buildRecipeNutritionMap } from "../core/nutrition";
+import { SEED_INGREDIENT_NUTRIENTS, SEED_RETENTION_FACTORS } from "../core/nutritionSeed";
 import { formatLocalDateKey } from "../core/timeline";
 import { styles } from "../ui/appStyles";
 import { formatMinutes } from "../ui/format";
@@ -41,6 +48,8 @@ export type ReviewPageProps = {
   workoutSessions: WorkoutSession[];
   supplementProtocols: SupplementProtocol[];
   supplementIntakeLogs: SupplementIntakeLog[];
+  recipes: Recipe[];
+  cookingSessions: CookingSession[];
   focusFeedback: FocusFeedback[];
 };
 
@@ -110,9 +119,20 @@ export default function ReviewPage({
   workoutSessions,
   supplementProtocols,
   supplementIntakeLogs,
+  recipes,
+  cookingSessions,
   focusFeedback,
 }: ReviewPageProps) {
   const todayKey = formatLocalDateKey(new Date());
+  const nutritionByRecipeId = useMemo(() => {
+    const indexes = buildNutritionIndexes({
+      catalog: SEED_INGREDIENT_CATALOG,
+      nutrients: SEED_INGREDIENT_NUTRIENTS,
+      customIngredients: [],
+      retentionFactors: SEED_RETENTION_FACTORS,
+    });
+    return buildRecipeNutritionMap(recipes, indexes);
+  }, [recipes]);
   const review = useMemo(
     () =>
       buildWeeklyReview({
@@ -125,6 +145,9 @@ export default function ReviewPage({
         workoutSessions,
         supplementProtocols,
         supplementIntakeLogs,
+        recipes,
+        cookingSessions,
+        nutritionByRecipeId,
         focusFeedback,
         todayKey,
       }),
@@ -138,6 +161,9 @@ export default function ReviewPage({
       workoutSessions,
       supplementProtocols,
       supplementIntakeLogs,
+      recipes,
+      cookingSessions,
+      nutritionByRecipeId,
       focusFeedback,
       todayKey,
     ]
@@ -225,7 +251,7 @@ export default function ReviewPage({
         )}
       </SectionBlock>
 
-      <SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
+      </SectionBlock title="Fitness" hiddenWhenEmpty isEmpty={!isFitnessSectionVisible(review.fitness)}>
         {review.fitness.count > 0 && (
           <p style={{ margin: 0, fontSize: 14 }}>{review.fitness.summaryLine}</p>
         )}
@@ -243,6 +269,40 @@ export default function ReviewPage({
           >
             {review.fitness.supplementSummaryLine}
           </p>
+        )}
+      </SectionBlock>
+
+      <SectionBlock
+        title="Cooking"
+        hiddenWhenEmpty
+        isEmpty={!isCookingSectionVisible(review.cooking)}
+      >
+        <p style={{ margin: 0, fontSize: 14 }}>{review.cooking.summaryLine}</p>
+        {review.cooking.firstCooks > 0 && (
+          <p style={{ margin: "6px 0 0 0", fontSize: 13, ...styles.textSecondary }}>
+            {review.cooking.firstCooks === 1
+              ? "1 new recipe this week"
+              : `${review.cooking.firstCooks} new recipes this week`}
+          </p>
+        )}
+        {review.cooking.cooks.length > 0 && (
+          <ul style={{ margin: "10px 0 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>
+            {review.cooking.cooks.map((cook) => (
+              <li key={cook.id} style={{ fontSize: 13 }}>
+                {formatCookDate(cook.cookDate)} — {cook.recipeTitle}
+                {cook.isFirstCook ? " (first cook)" : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+        {review.cooking.nutritionInsights.length > 0 && (
+          <ul style={{ margin: "10px 0 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>
+            {review.cooking.nutritionInsights.map((insight) => (
+              <li key={`${insight.kind}:${insight.message}`} style={{ fontSize: 13 }}>
+                {insight.message}
+              </li>
+            ))}
+          </ul>
         )}
       </SectionBlock>
 

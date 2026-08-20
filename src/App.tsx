@@ -81,8 +81,11 @@ import {
 import { formatLocalDateKey } from "./core/timeline";
 import { formatLocal } from "./ui/format";
 import { useAppearanceTheme } from "./ui/useAppearanceTheme";
+import { useCookingNotifications } from "./components/cooking/useCookingNotifications";
 import { GlobalEffectStyles } from "./components/effects/GlobalEffectStyles";
 import { ThemeEffectsLayer } from "./components/effects/ThemeEffectsLayer";
+
+const EMPTY_COOKING_SESSIONS: CookingSession[] = [];
 
 const REMOTE_DEBOUNCE_MS = 400;
 
@@ -219,6 +222,11 @@ export default function App({ userId, onSignOut }: AppProps) {
 
   const appearance = useAppearanceTheme();
   const [page, setPage] = useState<Page>("dashboard");
+  const openCookingPage = useCallback(() => setPage("cooking"), []);
+  useCookingNotifications({
+    cookingSessions: app?.payload.cookingSessions ?? EMPTY_COOKING_SESSIONS,
+    onOpenCooking: openCookingPage,
+  });
   const [fitnessFocus, setFitnessFocus] = useState<FitnessFocus | undefined>();
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
   const [eventDraftKey, setEventDraftKey] = useState(0);
@@ -1792,7 +1800,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenPeople={() => setPage("people")}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={openFitness}
-          onOpenCooking={() => setPage("cooking")}
+          onOpenCooking={openCookingPage}
           onOpenReview={() => setPage("review")}
           onOpenCalendar={() => setPage("calendar")}
           onToggleTodayExercise={toggleTodayExercise}
@@ -1817,7 +1825,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onSaveCalendarPreferences={setCalendarPreferences}
           onOpenCareer={() => setPage("career")}
           onOpenFitness={openFitness}
-          onOpenCooking={() => setPage("cooking")}
+          onOpenCooking={openCookingPage}
           onAddCookingSession={addCookingSession}
           onUpdateCookingSession={updateCookingSession}
           onDeleteCookingSession={deleteCookingSession}
@@ -1844,6 +1852,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           workoutSessions={app.payload.workoutSessions ?? []}
           supplementProtocols={app.payload.supplementProtocols ?? []}
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
+          recipes={app.payload.recipes ?? []}
+          cookingSessions={app.payload.cookingSessions ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
         />
       )}

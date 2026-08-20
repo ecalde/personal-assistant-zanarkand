@@ -144,7 +144,8 @@ export type AchievementCondition =
   | { kind: "recipes_cooked_gte"; count: number }
   | { kind: "distinct_recipes_cooked_gte"; count: number }
   | { kind: "recipe_mastery_tier_gte"; tier: number }
-  | { kind: "home_cooked_week_streak_gte"; weeks: number };
+  | { kind: "home_cooked_week_streak_gte"; weeks: number }
+  | { kind: "recipes_with_nutrition_gte"; count: number };
 
 export type AchievementDefinition = {
   /** Stable slug, e.g. "streak_global_7". */
@@ -190,7 +191,8 @@ export type QuestCondition =
   | { kind: "extend_global_streak" }
   | { kind: "career_action"; minCount: number }
   | { kind: "log_people_contact"; count?: number }
-  | { kind: "complete_cooking_session"; count?: number };
+  | { kind: "complete_cooking_session"; count?: number }
+  | { kind: "cook_new_recipe"; count?: number };
 
 export type QuestDefinition = {
   id: string;

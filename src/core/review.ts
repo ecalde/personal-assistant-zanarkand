@@ -51,10 +51,13 @@ import {
 import { dayKeyFromIso } from "./progression";
 import type {
   ApplicationStatus,
+  CookingSession,
   FocusFeedback,
   JobApplication,
   LifeEvent,
   Person,
+  Recipe,
+  RecipeNutrition,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -66,6 +69,15 @@ import {
   adherenceForProtocols,
   incompleteAdherenceDays,
 } from "./supplements";
+import { distinctRecipesCookedCount, listCompletedCookingSessionsInRange, listFirstCookSessionsInRange } from "./cooking";
+import {
+  aggregateCookedNutrition,
+  buildNutritionCoachingInsights,
+  cookDaysInRange,
+  missedPlannedCooks,
+  plannedCooksInRange,
+  type NutritionCoachingInsight,
+} from "./cookingSuggestions";
 
 // ---------------------------------------------------------------------------
 // Public constants
@@ -83,6 +95,8 @@ const FOCUS_REPEAT_RISK_THRESHOLD = 3;
 const HEAVY_NEXT_WEEK_EVENTS = 3;
 const FITNESS_WIN_SESSION_COUNT = 2;
 const FITNESS_WIN_DURATION_MINUTES = 90;
+const COOKING_WIN_SESSION_COUNT = 3;
+const COOKING_WIN_COOK_DAYS = 4;
 const INTERVIEW_OR_OFFER_STATUSES: ApplicationStatus[] = [
   "screening",
   "technical",
@@ -106,6 +120,12 @@ const FITNESS_SUMMARY_TEMPLATES = [
   "{count} workout(s) logged ({duration}).",
   "Fitness: {count} session(s), {duration} total.",
   "You completed {count} workout(s) ({duration}).",
+];
+
+const COOKING_SUMMARY_TEMPLATES = [
+  "{count} home-cooked meal(s) across {days} day(s).",
+  "Cooking: {count} meal(s) over {days} day(s).",
+  "You cooked {count} meal(s) at home ({days} day(s)).",
 ];
 
 const EMPTY_WEEK_SUMMARY_TEMPLATES = [
@@ -194,6 +214,29 @@ export type FocusFeedbackWeekSection = {
   totalSnoozed: number;
 };
 
+export type CookingWeekCook = {
+  id: string;
+  recipeTitle: string;
+  cookDate: string;
+  durationMinutes?: number;
+  isFirstCook: boolean;
+};
+
+export type CookingWeekSection = {
+  completedCount: number;
+  distinctRecipes: number;
+  cookDays: number;
+  totalDurationMinutes: number;
+  firstCooks: number;
+  plannedThisWeek: number;
+  missedPlanned: number;
+  plannedNextWeek: number;
+  recipeCount: number;
+  cooks: CookingWeekCook[];
+  summaryLine: string;
+  nutritionInsights: NutritionCoachingInsight[];
+};
+
 export type WeeklyReview = {
   week: LocalWeekRange;
   greeting: string;
@@ -204,6 +247,7 @@ export type WeeklyReview = {
   risks: string[];
   skills: SkillWeekSummary;
   fitness: FitnessWeekSection;
+  cooking: CookingWeekSection;
   career: CareerWeekSection;
   people: PeopleWeekSection;
   events: EventsWeekSection;
@@ -221,6 +265,9 @@ export type BuildWeeklyReviewInput = {
   workoutSessions: WorkoutSession[];
   supplementProtocols?: SupplementProtocol[];
   supplementIntakeLogs?: SupplementIntakeLog[];
+  recipes?: Recipe[];
+  cookingSessions?: CookingSession[];
+  nutritionByRecipeId?: ReadonlyMap<string, RecipeNutrition>;
   focusFeedback: FocusFeedback[];
   todayKey: string;
   now?: Date;
@@ -464,6 +511,93 @@ export function buildFitnessWeekSection(
   };
 }
 
+export function buildCookingWeekSection(
+  cookingSessions: CookingSession[],
+  recipes: Recipe[],
+  week: LocalWeekRange,
+  todayKey: string,
+  nutritionByRecipeId?: ReadonlyMap<string, RecipeNutrition>
+): CookingWeekSection {
+  const completed = listCompletedCookingSessionsInRange(
+    cookingSessions,
+    week.weekStartKey,
+    week.weekEndKey
+  );
+  const firstCookSessions = listFirstCookSessionsInRange(
+    cookingSessions,
+    week.weekStartKey,
+    week.weekEndKey
+  );
+  const firstCookIds = new Set(firstCookSessions.map((session) => session.id));
+  const cookDays = cookDaysInRange(cookingSessions, week.weekStartKey, week.weekEndKey);
+  const totalDurationMinutes = completed.reduce(
+    (sum, session) => sum + (session.durationMinutes ?? 0),
+    0
+  );
+  const nextWeekStartKey = addDaysToDateKey(week.weekEndKey, 1);
+  const nextWeekEndKey = addDaysToDateKey(week.weekEndKey, 7);
+  const plannedThisWeek = plannedCooksInRange(
+    cookingSessions,
+    week.weekStartKey,
+    week.weekEndKey
+  ).length;
+  const plannedNextWeek =
+    nextWeekStartKey && nextWeekEndKey
+      ? plannedCooksInRange(cookingSessions, nextWeekStartKey, nextWeekEndKey).length
+      : 0;
+  const missedPlanned = missedPlannedCooks(
+    cookingSessions,
+    week.weekStartKey,
+    todayKey
+  ).length;
+
+  const seed = buildWeeklyReviewSeed(week.weekStartKey, "cooking-summary", completed.length);
+  const template = selectDeterministicTemplate(COOKING_SUMMARY_TEMPLATES, seed);
+  const summaryLine = template
+    .replace("{count}", String(completed.length))
+    .replace("{days}", String(cookDays));
+
+  const nutrition =
+    nutritionByRecipeId !== undefined
+      ? aggregateCookedNutrition(
+          cookingSessions,
+          recipes,
+          nutritionByRecipeId,
+          week.weekStartKey,
+          week.weekEndKey
+        )
+      : undefined;
+
+  const nutritionInsights = buildNutritionCoachingInsights({
+    completedCount: completed.length,
+    cookDays,
+    distinctRecipes: distinctRecipesCookedCount(completed),
+    firstCooks: firstCookSessions.length,
+    nutrition,
+  });
+
+  return {
+    completedCount: completed.length,
+    distinctRecipes: distinctRecipesCookedCount(completed),
+    cookDays,
+    totalDurationMinutes,
+    firstCooks: firstCookSessions.length,
+    plannedThisWeek,
+    missedPlanned,
+    plannedNextWeek,
+    recipeCount: recipes.length,
+    cooks: completed.map((session) => ({
+      id: session.id,
+      recipeTitle: session.recipeTitle,
+      cookDate: session.cookDate,
+      durationMinutes: session.durationMinutes,
+      isFirstCook: firstCookIds.has(session.id),
+    })),
+    summaryLine,
+    nutritionInsights,
+  };
+}
+
 function formatSupplementAdherenceLine(
   adherence: ReturnType<typeof adherenceForProtocols>
 ): string | undefined {
@@ -677,6 +811,20 @@ export function collectWeeklyWins(review: WeeklyReview): string[] {
     wins.push(review.fitness.summaryLine.replace(/\.$/, "") + ".");
   }
 
+  if (
+    review.cooking.completedCount >= COOKING_WIN_SESSION_COUNT ||
+    review.cooking.cookDays >= COOKING_WIN_COOK_DAYS
+  ) {
+    wins.push(review.cooking.summaryLine.replace(/\.$/, "") + ".");
+  }
+  if (review.cooking.firstCooks > 0 && wins.length < REVIEW_MAX_WINS) {
+    wins.push(
+      review.cooking.firstCooks === 1
+        ? "Tried a new recipe this week."
+        : `Tried ${review.cooking.firstCooks} new recipes this week.`
+    );
+  }
+
   const careerAdvance = review.career.updatedThisWeek.filter((item) =>
     INTERVIEW_OR_OFFER_STATUSES.includes(item.status)
   );
@@ -768,6 +916,25 @@ export function collectWeeklyRisks(review: WeeklyReview, todayKey: string): stri
     );
   }
 
+  if (
+    review.cooking.recipeCount > 0 &&
+    review.cooking.completedCount === 0 &&
+    review.cooking.plannedThisWeek === 0
+  ) {
+    risks.push("No home cooking logged this week.");
+  } else if (review.cooking.missedPlanned > 0) {
+    risks.push(
+      review.cooking.missedPlanned === 1
+        ? "1 planned cook was missed this week."
+        : `${review.cooking.missedPlanned} planned cooks were missed this week.`
+    );
+  }
+  for (const insight of review.cooking.nutritionInsights) {
+    if (insight.tone === "nudge" && risks.length < REVIEW_MAX_RISKS) {
+      risks.push(insight.message);
+    }
+  }
+
   for (const item of review.focusFeedback.mostHidden) {
     if (item.totalCount >= FOCUS_REPEAT_RISK_THRESHOLD) {
       risks.push(
@@ -826,6 +993,15 @@ export function isFitnessSectionVisible(section: FitnessWeekSection): boolean {
   return section.count > 0 || section.supplementDueDays > 0;
 }
 
+export function isCookingSectionVisible(section: CookingWeekSection): boolean {
+  return (
+    section.completedCount > 0 ||
+    section.plannedThisWeek > 0 ||
+    section.plannedNextWeek > 0 ||
+    (section.recipeCount > 0 && section.nutritionInsights.length > 0)
+  );
+}
+
 export function isCareerSectionVisible(section: CareerWeekSection): boolean {
   return (
     section.updatedThisWeek.length > 0 || section.stillNeedingAttention.length > 0
@@ -861,16 +1037,22 @@ function buildWeeklyReviewSummary(
     review.week.weekStartKey,
     "summary",
     review.skills.totalMinutes,
-    review.fitness.count
+    review.fitness.count,
+    review.cooking.completedCount
   );
 
   if (
     review.skills.totalMinutes === 0 &&
     review.fitness.count === 0 &&
-    !review.fitness.supplementSummaryLine
+    !review.fitness.supplementSummaryLine &&
+    review.cooking.completedCount === 0
   ) {
     parts.push(selectDeterministicTemplate(EMPTY_WEEK_SUMMARY_TEMPLATES, seed));
-  } else if (review.skills.totalMinutes > 0 || review.fitness.count > 0) {
+  } else if (
+    review.skills.totalMinutes > 0 ||
+    review.fitness.count > 0 ||
+    review.cooking.completedCount > 0
+  ) {
     const openerTemplate = selectDeterministicTemplate(WEEK_SUMMARY_OPENERS, seed);
     parts.push(
       openerTemplate.replace("{skillMinutes}", formatMinutesLabel(review.skills.totalMinutes)) + "."
@@ -882,6 +1064,9 @@ function buildWeeklyReviewSummary(
   }
   if (review.fitness.supplementSummaryLine) {
     parts.push(review.fitness.supplementSummaryLine);
+  }
+  if (review.cooking.completedCount > 0) {
+    parts.push(review.cooking.summaryLine);
   }
 
   const timelineDays = buildUnifiedTimelineRange(
@@ -923,6 +1108,13 @@ export function buildWeeklyReview(input: BuildWeeklyReviewInput): WeeklyReview {
     input.supplementProtocols ?? [],
     input.supplementIntakeLogs ?? []
   );
+  const cooking = buildCookingWeekSection(
+    input.cookingSessions ?? [],
+    input.recipes ?? [],
+    week,
+    input.todayKey,
+    input.nutritionByRecipeId
+  );
   const career = buildCareerWeekSection(
     input.jobApplications,
     week,
@@ -945,6 +1137,7 @@ export function buildWeeklyReview(input: BuildWeeklyReviewInput): WeeklyReview {
     risks: [],
     skills,
     fitness,
+    cooking,
     career,
     people,
     events,

@@ -39,6 +39,7 @@ import type {
   CookingSession,
   JobApplication,
   LifeEvent,
+  PantryItem,
   Person,
   Recipe,
   Session,
@@ -54,6 +55,8 @@ import {
   timerHasFinished,
 } from "./cookingSession";
 import { listPlannedCookingSessions } from "./cooking";
+import { suggestRecipesFromPantry } from "./cookingSuggestions";
+import { SEED_INGREDIENT_CATALOG } from "./ingredientCatalog";
 import {
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
@@ -79,6 +82,7 @@ export const MORNING_HOUR = 12;
 export const HIGH_BLOCKED_MINUTES = 480;
 export const LOW_AVAILABLE_SKILL_MINUTES = 30;
 export const FITNESS_LONG_GAP_DAYS = 4;
+export const COOKING_LONG_GAP_DAYS = 5;
 export const PEOPLE_BIRTHDAY_SOON_DAYS = 7;
 
 const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
@@ -110,6 +114,7 @@ const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   cooking_timer_done: 880,
   cooking_active_session: 640,
   cooking_planned_today: 520,
+  cooking_make_now: 360,
 };
 
 const CATEGORY_TIEBREAK_ORDER: Record<FocusCategory, number> = {
@@ -196,6 +201,7 @@ export type FocusReasonCode =
   | "cooking_timer_done"
   | "cooking_active_session"
   | "cooking_planned_today"
+  | "cooking_make_now"
   | "timeline_schedule_conflict"
   | "timeline_high_blocked_time"
   | "timeline_low_available_skill_time";
@@ -261,6 +267,7 @@ export type BuildDailyFocusInput = {
   supplementIntakeLogs?: SupplementIntakeLog[];
   recipes?: Recipe[];
   cookingSessions?: CookingSession[];
+  pantry?: PantryItem[];
   todayKey: string;
   now?: Date;
   opts?: { maxItems?: number; perCategoryCap?: number };
@@ -1260,7 +1267,8 @@ export function collectCookingFocusItems(
   cookingSessions: CookingSession[],
   recipes: Recipe[],
   todayKey: string,
-  now: Date
+  now: Date,
+  pantry: PantryItem[] = []
 ): FocusItemDraft[] {
   const drafts: FocusItemDraft[] = [];
   const dayEnd = endOfLocalDayIso(todayKey);
@@ -1322,6 +1330,31 @@ export function collectCookingFocusItems(
         reasonCodes: ["cooking_planned_today"],
         score: {
           categoryBase: CATEGORY_BASE.cooking_planned_today!,
+        },
+      })
+    );
+  }
+
+  const makeNow = suggestRecipesFromPantry({
+    recipes,
+    pantry,
+    catalog: SEED_INGREDIENT_CATALOG,
+    limit: 1,
+  }).find((item) => item.availability === "can_make");
+  if (makeNow) {
+    drafts.push(
+      makeDraft({
+        id: `cooking:make-now:${makeNow.recipeId}`,
+        category: "cooking",
+        sourceId: makeNow.recipeId,
+        title: `You can make ${makeNow.recipeTitle} now`,
+        description: makeNow.reason,
+        suggestedActionType: "open_cooking",
+        actionTargetId: makeNow.recipeId,
+        expiresAtIso: dayEnd,
+        reasonCodes: ["cooking_make_now"],
+        score: {
+          categoryBase: CATEGORY_BASE.cooking_make_now!,
         },
       })
     );
@@ -1589,7 +1622,8 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
       input.cookingSessions ?? [],
       input.recipes ?? [],
       input.todayKey,
-      now
+      now,
+      input.pantry ?? []
     ),
     ...timelineDrafts,
   ];

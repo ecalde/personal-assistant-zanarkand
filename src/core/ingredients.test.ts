@@ -3,12 +3,15 @@ import { SEED_INGREDIENT_CATALOG, seedIngredientIdFor } from "./ingredientCatalo
 import {
   INGREDIENT_FUZZY_THRESHOLD,
   computeRecipeAvailability,
+  ingredientLineLabel,
+  listMissingIngredientLines,
   matchCustomIngredient,
   matchIngredient,
   normalizeIngredientName,
   parseIngredientLine,
   recipeLineIsInPantry,
   resolveRecipeIngredientLine,
+  suggestIngredientMatches,
   trigramSimilarity,
 } from "./ingredients";
 import type { CustomIngredient, PantryItem, Recipe, RecipeIngredientLine } from "./model";
@@ -215,6 +218,17 @@ describe("computeRecipeAvailability", () => {
     expect(recipeLineIsInPantry(dish.ingredients[0]!, pantry, catalog)).toBe(true);
     expect(computeRecipeAvailability(dish, pantry, catalog)).toBe("can_make");
   });
+
+  it("lists missing required lines with a readable label", () => {
+    const dish = recipe([
+      line({ ingredientId: eggId, rawText: "2 eggs" }),
+      line({ id: LINE_B, ingredientId: garlicId, rawText: "2 cloves garlic" }),
+    ]);
+    const pantry = [pantryItem({ ingredientId: eggId, label: "Egg" })];
+    const missing = listMissingIngredientLines(dish, pantry, catalog);
+    expect(missing).toHaveLength(1);
+    expect(ingredientLineLabel(missing[0]!)).toBe("garlic");
+  });
 });
 
 describe("custom ingredient matching", () => {
@@ -235,5 +249,14 @@ describe("custom ingredient matching", () => {
     expect(resolved.customIngredientId).toBe(custom.id);
     expect(resolved.ingredientId).toBeUndefined();
     expect(resolved.matchConfidence).toBe(1);
+  });
+});
+
+describe("suggestIngredientMatches", () => {
+  it("ranks tortilla aliases and related catalog items", () => {
+    const suggestions = suggestIngredientMatches("tortilla", catalog, 4);
+    expect(suggestions[0]?.ingredientId).toBe(seedIngredientIdFor(1));
+    expect(suggestions[0]?.matchedVia).toBe("alias");
+    expect(suggestions.some((item) => item.ingredientId === seedIngredientIdFor(2))).toBe(true);
   });
 });
