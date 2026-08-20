@@ -23,7 +23,6 @@ export function PeopleToolbar({
       style={{
         display: "grid",
         gap: 10,
-        marginBottom: 12,
       }}
     >
       <div
@@ -41,7 +40,7 @@ export function PeopleToolbar({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Name, relationship, likes, notes…"
-            style={{ ...styles.input, minWidth: 0, width: "100%" }}
+            style={styles.inputCompact}
           />
         </label>
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   getPersonBirthdayStatus,
   getPersonFollowUpStatus,
@@ -26,11 +27,22 @@ function formatBirthdayDate(dateKey: string): string {
   });
 }
 
+function personInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  const first = parts[0][0] ?? "";
+  const last = parts[parts.length - 1]?.[0] ?? "";
+  return `${first}${last}`.toUpperCase();
+}
+
 export type PersonCardProps = {
   person: Person;
   todayKey: string;
   linkedEvents: LifeEvent[];
   expanded: boolean;
+  editing: boolean;
+  editForm?: ReactNode;
   onToggleExpand: () => void;
   onContactedToday: () => void;
   onCreateLinkedEvent: () => void;
@@ -43,6 +55,8 @@ export function PersonCard({
   todayKey,
   linkedEvents,
   expanded,
+  editing,
+  editForm,
   onToggleExpand,
   onContactedToday,
   onCreateLinkedEvent,
@@ -66,17 +80,41 @@ export function PersonCard({
     summaryLine = `Check in every ${person.contactCadenceDays} days`;
   }
 
+  const highlighted = expanded || editing;
+
   return (
-    <div style={{ ...styles.listRow, minWidth: 0 }}>
-      <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
-          <strong>{person.name}</strong>
-          {person.nickname && (
-            <span style={{ ...styles.textSecondary, fontSize: 13 }}>({person.nickname})</span>
-          )}
-          {person.relationship && (
-            <span style={styles.statusPill}>{person.relationship}</span>
-          )}
+    <article
+      style={{
+        ...styles.personCard,
+        ...(highlighted ? styles.personCardExpanded : {}),
+      }}
+    >
+      <div style={styles.personCardAccent} aria-hidden="true" />
+      <div style={styles.personCardBody}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+          <div style={styles.personAvatar} aria-hidden="true">
+            {personInitials(person.name)}
+          </div>
+          <div style={{ display: "grid", gap: 4, minWidth: 0, flex: "1 1 auto" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                alignItems: "center",
+                minWidth: 0,
+              }}
+            >
+              <h3 style={{ ...styles.personCardTitle, margin: 0 }}>{person.name}</h3>
+              {person.nickname && (
+                <span style={{ ...styles.textSecondary, fontSize: 13 }}>({person.nickname})</span>
+              )}
+              {person.relationship && (
+                <span style={styles.statusPill}>{person.relationship}</span>
+              )}
+            </div>
+            <div style={{ ...styles.textMuted, fontSize: 13 }}>{summaryLine}</div>
+          </div>
         </div>
 
         {(birthdayStatus || followUpStatus) && (
@@ -103,55 +141,59 @@ export function PersonCard({
           </div>
         )}
 
-        <div style={{ ...styles.textSecondary, fontSize: 13 }}>{summaryLine}</div>
-
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button type="button" style={styles.smallBtn} onClick={onToggleExpand}>
-            {expanded ? "Hide" : "Details"}
-          </button>
+          {!editing && (
+            <button type="button" style={styles.ghostBtn} onClick={onToggleExpand}>
+              {expanded ? "Hide" : "Details"}
+            </button>
+          )}
           {contactedToday ? (
             <span style={styles.streakPillMuted}>Contacted today</span>
           ) : (
-            <button type="button" style={styles.smallBtn} onClick={onContactedToday}>
+            <button type="button" style={styles.ghostBtn} onClick={onContactedToday}>
               Contacted today
             </button>
           )}
-          <button type="button" style={styles.smallBtn} onClick={onCreateLinkedEvent}>
+          <button type="button" style={styles.ghostBtn} onClick={onCreateLinkedEvent}>
             Add event
           </button>
-          <button type="button" style={styles.smallBtn} onClick={onEdit}>
-            Edit
-          </button>
-          <button type="button" style={styles.smallBtn} onClick={onDelete}>
+          {!editing && (
+            <button type="button" style={styles.ghostBtn} onClick={onEdit}>
+              Edit
+            </button>
+          )}
+          <button type="button" style={styles.ghostBtn} onClick={onDelete}>
             Delete
           </button>
         </div>
-      </div>
 
-      {expanded && (
-        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          {!hasPreferences && (
-            <div style={styles.helpText}>
-              No preferences saved yet. Edit to add likes, gift ideas, or notes.
+        {editing && editForm}
+
+        {!editing && expanded && (
+          <div style={{ display: "grid", gap: 10 }}>
+            {!hasPreferences && (
+              <div style={styles.helpText}>
+                No preferences saved yet. Edit to add likes, gift ideas, or notes.
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              }}
+            >
+              <PersonPreferenceSection title="Likes" content={person.likes} />
+              <PersonPreferenceSection title="Dislikes" content={person.dislikes} />
+              <PersonPreferenceSection title="Gift ideas" content={person.giftIdeas} />
+              <PersonPreferenceSection title="Notes" content={person.notes} />
             </div>
-          )}
 
-          <div
-            style={{
-              display: "grid",
-              gap: 10,
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            }}
-          >
-            <PersonPreferenceSection title="Likes" content={person.likes} />
-            <PersonPreferenceSection title="Dislikes" content={person.dislikes} />
-            <PersonPreferenceSection title="Gift ideas" content={person.giftIdeas} />
-            <PersonPreferenceSection title="Notes" content={person.notes} />
+            <PersonLinkedEvents linkedEvents={linkedEvents} />
           </div>
-
-          <PersonLinkedEvents linkedEvents={linkedEvents} />
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </article>
   );
 }

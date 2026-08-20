@@ -57,6 +57,14 @@ export default function PeoplePage({
     [people, query, sortMode, todayKey]
   );
 
+  const visiblePeople = useMemo(() => {
+    if (!editingId) return filteredPeople;
+    if (filteredPeople.some((person) => person.id === editingId)) return filteredPeople;
+    const editingPerson = people.find((person) => person.id === editingId);
+    if (!editingPerson) return filteredPeople;
+    return [editingPerson, ...filteredPeople];
+  }, [editingId, filteredPeople, people]);
+
   function resetForm() {
     setForm(emptyPersonFormState());
     setEditingId(null);
@@ -74,8 +82,9 @@ export default function PeoplePage({
   function openEditForm(person: Person) {
     setForm(personFormFromPerson(person));
     setEditingId(person.id);
+    setExpandedId(person.id);
     setFormError(null);
-    setShowForm(true);
+    setShowForm(false);
   }
 
   function handleSubmit() {
@@ -113,6 +122,17 @@ export default function PeoplePage({
     });
   }
 
+  function handleToggleExpand(personId: string) {
+    if (editingId === personId) {
+      resetForm();
+      setExpandedId(personId);
+      return;
+    }
+    setExpandedId((current) => (current === personId ? null : personId));
+  }
+
+  const creating = showForm && !editingId;
+
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div style={styles.card}>
@@ -125,21 +145,36 @@ export default function PeoplePage({
             alignItems: "center",
           }}
         >
-          <div style={styles.cardTitle}>People</div>
-          {!showForm && (
-            <button type="button" onClick={openCreateForm}>
+          <div>
+            <div style={{ ...styles.cardTitle, marginBottom: 4 }}>People</div>
+            <div style={styles.textSecondary}>
+              Track friends and family — birthdays, preferences, gift ideas, and check-in reminders.
+            </div>
+          </div>
+          {!creating && (
+            <button type="button" onClick={openCreateForm} style={styles.actionBtn}>
               Add person
             </button>
           )}
         </div>
-        <div style={{ ...styles.textSecondary }}>
-          Track friends and family — birthdays, preferences, gift ideas, and check-in reminders.
-        </div>
+
+        {people.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <PeopleToolbar
+              query={query}
+              sortMode={sortMode}
+              visibleCount={filteredPeople.length}
+              totalCount={people.length}
+              onQueryChange={setQuery}
+              onSortModeChange={setSortMode}
+            />
+          </div>
+        )}
       </div>
 
-      {showForm && (
+      {creating && (
         <PersonForm
-          editing={Boolean(editingId)}
+          editing={false}
           form={form}
           formError={formError}
           onChange={setForm}
@@ -154,50 +189,52 @@ export default function PeoplePage({
             No people yet. Add someone you want to stay in touch with — birthdays, gift ideas,
             and check-in reminders live here.
           </div>
-          {!showForm && (
-            <button type="button" onClick={openCreateForm}>
+          {!creating && (
+            <button type="button" onClick={openCreateForm} style={styles.actionBtn}>
               Add your first person
             </button>
           )}
         </div>
-      ) : (
+      ) : filteredPeople.length === 0 && !editingId ? (
         <div style={styles.card}>
-          <div style={styles.cardTitle}>Your people</div>
-
-          <PeopleToolbar
-            query={query}
-            sortMode={sortMode}
-            visibleCount={filteredPeople.length}
-            totalCount={people.length}
-            onQueryChange={setQuery}
-            onSortModeChange={setSortMode}
-          />
-
-          {filteredPeople.length === 0 ? (
-            <div style={styles.helpText}>
-              No matches for &ldquo;{query.trim()}&rdquo;. Try a name, nickname, relationship, or
-              note keyword.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {filteredPeople.map((person) => (
-                <PersonCard
-                  key={person.id}
-                  person={person}
-                  todayKey={todayKey}
-                  linkedEvents={eventsForPerson(events, person.id)}
-                  expanded={expandedId === person.id}
-                  onToggleExpand={() =>
-                    setExpandedId((current) => (current === person.id ? null : person.id))
-                  }
-                  onContactedToday={() => handleContactedToday(person)}
-                  onCreateLinkedEvent={() => handleCreateLinkedEvent(person)}
-                  onEdit={() => openEditForm(person)}
-                  onDelete={() => onDelete(person.id)}
-                />
-              ))}
-            </div>
-          )}
+          <div style={styles.helpText}>
+            No matches for &ldquo;{query.trim()}&rdquo;. Try a name, nickname, relationship, or
+            note keyword.
+          </div>
+        </div>
+      ) : (
+        <div style={styles.peopleGalleryGrid}>
+          {visiblePeople.map((person) => (
+            <PersonCard
+              key={person.id}
+              person={person}
+              todayKey={todayKey}
+              linkedEvents={eventsForPerson(events, person.id)}
+              expanded={expandedId === person.id && editingId !== person.id}
+              editing={editingId === person.id}
+              editForm={
+                editingId === person.id ? (
+                  <PersonForm
+                    editing
+                    embedded
+                    form={form}
+                    formError={formError}
+                    onChange={setForm}
+                    onSubmit={handleSubmit}
+                    onCancel={resetForm}
+                  />
+                ) : undefined
+              }
+              onToggleExpand={() => handleToggleExpand(person.id)}
+              onContactedToday={() => handleContactedToday(person)}
+              onCreateLinkedEvent={() => handleCreateLinkedEvent(person)}
+              onEdit={() => openEditForm(person)}
+              onDelete={() => {
+                if (editingId === person.id) resetForm();
+                onDelete(person.id);
+              }}
+            />
+          ))}
         </div>
       )}
     </div>
