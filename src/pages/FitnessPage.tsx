@@ -376,7 +376,9 @@ export default function FitnessPage({
         <div style={{ ...styles.textSecondary }}>
           {section === "workouts"
             ? "Open a plan to tap exercises complete. Focus mode keeps the session if you close the tab."
-            : "Track supplement protocols and tap each dose as you take it."}
+            : section === "progress"
+              ? "Compare every lift on one chart, or pick a single exercise."
+              : "Track supplement protocols and tap each dose as you take it."}
         </div>
       </div>
 
@@ -456,10 +458,12 @@ export default function FitnessPage({
         </div>
       )}
 
+      {section === "progress" && (
+        <ExerciseProgressionChart exercises={exerciseProgressions} />
+      )}
+
       {section === "workouts" && !showDedicatedLogger && (
         <>
-      <ExerciseProgressionChart exercises={exerciseProgressions} />
-
       <div style={styles.card}>
         <div
           style={{

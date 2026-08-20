@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { AETHER_TEXT, SURFACE } from "../../ui/appStyles";
 
-export type FitnessSection = "workouts" | "supplements";
+export type FitnessSection = "workouts" | "progress" | "supplements";
 
 const switcher: CSSProperties = {
   display: "inline-flex",
@@ -12,7 +12,7 @@ const switcher: CSSProperties = {
 };
 
 const btn: CSSProperties = {
-  padding: "8px 18px",
+  padding: "8px 14px",
   border: "none",
   background: "transparent",
   color: AETHER_TEXT.muted,
@@ -28,6 +28,7 @@ const btnActive: CSSProperties = {
 
 const OPTIONS: { id: FitnessSection; label: string }[] = [
   { id: "workouts", label: "Workouts" },
+  { id: "progress", label: "Progress" },
   { id: "supplements", label: "Supplements" },
 ];
 

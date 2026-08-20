@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_EXERCISES_KEY,
   buildExerciseProgressions,
   buildFrequencyChartLayout,
+  buildMultiFrequencyChartLayout,
+  buildMultiWeightChartLayout,
   buildWeightChartLayout,
   pickDefaultExerciseKey,
   type ExerciseProgression,
@@ -229,10 +232,88 @@ describe("chart layouts", () => {
     expect(layout.bars[1]?.height).toBe(0);
     expect(layout.bars[2]!.height).toBeGreaterThan(layout.bars[0]!.height);
   });
+
+  it("overlays multiple weight series on a shared date and weight domain", () => {
+    const layout = buildMultiWeightChartLayout([
+      {
+        key: "bench press",
+        displayName: "Bench press",
+        weights: [
+          { date: "2026-05-12", weight: 135 },
+          { date: "2026-05-26", weight: 155 },
+        ],
+        firstLoggedDate: "2026-05-12",
+        lastLoggedDate: "2026-05-26",
+        completionCount: 2,
+        personalRecord: 155,
+        frequencyByWeek: [],
+      },
+      {
+        key: "squat",
+        displayName: "Squat",
+        weights: [{ date: "2026-05-19", weight: 185 }],
+        firstLoggedDate: "2026-05-19",
+        lastLoggedDate: "2026-05-19",
+        completionCount: 1,
+        personalRecord: 185,
+        frequencyByWeek: [],
+      },
+    ]);
+
+    expect(layout.series).toHaveLength(2);
+    expect(layout.series[0]?.dots).toHaveLength(2);
+    expect(layout.series[1]?.dots).toHaveLength(1);
+    expect(layout.series[0]?.color).not.toBe(layout.series[1]?.color);
+    expect(layout.series[0]!.dots[1]!.x).toBeGreaterThan(layout.series[0]!.dots[0]!.x);
+    expect(layout.series[1]!.dots[0]!.x).toBeGreaterThan(layout.series[0]!.dots[0]!.x);
+    expect(layout.series[1]!.dots[0]!.x).toBeLessThan(layout.series[0]!.dots[1]!.x);
+    expect(layout.series[1]!.dots[0]!.y).toBeLessThan(layout.series[0]!.dots[1]!.y);
+    expect(layout.series[1]?.linePath).toBeUndefined();
+  });
+
+  it("stacks weekly frequency counts across exercises", () => {
+    const layout = buildMultiFrequencyChartLayout([
+      {
+        key: "bench press",
+        displayName: "Bench press",
+        weights: [],
+        firstLoggedDate: "2026-05-12",
+        lastLoggedDate: "2026-05-26",
+        completionCount: 2,
+        personalRecord: undefined,
+        frequencyByWeek: [
+          { weekStart: "2026-05-11", count: 1 },
+          { weekStart: "2026-05-18", count: 0 },
+          { weekStart: "2026-05-25", count: 1 },
+        ],
+      },
+      {
+        key: "squat",
+        displayName: "Squat",
+        weights: [],
+        firstLoggedDate: "2026-05-26",
+        lastLoggedDate: "2026-05-26",
+        completionCount: 1,
+        personalRecord: undefined,
+        frequencyByWeek: [{ weekStart: "2026-05-25", count: 1 }],
+      },
+    ]);
+
+    expect(layout.bars).toHaveLength(3);
+    expect(layout.bars[0]?.total).toBe(1);
+    expect(layout.bars[0]?.segments).toHaveLength(1);
+    expect(layout.bars[1]?.total).toBe(0);
+    expect(layout.bars[1]?.segments).toHaveLength(0);
+    expect(layout.bars[2]?.total).toBe(2);
+    expect(layout.bars[2]?.segments).toHaveLength(2);
+    expect(layout.bars[2]!.segments[1]!.y + layout.bars[2]!.segments[1]!.height).toBeCloseTo(
+      layout.bars[2]!.segments[0]!.y
+    );
+  });
 });
 
 describe("pickDefaultExerciseKey", () => {
-  it("prefers the first exercise that has weight points", () => {
+  it("defaults to the all-workouts overlay whenever any exercise exists", () => {
     const cardio: ExerciseProgression = {
       key: "plank",
       displayName: "Plank",
@@ -253,7 +334,7 @@ describe("pickDefaultExerciseKey", () => {
       personalRecord: 185,
       frequencyByWeek: [{ weekStart: "2026-05-25", count: 1 }],
     };
-    expect(pickDefaultExerciseKey([cardio, lift])).toBe("squat");
+    expect(pickDefaultExerciseKey([cardio, lift])).toBe(ALL_EXERCISES_KEY);
     expect(pickDefaultExerciseKey([])).toBeUndefined();
   });
 });

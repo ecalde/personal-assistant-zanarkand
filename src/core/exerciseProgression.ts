@@ -92,6 +92,76 @@ export const EXERCISE_CHART_PAD: ChartPadding = {
 /** Cap frequency bars so a long history stays readable. */
 export const FREQUENCY_WEEK_CAP = 24;
 
+/** Dropdown value for overlaying every exercise on one chart. */
+export const ALL_EXERCISES_KEY = "__all__";
+
+/** Distinct series colors so overlay lines stay readable in light and dark mode. */
+export const EXERCISE_SERIES_COLORS = [
+  "#46c6ff",
+  "#7b9bff",
+  "#3ecf8e",
+  "#ff6b6b",
+  "#f5a623",
+  "#c084fc",
+  "#22d3ee",
+  "#fb7185",
+  "#a3e635",
+  "#f472b6",
+] as const;
+
+export function exerciseSeriesColor(index: number): string {
+  return EXERCISE_SERIES_COLORS[index % EXERCISE_SERIES_COLORS.length]!;
+}
+
+export type WeightChartSeries = {
+  key: string;
+  displayName: string;
+  color: string;
+  linePath: string | undefined;
+  dots: WeightChartDot[];
+};
+
+export type MultiWeightChartLayout = {
+  width: number;
+  height: number;
+  series: WeightChartSeries[];
+  yTicks: Array<{ y: number; label: string }>;
+  xLabels: Array<{ x: number; label: string }>;
+};
+
+export type FrequencyStackSegment = {
+  key: string;
+  displayName: string;
+  color: string;
+  y: number;
+  height: number;
+  count: number;
+};
+
+export type FrequencyStackBar = {
+  x: number;
+  width: number;
+  weekStart: string;
+  label: string;
+  showLabel: boolean;
+  total: number;
+  segments: FrequencyStackSegment[];
+};
+
+export type FrequencyChartSeriesMeta = {
+  key: string;
+  displayName: string;
+  color: string;
+};
+
+export type MultiFrequencyChartLayout = {
+  width: number;
+  height: number;
+  bars: FrequencyStackBar[];
+  yTicks: Array<{ y: number; label: string }>;
+  series: FrequencyChartSeriesMeta[];
+};
+
 const DEFAULT_CATALOG_LIMIT = Number.POSITIVE_INFINITY;
 
 function parseDateKey(dateKey: string): Date | null {
@@ -435,6 +505,178 @@ export function buildFrequencyChartLayout(
 }
 
 export function pickDefaultExerciseKey(exercises: ExerciseProgression[]): string | undefined {
-  const withWeight = exercises.find((entry) => entry.weights.length > 0);
-  return (withWeight ?? exercises[0])?.key;
+  if (exercises.length === 0) return undefined;
+  return ALL_EXERCISES_KEY;
+}
+
+export function buildMultiWeightChartLayout(
+  exercises: ExerciseProgression[],
+  width = EXERCISE_CHART_WIDTH,
+  height = EXERCISE_CHART_HEIGHT,
+  pad = EXERCISE_CHART_PAD
+): MultiWeightChartLayout {
+  const plot = plotRect(width, height, pad);
+  const withWeights = exercises
+    .map((entry, index) => ({ entry, color: exerciseSeriesColor(index) }))
+    .filter(({ entry }) => entry.weights.length > 0);
+
+  if (withWeights.length === 0) {
+    return { width, height, series: [], yTicks: [], xLabels: [] };
+  }
+
+  let minW = withWeights[0]!.entry.weights[0]!.weight;
+  let maxW = minW;
+  let minDate = withWeights[0]!.entry.weights[0]!.date;
+  let maxDate = minDate;
+
+  for (const { entry } of withWeights) {
+    for (const point of entry.weights) {
+      if (point.weight < minW) minW = point.weight;
+      if (point.weight > maxW) maxW = point.weight;
+      if (point.date < minDate) minDate = point.date;
+      if (point.date > maxDate) maxDate = point.date;
+    }
+  }
+
+  const { yMin, yMax } = niceWeightDomain(minW, maxW);
+  const minMs = dateKeyToMs(minDate);
+  const maxMs = dateKeyToMs(maxDate);
+  const span = Math.max(1, maxMs - minMs);
+  const singleX = plot.x + plot.width / 2;
+
+  const series: WeightChartSeries[] = withWeights.map(({ entry, color }) => {
+    const dots: WeightChartDot[] = entry.weights.map((point) => {
+      const x =
+        minDate === maxDate
+          ? singleX
+          : plot.x + ((dateKeyToMs(point.date) - minMs) / span) * plot.width;
+      return {
+        x,
+        y: scaleY(point.weight, yMin, yMax, plot.y, plot.height),
+        date: point.date,
+        weight: point.weight,
+        isPr: entry.personalRecord !== undefined && point.weight === entry.personalRecord,
+      };
+    });
+    return {
+      key: entry.key,
+      displayName: entry.displayName,
+      color,
+      linePath: polylinePath(dots),
+      dots,
+    };
+  });
+
+  const yTicks = [yMin, (yMin + yMax) / 2, yMax].map((value) => ({
+    y: scaleY(value, yMin, yMax, plot.y, plot.height),
+    label: formatWeightTick(value),
+  }));
+
+  const xLabels: Array<{ x: number; label: string }> = [
+    {
+      x: minDate === maxDate ? singleX : plot.x,
+      label: formatShortDate(minDate),
+    },
+  ];
+  if (maxDate !== minDate) {
+    xLabels.push({ x: plot.x + plot.width, label: formatShortDate(maxDate) });
+  }
+
+  return { width, height, series, yTicks, xLabels };
+}
+
+export function buildMultiFrequencyChartLayout(
+  exercises: ExerciseProgression[],
+  width = EXERCISE_CHART_WIDTH,
+  height = EXERCISE_CHART_HEIGHT,
+  pad = EXERCISE_CHART_PAD
+): MultiFrequencyChartLayout {
+  const plot = plotRect(width, height, pad);
+  const series: FrequencyChartSeriesMeta[] = exercises.map((entry, index) => ({
+    key: entry.key,
+    displayName: entry.displayName,
+    color: exerciseSeriesColor(index),
+  }));
+
+  let first: string | undefined;
+  let last: string | undefined;
+  for (const entry of exercises) {
+    if (entry.firstLoggedDate && (!first || entry.firstLoggedDate < first)) {
+      first = entry.firstLoggedDate;
+    }
+    if (entry.lastLoggedDate && (!last || entry.lastLoggedDate > last)) {
+      last = entry.lastLoggedDate;
+    }
+  }
+
+  if (!first || !last) {
+    return { width, height, bars: [], yTicks: [], series };
+  }
+
+  const firstWeek = weekStartKeyFromDateKey(first);
+  const lastWeek = weekStartKeyFromDateKey(last);
+  if (!firstWeek || !lastWeek) {
+    return { width, height, bars: [], yTicks: [], series };
+  }
+
+  let weeks = enumerateWeekStarts(firstWeek, lastWeek);
+  if (weeks.length > FREQUENCY_WEEK_CAP) {
+    weeks = weeks.slice(weeks.length - FREQUENCY_WEEK_CAP);
+  }
+
+  const countsByKey = new Map(
+    exercises.map((entry) => [
+      entry.key,
+      new Map(entry.frequencyByWeek.map((bar) => [bar.weekStart, bar.count])),
+    ])
+  );
+
+  const totals = weeks.map((weekStart) =>
+    exercises.reduce(
+      (sum, entry) => sum + (countsByKey.get(entry.key)?.get(weekStart) ?? 0),
+      0
+    )
+  );
+  const yMax = Math.max(1, ...totals);
+  const gap = weeks.length > 1 ? Math.min(8, plot.width / weeks.length / 4) : 0;
+  const barWidth = weeks.length === 0 ? 0 : (plot.width - gap * (weeks.length - 1)) / weeks.length;
+  const labelEvery = weeks.length <= 8 ? 1 : Math.ceil(weeks.length / 6);
+
+  const bars: FrequencyStackBar[] = weeks.map((weekStart, index) => {
+    const x = plot.x + index * (barWidth + gap);
+    const isEdge = index === 0 || index === weeks.length - 1;
+    const segments: FrequencyStackSegment[] = [];
+    let stacked = 0;
+    for (let seriesIndex = 0; seriesIndex < exercises.length; seriesIndex++) {
+      const entry = exercises[seriesIndex]!;
+      const count = countsByKey.get(entry.key)?.get(weekStart) ?? 0;
+      if (count <= 0) continue;
+      const heightPx = (count / yMax) * plot.height;
+      segments.push({
+        key: entry.key,
+        displayName: entry.displayName,
+        color: series[seriesIndex]!.color,
+        y: plot.y + plot.height - stacked - heightPx,
+        height: heightPx,
+        count,
+      });
+      stacked += heightPx;
+    }
+    return {
+      x,
+      width: Math.max(0, barWidth),
+      weekStart,
+      label: formatShortDate(weekStart),
+      showLabel: isEdge || index % labelEvery === 0,
+      total: totals[index] ?? 0,
+      segments,
+    };
+  });
+
+  const yTicks = [0, Math.round(yMax / 2), yMax].map((value) => ({
+    y: scaleY(value, 0, yMax, plot.y, plot.height),
+    label: String(value),
+  }));
+
+  return { width, height, bars, yTicks, series };
 }
