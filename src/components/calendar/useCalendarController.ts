@@ -19,10 +19,13 @@ import {
   shiftWeek,
   THREE_DAY_VISIBLE_COUNT,
   type CalendarCookingTypeFilter,
+  type CalendarFitnessTypeFilter,
   type CalendarViewMode,
 } from "../../core/calendarView";
 import {
+  persistCalendarFilterPreferences,
   persistCalendarViewMode,
+  readCalendarFilterPreferences,
   readCalendarViewMode,
   type CalendarViewSurface,
   type CalendarViewViewport,
@@ -96,6 +99,44 @@ function getViewModePersistenceContext(
   return { surface, viewport };
 }
 
+function toggleSetMember<T>(current: ReadonlySet<T>, value: T): Set<T> {
+  const next = new Set(current);
+  if (next.has(value)) {
+    next.delete(value);
+  } else {
+    next.add(value);
+  }
+  return next;
+}
+
+type CalendarFilterSets = {
+  hiddenCategories: Set<CalendarCategoryKey>;
+  hiddenEventSubcategories: Set<EventType>;
+  hiddenFitnessTypes: Set<FitnessType>;
+  hiddenCookingTypes: Set<CalendarCookingTypeFilter>;
+};
+
+function readInitialFilterSets(): CalendarFilterSets {
+  const prefs = readCalendarFilterPreferences();
+  return {
+    hiddenCategories: new Set(prefs.hiddenCategories),
+    hiddenEventSubcategories: new Set(prefs.hiddenEventSubcategories),
+    hiddenFitnessTypes: new Set(prefs.hiddenFitnessTypes),
+    hiddenCookingTypes: new Set(prefs.hiddenCookingTypes),
+  };
+}
+
+function persistFilterSets(filters: CalendarFilterSets): void {
+  persistCalendarFilterPreferences({
+    hiddenCategories: [...filters.hiddenCategories],
+    hiddenEventSubcategories: [...filters.hiddenEventSubcategories],
+    hiddenFitnessTypes: [...filters.hiddenFitnessTypes].filter(
+      (type): type is CalendarFitnessTypeFilter => type === "workout" || type === "supplement"
+    ),
+    hiddenCookingTypes: [...filters.hiddenCookingTypes],
+  });
+}
+
 /**
  * Headless calendar state shared by `CalendarPage` and the dashboard calendar
  * widget. All date math stays in the pure, tested `calendarView` / `calendar`
@@ -132,17 +173,10 @@ export function useCalendarController({
 
   const [viewMode, setViewModeState] = useState<CalendarViewMode>(readInitialViewMode);
   const [anchorKey, setAnchorKey] = useState<string>(todayKey);
-  const [hiddenCategories, setHiddenCategories] = useState<Set<CalendarCategoryKey>>(
-    () => new Set()
-  );
-  const [hiddenEventSubcategories, setHiddenEventSubcategories] = useState<Set<EventType>>(
-    () => new Set()
-  );
-  const [hiddenFitnessTypes, setHiddenFitnessTypes] = useState<Set<FitnessType>>(() => new Set());
-  const [hiddenCookingTypes, setHiddenCookingTypes] = useState<Set<CalendarCookingTypeFilter>>(
-    () => new Set()
-  );
+  const [filters, setFilters] = useState<CalendarFilterSets>(readInitialFilterSets);
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
+  const { hiddenCategories, hiddenEventSubcategories, hiddenFitnessTypes, hiddenCookingTypes } =
+    filters;
 
   useEffect(() => {
     const ctx = getViewModePersistenceContext(viewModeSurface, viewModeViewport);
@@ -260,49 +294,45 @@ export function useCalendarController({
   }
 
   function toggleCategory(category: CalendarCategoryKey) {
-    setHiddenCategories((current) => {
-      const next = new Set(current);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-      }
+    setFilters((current) => {
+      const next = {
+        ...current,
+        hiddenCategories: toggleSetMember(current.hiddenCategories, category),
+      };
+      persistFilterSets(next);
       return next;
     });
   }
 
   function toggleEventSubcategory(eventType: EventType) {
-    setHiddenEventSubcategories((current) => {
-      const next = new Set(current);
-      if (next.has(eventType)) {
-        next.delete(eventType);
-      } else {
-        next.add(eventType);
-      }
+    setFilters((current) => {
+      const next = {
+        ...current,
+        hiddenEventSubcategories: toggleSetMember(current.hiddenEventSubcategories, eventType),
+      };
+      persistFilterSets(next);
       return next;
     });
   }
 
   function toggleFitnessType(fitnessType: FitnessType) {
-    setHiddenFitnessTypes((current) => {
-      const next = new Set(current);
-      if (next.has(fitnessType)) {
-        next.delete(fitnessType);
-      } else {
-        next.add(fitnessType);
-      }
+    setFilters((current) => {
+      const next = {
+        ...current,
+        hiddenFitnessTypes: toggleSetMember(current.hiddenFitnessTypes, fitnessType),
+      };
+      persistFilterSets(next);
       return next;
     });
   }
 
   function toggleCookingType(cookingType: CalendarCookingTypeFilter) {
-    setHiddenCookingTypes((current) => {
-      const next = new Set(current);
-      if (next.has(cookingType)) {
-        next.delete(cookingType);
-      } else {
-        next.add(cookingType);
-      }
+    setFilters((current) => {
+      const next = {
+        ...current,
+        hiddenCookingTypes: toggleSetMember(current.hiddenCookingTypes, cookingType),
+      };
+      persistFilterSets(next);
       return next;
     });
   }
