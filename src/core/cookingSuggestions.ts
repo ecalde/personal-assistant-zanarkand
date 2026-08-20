@@ -11,7 +11,7 @@ import {
   listFirstCookSessionsInRange,
   listPlannedCookingSessions,
 } from "./cooking";
-import type { IngredientCatalog, IndexedIngredientCatalog } from "./ingredientCatalog";
+import type { IngredientCatalog } from "./ingredientCatalog";
 import {
   computeRecipeAvailability,
   ingredientLineLabel,
@@ -19,6 +19,7 @@ import {
   matchIngredient,
   pantryIsInUse,
   resolvedIngredientIdForLine,
+  type IndexedIngredientCatalog,
 } from "./ingredients";
 import {
   addPer100g,
@@ -28,6 +29,7 @@ import {
 } from "./nutrition";
 import type {
   CookingSession,
+  Ingredient,
   PantryItem,
   Per100g,
   Recipe,
@@ -119,9 +121,10 @@ export type DraftWeeklyMealPlanInput = {
 function catalogIngredient(
   ingredientId: string | undefined,
   catalog?: IngredientCatalog | IndexedIngredientCatalog
-) {
+): Ingredient | undefined {
   if (!ingredientId || !catalog) return undefined;
-  const ingredients = "byId" in catalog ? [...catalog.byId.values()] : catalog.ingredients;
+  const ingredients: Ingredient[] =
+    "byId" in catalog ? [...catalog.byId.values()] : catalog.ingredients;
   return ingredients.find((item) => item.id === ingredientId);
 }
 
