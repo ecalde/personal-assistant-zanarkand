@@ -4,6 +4,7 @@ import {
   buildPeopleById,
   buildPeopleNeedingFollowUp,
   buildUpcomingBirthdayItems,
+  collectRelationshipNames,
   eventsForPerson,
   filterAndSortPeople,
   filterPeopleByQuery,
@@ -15,6 +16,7 @@ import {
   sortPeopleByFollowUpPriority,
   sortPeopleByRecentContact,
   sortPeopleByUpcomingBirthday,
+  suggestRelationshipNames,
 } from "./people";
 
 const NOW = "2026-05-26T12:00:00.000Z";
@@ -296,5 +298,59 @@ describe("filterAndSortPeople", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe("Blake");
+  });
+});
+
+describe("collectRelationshipNames", () => {
+  it("saves unique trimmed names from existing people", () => {
+    const people = [
+      samplePerson({ id: "a", relationship: "friend" }),
+      samplePerson({ id: "b", relationship: " Family " }),
+      samplePerson({ id: "c", relationship: "friend" }),
+      samplePerson({ id: "d", relationship: undefined }),
+      samplePerson({ id: "e", relationship: "   " }),
+    ];
+
+    expect(collectRelationshipNames(people)).toEqual(["Family", "friend"]);
+  });
+
+  it("keeps the first casing when names differ only by case", () => {
+    const people = [
+      samplePerson({ id: "a", relationship: "Friend" }),
+      samplePerson({ id: "b", relationship: "friend" }),
+    ];
+
+    expect(collectRelationshipNames(people)).toEqual(["Friend"]);
+  });
+});
+
+describe("suggestRelationshipNames", () => {
+  const names = ["family", "friend", "friend from college", "coworker"];
+
+  it("returns saved names when the query is empty", () => {
+    expect(suggestRelationshipNames(names, "")).toEqual([
+      "coworker",
+      "family",
+      "friend",
+      "friend from college",
+    ]);
+  });
+
+  it("narrows prefix matches as more letters are typed", () => {
+    expect(suggestRelationshipNames(names, "f")).toEqual(["family", "friend", "friend from college"]);
+    expect(suggestRelationshipNames(names, "fr")).toEqual(["friend", "friend from college"]);
+    expect(suggestRelationshipNames(names, "fri")).toEqual(["friend", "friend from college"]);
+  });
+
+  it("hides the exact typed name so remaining prefixes stay visible", () => {
+    expect(suggestRelationshipNames(names, "friend")).toEqual(["friend from college"]);
+  });
+
+  it("matches prefixes case-insensitively", () => {
+    expect(suggestRelationshipNames(names, "FA")).toEqual(["family"]);
+  });
+
+  it("returns no suggestions when nothing starts with the query", () => {
+    expect(suggestRelationshipNames(names, "z")).toEqual([]);
   });
 });

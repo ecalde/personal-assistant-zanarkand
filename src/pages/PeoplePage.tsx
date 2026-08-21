@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { eventsForPerson, filterAndSortPeople, type PeopleSortMode } from "../core/people";
+import { eventsForPerson, filterAndSortPeople, collectRelationshipNames, type PeopleSortMode } from "../core/people";
 import type { EventType, LifeEvent, Person } from "../core/model";
 import { formatLocalDateKey } from "../core/timeline";
 import { PersonCard } from "../components/people/PersonCard";
@@ -56,6 +56,8 @@ export default function PeoplePage({
       }),
     [people, query, sortMode, todayKey]
   );
+
+  const relationshipNames = useMemo(() => collectRelationshipNames(people), [people]);
 
   const visiblePeople = useMemo(() => {
     if (!editingId) return filteredPeople;
@@ -177,6 +179,7 @@ export default function PeoplePage({
           editing={false}
           form={form}
           formError={formError}
+          relationshipNames={relationshipNames}
           onChange={setForm}
           onSubmit={handleSubmit}
           onCancel={resetForm}
@@ -219,6 +222,7 @@ export default function PeoplePage({
                     embedded
                     form={form}
                     formError={formError}
+                    relationshipNames={relationshipNames}
                     onChange={setForm}
                     onSubmit={handleSubmit}
                     onCancel={resetForm}

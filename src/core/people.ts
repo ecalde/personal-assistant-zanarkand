@@ -318,3 +318,43 @@ export function filterAndSortPeople(
   const filtered = filterPeopleByQuery(people, opts.query ?? "");
   return sortPeople(filtered, opts.sortMode, opts.todayKey);
 }
+
+/** Unique relationship labels already saved on people, first casing wins. */
+export function collectRelationshipNames(people: Person[]): string[] {
+  const byNormalized = new Map<string, string>();
+  for (const person of people) {
+    const trimmed = person.relationship?.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!byNormalized.has(key)) byNormalized.set(key, trimmed);
+  }
+  return [...byNormalized.values()].sort((a, b) => a.localeCompare(b));
+}
+
+const RELATIONSHIP_SUGGESTION_LIMIT = 8;
+
+/**
+ * Prefix-match saved relationship names as the user types.
+ * Exact matches are omitted so the list narrows to remaining prefixes.
+ */
+export function suggestRelationshipNames(names: string[], query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return [...names]
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, RELATIONSHIP_SUGGESTION_LIMIT);
+  }
+
+  const matches = names.filter((name) => {
+    const lower = name.toLowerCase();
+    if (lower === normalized) return false;
+    return lower.startsWith(normalized);
+  });
+
+  matches.sort((a, b) => {
+    if (a.length !== b.length) return a.length - b.length;
+    return a.localeCompare(b);
+  });
+
+  return matches.slice(0, RELATIONSHIP_SUGGESTION_LIMIT);
+}

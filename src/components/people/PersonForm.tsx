@@ -1,12 +1,14 @@
 import type { CSSProperties } from "react";
 import { styles } from "../../ui/appStyles";
 import type { PersonFormState } from "./personFormState";
+import { RelationshipSuggestInput } from "./RelationshipSuggestInput";
 
 export type PersonFormProps = {
   editing: boolean;
   embedded?: boolean;
   form: PersonFormState;
   formError: string | null;
+  relationshipNames?: string[];
   onChange: (next: PersonFormState) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -21,6 +23,7 @@ export function PersonForm({
   embedded = false,
   form,
   formError,
+  relationshipNames = [],
   onChange,
   onSubmit,
   onCancel,
@@ -51,11 +54,10 @@ export function PersonForm({
 
         <label style={fieldLabel}>
           Relationship (optional)
-          <input
+          <RelationshipSuggestInput
             value={form.relationship}
-            onChange={(e) => onChange({ ...form, relationship: e.target.value })}
-            placeholder='e.g., "friend", "family"'
-            style={fieldInput}
+            options={relationshipNames}
+            onChange={(relationship) => onChange({ ...form, relationship })}
           />
         </label>
       </div>
