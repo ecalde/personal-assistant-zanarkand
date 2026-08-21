@@ -130,14 +130,15 @@ export function WorkoutPlanScheduleSection({
             const blocks = resolvedSchedule[day] ?? [];
             return (
               <div key={day} style={styles.dayRow}>
-                <div style={{ width: 48, fontWeight: 600 }}>{weekdayLabel(day)}</div>
+                <div style={{ width: 48, fontWeight: 600, flexShrink: 0 }}>{weekdayLabel(day)}</div>
                 <div
                   style={{
                     display: "flex",
                     flexWrap: "wrap",
                     gap: 8,
                     alignItems: "center",
-                    flex: 1,
+                    flex: "1 1 140px",
+                    minWidth: 0,
                   }}
                 >
                   {blocks.length === 0 ? (
@@ -175,7 +176,12 @@ export function WorkoutPlanScheduleSection({
                     ))
                   )}
                 </div>
-                <button type="button" disabled={disabled} onClick={() => addBlock(day)}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => addBlock(day)}
+                  style={{ flexShrink: 0 }}
+                >
                   + Block
                 </button>
               </div>

@@ -135,6 +135,9 @@ export const styles: Record<string, CSSProperties> = {
     padding: 16,
     borderRadius: 14,
     color: AETHER_TEXT.primary,
+    minWidth: 0,
+    maxWidth: "100%",
+    boxSizing: "border-box",
   },
   cardTitle: { fontSize: 18, fontWeight: 800, marginBottom: 10, color: AETHER_TEXT.primary },
   // Semantic text hierarchy (Phase 37C.2) — spread into inline styles instead of opacity.
@@ -170,6 +173,21 @@ export const styles: Record<string, CSSProperties> = {
   errorBox: { background: "#ffe6e6", color: "#8a1c1c", padding: 12, borderRadius: 12, marginBottom: 10 },
   errorInline: { marginTop: 10, background: "#ffe6e6", color: "#8a1c1c", padding: 10, borderRadius: 12 },
   input: { padding: "8px 10px", borderRadius: 10, border: `1px solid ${SURFACE.border}`, minWidth: 280, background: SURFACE.bg, color: AETHER_TEXT.primary },
+  /**
+   * Full-width form field that can shrink on narrow viewports.
+   * Prefer over `styles.input` (fixed minWidth 280) inside cards/forms on mobile.
+   */
+  inputFluid: {
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: `1px solid ${SURFACE.border}`,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    boxSizing: "border-box",
+    background: SURFACE.bg,
+    color: AETHER_TEXT.primary,
+  },
   /** Full-width input for compact cells (no minWidth — `styles.input` is 280px+). */
   inputCompact: {
     padding: "6px 8px",
@@ -183,7 +201,8 @@ export const styles: Record<string, CSSProperties> = {
   },
   exerciseGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+    // min() keeps a single column from forcing horizontal overflow on narrow phones.
+    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))",
     gap: 12,
   },
   exerciseCell: {
@@ -327,7 +346,7 @@ export const styles: Record<string, CSSProperties> = {
   },
   workoutGalleryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))",
     gap: 12,
     alignItems: "stretch",
   },
@@ -605,8 +624,30 @@ export const styles: Record<string, CSSProperties> = {
   select: { padding: "6px 8px", borderRadius: 10, border: `1px solid ${SURFACE.border}`, background: SURFACE.bg, color: AETHER_TEXT.primary },
   label: { display: "grid", gap: 6, color: AETHER_TEXT.primary },
   listRow: { background: "var(--aether-surface, white)", padding: 12, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
-  dayRow: { display: "flex", gap: 10, alignItems: "center", background: "var(--aether-surface, white)", padding: 10, borderRadius: 12, border: "1px solid var(--aether-panel-border, #e5e5e5)", color: AETHER_TEXT.primary },
-  blockChip: { display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", borderRadius: 12, border: "1px solid var(--aether-panel-border, #ddd)", background: "var(--aether-surface-sunken, #fafafa)", color: AETHER_TEXT.primary },
+  dayRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+    minWidth: 0,
+    background: "var(--aether-surface, white)",
+    padding: 10,
+    borderRadius: 12,
+    border: "1px solid var(--aether-panel-border, #e5e5e5)",
+    color: AETHER_TEXT.primary,
+  },
+  blockChip: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+    flexWrap: "wrap",
+    maxWidth: "100%",
+    padding: "6px 8px",
+    borderRadius: 12,
+    border: "1px solid var(--aether-panel-border, #ddd)",
+    background: "var(--aether-surface-sunken, #fafafa)",
+    color: AETHER_TEXT.primary,
+  },
   timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: `1px solid ${SURFACE.border}`, background: SURFACE.bg, color: AETHER_TEXT.primary },
   minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: `1px solid ${SURFACE.border}`, textAlign: "right", background: SURFACE.bg, color: AETHER_TEXT.primary },
   smallBtn: {

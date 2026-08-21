@@ -33,9 +33,9 @@ export function SkillScheduleFields({
   ];
 
   return (
-    <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+    <fieldset style={{ border: "none", margin: 0, padding: 0, minWidth: 0 }}>
       <legend style={{ fontWeight: 600, marginBottom: 8 }}>{legend}</legend>
-      <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
         {modes.map(({ value, label }) => (
           <label key={value} style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
@@ -52,8 +52,16 @@ export function SkillScheduleFields({
       </div>
 
       {state.mode === "date_range" && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-          <label style={styles.label}>
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            marginTop: 10,
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
+            minWidth: 0,
+          }}
+        >
+          <label style={{ ...styles.label, minWidth: 0 }}>
             Start Date
             <input
               type="date"
@@ -61,10 +69,10 @@ export function SkillScheduleFields({
               disabled={disabled}
               onChange={(e) => onChange({ ...state, startDate: e.target.value })}
               onBlur={onDateBlur}
-              style={styles.input}
+              style={styles.inputFluid}
             />
           </label>
-          <label style={styles.label}>
+          <label style={{ ...styles.label, minWidth: 0 }}>
             {endDateOptional ? "End Date (optional)" : "End Date"}
             <input
               type="date"
@@ -72,7 +80,7 @@ export function SkillScheduleFields({
               disabled={disabled}
               onChange={(e) => onChange({ ...state, endDate: e.target.value })}
               onBlur={onDateBlur}
-              style={styles.input}
+              style={styles.inputFluid}
             />
           </label>
         </div>
@@ -85,8 +93,8 @@ export function SkillScheduleFields({
       )}
 
       {state.mode === "single_day" && (
-        <div style={{ marginTop: 10 }}>
-          <label style={styles.label}>
+        <div style={{ marginTop: 10, minWidth: 0 }}>
+          <label style={{ ...styles.label, minWidth: 0 }}>
             Date
             <input
               type="date"
@@ -94,7 +102,7 @@ export function SkillScheduleFields({
               disabled={disabled}
               onChange={(e) => onChange({ ...state, singleDate: e.target.value })}
               onBlur={onDateBlur}
-              style={styles.input}
+              style={styles.inputFluid}
             />
           </label>
         </div>

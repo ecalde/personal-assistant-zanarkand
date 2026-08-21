@@ -51,25 +51,32 @@ export function FitnessToolbar(props: FitnessToolbarProps) {
         Showing {props.visibleCount} of {props.totalCount}
       </div>
 
-      <label style={styles.label}>
+      <label style={{ ...styles.label, minWidth: 0 }}>
         Search
         <input
           value={props.query}
           onChange={(e) => props.onQueryChange(e.target.value)}
           placeholder="Name, exercise, notes…"
-          style={styles.input}
+          style={styles.inputFluid}
         />
       </label>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <label style={styles.label}>
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+          minWidth: 0,
+        }}
+      >
+        <label style={{ ...styles.label, minWidth: 0 }}>
           Focus
           <select
             value={props.focusFilter}
             onChange={(e) =>
               props.onFocusFilterChange(e.target.value as WorkoutFocusFilter)
             }
-            style={styles.input}
+            style={styles.inputFluid}
           >
             <option value="all">All</option>
             {getWorkoutFocusValues().map((focus) => (
@@ -80,7 +87,7 @@ export function FitnessToolbar(props: FitnessToolbarProps) {
           </select>
         </label>
 
-        <label style={styles.label}>
+        <label style={{ ...styles.label, minWidth: 0 }}>
           Sort
           <select
             value={props.sortMode}
@@ -89,7 +96,7 @@ export function FitnessToolbar(props: FitnessToolbarProps) {
                 ? props.onSortModeChange(e.target.value as PlansSortMode)
                 : props.onSortModeChange(e.target.value as SessionsSortMode)
             }
-            style={styles.input}
+            style={styles.inputFluid}
           >
             {sortOptions.map((option) => (
               <option key={option.value} value={option.value}>

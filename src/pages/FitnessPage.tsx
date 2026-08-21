@@ -486,7 +486,7 @@ export default function FitnessPage({
         </div>
 
         {showPlanForm && (
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 12, minWidth: 0, maxWidth: "100%" }}>
             <WorkoutPlanForm
               editing={Boolean(editingPlanId)}
               form={planForm}
