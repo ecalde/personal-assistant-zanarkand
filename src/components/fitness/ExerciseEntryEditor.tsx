@@ -3,6 +3,7 @@ import {
   emptyExerciseEntryFormRow,
   type ExerciseEntryFormRow,
 } from "./workoutPlanFormState";
+import { MuscleTargetPicker } from "./MuscleTargetPicker";
 
 export type ExerciseEntryEditorProps = {
   exercises: ExerciseEntryFormRow[];
@@ -73,6 +74,14 @@ export function ExerciseEntryEditor({ exercises, onChange }: ExerciseEntryEditor
                 />
               </label>
             </div>
+
+            <label style={compactLabel}>
+              Target muscles (optional)
+              <MuscleTargetPicker
+                value={row.targetMuscleIds}
+                onChange={(targetMuscleIds) => updateRow(index, { targetMuscleIds })}
+              />
+            </label>
 
             <label style={compactLabel}>
               Notes (optional)

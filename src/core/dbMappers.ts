@@ -1302,6 +1302,29 @@ export function parseExerciseEntries(value: unknown, field: string): ExerciseEnt
       }
     }
 
+    if (obj.targetMuscleIds !== undefined && obj.targetMuscleIds !== null) {
+      if (!Array.isArray(obj.targetMuscleIds)) {
+        throw new MapperError(`Invalid ${field}: targetMuscleIds must be array`, field);
+      }
+      const muscleIds: string[] = [];
+      const seenMuscles = new Set<string>();
+      for (const muscleId of obj.targetMuscleIds) {
+        if (typeof muscleId !== "string" || muscleId.trim().length === 0) {
+          throw new MapperError(
+            `Invalid ${field}: targetMuscleIds entries must be non-empty strings`,
+            field
+          );
+        }
+        const trimmed = muscleId.trim();
+        if (seenMuscles.has(trimmed)) continue;
+        seenMuscles.add(trimmed);
+        muscleIds.push(trimmed);
+      }
+      if (muscleIds.length > 0) {
+        entry.targetMuscleIds = muscleIds;
+      }
+    }
+
     if (obj.completedAtIso !== undefined && obj.completedAtIso !== null) {
       if (typeof obj.completedAtIso !== "string" || !isIsoTimestamp(obj.completedAtIso)) {
         throw new MapperError(`Invalid ${field}: completedAtIso must be ISO timestamp`, field);
@@ -1337,6 +1360,30 @@ export function assertValidExerciseEntry(entry: ExerciseEntry): void {
   }
   if (entry.notes !== undefined && typeof entry.notes !== "string") {
     throw new MapperError("Invalid exerciseEntry.notes", "exerciseEntry.notes");
+  }
+  if (entry.targetMuscleIds !== undefined) {
+    if (!Array.isArray(entry.targetMuscleIds)) {
+      throw new MapperError(
+        "Invalid exerciseEntry.targetMuscleIds",
+        "exerciseEntry.targetMuscleIds"
+      );
+    }
+    const seen = new Set<string>();
+    for (const muscleId of entry.targetMuscleIds) {
+      if (typeof muscleId !== "string" || muscleId.trim().length === 0) {
+        throw new MapperError(
+          "Invalid exerciseEntry.targetMuscleIds",
+          "exerciseEntry.targetMuscleIds"
+        );
+      }
+      if (seen.has(muscleId)) {
+        throw new MapperError(
+          "Duplicate exerciseEntry.targetMuscleIds",
+          "exerciseEntry.targetMuscleIds"
+        );
+      }
+      seen.add(muscleId);
+    }
   }
   if (entry.completedAtIso !== undefined && !isIsoTimestamp(entry.completedAtIso)) {
     throw new MapperError(

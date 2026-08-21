@@ -7,6 +7,7 @@ import {
   type WorkoutLoggerExerciseDraft,
 } from "../../core/fitness";
 import type { ExerciseEntry, WorkoutSession } from "../../core/model";
+import { formatMuscleList } from "../../core/muscles";
 import { AETHER_TEXT, styles } from "../../ui/appStyles";
 import { WorkoutFocusBadge } from "./WorkoutFocusBadge";
 
@@ -90,13 +91,6 @@ function isCompletePositiveInt(raw: string): boolean {
   if (!trimmed) return true;
   const parsed = Number(trimmed);
   return Number.isInteger(parsed) && parsed > 0 && String(parsed) === trimmed;
-}
-
-function isCompleteNonNegativeNumber(raw: string): boolean {
-  const trimmed = raw.trim();
-  if (!trimmed) return true;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 && String(parsed) === trimmed;
 }
 
 function patchExerciseDraft(
@@ -200,6 +194,12 @@ function LiveExerciseCell({
         />
       </label>
 
+      {entry.targetMuscleIds && entry.targetMuscleIds.length > 0 && (
+        <div style={{ ...styles.textMuted, fontSize: 12 }}>
+          Targets: {formatMuscleList(entry.targetMuscleIds)}
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         <label style={compactLabel}>
           Sets
@@ -208,9 +208,6 @@ function LiveExerciseCell({
             onChange={(e) => {
               setSets(e.target.value);
               maybeDraft({ sets: e.target.value });
-              if (isCompletePositiveInt(e.target.value)) {
-                commitPositiveInt(e.target.value, "sets", entry.sets);
-              }
             }}
             onBlur={() => commitPositiveInt(sets, "sets", entry.sets)}
             inputMode="numeric"
@@ -224,9 +221,6 @@ function LiveExerciseCell({
             onChange={(e) => {
               setReps(e.target.value);
               maybeDraft({ reps: e.target.value });
-              if (isCompletePositiveInt(e.target.value)) {
-                commitPositiveInt(e.target.value, "reps", entry.reps);
-              }
             }}
             onBlur={() => commitPositiveInt(reps, "reps", entry.reps)}
             inputMode="numeric"
@@ -240,9 +234,6 @@ function LiveExerciseCell({
             onChange={(e) => {
               setWeight(e.target.value);
               maybeDraft({ weight: e.target.value });
-              if (isCompleteNonNegativeNumber(e.target.value)) {
-                commitWeight(e.target.value);
-              }
             }}
             onBlur={() => commitWeight(weight)}
             inputMode="decimal"
