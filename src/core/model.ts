@@ -207,6 +207,12 @@ export type ExerciseEntry = {
   weight?: number;
   notes?: string;
   /**
+   * Optional canonical muscle catalog ids this exercise targets (e.g.
+   * "gastrocnemius", "quadriceps"). Synonyms are resolved at input time so
+   * coverage charts never split "calf" vs "gastrocnemius".
+   */
+  targetMuscleIds?: string[];
+  /**
    * Session entries only: set when the exercise is checked off during a live
    * workout. Absent = not yet done. Plans never carry this (stripped on save).
    */

@@ -18,6 +18,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import { formatMuscleList } from "./muscles";
 import { defaultWeeklySchedule } from "./state";
 import { formatLocalDateKey, weekdayFromDateString } from "./timeline";
 import { isWorkoutPlanActiveOnDate } from "./workoutSeries";
@@ -116,6 +117,10 @@ export function formatExerciseSummary(entry: ExerciseEntry): string {
 
   if (entry.weight !== undefined) {
     parts.push(`@ ${entry.weight}`);
+  }
+
+  if (entry.targetMuscleIds && entry.targetMuscleIds.length > 0) {
+    parts.push(formatMuscleList(entry.targetMuscleIds));
   }
 
   return parts.join(" · ");
@@ -457,7 +462,9 @@ export function setExerciseWeight(
 export function updateSessionExercise(
   session: WorkoutSession,
   exerciseId: string,
-  patch: Partial<Pick<ExerciseEntry, "name" | "sets" | "reps" | "weight" | "notes">>
+  patch: Partial<
+    Pick<ExerciseEntry, "name" | "sets" | "reps" | "weight" | "notes" | "targetMuscleIds">
+  >
 ): WorkoutSession {
   return {
     ...session,
@@ -485,7 +492,98 @@ export function updateSessionExercise(
         if (notes) next.notes = notes;
         else delete next.notes;
       }
+      if ("targetMuscleIds" in patch) {
+        const ids = patch.targetMuscleIds ?? [];
+        if (ids.length > 0) next.targetMuscleIds = [...ids];
+        else delete next.targetMuscleIds;
+      }
 
+      return next;
+    }),
+  };
+}
+
+export type ExerciseLoadPatch = Partial<Pick<ExerciseEntry, "sets" | "reps" | "weight">>;
+
+/** True when sets/reps/weight in the patch differ from the current exercise values. */
+export function exerciseLoadPatchChanges(
+  entry: ExerciseEntry,
+  patch: ExerciseLoadPatch
+): boolean {
+  if ("sets" in patch && patch.sets !== entry.sets) return true;
+  if ("reps" in patch && patch.reps !== entry.reps) return true;
+  if ("weight" in patch && patch.weight !== entry.weight) return true;
+  return false;
+}
+
+/**
+ * True when the patch diverges from the linked plan exercise template. Used to
+ * decide whether to ask "session only" vs "update plan too".
+ */
+export function exerciseLoadDivergesFromPlan(
+  plan: WorkoutPlan,
+  sessionEntry: ExerciseEntry,
+  patch: ExerciseLoadPatch
+): boolean {
+  const planExerciseId = sessionEntry.sourceExerciseId;
+  if (!planExerciseId) return false;
+  const planEntry = plan.exercises.find((entry) => entry.id === planExerciseId);
+  if (!planEntry) return false;
+
+  const nextSets = "sets" in patch ? patch.sets : sessionEntry.sets;
+  const nextReps = "reps" in patch ? patch.reps : sessionEntry.reps;
+  const nextWeight = "weight" in patch ? patch.weight : sessionEntry.weight;
+
+  return (
+    nextSets !== planEntry.sets ||
+    nextReps !== planEntry.reps ||
+    nextWeight !== planEntry.weight
+  );
+}
+
+export function describeExerciseLoadPatch(patch: ExerciseLoadPatch): string {
+  const parts: string[] = [];
+  if ("sets" in patch) {
+    parts.push(patch.sets === undefined ? "sets (cleared)" : `sets to ${patch.sets}`);
+  }
+  if ("reps" in patch) {
+    parts.push(patch.reps === undefined ? "reps (cleared)" : `reps to ${patch.reps}`);
+  }
+  if ("weight" in patch) {
+    parts.push(patch.weight === undefined ? "weight (cleared)" : `weight to ${patch.weight}`);
+  }
+  if (parts.length === 0) return "load";
+  if (parts.length === 1) return parts[0]!;
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/** Writes sets/reps/weight onto the plan exercise linked by sourceExerciseId. */
+export function applySessionLoadPatchToPlan(
+  plan: WorkoutPlan,
+  sessionEntry: ExerciseEntry,
+  patch: ExerciseLoadPatch
+): WorkoutPlan {
+  const planExerciseId = sessionEntry.sourceExerciseId;
+  if (!planExerciseId) return plan;
+
+  return {
+    ...plan,
+    exercises: plan.exercises.map((entry) => {
+      if (entry.id !== planExerciseId) return entry;
+      const next: ExerciseEntry = { ...entry };
+      if ("sets" in patch) {
+        if (patch.sets === undefined) delete next.sets;
+        else next.sets = patch.sets;
+      }
+      if ("reps" in patch) {
+        if (patch.reps === undefined) delete next.reps;
+        else next.reps = patch.reps;
+      }
+      if ("weight" in patch) {
+        if (patch.weight === undefined) delete next.weight;
+        else next.weight = patch.weight;
+      }
       return next;
     }),
   };

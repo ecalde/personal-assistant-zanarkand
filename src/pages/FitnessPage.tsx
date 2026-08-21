@@ -413,6 +413,7 @@ export default function FitnessPage({
             showExit
             onDraftChange={handleDraftChange}
             onCommit={onUpsertSession}
+            onUpdatePlan={onUpdatePlan}
             onLogDifferentSession={openCreateSessionForm}
             onToggleFocus={handleToggleFocus}
             onExit={() => setActivePlanId(null)}
@@ -445,6 +446,7 @@ export default function FitnessPage({
                   draft={workoutFocus?.planId === plan.id ? loggerDraft : undefined}
                   onDraftChange={handleDraftChange}
                   onCommit={onUpsertSession}
+                  onUpdatePlan={onUpdatePlan}
                   onLogDifferentSession={openCreateSessionForm}
                   onToggleFocus={(session) => {
                     setActivePlanId(plan.id);

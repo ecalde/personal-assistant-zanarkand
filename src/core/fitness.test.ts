@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ExerciseEntry, WorkoutPlan, WorkoutSession } from "./model";
 import {
   addSessionExercise,
+  applySessionLoadPatchToPlan,
   buildDashboardWorkoutLoggers,
   buildRecentSessions,
   buildWorkoutDayStatus,
@@ -15,7 +16,9 @@ import {
   dashboardSetExerciseWeight,
   dashboardToggleExercise,
   DEFAULT_ADDED_EXERCISE_NAME,
+  describeExerciseLoadPatch,
   ensureLiveSessionForPlan,
+  exerciseLoadDivergesFromPlan,
   expandWorkoutOccurrencesForDate,
   FALLBACK_EXERCISE_NAME,
   filterAndSortPlans,
@@ -103,6 +106,14 @@ describe("formatWorkoutFocus", () => {
 describe("formatExerciseSummary", () => {
   it("formats sets, reps, and weight", () => {
     expect(formatExerciseSummary(sampleExercise())).toBe("Bench press · 3×10 · @ 135");
+  });
+
+  it("includes target muscles when present", () => {
+    expect(
+      formatExerciseSummary(
+        sampleExercise({ targetMuscleIds: ["chest", "triceps"] })
+      )
+    ).toBe("Bench press · 3×10 · @ 135 · Chest, Triceps");
   });
 });
 
@@ -621,5 +632,37 @@ describe("normalizeFitnessFocus", () => {
 
   it("returns undefined for empty input", () => {
     expect(normalizeFitnessFocus(undefined)).toBeUndefined();
+  });
+});
+
+describe("session load vs plan prompts", () => {
+  it("detects divergence from the linked plan exercise", () => {
+    const plan = samplePlan();
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, SESSION_ID);
+    const sessionEntry = live.exercises[0]!;
+    expect(exerciseLoadDivergesFromPlan(plan, sessionEntry, { reps: 12 })).toBe(true);
+    expect(exerciseLoadDivergesFromPlan(plan, sessionEntry, { reps: 10 })).toBe(false);
+  });
+
+  it("applies load patches back onto the plan template", () => {
+    const plan = samplePlan();
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, SESSION_ID);
+    const sessionEntry = live.exercises[0]!;
+    const next = applySessionLoadPatchToPlan(plan, sessionEntry, { reps: 12, weight: 145 });
+    expect(next.exercises[0]).toMatchObject({ reps: 12, weight: 145, sets: 3 });
+    expect(describeExerciseLoadPatch({ reps: 12, weight: 145 })).toBe(
+      "reps to 12 and weight to 145"
+    );
+  });
+
+  it("copies target muscles from plan into live sessions", () => {
+    const plan = samplePlan({
+      exercises: [
+        sampleExercise({ targetMuscleIds: ["chest", "triceps"] }),
+      ],
+    });
+    const live = createLiveSessionFromPlan(plan, "2026-05-25", NOW, SESSION_ID);
+    expect(live.exercises[0]?.targetMuscleIds).toEqual(["chest", "triceps"]);
+    expect(copyExercisesFromPlan(plan)[0]?.sourceExerciseId).toBe(EXERCISE_ID);
   });
 });

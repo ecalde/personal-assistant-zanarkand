@@ -1,5 +1,6 @@
 import type { ExerciseEntry, WeeklySchedule, WorkoutFocus, WorkoutPlan } from "../../core/model";
 import { getWorkoutFocusValues } from "../../core/fitness";
+import { normalizeTargetMuscleIds } from "../../core/muscles";
 import { defaultWeeklySchedule } from "../../core/state";
 import {
   emptyWorkoutScheduleFormState,
@@ -16,6 +17,8 @@ export type ExerciseEntryFormRow = {
   reps: string;
   weight: string;
   notes: string;
+  /** Canonical muscle catalog ids selected for this exercise. */
+  targetMuscleIds: string[];
   /** Session-only: preserved across the form round-trip (live logging). */
   completedAtIso?: string;
   /** Session-only: plan exercise this row was copied from. */
@@ -39,6 +42,7 @@ export function emptyExerciseEntryFormRow(): ExerciseEntryFormRow {
     reps: "",
     weight: "",
     notes: "",
+    targetMuscleIds: [],
   };
 }
 
@@ -61,6 +65,7 @@ export function exerciseFormFromEntry(entry: ExerciseEntry): ExerciseEntryFormRo
     reps: entry.reps !== undefined ? String(entry.reps) : "",
     weight: entry.weight !== undefined ? String(entry.weight) : "",
     notes: entry.notes ?? "",
+    targetMuscleIds: normalizeTargetMuscleIds(entry.targetMuscleIds ?? []),
   };
   if (entry.completedAtIso !== undefined) row.completedAtIso = entry.completedAtIso;
   if (entry.sourceExerciseId !== undefined) row.sourceExerciseId = entry.sourceExerciseId;
@@ -117,6 +122,8 @@ function buildExerciseEntry(row: ExerciseEntryFormRow): ExerciseEntry | string {
   if (reps !== undefined) entry.reps = reps;
   if (weight !== undefined) entry.weight = weight;
   if (row.notes.trim()) entry.notes = row.notes.trim();
+  const targetMuscleIds = normalizeTargetMuscleIds(row.targetMuscleIds);
+  if (targetMuscleIds.length > 0) entry.targetMuscleIds = targetMuscleIds;
   return entry;
 }
 

@@ -1,5 +1,6 @@
 import type { ExerciseEntry, WorkoutFocus, WorkoutSession } from "../../core/model";
 import { combineDateTimeToIso, getWorkoutFocusValues, resolveSessionStartHHMM } from "../../core/fitness";
+import { normalizeTargetMuscleIds } from "../../core/muscles";
 import {
   emptyExerciseEntryFormRow,
   exerciseFormFromEntry,
@@ -82,6 +83,8 @@ function buildExerciseEntry(row: ExerciseEntryFormRow): ExerciseEntry | string {
   if (reps !== undefined) entry.reps = reps;
   if (weight !== undefined) entry.weight = weight;
   if (row.notes.trim()) entry.notes = row.notes.trim();
+  const targetMuscleIds = normalizeTargetMuscleIds(row.targetMuscleIds);
+  if (targetMuscleIds.length > 0) entry.targetMuscleIds = targetMuscleIds;
   if (row.completedAtIso !== undefined) entry.completedAtIso = row.completedAtIso;
   if (row.sourceExerciseId !== undefined) entry.sourceExerciseId = row.sourceExerciseId;
   return entry;
