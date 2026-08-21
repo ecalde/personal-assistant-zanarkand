@@ -12,6 +12,8 @@ import {
   getPersonBirthdayStatus,
   getPersonFollowUpStatus,
   personMatchesQuery,
+  filterPeopleByIdentityQuery,
+  personMatchesIdentityQuery,
   resolveEventPersonLabel,
   sortPeopleByFollowUpPriority,
   sortPeopleByRecentContact,
@@ -133,6 +135,28 @@ describe("resolveEventPersonLabel", () => {
     expect(resolveEventPersonLabel(event, peopleById)).toBe("Alex");
   });
 
+  it("joins multiple linked people", () => {
+    const blakeId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const caseyId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const peopleById = buildPeopleById([
+      samplePerson(),
+      samplePerson({ id: blakeId, name: "Blake" }),
+      samplePerson({ id: caseyId, name: "Casey" }),
+    ]);
+    const event: LifeEvent = {
+      id: EVENT_ID,
+      title: "Hangout",
+      date: "2026-06-01",
+      type: "hangout",
+      personId: PERSON_ID,
+      personIds: [PERSON_ID, blakeId, caseyId],
+      reminder: false,
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+    };
+    expect(resolveEventPersonLabel(event, peopleById)).toBe("Alex, Blake, and Casey");
+  });
+
   it("falls back to personName for legacy events", () => {
     const event: LifeEvent = {
       id: EVENT_ID,
@@ -173,6 +197,24 @@ describe("eventsForPerson", () => {
     ];
     expect(eventsForPerson(events, PERSON_ID)).toHaveLength(1);
   });
+
+  it("includes events that list the person among several people", () => {
+    const otherId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const events: LifeEvent[] = [
+      {
+        id: EVENT_ID,
+        title: "Trip",
+        date: "2026-06-01",
+        type: "trip",
+        personId: otherId,
+        personIds: [otherId, PERSON_ID],
+        reminder: false,
+        createdAtIso: NOW,
+        updatedAtIso: NOW,
+      },
+    ];
+    expect(eventsForPerson(events, PERSON_ID)).toHaveLength(1);
+  });
 });
 
 describe("sortPeopleByUpcomingBirthday", () => {
@@ -199,6 +241,29 @@ describe("personMatchesQuery and filterPeopleByQuery", () => {
     const people = [samplePerson(), samplePerson({ id: "b", name: "Blake" })];
     expect(filterPeopleByQuery(people, "")).toHaveLength(2);
     expect(filterPeopleByQuery(people, "   ")).toHaveLength(2);
+  });
+});
+
+describe("personMatchesIdentityQuery", () => {
+  it("matches name, nickname, and relationship", () => {
+    const person = samplePerson({ nickname: "Al", relationship: "coworker", likes: "Coffee" });
+    expect(personMatchesIdentityQuery(person, "lex")).toBe(true);
+    expect(personMatchesIdentityQuery(person, "AL")).toBe(true);
+    expect(personMatchesIdentityQuery(person, "work")).toBe(true);
+    expect(personMatchesIdentityQuery(person, "coffee")).toBe(false);
+  });
+});
+
+describe("filterPeopleByIdentityQuery", () => {
+  it("ranks name prefixes ahead of other identity matches", () => {
+    const people = [
+      samplePerson({ id: "a", name: "Sam", relationship: "friend" }),
+      samplePerson({ id: "b", name: "Blake", nickname: "Fri" }),
+      samplePerson({ id: "c", name: "Frances", relationship: "family" }),
+    ];
+
+    const result = filterPeopleByIdentityQuery(people, "fr");
+    expect(result.map((person) => person.name)).toEqual(["Frances", "Blake", "Sam"]);
   });
 });
 

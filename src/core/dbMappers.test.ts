@@ -373,6 +373,27 @@ describe("event mappers", () => {
     const event = sampleEvent({ personId: PERSON_ID, personName: "Alex" });
     const row = eventToRow(event, USER_ID);
     expect(row.person_id).toBe(PERSON_ID);
+    expect(row.person_ids).toEqual([PERSON_ID]);
+    expect(eventFromRow(row)).toEqual(event);
+  });
+
+  it("reads a legacy event row that only has person_id", () => {
+    const row = eventToRow(sampleEvent({ personId: PERSON_ID, personName: "Alex" }), USER_ID);
+    const { person_ids: _personIds, ...legacyRow } = row;
+    expect(eventFromRow(legacyRow).personId).toBe(PERSON_ID);
+    expect(eventFromRow(legacyRow).personIds).toBeUndefined();
+  });
+
+  it("round-trips event with multiple personIds", () => {
+    const personBId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const event = sampleEvent({
+      personId: PERSON_ID,
+      personIds: [PERSON_ID, personBId],
+      personName: "Alex and Blake",
+    });
+    const row = eventToRow(event, USER_ID);
+    expect(row.person_id).toBe(PERSON_ID);
+    expect(row.person_ids).toEqual([PERSON_ID, personBId]);
     expect(eventFromRow(row)).toEqual(event);
   });
 

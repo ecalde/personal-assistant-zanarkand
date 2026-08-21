@@ -106,6 +106,8 @@ export type LifeEvent = {
   endTime?: string;
   personName?: string;
   personId?: string;
+  /** Extra linked people; when present, `personId` is the first id. */
+  personIds?: string[];
   notes?: string;
   reminder: boolean;
   // Optional recurrence. Undefined means a one-time event (legacy behavior).

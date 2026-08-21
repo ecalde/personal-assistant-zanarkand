@@ -261,8 +261,8 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 ### People domain
 
 - **`Person`** records store name, optional birthday (`birthdayMonthDay`), preferences (likes/dislikes), gift ideas, notes, and relationship maintenance fields (`lastContactDate`, `contactCadenceDays`).
-- **`LifeEvent.personId`** optionally links events to a person; legacy **`personName`** strings remain supported for older events and backup readability.
-- Display uses `resolveEventPersonLabel` in [`people.ts`](../src/core/people.ts): linked person name wins, then `personName`.
+- **`LifeEvent.personId`** / **`personIds`** optionally link events to one or more people (`personId` is the first linked person for compatibility); legacy **`personName`** strings remain supported for older events and backup readability.
+- Display uses `resolveEventPersonLabel` in [`people.ts`](../src/core/people.ts): linked person names win (joined when several people are attached), then `personName`.
 - Future AI extension points (not implemented): `PersonContext` bundle for prompts, message drafting, gift suggestions, proactive nudges, CSV/vCard import — see header comment in `people.ts`.
 
 ### Career domain

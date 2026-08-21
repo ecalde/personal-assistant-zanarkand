@@ -121,11 +121,11 @@ function syncFailureMessage(
     table === "events" &&
     (error.code === "PGRST204" ||
       (msg.includes("column") &&
-        (msg.includes("recurrence") || msg.includes("series_id"))))
+        (msg.includes("recurrence") || msg.includes("series_id") || msg.includes("person_ids"))))
   ) {
     return (
-      "Could not sync events. Your Supabase database is missing the event recurrence " +
-      "migration (20260528000000_event_recurrence.sql). Apply it, then retry cloud save."
+      "Could not sync events. Your Supabase database is missing an events migration " +
+      "(recurrence or 20260821000000_event_person_ids.sql). Apply it, then retry cloud save."
     );
   }
 

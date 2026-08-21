@@ -41,6 +41,7 @@ import {
   resolveCookingFinishHHMM,
   resolveCookingStartHHMM,
 } from "./cooking";
+import { eventIncludesPerson } from "./events";
 import { buildPeopleById, resolveEventPersonLabel } from "./people";
 import {
   combineDateTimeToIso,
@@ -503,7 +504,7 @@ function hasBirthdayEventForPerson(
     (event) =>
       event.type === "birthday" &&
       event.date === date &&
-      (event.personId === person.id ||
+      (eventIncludesPerson(event, person.id) ||
         (event.personName !== undefined && event.personName === person.name))
   );
 }

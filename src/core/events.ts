@@ -37,6 +37,40 @@ export function formatUpcomingEventUrgencyLabel(daysUntil: number): UpcomingEven
   return `In ${daysUntil} days`;
 }
 
+/** Linked person ids, including legacy single `personId`. */
+export function eventPersonIds(event: Pick<LifeEvent, "personId" | "personIds">): string[] {
+  if (event.personIds && event.personIds.length > 0) {
+    const unique: string[] = [];
+    for (const id of event.personIds) {
+      if (!unique.includes(id)) unique.push(id);
+    }
+    return unique;
+  }
+  if (event.personId) return [event.personId];
+  return [];
+}
+
+export function eventIncludesPerson(
+  event: Pick<LifeEvent, "personId" | "personIds">,
+  personId: string
+): boolean {
+  return eventPersonIds(event).includes(personId);
+}
+
+/** Canonical person-link fields: omit extras for 0–1 people; keep `personId` as first. */
+export function linkedPeopleFields(personIds: string[]): {
+  personId?: string;
+  personIds?: string[];
+} {
+  const unique: string[] = [];
+  for (const id of personIds) {
+    if (id && !unique.includes(id)) unique.push(id);
+  }
+  if (unique.length === 0) return {};
+  if (unique.length === 1) return { personId: unique[0] };
+  return { personId: unique[0], personIds: unique };
+}
+
 export function buildUpcomingEventItems(
   events: LifeEvent[],
   todayKey: string,
@@ -115,18 +149,28 @@ export function migrateLegacyEventTypes(payload: AppPayload): AppPayload {
   return { ...payload, events };
 }
 
-/** Clears personId when the linked person no longer exists (legacy/orphan cleanup). */
+/** Clears person links when the linked person no longer exists (legacy/orphan cleanup). */
 export function cleanupOrphanedEventPersonRefs(payload: AppPayload): AppPayload {
-  const personIds = new Set(payload.people.map((p) => p.id));
+  const knownPersonIds = new Set(payload.people.map((p) => p.id));
   let changed = false;
   const events = payload.events.map((event) => {
-    if (event.personId !== undefined && !personIds.has(event.personId)) {
-      changed = true;
-      const next = { ...event };
-      delete next.personId;
-      return next;
+    const originalIds = eventPersonIds(event);
+    const keptIds = originalIds.filter((id) => knownPersonIds.has(id));
+    const personIdOrphan =
+      event.personId !== undefined && !knownPersonIds.has(event.personId);
+
+    if (keptIds.length === originalIds.length && !personIdOrphan) {
+      return event;
     }
-    return event;
+
+    changed = true;
+    const next = { ...event };
+    delete next.personId;
+    delete next.personIds;
+    const linked = linkedPeopleFields(keptIds);
+    if (linked.personId) next.personId = linked.personId;
+    if (linked.personIds) next.personIds = linked.personIds;
+    return next;
   });
   if (!changed) return payload;
   return { ...payload, events };

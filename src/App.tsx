@@ -69,6 +69,12 @@ import type {
   CalendarEventUndoPayload,
 } from "./core/calendarDrag";
 import type { Page } from "./pages/types";
+import {
+  eventIncludesPerson,
+  eventPersonIds,
+  linkedPeopleFields,
+} from "./core/events";
+import { formatPersonNames } from "./core/people";
 import { fullViewportCenter } from "./ui/appStyles";
 import {
   dashboardSetExerciseWeight,
@@ -201,19 +207,26 @@ function persistSupplementIntake(
 
 function applyEventPersonFields(
   event: LifeEvent,
-  input: { personId?: string; personName?: string },
+  input: { personId?: string; personIds?: string[]; personName?: string },
   people: Person[]
 ): void {
-  if (input.personId) {
-    event.personId = input.personId;
-    const person = people.find((p) => p.id === input.personId);
-    if (person) {
-      event.personName = person.name;
+  const ids = eventPersonIds(input);
+  const linked = linkedPeopleFields(ids);
+  delete event.personId;
+  delete event.personIds;
+  if (linked.personId) event.personId = linked.personId;
+  if (linked.personIds) event.personIds = linked.personIds;
+
+  if (ids.length > 0) {
+    const names = ids
+      .map((personId) => people.find((person) => person.id === personId)?.name)
+      .filter((name): name is string => Boolean(name));
+    if (names.length > 0) {
+      event.personName = formatPersonNames(names);
+      return;
     }
-    return;
   }
 
-  delete event.personId;
   if (input.personName?.trim()) {
     event.personName = input.personName.trim();
   } else {
@@ -516,10 +529,8 @@ export default function App({ userId, onSignOut }: AppProps) {
       updatedAtIso: now,
     };
 
-    if (input.personId) {
+    if (eventPersonIds(input).length > 0 || input.personName?.trim()) {
       applyEventPersonFields(newEvent, input, app.payload.people ?? []);
-    } else if (input.personName?.trim()) {
-      newEvent.personName = input.personName.trim();
     }
     if (input.notes?.trim()) {
       newEvent.notes = input.notes.trim();
@@ -556,16 +567,7 @@ export default function App({ userId, onSignOut }: AppProps) {
       updatedAtIso: now,
     };
 
-    if (updated.personId) {
-      applyEventPersonFields(nextEvent, updated, app.payload.people ?? []);
-    } else {
-      delete nextEvent.personId;
-      if (updated.personName?.trim()) {
-        nextEvent.personName = updated.personName.trim();
-      } else {
-        delete nextEvent.personName;
-      }
-    }
+    applyEventPersonFields(nextEvent, updated, app.payload.people ?? []);
 
     if (updated.notes?.trim()) {
       nextEvent.notes = updated.notes.trim();
@@ -966,8 +968,11 @@ export default function App({ userId, onSignOut }: AppProps) {
     );
 
     const events = (app.payload.events ?? []).map((event) => {
-      if (event.personId !== updated.id) return event;
-      return { ...event, personName: trimmedName };
+      if (!eventIncludesPerson(event, updated.id)) return event;
+      const names = eventPersonIds(event)
+        .map((id) => people.find((person) => person.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      return { ...event, personName: formatPersonNames(names) };
     });
 
     commit({ ...app, payload: { ...app.payload, people, events } });
@@ -978,9 +983,14 @@ export default function App({ userId, onSignOut }: AppProps) {
 
     const people = (app.payload.people ?? []).filter((person) => person.id !== personId);
     const events = (app.payload.events ?? []).map((event) => {
-      if (event.personId !== personId) return event;
+      if (!eventIncludesPerson(event, personId)) return event;
+      const remaining = eventPersonIds(event).filter((id) => id !== personId);
       const next = { ...event };
       delete next.personId;
+      delete next.personIds;
+      const linked = linkedPeopleFields(remaining);
+      if (linked.personId) next.personId = linked.personId;
+      if (linked.personIds) next.personIds = linked.personIds;
       return next;
     });
 

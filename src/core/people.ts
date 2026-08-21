@@ -8,6 +8,8 @@
 
 import {
   daysBetweenDateKeys,
+  eventIncludesPerson,
+  eventPersonIds,
   formatUpcomingEventUrgencyLabel,
   type UpcomingEventUrgencyLabel,
 } from "./events";
@@ -52,11 +54,20 @@ export function resolveEventPersonLabel(
   event: LifeEvent,
   peopleById: Map<string, Person>
 ): string | undefined {
-  if (event.personId) {
-    const person = peopleById.get(event.personId);
-    if (person) return person.name;
+  const names: string[] = [];
+  for (const personId of eventPersonIds(event)) {
+    const person = peopleById.get(personId);
+    if (person) names.push(person.name);
   }
+  if (names.length > 0) return formatPersonNames(names);
   return event.personName;
+}
+
+export function formatPersonNames(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 export function getNextBirthdayDateKey(person: Person, todayKey: string): string | null {
@@ -157,7 +168,7 @@ export function buildPeopleNeedingFollowUp(
 }
 
 export function eventsForPerson(events: LifeEvent[], personId: string): LifeEvent[] {
-  return events.filter((event) => event.personId === personId);
+  return events.filter((event) => eventIncludesPerson(event, personId));
 }
 
 export function sortPeopleByName(people: Person[]): Person[] {
@@ -220,6 +231,37 @@ export function filterPeopleByQuery(people: Person[], query: string): Person[] {
   const normalized = query.trim();
   if (!normalized) return [...people];
   return people.filter((person) => personMatchesQuery(person, normalized));
+}
+
+const IDENTITY_FIELDS: (keyof Person)[] = ["name", "nickname", "relationship"];
+
+export function personMatchesIdentityQuery(person: Person, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+
+  return IDENTITY_FIELDS.some((field) => {
+    const value = person[field];
+    return typeof value === "string" && value.toLowerCase().includes(normalized);
+  });
+}
+
+function identityMatchRank(person: Person, query: string): number {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return 0;
+  if (person.name.toLowerCase().startsWith(normalized)) return 0;
+  if (person.nickname?.toLowerCase().startsWith(normalized)) return 1;
+  if (person.relationship?.toLowerCase().startsWith(normalized)) return 2;
+  return 3;
+}
+
+/** Name, nickname, and relationship matches, with prefix hits first. */
+export function filterPeopleByIdentityQuery(people: Person[], query: string): Person[] {
+  const matches = people.filter((person) => personMatchesIdentityQuery(person, query));
+  return matches.sort((a, b) => {
+    const byRank = identityMatchRank(a, query) - identityMatchRank(b, query);
+    if (byRank !== 0) return byRank;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function getPersonBirthdayStatus(

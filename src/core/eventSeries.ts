@@ -68,6 +68,7 @@ function editedFieldsFrom(edited: LifeEvent): Omit<
     type: edited.type,
     reminder: edited.reminder,
     personId: edited.personId,
+    personIds: edited.personIds,
     personName: edited.personName,
     notes: edited.notes,
     startTime: edited.startTime,

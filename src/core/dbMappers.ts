@@ -17,6 +17,7 @@ import {
   type RecurrenceFrequency,
   type RecurrenceRule,
 } from "./recurrence";
+import { eventPersonIds, linkedPeopleFields } from "./events";
 import {
   normalizeSkillScheduleSeries,
 } from "./skillSeries";
@@ -201,6 +202,7 @@ export type EventRow = {
   end_time: string | null;
   person_name: string | null;
   person_id: string | null;
+  person_ids?: string[] | null;
   notes: string | null;
   reminder: boolean;
   recurrence: unknown | null;
@@ -859,6 +861,14 @@ function assertValidEvent(event: LifeEvent): void {
   }
   if (event.personId !== undefined) {
     assertUuid(event.personId, "event.personId");
+  }
+  if (event.personIds !== undefined) {
+    if (!Array.isArray(event.personIds)) {
+      throw new MapperError("Invalid event.personIds", "event.personIds");
+    }
+    for (const personId of event.personIds) {
+      assertUuid(personId, "event.personIds");
+    }
   }
   if (event.notes !== undefined && typeof event.notes !== "string") {
     throw new MapperError("Invalid event.notes", "event.notes");
@@ -1836,7 +1846,8 @@ export function eventToRow(event: LifeEvent, userId: string): EventRow {
     start_time: event.startTime ?? null,
     end_time: event.endTime ?? null,
     person_name: event.personName?.trim() || null,
-    person_id: event.personId ?? null,
+    person_id: eventPersonIds(event)[0] ?? null,
+    person_ids: eventPersonIds(event),
     notes: event.notes?.trim() || null,
     reminder: event.reminder,
     recurrence: event.recurrence ? parseRecurrenceRule(event.recurrence) : null,
@@ -1875,10 +1886,9 @@ export function eventFromRow(row: EventRow): LifeEvent {
   if (row.person_name !== null && row.person_name.trim().length > 0) {
     event.personName = row.person_name.trim();
   }
-  if (row.person_id !== null) {
-    assertUuid(row.person_id, "events.person_id");
-    event.personId = row.person_id;
-  }
+  const linkedPeople = linkedPeopleFields(parseEventPersonIds(row));
+  if (linkedPeople.personId) event.personId = linkedPeople.personId;
+  if (linkedPeople.personIds) event.personIds = linkedPeople.personIds;
   if (row.notes !== null && row.notes.trim().length > 0) {
     event.notes = row.notes.trim();
   }
@@ -1897,6 +1907,18 @@ export function eventFromRow(row: EventRow): LifeEvent {
   }
 
   return event;
+}
+
+function parseEventPersonIds(row: EventRow): string[] {
+  if (row.person_ids != null) {
+    const ids = parseRequiredSkillIds(row.person_ids, "events.person_ids");
+    if (ids.length > 0) return ids;
+  }
+  if (row.person_id !== null && row.person_id !== undefined) {
+    assertUuid(row.person_id, "events.person_id");
+    return [row.person_id];
+  }
+  return [];
 }
 
 export function personToRow(person: Person, userId: string): PersonRow {
@@ -3952,11 +3974,10 @@ export function validatePayloadForUpload(payload: AppPayload): void {
   }
 
   for (const event of payload.events) {
-    if (event.personId !== undefined && !personIds.has(event.personId)) {
-      throw new MapperError(
-        `Event references unknown person: ${event.personId}`,
-        "events.personId"
-      );
+    for (const personId of eventPersonIds(event)) {
+      if (!personIds.has(personId)) {
+        throw new MapperError(`Event references unknown person: ${personId}`, "events.personId");
+      }
     }
   }
 

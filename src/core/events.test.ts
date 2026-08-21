@@ -88,6 +88,24 @@ describe("cleanupOrphanedEventPersonRefs", () => {
     expect(cleaned).toBe(payload);
     expect(cleaned.events[0].personId).toBe(PERSON_ID);
   });
+
+  it("drops an orphaned extra person and keeps remaining links", () => {
+    const payload = {
+      ...defaultPayload(),
+      people: [samplePerson()],
+      events: [
+        sampleEvent({
+          personId: PERSON_ID,
+          personIds: [PERSON_ID, ORPHAN_PERSON_ID],
+        }),
+      ],
+    };
+
+    const cleaned = cleanupOrphanedEventPersonRefs(payload);
+
+    expect(cleaned.events[0].personId).toBe(PERSON_ID);
+    expect(cleaned.events[0].personIds).toBeUndefined();
+  });
 });
 
 describe("cleanupInvalidEventRecurrence", () => {

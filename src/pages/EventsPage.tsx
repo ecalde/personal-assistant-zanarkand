@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EventRecurrenceFields } from "../components/events/EventRecurrenceFields";
+import { EventPeoplePicker } from "../components/events/EventPeoplePicker";
 import {
   emptyEventRecurrenceFormState,
   eventRecurrenceFormFromRule,
@@ -11,7 +12,7 @@ import {
   type RecurrenceEndUiKind,
   validateEventRecurrenceForm,
 } from "../components/events/eventRecurrenceFormState";
-import { partitionEventsByToday } from "../core/events";
+import { partitionEventsByToday, eventPersonIds } from "../core/events";
 import {
   isRecurringLifeEvent,
   type EventSeriesEditScope,
@@ -49,6 +50,7 @@ export type EventFormDraft = {
   date?: string;
   type?: EventType;
   personId?: string;
+  personIds?: string[];
   personName?: string;
   useCustomPersonName?: boolean;
   notes?: string;
@@ -85,7 +87,7 @@ type EventFormState = {
   type: EventType;
   startTime: string;
   endTime: string;
-  personId: string;
+  personIds: string[];
   personName: string;
   useCustomPersonName: boolean;
   notes: string;
@@ -105,7 +107,7 @@ function emptyFormState(): EventFormState {
     type: "other",
     startTime: "",
     endTime: "",
-    personId: "",
+    personIds: [],
     personName: "",
     useCustomPersonName: false,
     notes: "",
@@ -119,7 +121,7 @@ function formFromDraft(draft: EventFormDraft): EventFormState {
     ...draft,
     startTime: draft.startTime ?? "",
     endTime: draft.endTime ?? "",
-    personId: draft.personId ?? "",
+    personIds: draft.personIds ?? (draft.personId ? [draft.personId] : []),
     personName: draft.personName ?? "",
     useCustomPersonName: draft.useCustomPersonName ?? false,
     notes: draft.notes ?? "",
@@ -137,9 +139,9 @@ function formFromEvent(event: LifeEvent): EventFormState {
     type: event.type,
     startTime: event.startTime ?? "",
     endTime: event.endTime ?? "",
-    personId: event.personId ?? "",
+    personIds: eventPersonIds(event),
     personName: event.personName ?? "",
-    useCustomPersonName: !event.personId && Boolean(event.personName),
+    useCustomPersonName: eventPersonIds(event).length === 0 && Boolean(event.personName),
     notes: event.notes ?? "",
     reminder: event.reminder,
   };
@@ -383,7 +385,9 @@ export default function EventsPage({
       type: form.type,
       startTime,
       endTime,
-      personId: !form.useCustomPersonName && form.personId ? form.personId : undefined,
+      personIds: !form.useCustomPersonName && form.personIds.length > 0 ? form.personIds : undefined,
+      personId:
+        !form.useCustomPersonName && form.personIds.length > 0 ? form.personIds[0] : undefined,
       personName:
         form.useCustomPersonName && form.personName.trim()
           ? form.personName.trim()
@@ -600,52 +604,13 @@ export default function EventsPage({
               </label>
             </div>
 
-            <label style={styles.label}>
-              Person (optional)
-              <select
-                value={form.useCustomPersonName ? "__custom__" : form.personId || ""}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "__custom__") {
-                    setForm((current) => ({
-                      ...current,
-                      useCustomPersonName: true,
-                      personId: "",
-                    }));
-                  } else {
-                    setForm((current) => ({
-                      ...current,
-                      useCustomPersonName: false,
-                      personId: value,
-                      personName: "",
-                    }));
-                  }
-                }}
-                style={styles.select}
-              >
-                <option value="">None</option>
-                {sortedPeople.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-                <option value="__custom__">Custom name…</option>
-              </select>
-            </label>
-
-            {form.useCustomPersonName && (
-              <label style={styles.label}>
-                Custom name
-                <input
-                  value={form.personName}
-                  onChange={(e) =>
-                    setForm((current) => ({ ...current, personName: e.target.value }))
-                  }
-                  placeholder='e.g., "Alex"'
-                  style={styles.input}
-                />
-              </label>
-            )}
+            <EventPeoplePicker
+              people={sortedPeople}
+              personIds={form.personIds}
+              personName={form.personName}
+              useCustomPersonName={form.useCustomPersonName}
+              onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+            />
 
             <label style={styles.label}>
               Notes (optional)
