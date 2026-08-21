@@ -361,9 +361,18 @@ export function SkillEditor({
           const blocks = skill.schedule[day] ?? [];
           return (
             <div key={day} style={styles.dayRow}>
-              <div style={{ width: 48, fontWeight: 600 }}>{weekdayLabel(day)}</div>
+              <div style={{ width: 48, fontWeight: 600, flexShrink: 0 }}>{weekdayLabel(day)}</div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", flex: 1 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  flex: "1 1 140px",
+                  minWidth: 0,
+                }}
+              >
                 {blocks.length === 0 ? (
                   <span style={{ ...styles.textDisabled }}>No blocks</span>
                 ) : (
@@ -393,7 +402,9 @@ export function SkillEditor({
                 )}
               </div>
 
-              <button onClick={() => addBlock(day)}>+ Block</button>
+              <button type="button" onClick={() => addBlock(day)} style={{ flexShrink: 0 }}>
+                + Block
+              </button>
             </div>
           );
         })}

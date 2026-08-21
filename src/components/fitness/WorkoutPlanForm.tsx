@@ -28,18 +28,18 @@ export function WorkoutPlanForm({
   return (
     <div style={styles.card}>
       <div style={styles.cardTitle}>{editing ? "Edit workout plan" : "Add workout plan"}</div>
-      <div style={{ display: "grid", gap: 12 }}>
-        <label style={styles.label}>
+      <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+        <label style={{ ...styles.label, minWidth: 0 }}>
           Plan name
           <input
             value={form.name}
             onChange={(e) => onChange({ ...form, name: e.target.value })}
             placeholder='e.g., "Push A"'
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
 
-        <label style={styles.label}>
+        <label style={{ ...styles.label, minWidth: 0 }}>
           Focus (optional)
           <select
             value={form.focus}
@@ -49,7 +49,7 @@ export function WorkoutPlanForm({
                 focus: e.target.value as WorkoutPlanFormState["focus"],
               })
             }
-            style={styles.input}
+            style={styles.inputFluid}
           >
             <option value="">None</option>
             {getWorkoutFocusValues().map((focus) => (
@@ -60,13 +60,13 @@ export function WorkoutPlanForm({
           </select>
         </label>
 
-        <label style={styles.label}>
+        <label style={{ ...styles.label, minWidth: 0 }}>
           Notes (optional)
           <textarea
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             rows={3}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
 

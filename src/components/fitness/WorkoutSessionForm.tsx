@@ -113,7 +113,7 @@ export function WorkoutSessionForm({
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             rows={3}
-            style={{ ...styles.input, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+            style={styles.inputFluid}
           />
         </label>
 
