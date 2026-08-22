@@ -19,6 +19,7 @@ import { formatLocalDateKey } from "../core/timeline";
 import { groupWorkoutSessionsForHistory } from "../core/workoutHistory";
 import { readFocusPhase } from "../core/focusPhaseStorage";
 import { ExerciseProgressionChart } from "../components/fitness/ExerciseProgressionChart";
+import { MuscleAnatomyChart } from "../components/fitness/MuscleAnatomyChart";
 import {
   FitnessSectionSwitcher,
   type FitnessSection,
@@ -377,7 +378,7 @@ export default function FitnessPage({
           {section === "workouts"
             ? "Open a plan to tap exercises complete. Focus mode keeps the session if you close the tab."
             : section === "progress"
-              ? "Compare every lift on one chart, or pick a single exercise."
+              ? "See which muscles you scheduled and trained this week, browse weekly snapshots, and compare monthly coverage."
               : "Track supplement protocols and tap each dose as you take it."}
         </div>
       </div>
@@ -461,7 +462,14 @@ export default function FitnessPage({
       )}
 
       {section === "progress" && (
-        <ExerciseProgressionChart exercises={exerciseProgressions} />
+        <>
+          <MuscleAnatomyChart
+            plans={workoutPlans}
+            sessions={workoutSessions}
+            todayKey={todayKey}
+          />
+          <ExerciseProgressionChart exercises={exerciseProgressions} />
+        </>
       )}
 
       {section === "workouts" && !showDedicatedLogger && (
