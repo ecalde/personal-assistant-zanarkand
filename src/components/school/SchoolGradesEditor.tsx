@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/model";
+import type { SchoolCourse, SchoolGradeCategory, SchoolGradedItem, SchoolReminder } from "../../core/model";
 import type { CreateSchoolGradedItemInput } from "../../core/school";
 import {
   computeCourseGradeWhatIf,
@@ -9,6 +9,13 @@ import {
 } from "../../core/schoolGrades";
 import { styles } from "../../ui/appStyles";
 import { SchoolGradeWhatIfPanel } from "./SchoolGradeWhatIfPanel";
+import { SchoolGradeCategoriesFields } from "./SchoolGradeCategoriesFields";
+import {
+  gradeCategoriesFromFormRows,
+  schoolCourseFormFromCourse,
+  validateGradeCategoryFormRows,
+  type SchoolGradeCategoryFormRow,
+} from "./schoolCourseFormState";
 import {
   emptySchoolGradedItemFormState,
   schoolGradedItemFormFromItem,
@@ -24,9 +31,13 @@ export type SchoolGradesEditorProps = {
   compact?: boolean;
   hideHeader?: boolean;
   addRequestId?: number;
+  editingCategories?: boolean;
+  listMaxHeight?: number | string;
   onAddItem: (input: CreateSchoolGradedItemInput) => void;
   onUpdateItem: (itemId: string, input: CreateSchoolGradedItemInput) => void;
   onDeleteItem: (itemId: string) => void;
+  onSaveCategories?: (categories: SchoolGradeCategory[]) => void;
+  onCancelCategoryEdit?: () => void;
 };
 
 function scoreLabel(item: SchoolGradedItem): string {
@@ -50,14 +61,22 @@ export function SchoolGradesEditor({
   compact = false,
   hideHeader = false,
   addRequestId,
+  editingCategories = false,
+  listMaxHeight,
   onAddItem,
   onUpdateItem,
   onDeleteItem,
+  onSaveCategories,
+  onCancelCategoryEdit,
 }: SchoolGradesEditorProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SchoolGradedItemFormState>(emptySchoolGradedItemFormState());
   const [formError, setFormError] = useState<string | null>(null);
+  const [categoryRows, setCategoryRows] = useState<SchoolGradeCategoryFormRow[]>(() =>
+    schoolCourseFormFromCourse(course).gradeCategories
+  );
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!addRequestId) return;
@@ -66,6 +85,13 @@ export function SchoolGradesEditor({
     setFormError(null);
     setShowForm(true);
   }, [addRequestId]);
+
+  useEffect(() => {
+    if (editingCategories) {
+      setCategoryRows(schoolCourseFormFromCourse(course).gradeCategories);
+      setCategoryError(null);
+    }
+  }, [editingCategories, course]);
 
   const snapshot = useMemo(() => computeCourseGradeWhatIf(course, items), [course, items]);
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -104,6 +130,15 @@ export function SchoolGradesEditor({
     setShowForm(true);
   }
 
+  function saveCategories() {
+    const error = validateGradeCategoryFormRows(categoryRows);
+    if (error) {
+      setCategoryError(error);
+      return;
+    }
+    onSaveCategories?.(gradeCategoriesFromFormRows(categoryRows));
+  }
+
   return (
     <div style={{ display: "grid", gap: compact ? 6 : 8 }}>
       {hideHeader ? null : (
@@ -125,6 +160,27 @@ export function SchoolGradesEditor({
         </div>
       )}
       <SchoolGradeWhatIfPanel snapshot={snapshot} compact={compact} />
+      {editingCategories ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ fontWeight: 800, fontSize: 13 }}>Grade categories</div>
+          <SchoolGradeCategoriesFields
+            rows={categoryRows}
+            error={categoryError}
+            onChange={(rows) => {
+              setCategoryRows(rows);
+              setCategoryError(null);
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={saveCategories}>
+              Save categories
+            </button>
+            <button type="button" onClick={() => onCancelCategoryEdit?.()}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
       {showForm ? (
         <form
           onSubmit={(event) => {
@@ -216,17 +272,17 @@ export function SchoolGradesEditor({
           </div>
         </form>
       ) : null}
-      {course.gradeCategories.length === 0 && items.length === 0 && !showForm ? (
+      {course.gradeCategories.length === 0 && items.length === 0 && !showForm && !editingCategories ? (
         <p style={{ ...styles.helpText, margin: 0 }}>
-          No grade categories yet. Paste a Canvas Group / Weight table in Paste ingest, or add them
-          on the course form so items can be weighted.
+          No grade categories yet. Paste a Canvas Group / Weight table, or tap Categories to add
+          weights by hand.
         </p>
       ) : (
         <div
           style={{
             display: "grid",
             gap: compact ? 8 : 12,
-            maxHeight: compact ? 280 : undefined,
+            maxHeight: compact ? listMaxHeight ?? "min(70vh, 640px)" : undefined,
             overflow: compact ? "auto" : undefined,
           }}
         >

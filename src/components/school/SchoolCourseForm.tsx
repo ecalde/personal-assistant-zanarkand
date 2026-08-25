@@ -1,11 +1,8 @@
 import { styles } from "../../ui/appStyles";
 import { SCHOOL_STAFF_ROLE_LABELS, SCHOOL_STAFF_ROLES } from "../../core/school";
 import type { SchoolCourseFormState } from "./schoolCourseFormState";
-import {
-  emptyGradeCategoryFormRow,
-  emptyOfficeHoursFormRow,
-  emptyStaffFormRow,
-} from "./schoolCourseFormState";
+import { emptyOfficeHoursFormRow, emptyStaffFormRow } from "./schoolCourseFormState";
+import { SchoolGradeCategoriesFields } from "./SchoolGradeCategoriesFields";
 
 const TIMEZONE_SUGGESTIONS = [
   "America/New_York",
@@ -266,60 +263,10 @@ export function SchoolCourseForm({
 
       <fieldset style={{ border: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
         <legend style={{ fontWeight: 700 }}>Grade categories</legend>
-        {form.gradeCategories.map((row, index) => (
-          <div key={row.id} style={{ display: "grid", gap: 8 }}>
-            <input
-              value={row.name}
-              placeholder="Category name"
-              onChange={(event) => {
-                const gradeCategories = [...form.gradeCategories];
-                gradeCategories[index] = { ...row, name: event.target.value };
-                patch({ gradeCategories });
-              }}
-              style={styles.input}
-            />
-            <input
-              value={row.weightPercent}
-              placeholder="Weight %"
-              onChange={(event) => {
-                const gradeCategories = [...form.gradeCategories];
-                gradeCategories[index] = { ...row, weightPercent: event.target.value };
-                patch({ gradeCategories });
-              }}
-              style={styles.input}
-            />
-            <label>
-              <input
-                type="checkbox"
-                checked={row.extraCredit}
-                onChange={(event) => {
-                  const gradeCategories = [...form.gradeCategories];
-                  gradeCategories[index] = { ...row, extraCredit: event.target.checked };
-                  patch({ gradeCategories });
-                }}
-              />{" "}
-              Extra credit
-            </label>
-            <button
-              type="button"
-              onClick={() =>
-                patch({
-                  gradeCategories: form.gradeCategories.filter((item) => item.id !== row.id),
-                })
-              }
-            >
-              Remove category
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() =>
-            patch({ gradeCategories: [...form.gradeCategories, emptyGradeCategoryFormRow()] })
-          }
-        >
-          Add category
-        </button>
+        <SchoolGradeCategoriesFields
+          rows={form.gradeCategories}
+          onChange={(gradeCategories) => patch({ gradeCategories })}
+        />
       </fieldset>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

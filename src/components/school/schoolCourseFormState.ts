@@ -165,8 +165,14 @@ export function validateSchoolCourseForm(form: SchoolCourseFormState): string | 
   );
   if (!deduction.ok) return deduction.error;
 
-  for (let i = 0; i < form.gradeCategories.length; i += 1) {
-    const row = form.gradeCategories[i]!;
+  return validateGradeCategoryFormRows(form.gradeCategories);
+}
+
+export function validateGradeCategoryFormRows(
+  rows: readonly SchoolGradeCategoryFormRow[]
+): string | null {
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i]!;
     const filled = row.name.trim() || row.weightPercent.trim() || row.extraCredit;
     if (!filled) continue;
     if (!row.name.trim()) return `Grade category ${i + 1}: name is required.`;
@@ -174,8 +180,24 @@ export function validateSchoolCourseForm(form: SchoolCourseFormState): string | 
     if (!weight.ok) return weight.error;
     if (weight.value === undefined) return `Grade category ${i + 1}: weight is required.`;
   }
-
   return null;
+}
+
+export function gradeCategoriesFromFormRows(
+  rows: readonly SchoolGradeCategoryFormRow[]
+): SchoolGradeCategory[] {
+  const gradeCategories: SchoolGradeCategory[] = [];
+  for (const row of rows) {
+    if (!row.name.trim()) continue;
+    const category: SchoolGradeCategory = {
+      id: row.id,
+      name: row.name.trim(),
+      weightPercent: Number(row.weightPercent.trim()),
+    };
+    if (row.extraCredit) category.extraCredit = true;
+    gradeCategories.push(category);
+  }
+  return gradeCategories;
 }
 
 export function schoolCoursePayloadFromForm(form: SchoolCourseFormState): CreateSchoolCourseInput {
@@ -197,17 +219,7 @@ export function schoolCoursePayloadFromForm(form: SchoolCourseFormState): Create
     officeHours.push(entry);
   }
 
-  const gradeCategories: SchoolGradeCategory[] = [];
-  for (const row of form.gradeCategories) {
-    if (!row.name.trim()) continue;
-    const category: SchoolGradeCategory = {
-      id: row.id,
-      name: row.name.trim(),
-      weightPercent: Number(row.weightPercent.trim()),
-    };
-    if (row.extraCredit) category.extraCredit = true;
-    gradeCategories.push(category);
-  }
+  const gradeCategories = gradeCategoriesFromFormRows(form.gradeCategories);
 
   const input: CreateSchoolCourseInput = {
     name: form.name.trim(),

@@ -52,6 +52,37 @@ describe("schoolCourseFormState", () => {
     expect(payload.staff?.[0]?.email).toBe("ada@gatech.edu");
     expect(payload.latePolicy?.lateDaysAllowed).toBe(2);
   });
+
+  it("validates and builds weighted grade categories", () => {
+    const empty = emptySchoolCourseFormState();
+    expect(
+      validateSchoolCourseForm({
+        ...empty,
+        name: "Algo",
+        gradeCategories: [{ id: "c1", name: "", weightPercent: "12", extraCredit: false }],
+      })
+    ).toMatch(/name is required/);
+    expect(
+      validateSchoolCourseForm({
+        ...empty,
+        name: "Algo",
+        gradeCategories: [{ id: "c1", name: "Quizzes", weightPercent: "-1", extraCredit: false }],
+      })
+    ).toMatch(/0 or greater/);
+
+    const payload = schoolCoursePayloadFromForm({
+      ...empty,
+      name: "Algo",
+      gradeCategories: [
+        { id: "c1", name: "Quizzes", weightPercent: "12", extraCredit: false },
+        { id: "c2", name: "Bonus", weightPercent: "0", extraCredit: true },
+      ],
+    });
+    expect(payload.gradeCategories).toEqual([
+      { id: "c1", name: "Quizzes", weightPercent: 12 },
+      { id: "c2", name: "Bonus", weightPercent: 0, extraCredit: true },
+    ]);
+  });
 });
 
 describe("schoolReminderFormState", () => {

@@ -31,6 +31,8 @@ import {
   type SchoolReminderFormState,
 } from "./schoolReminderFormState";
 
+const FOLD_LIST_MAX_HEIGHT = "min(70vh, 640px)";
+
 export type SchoolCourseCardProps = {
   course: SchoolCourse;
   reminders: SchoolReminder[];
@@ -77,6 +79,7 @@ export function SchoolCourseCard({
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [gradesOpen, setGradesOpen] = useState(false);
   const [gradesAddRequestId, setGradesAddRequestId] = useState(0);
+  const [editingCategories, setEditingCategories] = useState(false);
 
   const sortedReminders = useMemo(
     () =>
@@ -255,7 +258,7 @@ export function SchoolCourseCard({
                 padding: 0,
                 display: "grid",
                 gap: 4,
-                maxHeight: showReminderForm ? 180 : 280,
+                maxHeight: showReminderForm ? "min(40vh, 360px)" : FOLD_LIST_MAX_HEIGHT,
                 overflow: "auto",
               }}
             >
@@ -322,20 +325,33 @@ export function SchoolCourseCard({
         <CourseFold
           title="Grades"
           meta={gradeMeta}
-          open={gradesOpen}
+          open={gradesOpen || editingCategories}
           onOpenChange={setGradesOpen}
           action={
-            <button
-              type="button"
-              style={styles.ghostBtn}
-              onClick={(event) => {
-                stopFoldToggle(event);
-                setGradesOpen(true);
-                setGradesAddRequestId((value) => value + 1);
-              }}
-            >
-              Add
-            </button>
+            <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                style={styles.ghostBtn}
+                onClick={(event) => {
+                  stopFoldToggle(event);
+                  setGradesOpen(true);
+                  setEditingCategories(true);
+                }}
+              >
+                Categories
+              </button>
+              <button
+                type="button"
+                style={styles.ghostBtn}
+                onClick={(event) => {
+                  stopFoldToggle(event);
+                  setGradesOpen(true);
+                  setGradesAddRequestId((value) => value + 1);
+                }}
+              >
+                Add
+              </button>
+            </span>
           }
         >
           <SchoolGradesEditor
@@ -345,9 +361,19 @@ export function SchoolCourseCard({
             compact
             hideHeader
             addRequestId={gradesAddRequestId}
+            editingCategories={editingCategories}
+            listMaxHeight={FOLD_LIST_MAX_HEIGHT}
             onAddItem={onAddGradedItem}
             onUpdateItem={onUpdateGradedItem}
             onDeleteItem={onDeleteGradedItem}
+            onSaveCategories={(gradeCategories) => {
+              onUpdateCourse({
+                ...schoolCoursePayloadFromForm(schoolCourseFormFromCourse(course)),
+                gradeCategories,
+              });
+              setEditingCategories(false);
+            }}
+            onCancelCategoryEdit={() => setEditingCategories(false)}
           />
         </CourseFold>
       </div>
