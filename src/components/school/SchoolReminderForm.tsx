@@ -35,9 +35,9 @@ export function SchoolReminderForm({
         event.preventDefault();
         onSubmit();
       }}
-      style={{ ...styles.dashboardSection, display: "grid", gap: 12 }}
+      style={{ display: "grid", gap: 8 }}
     >
-      <h3 style={{ fontWeight: 800, margin: 0, fontSize: 15 }}>
+      <h3 style={{ fontWeight: 800, margin: 0, fontSize: 13 }}>
         {editing ? "Edit reminder" : "Add reminder"}
       </h3>
       {formError ? (
@@ -94,7 +94,7 @@ export function SchoolReminderForm({
             type="time"
             value={form.startTime}
             onChange={(event) => patch({ startTime: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
         <label style={styles.label}>
@@ -103,7 +103,7 @@ export function SchoolReminderForm({
             type="time"
             value={form.endTime}
             onChange={(event) => patch({ endTime: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
       </div>
@@ -122,7 +122,7 @@ export function SchoolReminderForm({
             type="date"
             value={form.openDate}
             onChange={(event) => patch({ openDate: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
         <label style={styles.label}>
@@ -131,7 +131,7 @@ export function SchoolReminderForm({
             type="time"
             value={form.openTime}
             onChange={(event) => patch({ openTime: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
         <label style={styles.label}>
@@ -140,7 +140,7 @@ export function SchoolReminderForm({
             type="date"
             value={form.closeDate}
             onChange={(event) => patch({ closeDate: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
         <label style={styles.label}>
@@ -149,7 +149,7 @@ export function SchoolReminderForm({
             type="time"
             value={form.closeTime}
             onChange={(event) => patch({ closeTime: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
         </label>
       </div>
@@ -175,7 +175,7 @@ export function SchoolReminderForm({
                 links[index] = { ...row, url: event.target.value };
                 patch({ links });
               }}
-              style={styles.input}
+              style={styles.inputFluid}
             />
             <input
               value={row.label}
@@ -185,7 +185,7 @@ export function SchoolReminderForm({
                 links[index] = { ...row, label: event.target.value };
                 patch({ links });
               }}
-              style={styles.input}
+              style={styles.inputFluid}
             />
             <button
               type="button"

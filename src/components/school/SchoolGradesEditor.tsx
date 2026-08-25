@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/model";
 import type { CreateSchoolGradedItemInput } from "../../core/school";
 import {
@@ -21,6 +21,9 @@ export type SchoolGradesEditorProps = {
   course: SchoolCourse;
   reminders: SchoolReminder[];
   items: SchoolGradedItem[];
+  compact?: boolean;
+  hideHeader?: boolean;
+  addRequestId?: number;
   onAddItem: (input: CreateSchoolGradedItemInput) => void;
   onUpdateItem: (itemId: string, input: CreateSchoolGradedItemInput) => void;
   onDeleteItem: (itemId: string) => void;
@@ -44,6 +47,9 @@ export function SchoolGradesEditor({
   course,
   reminders,
   items,
+  compact = false,
+  hideHeader = false,
+  addRequestId,
   onAddItem,
   onUpdateItem,
   onDeleteItem,
@@ -52,6 +58,14 @@ export function SchoolGradesEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SchoolGradedItemFormState>(emptySchoolGradedItemFormState());
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!addRequestId) return;
+    setForm(emptySchoolGradedItemFormState());
+    setEditingId(null);
+    setFormError(null);
+    setShowForm(true);
+  }, [addRequestId]);
 
   const snapshot = useMemo(() => computeCourseGradeWhatIf(course, items), [course, items]);
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -91,31 +105,33 @@ export function SchoolGradesEditor({
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Grades</h3>
-        {!showForm ? (
-          <button
-            type="button"
-            onClick={() => {
-              setForm(emptySchoolGradedItemFormState());
-              setEditingId(null);
-              setFormError(null);
-              setShowForm(true);
-            }}
-          >
-            Add graded item
-          </button>
-        ) : null}
-      </div>
-      <SchoolGradeWhatIfPanel snapshot={snapshot} />
+    <div style={{ display: "grid", gap: compact ? 6 : 8 }}>
+      {hideHeader ? null : (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Grades</h3>
+          {!showForm ? (
+            <button
+              type="button"
+              onClick={() => {
+                setForm(emptySchoolGradedItemFormState());
+                setEditingId(null);
+                setFormError(null);
+                setShowForm(true);
+              }}
+            >
+              Add graded item
+            </button>
+          ) : null}
+        </div>
+      )}
+      <SchoolGradeWhatIfPanel snapshot={snapshot} compact={compact} />
       {showForm ? (
         <form
           onSubmit={(event) => {
             event.preventDefault();
             submit();
           }}
-          style={{ display: "grid", gap: 8 }}
+          style={{ display: "grid", gap: compact ? 6 : 8 }}
         >
           {formError ? (
             <div style={styles.errorBox} role="alert">
@@ -126,12 +142,12 @@ export function SchoolGradesEditor({
             value={form.name}
             placeholder="Item name"
             onChange={(event) => setForm({ ...form, name: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           />
           <select
             value={form.categoryId}
             onChange={(event) => setForm({ ...form, categoryId: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           >
             <option value="">No category</option>
             {course.gradeCategories.map((category) => (
@@ -143,7 +159,7 @@ export function SchoolGradesEditor({
           <select
             value={form.reminderId}
             onChange={(event) => setForm({ ...form, reminderId: event.target.value })}
-            style={styles.input}
+            style={styles.inputFluid}
           >
             <option value="">No linked reminder</option>
             {reminders.map((reminder) => (
@@ -152,30 +168,38 @@ export function SchoolGradesEditor({
               </option>
             ))}
           </select>
-          <input
-            type="date"
-            value={form.dueDate}
-            onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
-            style={styles.input}
-          />
-          <input
-            type="time"
-            value={form.dueTime}
-            onChange={(event) => setForm({ ...form, dueTime: event.target.value })}
-            style={styles.input}
-          />
-          <input
-            value={form.maxScore}
-            placeholder="Max score"
-            onChange={(event) => setForm({ ...form, maxScore: event.target.value })}
-            style={styles.input}
-          />
-          <input
-            value={form.score}
-            placeholder="Score"
-            onChange={(event) => setForm({ ...form, score: event.target.value })}
-            style={styles.input}
-          />
+          <div
+            style={{
+              display: "grid",
+              gap: 6,
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            }}
+          >
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
+              style={styles.inputFluid}
+            />
+            <input
+              type="time"
+              value={form.dueTime}
+              onChange={(event) => setForm({ ...form, dueTime: event.target.value })}
+              style={styles.inputFluid}
+            />
+            <input
+              value={form.maxScore}
+              placeholder="Max score"
+              onChange={(event) => setForm({ ...form, maxScore: event.target.value })}
+              style={styles.inputFluid}
+            />
+            <input
+              value={form.score}
+              placeholder="Score"
+              onChange={(event) => setForm({ ...form, score: event.target.value })}
+              style={styles.inputFluid}
+            />
+          </div>
           <label>
             <input
               type="checkbox"
@@ -198,9 +222,16 @@ export function SchoolGradesEditor({
           on the course form so items can be weighted.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: compact ? 8 : 12,
+            maxHeight: compact ? 280 : undefined,
+            overflow: compact ? "auto" : undefined,
+          }}
+        >
           {snapshot.categories.map((category) => (
-            <section key={category.categoryId} style={{ display: "grid", gap: 6 }}>
+            <section key={category.categoryId} style={{ display: "grid", gap: compact ? 4 : 6 }}>
               <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>
                 {category.name} {category.weightPercent}%
                 {category.extraCredit ? " · extra credit" : ""}
@@ -210,9 +241,11 @@ export function SchoolGradesEditor({
                 {category.remainingCount > 0 ? ` · ${category.remainingCount} remaining` : ""}
               </h4>
               {category.items.length === 0 ? (
-                <p style={{ ...styles.helpText, margin: 0 }}>No items in this category.</p>
+                compact ? null : (
+                  <p style={{ ...styles.helpText, margin: 0 }}>No items in this category.</p>
+                )
               ) : (
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: compact ? 4 : 8 }}>
                   {category.items.map((row) => {
                     const item = itemsById.get(row.itemId);
                     if (!item) return null;
@@ -224,7 +257,8 @@ export function SchoolGradesEditor({
                       <GradeItemRow
                         key={item.id}
                         item={item}
-                        caption={caption}
+                        caption={compact ? "" : caption}
+                        compact={compact}
                         onEdit={() => startEdit(item)}
                         onDelete={() => onDeleteItem(item.id)}
                       />
@@ -237,7 +271,7 @@ export function SchoolGradesEditor({
           {snapshot.uncategorized.length > 0 ? (
             <section style={{ display: "grid", gap: 6 }}>
               <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>Uncategorized</h4>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: compact ? 4 : 8 }}>
                 {snapshot.uncategorized.map((row) => {
                   const item = itemsById.get(row.itemId);
                   if (!item) return null;
@@ -245,7 +279,8 @@ export function SchoolGradesEditor({
                     <GradeItemRow
                       key={item.id}
                       item={item}
-                      caption="Not in a weighted category"
+                      caption={compact ? "" : "Not in a weighted category"}
+                      compact={compact}
                       onEdit={() => startEdit(item)}
                       onDelete={() => onDeleteItem(item.id)}
                     />
@@ -263,30 +298,55 @@ export function SchoolGradesEditor({
 function GradeItemRow({
   item,
   caption,
+  compact = false,
   onEdit,
   onDelete,
 }: {
   item: SchoolGradedItem;
   caption: string;
+  compact?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <li style={{ display: "grid", gap: 4 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <span>
+    <li
+      style={
+        compact
+          ? {
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: 8,
+              alignItems: "center",
+              padding: "6px 8px",
+              borderRadius: 8,
+              background: "var(--aether-surface-sunken, #fafafa)",
+            }
+          : { display: "grid", gap: 4 }
+      }
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: compact ? 13 : undefined,
+            overflow: compact ? "hidden" : undefined,
+            textOverflow: compact ? "ellipsis" : undefined,
+            whiteSpace: compact ? "nowrap" : undefined,
+          }}
+        >
           {item.name}
           {` · ${scoreLabel(item)}`}
           {item.extraCredit ? " · extra credit" : ""}
-        </span>
-        <button type="button" onClick={onEdit}>
+        </div>
+        {caption ? <div style={styles.helpText}>{caption}</div> : null}
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        <button type="button" style={compact ? styles.ghostBtn : undefined} onClick={onEdit}>
           Edit
         </button>
-        <button type="button" onClick={onDelete}>
+        <button type="button" style={compact ? styles.ghostBtn : undefined} onClick={onDelete}>
           Delete
         </button>
       </div>
-      {caption ? <div style={styles.helpText}>{caption}</div> : null}
     </li>
   );
 }

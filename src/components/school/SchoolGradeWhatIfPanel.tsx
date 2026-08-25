@@ -7,6 +7,7 @@ import { styles } from "../../ui/appStyles";
 
 export type SchoolGradeWhatIfPanelProps = {
   snapshot: SchoolGradeWhatIf;
+  compact?: boolean;
 };
 
 function letterSuffix(letter?: string): string {
@@ -33,8 +34,22 @@ function Stat({
   );
 }
 
-export function SchoolGradeWhatIfPanel({ snapshot }: SchoolGradeWhatIfPanelProps) {
+export function SchoolGradeWhatIfPanel({ snapshot, compact = false }: SchoolGradeWhatIfPanelProps) {
   if (snapshot.aStatus === "empty" && snapshot.categories.length === 0) return null;
+
+  if (compact) {
+    const current =
+      snapshot.currentPercent === undefined
+        ? "—"
+        : `${formatSchoolGradePercent(snapshot.currentPercent)}${letterSuffix(snapshot.currentLetter)}`;
+    return (
+      <p style={{ ...styles.helpText, margin: 0 }}>
+        {snapshot.aStatus === "empty"
+          ? formatNeedForACaption(snapshot)
+          : `Current ${current} · min ${formatSchoolGradePercent(snapshot.minPercent)}${letterSuffix(snapshot.minLetter)} · max ${formatSchoolGradePercent(snapshot.maxPercent)}${letterSuffix(snapshot.maxLetter)}. ${formatNeedForACaption(snapshot)}`}
+      </p>
+    );
+  }
 
   return (
     <section
