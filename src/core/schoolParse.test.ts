@@ -26,6 +26,31 @@ Term Project - Milestone 3	30%
 Term Project - Milestone 4	10%
 Total	100%`;
 
+const CANVAS_WEIGHT_TABLE_WITH_INTRO = `Assignments are weighted by group:
+Group 	Weight
+Course Surveys 	2%
+Quizzes 	12%
+Exercises 	36%
+Term Project - Milestones 1 	10%
+Term Project - Milestone 2 	0%
+Term Project - Milestone 3 	30%
+Term Project - Milestone 4 	10%
+Total 	100%`;
+
+const CANVAS_WEIGHT_TABLE_STACKED = `Assignments are weighted by group:
+Group
+Weight
+Course Surveys
+2%
+Quizzes
+12%
+Exercises
+36%
+Term Project - Milestones 1
+10%
+Total
+100%`;
+
 const CANVAS_WEIGHT_TABLE_REPORTS = `Group	Weight
 Ungraded	0%
 Reading/Writing Quiz	4%
@@ -327,6 +352,7 @@ describe("yearFromCourseTerm", () => {
 describe("detectSchoolPasteKind", () => {
   it("detects Canvas weight tables, assignment lists, and prose", () => {
     expect(detectSchoolPasteKind(CANVAS_WEIGHT_TABLE_SURVEYS)).toBe("weightTable");
+    expect(detectSchoolPasteKind(CANVAS_WEIGHT_TABLE_WITH_INTRO)).toBe("weightTable");
     expect(detectSchoolPasteKind(CANVAS_WEIGHT_TABLE_REPORTS)).toBe("weightTable");
     expect(detectSchoolPasteKind(CANVAS_ASSIGNMENT_TABLE)).toBe("assignmentTable");
     expect(detectSchoolPasteKind(CANVAS_ASSIGNMENTS_INDEX)).toBe("assignmentTable");
@@ -365,6 +391,52 @@ describe("Canvas weight tables", () => {
     ]);
     expect(rows.find((row) => row.name === "Extra Credit")?.extraCredit).toBe(true);
     expect(rows.find((row) => row.name === "Ungraded")?.weightPercent).toBe(0);
+  });
+
+  it("parses Canvas 'weighted by group' copy, including stacked name/% lines", () => {
+    const intro = parse(CANVAS_WEIGHT_TABLE_WITH_INTRO);
+    expect(intro.kind).toBe("weightTable");
+    expect(categories(intro.suggestions).map((row) => [row.name, row.weightPercent])).toEqual([
+      ["Course Surveys", 2],
+      ["Quizzes", 12],
+      ["Exercises", 36],
+      ["Term Project - Milestones 1", 10],
+      ["Term Project - Milestone 2", 0],
+      ["Term Project - Milestone 3", 30],
+      ["Term Project - Milestone 4", 10],
+    ]);
+
+    const stacked = parse(CANVAS_WEIGHT_TABLE_STACKED);
+    expect(categories(stacked.suggestions).map((row) => [row.name, row.weightPercent])).toEqual([
+      ["Course Surveys", 2],
+      ["Quizzes", 12],
+      ["Exercises", 36],
+      ["Term Project - Milestones 1", 10],
+    ]);
+  });
+
+  it("writes those categories onto the course when approved", () => {
+    const parsed = parse(CANVAS_WEIGHT_TABLE_WITH_INTRO);
+    const applied = applySchoolIngestSuggestions(
+      {
+        course: course(),
+        reminders: [],
+        gradedItems: [],
+        suggestions: parsed.suggestions,
+      },
+      { id: sequentialIds("cat"), nowIso: NOW }
+    );
+    expect(applied.course.gradeCategories.map((row) => [row.name, row.weightPercent])).toEqual([
+      ["Course Surveys", 2],
+      ["Quizzes", 12],
+      ["Exercises", 36],
+      ["Term Project - Milestones 1", 10],
+      ["Term Project - Milestone 2", 0],
+      ["Term Project - Milestone 3", 30],
+      ["Term Project - Milestone 4", 10],
+    ]);
+    expect(applied.reminders).toEqual([]);
+    expect(applied.gradedItems).toEqual([]);
   });
 });
 

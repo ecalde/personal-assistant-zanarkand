@@ -129,8 +129,9 @@ export function SchoolIngestPanel({
     <section style={{ display: "grid", gap: 8 }} aria-label={`Paste ingest for ${course.name}`}>
       <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Paste ingest</h3>
       <p style={{ ...styles.helpText, margin: 0 }}>
-        Paste a Canvas weight table, assignment list, syllabus, or announcement. Review suggestions
-        before anything is saved. Optional .txt files only — no PDF or AI.
+        Paste a Canvas <strong>Group / Weight</strong> table to create grade categories, an assignment
+        list for reminders, or syllabus text. Review suggestions before anything is saved. Optional
+        .txt files only — no PDF or AI.
       </p>
       {error ? (
         <div style={styles.errorBox} role="alert">
@@ -147,7 +148,7 @@ export function SchoolIngestPanel({
               onChange={(event) => setText(event.target.value)}
               rows={6}
               style={{ ...styles.inputFluid, minHeight: 120, resize: "vertical" }}
-              placeholder="Paste Canvas tables or syllabus text here"
+              placeholder="Paste Canvas Group / Weight tables, assignment lists, or syllabus text"
             />
           </label>
           <label style={styles.label}>

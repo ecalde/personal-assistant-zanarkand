@@ -194,7 +194,8 @@ export function SchoolGradesEditor({
       ) : null}
       {course.gradeCategories.length === 0 && items.length === 0 && !showForm ? (
         <p style={{ ...styles.helpText, margin: 0 }}>
-          No grade categories yet. Add them on the course form so items can be weighted.
+          No grade categories yet. Paste a Canvas Group / Weight table in Paste ingest, or add them
+          on the course form so items can be weighted.
         </p>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>

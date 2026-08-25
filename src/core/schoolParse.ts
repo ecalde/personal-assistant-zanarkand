@@ -213,22 +213,18 @@ export function detectSchoolPasteKind(text: string): SchoolPasteKind {
   const lines = toLines(normalized);
   const dueCount = lines.filter((line) => Boolean(parseDueFromText(line, 2026))).length;
   const scoreCount = lines.filter((line) => isScoreLine(line)).length;
-  const weightCount = lines.filter((line) => WEIGHT_ROW_RE.test(line.trim())).length;
-  const header = lines.slice(0, 6).join(" ").toLowerCase();
+  const header = lines.slice(0, 8).join(" ").toLowerCase();
   const hasAssignmentHeader = /\bname\b/.test(header) && /\bdue\b/.test(header);
-  const hasWeightHeader = /\bgroup\b/.test(header) && /\bweight\b/.test(header);
   const looksLikeProse = pasteLooksLikeProse(normalized);
-
-  if (
+  const looksLikeWeights = looksLikeWeightTable(lines, normalized);
+  const looksLikeAssignments =
     hasAssignmentHeader ||
     (dueCount >= 3 && scoreCount >= 2) ||
-    looksLikeCanvasAssignmentsIndex(lines)
-  ) {
-    return "assignmentTable";
-  }
-  if ((hasWeightHeader || (weightCount >= 3 && /\btotal\b/i.test(normalized))) && !looksLikeProse) {
-    return "weightTable";
-  }
+    looksLikeCanvasAssignmentsIndex(lines);
+
+  if (looksLikeWeights && !looksLikeAssignments && !looksLikeProse) return "weightTable";
+  if (looksLikeAssignments) return "assignmentTable";
+  if (looksLikeWeights && !looksLikeProse) return "weightTable";
   return "prose";
 }
 
@@ -245,7 +241,10 @@ export function parseSchoolPaste(text: string, context: SchoolParseContext): Sch
   if (kind === "weightTable") {
     suggestions = parseWeightTable(normalized, ids);
   } else if (kind === "assignmentTable") {
-    suggestions = parseAssignmentTable(normalized, context.referenceYear, ids);
+    suggestions = [
+      ...parseWeightTable(normalized, ids),
+      ...parseAssignmentTable(normalized, context.referenceYear, ids),
+    ];
   } else {
     suggestions = parseProse(normalized, context.referenceYear, ids);
   }
@@ -486,25 +485,66 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+function looksLikeWeightTable(lines: string[], text: string): boolean {
+  const weightCount = lines.filter((line) => Boolean(parseWeightRow(line))).length;
+  const header = lines.slice(0, 8).join(" ").toLowerCase();
+  const hasWeightHeader =
+    (/\bgroup\b/.test(header) && /\bweight\b/.test(header)) ||
+    /weighted by group/i.test(text);
+  return hasWeightHeader || (weightCount >= 3 && /\btotal\b/i.test(text)) || weightCount >= 4;
+}
+
 function parseWeightTable(text: string, ids: () => string): SchoolIngestSuggestion[] {
   const suggestions: SchoolGradeCategorySuggestion[] = [];
   const seen = new Set<string>();
-  for (const line of toLines(text)) {
-    const parsed = parseWeightRow(line);
-    if (!parsed) continue;
-    const key = normalizeSchoolTitle(parsed.name);
+  for (const row of collectWeightRows(text)) {
+    const key = normalizeSchoolTitle(row.name);
     if (seen.has(key)) continue;
     seen.add(key);
     suggestions.push({
       id: ids(),
       type: "gradeCategory",
       selected: true,
-      name: parsed.name,
-      weightPercent: parsed.weightPercent,
-      ...(parsed.extraCredit ? { extraCredit: true } : {}),
+      name: row.name,
+      weightPercent: row.weightPercent,
+      ...(row.extraCredit ? { extraCredit: true } : {}),
     });
   }
   return suggestions;
+}
+
+function collectWeightRows(text: string): Array<{
+  name: string;
+  weightPercent: number;
+  extraCredit?: boolean;
+}> {
+  const lines = toLines(text);
+  const rows: Array<{ name: string; weightPercent: number; extraCredit?: boolean }> = [];
+  const consumed = new Set<number>();
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const parsed = parseWeightRow(lines[i]!);
+    if (!parsed) continue;
+    rows.push(parsed);
+    consumed.add(i);
+  }
+
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    if (consumed.has(i) || consumed.has(i + 1)) continue;
+    const weightPercent = parseStandalonePercent(lines[i + 1]!);
+    if (weightPercent === undefined) continue;
+    const name = collapseSpaces(lines[i]!);
+    if (!isPlausibleWeightName(name)) continue;
+    rows.push({
+      name,
+      weightPercent,
+      ...(/extra\s*credit/i.test(name) ? { extraCredit: true } : {}),
+    });
+    consumed.add(i);
+    consumed.add(i + 1);
+  }
+
+  return rows;
 }
 
 function parseAssignmentTable(
@@ -872,10 +912,10 @@ function kindFromGroupOrTitle(
 }
 
 function parseWeightRow(line: string): { name: string; weightPercent: number; extraCredit?: boolean } | null {
-  const match = WEIGHT_ROW_RE.exec(line.trim());
+  const match = WEIGHT_ROW_RE.exec(line.replace(/\t/g, " ").trim());
   if (!match) return null;
   const name = collapseSpaces(match[1] ?? "");
-  if (!name || SKIP_CATEGORY_NAMES.test(name) || /^group$/i.test(name)) return null;
+  if (!isPlausibleWeightName(name)) return null;
   const weightPercent = Number(match[2]);
   if (!Number.isFinite(weightPercent)) return null;
   return {
@@ -883,6 +923,25 @@ function parseWeightRow(line: string): { name: string; weightPercent: number; ex
     weightPercent,
     ...(/extra\s*credit/i.test(name) ? { extraCredit: true } : {}),
   };
+}
+
+function parseStandalonePercent(line: string): number | undefined {
+  const match = /^(\d+(?:\.\d+)?)\s*%\s*$/.exec(line.replace(/\t/g, " ").trim());
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function isPlausibleWeightName(name: string): boolean {
+  const trimmed = collapseSpaces(name);
+  if (!trimmed) return false;
+  if (SKIP_CATEGORY_NAMES.test(trimmed) || /^group$/i.test(trimmed) || /^weight$/i.test(trimmed)) {
+    return false;
+  }
+  if (trimmed.length > 80) return false;
+  if (isDueLine(trimmed) || isScoreLine(trimmed) || DUE_PREFIX_RE.test(trimmed)) return false;
+  if (AVAILABILITY_LINE_RE.test(trimmed)) return false;
+  return true;
 }
 
 function parseDueFromText(text: string, referenceYear: number): ParsedDue | undefined {
