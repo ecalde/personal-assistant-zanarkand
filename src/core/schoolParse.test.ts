@@ -129,6 +129,127 @@ Ungraded
 / 2
 `;
 
+const CANVAS_ASSIGNMENTS_INDEX = `Start-of-Course Survey
+Available until Aug 31 at 8:59am
+Due Aug 31 at 7:59am
+-/1 pts No submission for this assignment. 1 points possible.
+Quiz
+Quiz 1
+Not available until Aug 31 at 8:00am
+Due Sep 7 at 7:59am
+-/7 pts No submission for this assignment. 7 points possible.
+Assignment
+Exercise 1
+Not available until Aug 31 at 8:00am
+Due Sep 14 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 2
+Not available until Aug 31 at 8:00am
+Due Sep 14 at 7:59am
+-/7 pts No submission for this assignment. 7 points possible.
+Quiz
+Quiz 3
+Not available until Aug 31 at 8:00am
+Due Sep 21 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Assignment
+Exercise 2
+Not available until Aug 31 at 8:00am
+Due Sep 21 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Assignment
+Project Pitch
+Not available until Aug 31 at 8:00am
+Due Sep 28 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 4
+Not available until Aug 31 at 8:00am
+Due Sep 28 at 7:59am
+-/7 pts No submission for this assignment. 7 points possible.
+Quiz
+Quiz 5
+Not available until Aug 31 at 8:00am
+Due Oct 5 at 7:59am
+-/8 pts No submission for this assignment. 8 points possible.
+Assignment
+Exercise 3
+Not available until Aug 31 at 8:00am
+Due Oct 12 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 6
+Not available until Aug 31 at 8:00am
+Due Oct 12 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Quiz
+Quiz 7
+Not available until Aug 31 at 8:00am
+Due Oct 19 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Assignment
+Exercise 4
+Not available until Aug 31 at 8:00am
+Due Oct 19 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Assignment
+Optional Project Check-In
+Not available until Aug 31 at 8:00am
+Due Oct 26 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 8
+Not available until Aug 31 at 8:00am
+Due Oct 26 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Quiz
+Quiz 9
+Not available until Aug 31 at 8:00am
+Due Nov 2 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Assignment
+Exercise 5
+Not available until Aug 31 at 8:00am
+Due Nov 9 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 10
+Not available until Aug 31 at 8:00am
+Due Nov 9 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Assignment
+Exercise 6
+Not available until Aug 31 at 8:00am
+Due Nov 16 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+Quiz 11
+Not available until Aug 31 at 8:00am
+Due Nov 16 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Quiz
+Quiz 12
+Not available until Aug 31 at 8:00am
+Due Nov 23 at 7:59am
+-/6 pts No submission for this assignment. 6 points possible.
+Assignment
+Project Report
+Not available until Aug 31 at 8:00am
+Due Nov 30 at 7:59am
+-/30 pts No submission for this assignment. 30 points possible.
+Assignment
+Project Presentation
+Not available until Aug 31 at 8:00am
+Due Nov 30 at 7:59am
+-/10 pts No submission for this assignment. 10 points possible.
+Quiz
+End-of-Course Survey
+Available until Dec 7 at 8:59am
+Due Dec 7 at 7:59am
+-/1 pts
+`;
+
 const SHARED_DUE_ANNOUNCEMENT = `This week's assignments:
 
 Assignment 1: watch the lecture video https://canvas.gatech.edu/courses/1/assignments/a1
@@ -208,6 +329,7 @@ describe("detectSchoolPasteKind", () => {
     expect(detectSchoolPasteKind(CANVAS_WEIGHT_TABLE_SURVEYS)).toBe("weightTable");
     expect(detectSchoolPasteKind(CANVAS_WEIGHT_TABLE_REPORTS)).toBe("weightTable");
     expect(detectSchoolPasteKind(CANVAS_ASSIGNMENT_TABLE)).toBe("assignmentTable");
+    expect(detectSchoolPasteKind(CANVAS_ASSIGNMENTS_INDEX)).toBe("assignmentTable");
     expect(detectSchoolPasteKind(SHARED_DUE_ANNOUNCEMENT)).toBe("prose");
     expect(detectSchoolPasteKind(SYLLABUS_PROSE)).toBe("prose");
   });
@@ -296,6 +418,38 @@ describe("Canvas assignment table", () => {
       row.title.startsWith("Test your Setup for Quizzes and Final")
     );
     expect(ungraded).toMatchObject({ kind: "other", maxScore: 2 });
+  });
+
+  it("parses the Canvas assignments page, using Due dates instead of availability", () => {
+    const result = parse(CANVAS_ASSIGNMENTS_INDEX);
+    expect(result.kind).toBe("assignmentTable");
+    const items = workItems(result.suggestions);
+    expect(items.map((row) => [row.title, row.kind, row.date, row.startTime, row.maxScore])).toEqual([
+      ["Start-of-Course Survey", "assignment", "2026-08-31", "07:59", 1],
+      ["Quiz 1", "quiz", "2026-09-07", "07:59", 7],
+      ["Exercise 1", "assignment", "2026-09-14", "07:59", 10],
+      ["Quiz 2", "quiz", "2026-09-14", "07:59", 7],
+      ["Quiz 3", "quiz", "2026-09-21", "07:59", 6],
+      ["Exercise 2", "assignment", "2026-09-21", "07:59", 10],
+      ["Project Pitch", "project", "2026-09-28", "07:59", 10],
+      ["Quiz 4", "quiz", "2026-09-28", "07:59", 7],
+      ["Quiz 5", "quiz", "2026-10-05", "07:59", 8],
+      ["Exercise 3", "assignment", "2026-10-12", "07:59", 10],
+      ["Quiz 6", "quiz", "2026-10-12", "07:59", 6],
+      ["Quiz 7", "quiz", "2026-10-19", "07:59", 6],
+      ["Exercise 4", "assignment", "2026-10-19", "07:59", 10],
+      ["Optional Project Check-In", "project", "2026-10-26", "07:59", 10],
+      ["Quiz 8", "quiz", "2026-10-26", "07:59", 6],
+      ["Quiz 9", "quiz", "2026-11-02", "07:59", 6],
+      ["Exercise 5", "assignment", "2026-11-09", "07:59", 10],
+      ["Quiz 10", "quiz", "2026-11-09", "07:59", 6],
+      ["Exercise 6", "assignment", "2026-11-16", "07:59", 10],
+      ["Quiz 11", "quiz", "2026-11-16", "07:59", 6],
+      ["Quiz 12", "quiz", "2026-11-23", "07:59", 6],
+      ["Project Report", "project", "2026-11-30", "07:59", 30],
+      ["Project Presentation", "project", "2026-11-30", "07:59", 10],
+      ["End-of-Course Survey", "quiz", "2026-12-07", "07:59", 1],
+    ]);
   });
 });
 

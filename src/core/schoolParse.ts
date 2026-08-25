@@ -174,7 +174,7 @@ const TITLE_STOP_WORDS = new Set(["the", "a", "an", "of", "for", "and", "to", "i
 const WEIGHT_ROW_RE = /^(.+?)\s+(\d+(?:\.\d+)?)\s*%\s*$/;
 
 const DUE_LINE_RE =
-  /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s*,?\s*(\d{4}))?(?:\s+by\s+(\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?)))?/i;
+  /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s*,?\s*(\d{4}))?(?:\s+(?:by|at)\s+(\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?)))?/i;
 
 const NUMERIC_DATE_RE = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/;
 
@@ -182,12 +182,21 @@ const TIME_RE = /\b(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)\b/i;
 
 const SCORE_LINE_RE = /^\/\s*(\d+(?:\.\d+)?)\s*$/;
 
+const PTS_SCORE_RE = /^[-–—]\/\s*(\d+(?:\.\d+)?)\s*pts\b/i;
+
+const AVAILABILITY_LINE_RE = /\b(?:not\s+)?available\s+until\b/i;
+
+const DUE_PREFIX_RE = /^due\b/i;
+
+const CANVAS_KIND_LABEL_RE =
+  /^(quiz(?:zes)?|assignments?|discussions?|exams?|projects?|surveys?|homework|exercises?|readings?|ungraded)$/i;
+
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
 
 const WORK_ITEM_RE =
-  /\b(?:assignment\s+\d+|homework\s+\d+|hw\s*\d+|quiz\s+\d+|unit\s+quiz(?:zes)?|project\s+\d+|report\s+\d+|exam\s+\d+|(?:midterm|final)(?:\s+exam)?|readings?)\b/gi;
+  /\b(?:assignment\s+\d+|homework\s+\d+|hw\s*\d+|exercise\s+\d+|quiz\s+\d+|unit\s+quiz(?:zes)?|project\s+\d+|project\s+(?:pitch|report|presentation)|report\s+\d+|exam\s+\d+|(?:midterm|final)(?:\s+exam)?|readings?)\b/gi;
 
 const SHARED_DUE_RE =
   /\b(?:all(?:\s+of)?\s+(?:these|the\s+)?(?:assignments|items|readings|work)?|everything(?:\s+here)?)\b[\s\S]{0,48}\bdue\b/i;
@@ -210,7 +219,13 @@ export function detectSchoolPasteKind(text: string): SchoolPasteKind {
   const hasWeightHeader = /\bgroup\b/.test(header) && /\bweight\b/.test(header);
   const looksLikeProse = pasteLooksLikeProse(normalized);
 
-  if (hasAssignmentHeader || (dueCount >= 3 && scoreCount >= 2)) return "assignmentTable";
+  if (
+    hasAssignmentHeader ||
+    (dueCount >= 3 && scoreCount >= 2) ||
+    looksLikeCanvasAssignmentsIndex(lines)
+  ) {
+    return "assignmentTable";
+  }
   if ((hasWeightHeader || (weightCount >= 3 && /\btotal\b/i.test(normalized))) && !looksLikeProse) {
     return "weightTable";
   }
@@ -500,7 +515,9 @@ function parseAssignmentTable(
   const lines = toLines(text);
   const start = lines.findIndex((line) => /\bname\b/i.test(line) && /\bdue\b/i.test(line));
   const body = start >= 0 ? lines.slice(start + 1) : lines;
-  const records = parseAssignmentRecords(body, referenceYear);
+  const records = looksLikeCanvasAssignmentsIndex(body)
+    ? parseCanvasIndexRecords(body, referenceYear)
+    : parseAssignmentRecords(body, referenceYear);
   return mergeWorkItems(
     records.map((record) => workItemFromAssignment(record, ids()))
   );
@@ -533,6 +550,81 @@ function parseProse(
   if (scoring) suggestions.push(scoring);
   suggestions.push(...parseWorkItemsFromProse(text, referenceYear, ids));
   return suggestions;
+}
+
+function looksLikeCanvasAssignmentsIndex(lines: string[]): boolean {
+  let duePrefixed = 0;
+  let ptsScores = 0;
+  let availability = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (DUE_PREFIX_RE.test(trimmed)) duePrefixed += 1;
+    if (PTS_SCORE_RE.test(trimmed)) ptsScores += 1;
+    if (AVAILABILITY_LINE_RE.test(trimmed)) availability += 1;
+  }
+  return duePrefixed >= 2 && (ptsScores >= 2 || availability >= 2);
+}
+
+function parseCanvasIndexRecords(lines: string[], referenceYear: number): AssignmentRecord[] {
+  const records: AssignmentRecord[] = [];
+  let pendingGroup: string | undefined;
+  let i = 0;
+  while (i < lines.length) {
+    while (i < lines.length && isBlankLine(lines[i]!)) i += 1;
+    if (i >= lines.length) break;
+    const line = lines[i]!.trim();
+    if (isCanvasIndexMetadataLine(line)) {
+      i += 1;
+      continue;
+    }
+    if (CANVAS_KIND_LABEL_RE.test(line)) {
+      pendingGroup = line;
+      i += 1;
+      continue;
+    }
+
+    const name = collapseSpaces(line);
+    const group = collapseSpaces(pendingGroup ?? name);
+    pendingGroup = undefined;
+    i += 1;
+
+    let due: ParsedDue | undefined;
+    let maxScore: number | undefined;
+    while (i < lines.length) {
+      while (i < lines.length && isBlankLine(lines[i]!)) i += 1;
+      if (i >= lines.length) break;
+      const next = lines[i]!.trim();
+      if (isAvailabilityLine(next)) {
+        i += 1;
+        continue;
+      }
+      if (DUE_PREFIX_RE.test(next)) {
+        due = parseDueFromText(next, referenceYear) ?? due;
+        i += 1;
+        continue;
+      }
+      if (isScoreLine(next)) {
+        maxScore = parseScoreLine(next) ?? maxScore;
+        i += 1;
+        continue;
+      }
+      if (isCanvasIndexNoiseLine(next)) {
+        i += 1;
+        continue;
+      }
+      break;
+    }
+
+    if (!name) continue;
+    records.push({
+      name,
+      group,
+      date: due?.date,
+      startTime: due?.time,
+      maxScore,
+    });
+  }
+  return records;
 }
 
 function parseAssignmentRecords(lines: string[], referenceYear: number): AssignmentRecord[] {
@@ -839,14 +931,38 @@ function isDueLine(line: string): boolean {
 }
 
 function isScoreLine(line: string): boolean {
-  return SCORE_LINE_RE.test(line.trim());
+  return parseScoreLine(line) !== undefined;
 }
 
 function parseScoreLine(line: string): number | undefined {
-  const match = SCORE_LINE_RE.exec(line.trim());
+  const trimmed = line.trim();
+  const slash = SCORE_LINE_RE.exec(trimmed);
+  const pts = PTS_SCORE_RE.exec(trimmed);
+  const match = slash ?? pts;
   if (!match) return undefined;
   const value = Number(match[1]);
   return Number.isFinite(value) ? value : undefined;
+}
+
+function isAvailabilityLine(line: string): boolean {
+  return AVAILABILITY_LINE_RE.test(line);
+}
+
+function isCanvasIndexNoiseLine(line: string): boolean {
+  return (
+    /no submission/i.test(line) ||
+    /points possible/i.test(line) ||
+    /submission progress/i.test(line)
+  );
+}
+
+function isCanvasIndexMetadataLine(line: string): boolean {
+  return (
+    isAvailabilityLine(line) ||
+    DUE_PREFIX_RE.test(line) ||
+    isScoreLine(line) ||
+    isCanvasIndexNoiseLine(line)
+  );
 }
 
 function looksLikeCategoryName(line: string, assignmentName: string): boolean {
@@ -1011,37 +1127,56 @@ function collectUrls(chunk: string): Array<{ url: string; index: number }> {
   return urls;
 }
 
-function collectDateHits(chunk: string, referenceYear: number): Array<ParsedDue & { index: number }> {
-  const hits: Array<ParsedDue & { index: number }> = [];
+function collectDateHits(
+  chunk: string,
+  referenceYear: number
+): Array<ParsedDue & { index: number; source: DateHitSource }> {
+  const hits: Array<ParsedDue & { index: number; source: DateHitSource }> = [];
   for (const match of chunk.matchAll(new RegExp(DUE_LINE_RE, "gi"))) {
     const parsed = parseDueFromText(match[0], referenceYear);
     if (!parsed) continue;
-    hits.push({ ...parsed, index: match.index ?? 0 });
+    const index = match.index ?? 0;
+    hits.push({
+      ...parsed,
+      index,
+      source: dateHitSource(chunk, index, match[0] ?? ""),
+    });
   }
   return hits;
 }
 
+function dateHitSource(chunk: string, index: number, matchText: string): DateHitSource {
+  const windowStart = Math.max(0, index - 48);
+  const before = chunk.slice(windowStart, index + matchText.length);
+  if (AVAILABILITY_LINE_RE.test(before)) return "availability";
+  if (/\bdue\b/i.test(before)) return "due";
+  return "other";
+}
+
+function pickPreferredDateHit(
+  hits: Array<ParsedDue & { index: number; source: DateHitSource }>
+): (ParsedDue & { index: number; source: DateHitSource }) | undefined {
+  return hits.find((hit) => hit.source === "due") ?? hits.find((hit) => hit.source === "other") ?? hits[0];
+}
+
 function nearestDateAfter(
   index: number,
-  hits: Array<ParsedDue & { index: number }>
-): (ParsedDue & { index: number }) | undefined {
-  return hits.find((hit) => hit.index >= index && hit.index - index < 180);
+  hits: Array<ParsedDue & { index: number; source: DateHitSource }>
+): (ParsedDue & { index: number; source: DateHitSource }) | undefined {
+  return pickPreferredDateHit(
+    hits.filter((hit) => hit.index >= index && hit.index - index < 240)
+  );
 }
 
 function nearestDateAround(
   index: number,
-  hits: Array<ParsedDue & { index: number }>
-): (ParsedDue & { index: number }) | undefined {
-  let best: (ParsedDue & { index: number }) | undefined;
-  let bestDistance = 80;
-  for (const hit of hits) {
-    const distance = Math.abs(hit.index - index);
-    if (distance < bestDistance) {
-      best = hit;
-      bestDistance = distance;
-    }
-  }
-  return best;
+  hits: Array<ParsedDue & { index: number; source: DateHitSource }>
+): (ParsedDue & { index: number; source: DateHitSource }) | undefined {
+  const nearby = hits
+    .map((hit) => ({ hit, distance: Math.abs(hit.index - index) }))
+    .filter((row) => row.distance < 120)
+    .sort((left, right) => left.distance - right.distance);
+  return pickPreferredDateHit(nearby.map((row) => row.hit));
 }
 
 function lastNamedBefore(
@@ -1123,6 +1258,8 @@ type ParsedDue = {
   date: string;
   time?: string;
 };
+
+type DateHitSource = "due" | "availability" | "other";
 
 type AssignmentRecord = {
   name: string;
