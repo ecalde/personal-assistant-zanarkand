@@ -480,6 +480,23 @@ describe("focusItemToRecommendation", () => {
     expect(rec).toBe("Take remaining Creatine doses today.");
   });
 
+  it("maps school dues to the reminder title", () => {
+    const rec = focusItemToRecommendation(
+      {
+        id: "career:school:hw",
+        category: "career",
+        title: "Homework 1 due today",
+        description: "Assignment · CS1332",
+        priorityScore: 890,
+        urgency: "high",
+        urgencyLabel: "High",
+        reasonCodes: ["school_due_today"],
+      },
+      NOW_EVENING
+    );
+    expect(rec).toBe("Homework 1 due today.");
+  });
+
   it("uses deterministic fallback templates for unknown reason codes", () => {
     const item = {
       id: "custom:1",
@@ -686,6 +703,7 @@ describe("buildFocusSummaryParagraph", () => {
         netAvailableSkillMinutes: 0,
         workoutsThisWeek: 0,
         applicationsNeedingAttention: 0,
+        schoolDueSoonCount: 0,
       },
       [],
       [],
@@ -697,6 +715,26 @@ describe("buildFocusSummaryParagraph", () => {
     );
     expect(paragraph).toContain("Creatine");
     expect(paragraph).toContain("remaining today");
+  });
+
+  it("mentions upcoming school dues", () => {
+    const paragraph = buildFocusSummaryParagraph(
+      {
+        skillOverdueCount: 0,
+        eventsTodayCount: 0,
+        timelineConflictMinutes: 0,
+        netAvailableSkillMinutes: 0,
+        workoutsThisWeek: 0,
+        applicationsNeedingAttention: 0,
+        schoolDueSoonCount: 2,
+      },
+      [],
+      [],
+      [],
+      TODAY,
+      sampleSeedParts()
+    );
+    expect(paragraph).toContain("2 school dues in the next 3 days");
   });
 });
 

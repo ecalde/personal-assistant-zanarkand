@@ -10,6 +10,8 @@ import type {
   LifeEvent,
   Person,
   Recipe,
+  SchoolCourse,
+  SchoolReminder,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -50,6 +52,8 @@ export type ReviewPageProps = {
   supplementIntakeLogs: SupplementIntakeLog[];
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  schoolCourses: SchoolCourse[];
+  schoolReminders: SchoolReminder[];
   focusFeedback: FocusFeedback[];
 };
 
@@ -121,6 +125,8 @@ export default function ReviewPage({
   supplementIntakeLogs,
   recipes,
   cookingSessions,
+  schoolCourses,
+  schoolReminders,
   focusFeedback,
 }: ReviewPageProps) {
   const todayKey = formatLocalDateKey(new Date());
@@ -147,6 +153,8 @@ export default function ReviewPage({
         supplementIntakeLogs,
         recipes,
         cookingSessions,
+        schoolCourses,
+        schoolReminders,
         nutritionByRecipeId,
         focusFeedback,
         todayKey,
@@ -163,6 +171,8 @@ export default function ReviewPage({
       supplementIntakeLogs,
       recipes,
       cookingSessions,
+      schoolCourses,
+      schoolReminders,
       nutritionByRecipeId,
       focusFeedback,
       todayKey,

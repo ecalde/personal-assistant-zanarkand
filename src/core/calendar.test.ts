@@ -7,6 +7,11 @@ import {
   sortCalendarItems,
   type CalendarItem,
 } from "./calendar";
+import {
+  createSchoolCourse,
+  createSchoolLink,
+  createSchoolReminder,
+} from "./school";
 import type {
   CookingSession,
   JobApplication,
@@ -1306,5 +1311,185 @@ describe("cooking calendar items", () => {
     expect(plannedOnly.map((item) => item.sourceId)).toEqual([PLANNED_ID]);
     expect(historyOnly.map((item) => item.sourceId)).toEqual([COMPLETED_ID]);
     expect(neither).toEqual([]);
+  });
+});
+
+describe("school calendar items", () => {
+  const COURSE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const REMINDER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const NOW = "2026-08-24T12:00:00.000Z";
+  const range = {
+    startDate: "2026-09-01",
+    endDate: "2026-09-30",
+    skills: [] as Skill[],
+    events: [] as LifeEvent[],
+    people: [] as Person[],
+  };
+
+  function course() {
+    return createSchoolCourse(
+      {
+        name: "CS 1332",
+        code: "CS1332",
+        timezone: "America/New_York",
+      },
+      { id: COURSE_ID, nowIso: NOW }
+    );
+  }
+
+  it("emits an all-day due item on the source date without shifting timezone", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "assignment",
+        title: "Homework 1",
+        date: "2026-09-07",
+        links: [createSchoolLink("https://canvas.gatech.edu/courses/1/assignments/9")],
+        notes: "Submit on Canvas",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.filter((item) => item.sourceType === "school");
+    expect(school).toHaveLength(1);
+    expect(school[0]).toMatchObject({
+      id: `school:reminder:${REMINDER_ID}:due`,
+      title: "Homework 1",
+      date: "2026-09-07",
+      categoryKey: "school",
+      subcategoryKey: "assignment",
+      allDay: true,
+      isTimed: false,
+    });
+    expect(school[0]?.title).not.toContain("canvas.gatech.edu");
+    expect(school[0]?.description).toContain("CS1332");
+    expect(school[0]?.description).toContain("Submit on Canvas");
+    expect(school[0]?.description).not.toContain("https://");
+    expect(school[0]?.sourceMeta).toMatchObject({
+      kind: "schoolReminder",
+      reminderId: REMINDER_ID,
+      courseId: COURSE_ID,
+      occurrence: "due",
+      sourceDate: "2026-09-07",
+      links: [{ url: "https://canvas.gatech.edu/courses/1/assignments/9" }],
+    });
+  });
+
+  it("converts timed Eastern due times into the local zone", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "quiz",
+        title: "Unit Quiz 1",
+        date: "2026-09-07",
+        startTime: "07:59",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.find((item) => item.sourceType === "school")!;
+    expect(school.isTimed).toBe(true);
+    expect(school.allDay).toBe(false);
+    expect(school.date).toBe("2026-09-07");
+    expect(school.startTime).toBe("06:59");
+  });
+
+  it("can roll a timed due onto the previous local date", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "exam",
+        title: "Midnight exam",
+        date: "2026-09-08",
+        startTime: "00:30",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.find((item) => item.sourceType === "school")!;
+    expect(school.date).toBe("2026-09-07");
+    expect(school.startTime).toBe("23:30");
+  });
+
+  it("emits both open and due items when an open date is set", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "quiz",
+        title: "Unit Quiz 1",
+        date: "2026-09-07",
+        startTime: "07:59",
+        openDate: "2026-09-05",
+        openTime: "08:00",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.filter((item) => item.sourceType === "school");
+    expect(school.map((item) => item.id).sort()).toEqual([
+      `school:reminder:${REMINDER_ID}:due`,
+      `school:reminder:${REMINDER_ID}:open`,
+    ]);
+    const open = school.find((item) => item.sourceMeta.kind === "schoolReminder" && item.sourceMeta.occurrence === "open")!;
+    expect(open.date).toBe("2026-09-05");
+    expect(open.startTime).toBe("07:00");
+  });
+
+  it("emits a timed study block with start and end", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "study",
+        title: "Review graphs",
+        date: "2026-09-06",
+        startTime: "19:00",
+        endTime: "20:30",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.find((item) => item.sourceType === "school")!;
+    expect(school.subcategoryKey).toBe("study");
+    expect(school.startTime).toBe("18:00");
+    expect(school.endTime).toBe("19:30");
+  });
+
+  it("skips reminders whose course is missing and honors includeSchoolReminders", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "reading",
+        title: "Chapter 4",
+        date: "2026-09-07",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const orphan = buildCalendarItemsForRange({
+      ...range,
+      schoolCourses: [],
+      schoolReminders: [reminder],
+    });
+    expect(orphan.filter((item) => item.sourceType === "school")).toEqual([]);
+
+    const disabled = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { includeSchoolReminders: false, localTimeZone: "America/Chicago" }
+    );
+    expect(disabled.filter((item) => item.sourceType === "school")).toEqual([]);
   });
 });

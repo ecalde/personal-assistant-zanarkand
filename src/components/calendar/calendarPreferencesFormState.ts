@@ -16,6 +16,7 @@ import {
   type CalendarColorToken,
 } from "../../core/calendarColors";
 import { CALENDAR_EVENT_TYPE_FILTERS } from "../../core/calendarView";
+import { SCHOOL_REMINDER_KINDS } from "../../core/school";
 
 /** Life-event types users can create on the Events page (matches calendar filters). */
 export const CALENDAR_SETTINGS_EVENT_SUBCATEGORIES = CALENDAR_EVENT_TYPE_FILTERS;
@@ -36,12 +37,15 @@ export const CALENDAR_SETTINGS_COOKING_SUBCATEGORIES = [
   "completed",
 ] as const;
 
+export const CALENDAR_SETTINGS_SCHOOL_SUBCATEGORIES = SCHOOL_REMINDER_KINDS;
+
 export type CalendarSettingsSectionKey =
   | "categories"
   | "events"
   | "fitness"
   | "career"
-  | "cooking";
+  | "cooking"
+  | "school";
 
 export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
   key: CalendarSettingsSectionKey;
@@ -51,7 +55,7 @@ export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
   {
     key: "categories",
     label: "Categories",
-    description: "Broad colors for Skills, Events, People, Fitness, Career, and Cooking.",
+    description: "Broad colors for Skills, Events, People, Fitness, Career, Cooking, and School.",
   },
   {
     key: "events",
@@ -72,6 +76,11 @@ export const CALENDAR_SETTINGS_SECTIONS: ReadonlyArray<{
     key: "cooking",
     label: "Cooking",
     description: "Colors for planned cooks and cooked meals.",
+  },
+  {
+    key: "school",
+    label: "School",
+    description: "Colors for assignment, quiz, exam, project, study, and reading reminders.",
   },
 ];
 
@@ -142,6 +151,11 @@ export function calendarPreferencesFormFromPrefs(
   for (const suffix of CALENDAR_SETTINGS_COOKING_SUBCATEGORIES) {
     const prefKey = subcategoryPrefKey("cooking", suffix);
     subcategories[prefKey] = effectiveSubcategoryToken("cooking", suffix, prefs);
+  }
+
+  for (const suffix of CALENDAR_SETTINGS_SCHOOL_SUBCATEGORIES) {
+    const prefKey = subcategoryPrefKey("school", suffix);
+    subcategories[prefKey] = effectiveSubcategoryToken("school", suffix, prefs);
   }
 
   for (const [prefKey, token] of Object.entries(prefs?.subcategories ?? {})) {

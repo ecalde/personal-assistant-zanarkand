@@ -4,14 +4,16 @@ import type {
   FocusItem,
   FocusPriority,
 } from "../../core/focus";
+import type { FitnessFocus } from "../../core/fitness";
+import type { CareerFocus } from "../../core/school";
 import {
+  careerFocusFromFocusItem,
   fitnessFocusFromFocusItem,
   formatFocusActionLabel,
   formatFocusCategory,
   formatFocusContextLine,
   formatFocusExpirationHint,
 } from "../../core/focus";
-import type { FitnessFocus } from "../../core/fitness";
 import { buildFocusSourceSnapshot, type HiddenFocusFeedbackItem } from "../../core/focusFeedback";
 import { styles } from "../../ui/appStyles";
 import { formatLocal, formatMinutes } from "../../ui/format";
@@ -29,7 +31,7 @@ export type DailyFocusSectionProps = {
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
-  onOpenCareer?: () => void;
+  onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
   onAddSession?: (skillId: string, minutes: number) => void;
@@ -62,7 +64,9 @@ function resolveFocusActionHandler(
       return props.onOpenPeople;
     case "open_career":
     case "apply_to_job":
-      return props.onOpenCareer;
+      return props.onOpenCareer
+        ? () => props.onOpenCareer!(careerFocusFromFocusItem(item))
+        : undefined;
     case "open_fitness":
     case "schedule_workout":
       return props.onOpenFitness

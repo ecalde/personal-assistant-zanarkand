@@ -17,6 +17,7 @@ import {
   CALENDAR_SETTINGS_COOKING_SUBCATEGORIES,
   CALENDAR_SETTINGS_EVENT_SUBCATEGORIES,
   CALENDAR_SETTINGS_FITNESS_SUBCATEGORIES,
+  CALENDAR_SETTINGS_SCHOOL_SUBCATEGORIES,
   CALENDAR_SETTINGS_SECTIONS,
   calendarPreferencesFormFromPrefs,
   calendarPreferencesPayloadFromForm,
@@ -278,6 +279,25 @@ export function CalendarSettingsSection({
             usageLabel={usageForToken(token)}
             onColorChange={(next) => updateSubcategoryColor(prefKey, next)}
             onReset={() => resetSubcategory("cooking", suffix)}
+            colorAriaLabel={`Color for ${label}`}
+          />
+        );
+      });
+    }
+
+    if (activeSection === "school") {
+      return CALENDAR_SETTINGS_SCHOOL_SUBCATEGORIES.map((suffix) => {
+        const prefKey = subcategoryPrefKey("school", suffix);
+        const token = form.subcategories[prefKey];
+        const label = subcategorySettingsLabel(prefKey);
+        return (
+          <SettingsRow
+            key={prefKey}
+            label={label}
+            token={token}
+            usageLabel={usageForToken(token)}
+            onColorChange={(next) => updateSubcategoryColor(prefKey, next)}
+            onReset={() => resetSubcategory("school", suffix)}
             colorAriaLabel={`Color for ${label}`}
           />
         );

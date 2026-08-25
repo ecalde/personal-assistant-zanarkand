@@ -33,6 +33,9 @@ export function defaultPayload(): AppPayload {
     cookingSessions: [],
     pantry: [],
     customIngredients: [],
+    schoolCourses: [],
+    schoolReminders: [],
+    schoolGradedItems: [],
     focusFeedback: [],
   };
 }

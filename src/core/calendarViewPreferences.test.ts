@@ -88,6 +88,7 @@ describe("calendar filter preferences", () => {
             hiddenEventSubcategories: ["work", "unknown"],
             hiddenFitnessTypes: ["workout", "nutrition"],
             hiddenCookingTypes: ["planned", "extra"],
+            hiddenSchoolTypes: ["quiz", "not-a-kind"],
             extraField: true,
           })
         : null
@@ -99,6 +100,7 @@ describe("calendar filter preferences", () => {
       hiddenEventSubcategories: ["work"],
       hiddenFitnessTypes: ["workout"],
       hiddenCookingTypes: ["planned"],
+      hiddenSchoolTypes: ["quiz"],
     });
   });
 
@@ -120,6 +122,7 @@ describe("calendar filter preferences", () => {
       hiddenEventSubcategories: ["birthday"],
       hiddenFitnessTypes: ["supplement"],
       hiddenCookingTypes: ["completed"],
+      hiddenSchoolTypes: ["exam"],
     });
 
     expect(setItem).toHaveBeenCalledWith(
@@ -129,6 +132,7 @@ describe("calendar filter preferences", () => {
         hiddenEventSubcategories: ["birthday"],
         hiddenFitnessTypes: ["supplement"],
         hiddenCookingTypes: ["completed"],
+        hiddenSchoolTypes: ["exam"],
       })
     );
   });

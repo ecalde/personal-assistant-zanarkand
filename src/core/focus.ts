@@ -28,6 +28,12 @@ import {
   type ApplicationAttentionReason,
 } from "./career";
 import {
+  listLocalizedSchoolDues,
+  resolveLocalTimeZone,
+  SCHOOL_REMINDER_KIND_LABELS,
+  type CareerFocus,
+} from "./school";
+import {
   buildWorkoutWeekSummary,
   expandWorkoutOccurrencesForDate,
   getLastSession,
@@ -42,6 +48,8 @@ import type {
   PantryItem,
   Person,
   Recipe,
+  SchoolCourse,
+  SchoolReminder,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -84,6 +92,7 @@ export const LOW_AVAILABLE_SKILL_MINUTES = 30;
 export const FITNESS_LONG_GAP_DAYS = 4;
 export const COOKING_LONG_GAP_DAYS = 5;
 export const PEOPLE_BIRTHDAY_SOON_DAYS = 7;
+export const SCHOOL_FOCUS_WINDOW_DAYS = 3;
 
 const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   timeline_schedule_conflict: 900,
@@ -105,6 +114,8 @@ const CATEGORY_BASE: Partial<Record<FocusReasonCode, number>> = {
   career_saved_not_applied: 600,
   career_interview_active: 580,
   career_skill_gap: 500,
+  school_due_today: 790,
+  school_due_soon: 730,
   fitness_long_gap_since_last: 450,
   fitness_no_workout_this_week: 420,
   fitness_log_from_plan: 350,
@@ -192,6 +203,8 @@ export type FocusReasonCode =
   | "career_stuck_in_stage"
   | "career_interview_active"
   | "career_skill_gap"
+  | "school_due_today"
+  | "school_due_soon"
   | "fitness_no_workout_this_week"
   | "fitness_long_gap_since_last"
   | "fitness_log_from_plan"
@@ -243,6 +256,7 @@ export type DailyFocusContext = {
   netAvailableSkillMinutes: number;
   workoutsThisWeek: number;
   applicationsNeedingAttention: number;
+  schoolDueSoonCount: number;
 };
 
 export type DailyFocusSummary = {
@@ -268,6 +282,9 @@ export type BuildDailyFocusInput = {
   recipes?: Recipe[];
   cookingSessions?: CookingSession[];
   pantry?: PantryItem[];
+  schoolCourses?: SchoolCourse[];
+  schoolReminders?: SchoolReminder[];
+  localTimeZone?: string;
   todayKey: string;
   now?: Date;
   opts?: { maxItems?: number; perCategoryCap?: number };
@@ -848,26 +865,6 @@ export function collectEventFocusItems(
         })
       );
     }
-
-    if (event.type === "school" && daysUntil <= 3) {
-      drafts.push(
-        makeDraft({
-          id: `event:${event.id}`,
-          category: "event",
-          sourceId: event.id,
-          title: `School: ${event.title}`,
-          description: `Due in ${daysUntil} day${daysUntil === 1 ? "" : "s"}${personSuffix}`,
-          suggestedActionType: "open_events",
-          actionTargetId: event.id,
-          expiresAtIso: endOfLocalDayIso(event.date),
-          reasonCodes: ["event_deadline"],
-          score: {
-            categoryBase: CATEGORY_BASE.event_deadline!,
-            urgencyBonus: daysUntil === 0 ? 100 : daysUntil === 1 ? 50 : 20,
-          },
-        })
-      );
-    }
   }
 
   return drafts;
@@ -1061,6 +1058,76 @@ export function collectCareerFocusItems(
         })
       );
     }
+  }
+
+  return drafts;
+}
+
+function schoolDueTitle(title: string, daysUntil: number): string {
+  if (daysUntil === 0) return `${title} due today`;
+  if (daysUntil === 1) return `${title} due tomorrow`;
+  return `${title} due in ${daysUntil} days`;
+}
+
+function schoolDueDescription(
+  due: ReturnType<typeof listLocalizedSchoolDues>[number]
+): string {
+  const kindLabel = SCHOOL_REMINDER_KIND_LABELS[due.reminder.kind];
+  const courseLabel = due.course.code ?? due.course.name;
+  const timePart = due.localTime ? ` at ${due.localTime}` : "";
+  return `${kindLabel} · ${courseLabel}${timePart}`;
+}
+
+function schoolDueExpirationIso(
+  due: ReturnType<typeof listLocalizedSchoolDues>[number],
+  todayKey: string
+): string {
+  if (due.localTime) {
+    const iso = localDateTimeIso(due.localDate, due.localTime);
+    if (iso) return iso;
+  }
+  return endOfLocalDayIso(due.localDate || todayKey);
+}
+
+export function collectSchoolFocusItems(
+  courses: readonly SchoolCourse[],
+  reminders: readonly SchoolReminder[],
+  todayKey: string,
+  now: Date,
+  localTimeZone: string
+): FocusItemDraft[] {
+  const drafts: FocusItemDraft[] = [];
+  const morning = isMorning(now);
+  const dues = listLocalizedSchoolDues(courses, reminders, localTimeZone);
+
+  for (const due of dues) {
+    const daysUntil = daysBetweenDateKeys(todayKey, due.localDate);
+    if (daysUntil === null || daysUntil < 0 || daysUntil > SCHOOL_FOCUS_WINDOW_DAYS) {
+      continue;
+    }
+
+    const isToday = daysUntil === 0;
+    drafts.push(
+      makeDraft({
+        id: `career:school:${due.reminder.id}`,
+        category: "career",
+        sourceId: due.reminder.id,
+        title: schoolDueTitle(due.reminder.title, daysUntil),
+        description: schoolDueDescription(due),
+        actionLabel: "Open in School",
+        suggestedActionType: "open_career",
+        actionTargetId: due.course.id,
+        expiresAtIso: schoolDueExpirationIso(due, todayKey),
+        reasonCodes: [isToday ? "school_due_today" : "school_due_soon"],
+        score: {
+          categoryBase: isToday
+            ? CATEGORY_BASE.school_due_today!
+            : CATEGORY_BASE.school_due_soon!,
+          urgencyBonus: isToday ? 100 : daysUntil === 1 ? 50 : 30,
+          timeOfDayBonus: morning && isToday && due.localTime ? 40 : 0,
+        },
+      })
+    );
   }
 
   return drafts;
@@ -1382,6 +1449,25 @@ export function fitnessFocusFromFocusItem(
   return undefined;
 }
 
+/** Maps a career/school focus CTA onto the Career page deep-link union. */
+export function careerFocusFromFocusItem(item: FocusItem): CareerFocus | undefined {
+  if (
+    item.reasonCodes.includes("school_due_today") ||
+    item.reasonCodes.includes("school_due_soon")
+  ) {
+    return item.actionTargetId
+      ? { kind: "school", courseId: item.actionTargetId }
+      : { kind: "school" };
+  }
+  if (
+    item.suggestedActionType === "open_career" ||
+    item.suggestedActionType === "apply_to_job"
+  ) {
+    return { kind: "career" };
+  }
+  return undefined;
+}
+
 function conflictTitle(conflicts: TimelineConflict[]): string {
   if (conflicts.length === 1) {
     return "Schedule conflict today";
@@ -1542,6 +1628,11 @@ export function formatFocusContextLine(context: DailyFocusContext): string {
       `${context.applicationsNeedingAttention} career item${context.applicationsNeedingAttention === 1 ? "" : "s"}`
     );
   }
+  if (context.schoolDueSoonCount > 0) {
+    parts.push(
+      `${context.schoolDueSoonCount} school due${context.schoolDueSoonCount === 1 ? "" : "s"}`
+    );
+  }
   return parts.join(" · ");
 }
 
@@ -1558,15 +1649,34 @@ export function buildHeadline(items: FocusItem[]): string | undefined {
   return undefined;
 }
 
+function countSchoolDuesSoon(
+  courses: readonly SchoolCourse[],
+  reminders: readonly SchoolReminder[],
+  todayKey: string,
+  localTimeZone: string
+): number {
+  let count = 0;
+  for (const due of listLocalizedSchoolDues(courses, reminders, localTimeZone)) {
+    const daysUntil = daysBetweenDateKeys(todayKey, due.localDate);
+    if (daysUntil !== null && daysUntil >= 0 && daysUntil <= SCHOOL_FOCUS_WINDOW_DAYS) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function buildContext(
   skills: Skill[],
   sessions: Session[],
   events: LifeEvent[],
   jobApplications: JobApplication[],
   workoutSessions: WorkoutSession[],
+  schoolCourses: readonly SchoolCourse[],
+  schoolReminders: readonly SchoolReminder[],
   todayKey: string,
   now: Date,
-  workload: ReturnType<typeof computeDailyWorkloadForDay>
+  workload: ReturnType<typeof computeDailyWorkloadForDay>,
+  localTimeZone: string
 ): DailyFocusContext {
   const rows = buildSkillDayRows(skills, sessions, now);
   const skillOverdueCount = rows.filter((r) => r.status === "overdue").length;
@@ -1586,6 +1696,12 @@ function buildContext(
     netAvailableSkillMinutes: workload.netAvailableForSkillsMinutes,
     workoutsThisWeek: weekSummary.count,
     applicationsNeedingAttention,
+    schoolDueSoonCount: countSchoolDuesSoon(
+      schoolCourses,
+      schoolReminders,
+      todayKey,
+      localTimeZone
+    ),
   };
 }
 
@@ -1597,6 +1713,9 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
   const now = input.now ?? new Date();
   const maxItems = input.opts?.maxItems ?? FOCUS_DASHBOARD_MAX_ITEMS;
   const perCategoryCap = input.opts?.perCategoryCap ?? FOCUS_PER_CATEGORY_CAP;
+  const localTimeZone = input.localTimeZone ?? resolveLocalTimeZone();
+  const schoolCourses = input.schoolCourses ?? [];
+  const schoolReminders = input.schoolReminders ?? [];
 
   const { drafts: timelineDrafts, workload } = collectTimelineFocusItems(
     input.skills,
@@ -1611,6 +1730,13 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
     ...collectEventFocusItems(input.events, input.people, input.todayKey, now),
     ...collectPeopleFocusItems(input.people, input.todayKey),
     ...collectCareerFocusItems(input.skills, input.jobApplications, input.careerTarget, input.todayKey),
+    ...collectSchoolFocusItems(
+      schoolCourses,
+      schoolReminders,
+      input.todayKey,
+      now,
+      localTimeZone
+    ),
     ...collectFitnessFocusItems(
       input.workoutPlans,
       input.workoutSessions,
@@ -1646,9 +1772,12 @@ export function buildDailyFocusSummary(input: BuildDailyFocusInput): DailyFocusS
     input.events,
     input.jobApplications,
     input.workoutSessions,
+    schoolCourses,
+    schoolReminders,
     input.todayKey,
     now,
-    workload
+    workload,
+    localTimeZone
   );
 
   return {

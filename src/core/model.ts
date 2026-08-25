@@ -92,7 +92,6 @@ export type EventType =
   | "hangout"
   | "trip"
   | "holiday"
-  | "school"
   | "vacation"
   | "work"
   | "other";
@@ -564,6 +563,102 @@ export type SupplementIntakeLog = {
   updatedAtIso: string;
 };
 
+export type SchoolReminderKind =
+  | "assignment"
+  | "quiz"
+  | "exam"
+  | "project"
+  | "study"
+  | "reading"
+  | "other";
+
+export type SchoolStaffRole = "professor" | "ta" | "other";
+
+export type SchoolStaffMember = {
+  id: string;
+  role: SchoolStaffRole;
+  name: string;
+  email?: string;
+  notes?: string;
+};
+
+export type SchoolOfficeHours = {
+  id: string;
+  who?: string;
+  whenText: string;
+  locationOrLink?: string;
+};
+
+export type SchoolLatePolicy = {
+  summary: string;
+  lateDaysAllowed?: number;
+  deductionPercentPerDay?: number;
+  notes?: string;
+};
+
+export type SchoolGradeCategory = {
+  id: string;
+  name: string;
+  weightPercent: number;
+  extraCredit?: boolean;
+};
+
+export type SchoolLink = {
+  url: string;
+  label: string;
+};
+
+export type SchoolCourse = {
+  id: string;
+  name: string;
+  code?: string;
+  term?: string;
+  timezone: string;
+  notes?: string;
+  staff: SchoolStaffMember[];
+  officeHours: SchoolOfficeHours[];
+  latePolicy?: SchoolLatePolicy;
+  extraCreditNotes?: string;
+  scoringNotes?: string;
+  gradeCategories: SchoolGradeCategory[];
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type SchoolReminder = {
+  id: string;
+  courseId: string;
+  kind: SchoolReminderKind;
+  title: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  openDate?: string;
+  openTime?: string;
+  closeDate?: string;
+  closeTime?: string;
+  notes?: string;
+  links: SchoolLink[];
+  fingerprint?: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
+export type SchoolGradedItem = {
+  id: string;
+  courseId: string;
+  categoryId?: string;
+  reminderId?: string;
+  name: string;
+  dueDate?: string;
+  dueTime?: string;
+  maxScore?: number;
+  score?: number;
+  extraCredit?: boolean;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export type FocusFeedbackAction = "dismissed" | "snoozed";
 
 export type FocusFeedback = {
@@ -592,6 +687,9 @@ export type AppPayload = {
   cookingSessions: CookingSession[];
   pantry: PantryItem[];
   customIngredients: CustomIngredient[];
+  schoolCourses: SchoolCourse[];
+  schoolReminders: SchoolReminder[];
+  schoolGradedItems: SchoolGradedItem[];
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;

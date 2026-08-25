@@ -2,12 +2,14 @@ import { CALENDAR_CATEGORY_KEYS, type CalendarCategoryKey } from "./calendarColo
 import type {
   CalendarCookingTypeFilter,
   CalendarFitnessTypeFilter,
+  CalendarSchoolTypeFilter,
   CalendarViewMode,
 } from "./calendarView";
 import {
   CALENDAR_COOKING_TYPE_FILTERS,
   CALENDAR_EVENT_TYPE_FILTERS,
   CALENDAR_FITNESS_TYPE_FILTERS,
+  CALENDAR_SCHOOL_TYPE_FILTERS,
 } from "./calendarView";
 import type { EventType } from "./model";
 
@@ -22,6 +24,7 @@ export type CalendarFilterPreferences = {
   hiddenEventSubcategories: EventType[];
   hiddenFitnessTypes: CalendarFitnessTypeFilter[];
   hiddenCookingTypes: CalendarCookingTypeFilter[];
+  hiddenSchoolTypes: CalendarSchoolTypeFilter[];
 };
 
 const LEGACY_DASHBOARD_VIEW_MODE_KEY = "pa.dashboardCalendar.viewMode.v1";
@@ -88,6 +91,7 @@ export function defaultCalendarFilterPreferences(): CalendarFilterPreferences {
     hiddenEventSubcategories: [],
     hiddenFitnessTypes: [],
     hiddenCookingTypes: [],
+    hiddenSchoolTypes: [],
   };
 }
 
@@ -120,6 +124,7 @@ export function normalizeCalendarFilterPreferences(raw: unknown): CalendarFilter
     ),
     hiddenFitnessTypes: pickAllowlisted(obj.hiddenFitnessTypes, CALENDAR_FITNESS_TYPE_FILTERS),
     hiddenCookingTypes: pickAllowlisted(obj.hiddenCookingTypes, CALENDAR_COOKING_TYPE_FILTERS),
+    hiddenSchoolTypes: pickAllowlisted(obj.hiddenSchoolTypes, CALENDAR_SCHOOL_TYPE_FILTERS),
   };
 }
 

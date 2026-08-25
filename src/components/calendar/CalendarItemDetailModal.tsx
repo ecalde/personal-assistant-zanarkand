@@ -14,6 +14,11 @@ import {
   INTERVIEW_OUTCOME_LABELS,
 } from "../../core/career";
 import type { FitnessFocus } from "../../core/fitness";
+import {
+  formatSchoolDueCaption,
+  resolveLocalTimeZone,
+  type CareerFocus,
+} from "../../core/school";
 import { styles } from "../../ui/appStyles";
 
 export type CalendarItemDetailModalProps = {
@@ -33,7 +38,7 @@ export type CalendarItemDetailModalProps = {
     overrideDate: string
   ) => void;
   onDeleteOccurrencesFromDate?: (eventId: string, fromDate: string) => void;
-  onOpenCareer?: () => void;
+  onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
   onLogCooking?: (sessionId: string) => void;
@@ -61,6 +66,15 @@ function completionStatusLabel(visual?: CalendarCompletionVisual): string | unde
   if (visual === "in_progress") return "In progress";
   if (visual === "planned") return "Planned";
   return undefined;
+}
+
+function isHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -119,6 +133,7 @@ export function CalendarItemDetailModal({
       onDeleteOccurrencesFromDate);
 
   const isCareerInterview = item.sourceMeta.kind === "applicationInterview";
+  const isSchoolReminder = item.sourceMeta.kind === "schoolReminder";
   const isSupplementIntake = item.sourceMeta.kind === "supplementIntake";
   const isCookingItem = item.sourceMeta.kind === "cooking";
   const cookingStatus = isCookingItem
@@ -256,6 +271,42 @@ export function CalendarItemDetailModal({
               ) : null}
             </>
           ) : null}
+          {item.sourceMeta.kind === "schoolReminder" ? (
+            <>
+              <DetailRow label="Course" value={item.sourceMeta.courseName} />
+              <DetailRow
+                label="When"
+                value={formatSchoolDueCaption({
+                  date: item.sourceMeta.sourceDate,
+                  time: item.sourceMeta.sourceTime,
+                  sourceTimeZone: item.sourceMeta.sourceTimeZone,
+                  localTimeZone: resolveLocalTimeZone(),
+                  prefix: item.sourceMeta.occurrence === "open" ? "Opens" : "Due",
+                })}
+              />
+              {item.sourceMeta.links.length > 0 ? (
+                <div style={styles.calendarModalRow}>
+                  <span style={styles.calendarModalLabel}>Links</span>
+                  <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {item.sourceMeta.links.map((link) =>
+                      isHttpUrl(link.url) ? (
+                        <a
+                          key={`${link.url}:${link.label}`}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <span key={`${link.url}:${link.label}`}>{link.label}</span>
+                      )
+                    )}
+                  </span>
+                </div>
+              ) : null}
+            </>
+          ) : null}
           {item.description ? (
             <DetailRow label="Details" value={item.description} />
           ) : null}
@@ -263,7 +314,23 @@ export function CalendarItemDetailModal({
 
         {isCareerInterview && onOpenCareer ? (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" style={styles.smallBtn} onClick={onOpenCareer}>
+            <button type="button" style={styles.smallBtn} onClick={() => onOpenCareer()}>
+              Open in Career
+            </button>
+          </div>
+        ) : null}
+
+        {isSchoolReminder && onOpenCareer ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={styles.smallBtn}
+              onClick={() => {
+                if (item.sourceMeta.kind !== "schoolReminder") return;
+                onOpenCareer({ kind: "school", courseId: item.sourceMeta.courseId });
+                onClose();
+              }}
+            >
               Open in Career
             </button>
           </div>
@@ -422,6 +489,10 @@ export function CalendarItemDetailModal({
         ) : item.sourceMeta.kind === "cooking" ? (
           <p style={{ ...styles.helpText, margin: 0 }}>
             Completing a planned cook keeps this calendar item and marks it as a cooked meal.
+          </p>
+        ) : item.sourceMeta.kind === "schoolReminder" ? (
+          <p style={{ ...styles.helpText, margin: 0 }}>
+            Edit this reminder on the Career page, School section.
           </p>
         ) : (
           <p style={{ ...styles.helpText, margin: 0 }}>

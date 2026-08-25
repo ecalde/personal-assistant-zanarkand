@@ -4,6 +4,7 @@ import type { AppPayload } from "./model";
 import { sanitizeEventReferences } from "./events";
 import { sanitizeSkillReferences } from "./sessions";
 import { sanitizeCookingReferences } from "./cooking";
+import { sanitizeSchoolReferences } from "./school";
 import { normalizeGamificationState } from "./progressionModel";
 import { defaultPayload } from "./state";
 
@@ -71,6 +72,9 @@ export function normalizePayload(payload: unknown): AppPayload {
         cookingSessions: Array.isArray(p.cookingSessions) ? p.cookingSessions : [],
         pantry: Array.isArray(p.pantry) ? p.pantry : [],
         customIngredients: Array.isArray(p.customIngredients) ? p.customIngredients : [],
+        schoolCourses: Array.isArray(p.schoolCourses) ? p.schoolCourses : [],
+        schoolReminders: Array.isArray(p.schoolReminders) ? p.schoolReminders : [],
+        schoolGradedItems: Array.isArray(p.schoolGradedItems) ? p.schoolGradedItems : [],
         focusFeedback: Array.isArray(p.focusFeedback) ? p.focusFeedback : [],
         calendarPreferences:
             p.calendarPreferences &&
@@ -82,7 +86,9 @@ export function normalizePayload(payload: unknown): AppPayload {
     };
 
     return sanitizeEventReferences(
-      sanitizeCookingReferences(sanitizeSkillReferences(normalized))
+      sanitizeSchoolReferences(
+        sanitizeCookingReferences(sanitizeSkillReferences(normalized))
+      )
     );
 }
 

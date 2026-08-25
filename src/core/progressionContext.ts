@@ -307,11 +307,10 @@ export function buildProgressionContext(
     }
   }
 
-  // Event attendance proxy (v1): one-time, non-deadline events already in the past.
+  // Event attendance proxy (v1): one-time events already in the past.
   const attendedEvents: AttendedEvent[] = [];
   for (const event of events) {
     if (event.recurrence) continue;
-    if (event.type === "school") continue;
     if (!isValidDateKey(event.date) || event.date >= todayKey) continue;
     attendedEvents.push({
       eventId: event.id,

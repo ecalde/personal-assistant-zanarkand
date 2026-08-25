@@ -14,7 +14,6 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   hangout: "Hangout",
   trip: "Trip",
   holiday: "Holiday",
-  school: "School",
   vacation: "Vacation",
   work: "Work",
   other: "Other",

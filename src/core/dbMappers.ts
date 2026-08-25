@@ -73,6 +73,14 @@ import type {
   SupplementProtocol,
   SupplementUnit,
   SupplementDoseSlot,
+  SchoolCourse,
+  SchoolGradeCategory,
+  SchoolGradedItem,
+  SchoolLatePolicy,
+  SchoolLink,
+  SchoolOfficeHours,
+  SchoolReminder,
+  SchoolStaffMember,
 } from "./model";
 import {
   isCookingMethod,
@@ -84,6 +92,11 @@ import {
   isRecipeSource,
   isRecipeStepKind,
 } from "./cooking";
+import {
+  isSchoolReminderKind,
+  isSchoolStaffRole,
+  isValidIanaTimeZone,
+} from "./school";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -99,14 +112,14 @@ const EVENT_TYPES: EventType[] = [
   "hangout",
   "trip",
   "holiday",
-  "school",
   "vacation",
   "work",
   "other",
 ];
 
 const LEGACY_EVENT_TYPE_ALIASES: Record<string, EventType> = {
-  deadline: "school",
+  deadline: "other",
+  school: "other",
   career: "vacation",
 };
 
@@ -414,6 +427,60 @@ export type CustomIngredientRow = {
   density_g_per_ml: number | string | null;
   grams_per_piece: number | string | null;
   per_100g: unknown | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SchoolCourseRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  code: string | null;
+  term: string | null;
+  timezone: string;
+  notes: string | null;
+  staff: unknown;
+  office_hours: unknown;
+  late_policy: unknown | null;
+  extra_credit_notes: string | null;
+  scoring_notes: string | null;
+  grade_categories: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SchoolReminderRow = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  kind: string;
+  title: string;
+  due_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  open_date: string | null;
+  open_time: string | null;
+  close_date: string | null;
+  close_time: string | null;
+  notes: string | null;
+  links: unknown;
+  fingerprint: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SchoolGradedItemRow = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  category_id: string | null;
+  reminder_id: string | null;
+  name: string;
+  due_date: string | null;
+  due_time: string | null;
+  max_score: number | string | null;
+  score: number | string | null;
+  extra_credit: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -1503,6 +1570,10 @@ export function isSupplementPhaseKind(value: string): value is SupplementPhaseKi
 
 function isPositiveFiniteNumber(value: number): boolean {
   return Number.isFinite(value) && value > 0;
+}
+
+function isNonNegativeFiniteNumber(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
 }
 
 function isWeekday(value: string): value is Weekday {
@@ -3450,6 +3521,511 @@ export function customIngredientFromRow(row: CustomIngredientRow): CustomIngredi
   return item;
 }
 
+export function parseSchoolStaff(value: unknown, field: string): SchoolStaffMember[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  const staff: SchoolStaffMember[] = [];
+  const seenIds = new Set<string>();
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+    const id = item.id;
+    if (typeof id !== "string" || !isUuid(id)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(id)) {
+      throw new MapperError(`Invalid ${field}: duplicate staff id`, field);
+    }
+    seenIds.add(id);
+    if (typeof item.role !== "string" || !isSchoolStaffRole(item.role)) {
+      throw new MapperError(`Invalid ${field}: invalid role`, field);
+    }
+    if (typeof item.name !== "string" || item.name.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: name required`, field);
+    }
+    const member: SchoolStaffMember = { id, role: item.role, name: item.name.trim() };
+    if (item.email !== undefined && item.email !== null) {
+      if (typeof item.email !== "string") {
+        throw new MapperError(`Invalid ${field}: email must be string`, field);
+      }
+      const email = item.email.trim();
+      if (email.length > 0) member.email = email;
+    }
+    if (item.notes !== undefined && item.notes !== null) {
+      if (typeof item.notes !== "string") {
+        throw new MapperError(`Invalid ${field}: notes must be string`, field);
+      }
+      const notes = item.notes.trim();
+      if (notes.length > 0) member.notes = notes;
+    }
+    staff.push(member);
+  }
+  return staff;
+}
+
+export function parseSchoolOfficeHours(value: unknown, field: string): SchoolOfficeHours[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  const hours: SchoolOfficeHours[] = [];
+  const seenIds = new Set<string>();
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+    const id = item.id;
+    if (typeof id !== "string" || !isUuid(id)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(id)) {
+      throw new MapperError(`Invalid ${field}: duplicate officeHours id`, field);
+    }
+    seenIds.add(id);
+    if (typeof item.whenText !== "string" || item.whenText.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: whenText required`, field);
+    }
+    const entry: SchoolOfficeHours = { id, whenText: item.whenText.trim() };
+    if (item.who !== undefined && item.who !== null) {
+      if (typeof item.who !== "string") {
+        throw new MapperError(`Invalid ${field}: who must be string`, field);
+      }
+      const who = item.who.trim();
+      if (who.length > 0) entry.who = who;
+    }
+    if (item.locationOrLink !== undefined && item.locationOrLink !== null) {
+      if (typeof item.locationOrLink !== "string") {
+        throw new MapperError(`Invalid ${field}: locationOrLink must be string`, field);
+      }
+      const locationOrLink = item.locationOrLink.trim();
+      if (locationOrLink.length > 0) entry.locationOrLink = locationOrLink;
+    }
+    hours.push(entry);
+  }
+  return hours;
+}
+
+export function parseSchoolGradeCategories(value: unknown, field: string): SchoolGradeCategory[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  const categories: SchoolGradeCategory[] = [];
+  const seenIds = new Set<string>();
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+    const id = item.id;
+    if (typeof id !== "string" || !isUuid(id)) {
+      throw new MapperError(`Invalid ${field}: expected UUID id`, field);
+    }
+    if (seenIds.has(id)) {
+      throw new MapperError(`Invalid ${field}: duplicate category id`, field);
+    }
+    seenIds.add(id);
+    if (typeof item.name !== "string" || item.name.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: name required`, field);
+    }
+    if (typeof item.weightPercent !== "number" || !isNonNegativeFiniteNumber(item.weightPercent)) {
+      throw new MapperError(`Invalid ${field}: weightPercent must be >= 0`, field);
+    }
+    const category: SchoolGradeCategory = {
+      id,
+      name: item.name.trim(),
+      weightPercent: item.weightPercent,
+    };
+    if (item.extraCredit === true) category.extraCredit = true;
+    if (item.extraCredit !== undefined && item.extraCredit !== null && item.extraCredit !== true) {
+      if (typeof item.extraCredit !== "boolean") {
+        throw new MapperError(`Invalid ${field}: extraCredit must be boolean`, field);
+      }
+    }
+    categories.push(category);
+  }
+  return categories;
+}
+
+export function parseSchoolLatePolicy(value: unknown, field: string): SchoolLatePolicy | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    throw new MapperError(`Invalid ${field}: summary required`, field);
+  }
+  const policy: SchoolLatePolicy = { summary: value.summary.trim() };
+  if (value.lateDaysAllowed !== undefined && value.lateDaysAllowed !== null) {
+    if (typeof value.lateDaysAllowed !== "number" || !isNonNegativeInteger(value.lateDaysAllowed)) {
+      throw new MapperError(`Invalid ${field}: lateDaysAllowed must be a non-negative integer`, field);
+    }
+    policy.lateDaysAllowed = value.lateDaysAllowed;
+  }
+  if (value.deductionPercentPerDay !== undefined && value.deductionPercentPerDay !== null) {
+    if (
+      typeof value.deductionPercentPerDay !== "number" ||
+      !isNonNegativeFiniteNumber(value.deductionPercentPerDay)
+    ) {
+      throw new MapperError(`Invalid ${field}: deductionPercentPerDay must be >= 0`, field);
+    }
+    policy.deductionPercentPerDay = value.deductionPercentPerDay;
+  }
+  if (value.notes !== undefined && value.notes !== null) {
+    if (typeof value.notes !== "string") {
+      throw new MapperError(`Invalid ${field}: notes must be string`, field);
+    }
+    const notes = value.notes.trim();
+    if (notes.length > 0) policy.notes = notes;
+  }
+  return policy;
+}
+
+export function parseSchoolLinks(value: unknown, field: string): SchoolLink[] {
+  if (!Array.isArray(value)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  const links: SchoolLink[] = [];
+  for (const item of value) {
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${field}: expected objects`, field);
+    }
+    if (typeof item.url !== "string") {
+      throw new MapperError(`Invalid ${field}: url required`, field);
+    }
+    assertValidHttpUrl(item.url, `${field}.url`);
+    if (typeof item.label !== "string" || item.label.trim().length === 0) {
+      throw new MapperError(`Invalid ${field}: label required`, field);
+    }
+    links.push({ url: item.url.trim(), label: item.label.trim() });
+  }
+  return links;
+}
+
+function assertOptionalHhMm(value: string | undefined, field: string): void {
+  if (value === undefined) return;
+  if (typeof value !== "string" || !isHhMm(value)) {
+    throw new MapperError(`Invalid ${field}`, field);
+  }
+}
+
+export function assertValidSchoolCourse(course: SchoolCourse): void {
+  assertUuid(course.id, "schoolCourse.id");
+  assertNonEmptyName(course.name, "schoolCourse.name");
+  assertIsoTimestamp(course.createdAtIso, "schoolCourse.createdAtIso");
+  assertIsoTimestamp(course.updatedAtIso, "schoolCourse.updatedAtIso");
+  if (!isValidIanaTimeZone(course.timezone)) {
+    throw new MapperError("Invalid schoolCourse.timezone", "schoolCourse.timezone");
+  }
+  if (course.code !== undefined && typeof course.code !== "string") {
+    throw new MapperError("Invalid schoolCourse.code", "schoolCourse.code");
+  }
+  if (course.term !== undefined && typeof course.term !== "string") {
+    throw new MapperError("Invalid schoolCourse.term", "schoolCourse.term");
+  }
+  if (course.notes !== undefined && typeof course.notes !== "string") {
+    throw new MapperError("Invalid schoolCourse.notes", "schoolCourse.notes");
+  }
+  if (course.extraCreditNotes !== undefined && typeof course.extraCreditNotes !== "string") {
+    throw new MapperError("Invalid schoolCourse.extraCreditNotes", "schoolCourse.extraCreditNotes");
+  }
+  if (course.scoringNotes !== undefined && typeof course.scoringNotes !== "string") {
+    throw new MapperError("Invalid schoolCourse.scoringNotes", "schoolCourse.scoringNotes");
+  }
+  parseSchoolStaff(course.staff, "schoolCourse.staff");
+  parseSchoolOfficeHours(course.officeHours, "schoolCourse.officeHours");
+  parseSchoolGradeCategories(course.gradeCategories, "schoolCourse.gradeCategories");
+  if (course.latePolicy !== undefined) {
+    parseSchoolLatePolicy(course.latePolicy, "schoolCourse.latePolicy");
+  }
+}
+
+export function schoolCourseToRow(course: SchoolCourse, userId: string): SchoolCourseRow {
+  assertUuid(userId, "userId");
+  assertValidSchoolCourse(course);
+  return {
+    id: course.id,
+    user_id: userId,
+    name: course.name.trim(),
+    code: course.code?.trim() || null,
+    term: course.term?.trim() || null,
+    timezone: course.timezone.trim(),
+    notes: course.notes?.trim() || null,
+    staff: parseSchoolStaff(course.staff, "schoolCourse.staff"),
+    office_hours: parseSchoolOfficeHours(course.officeHours, "schoolCourse.officeHours"),
+    late_policy: course.latePolicy
+      ? parseSchoolLatePolicy(course.latePolicy, "schoolCourse.latePolicy") ?? null
+      : null,
+    extra_credit_notes: course.extraCreditNotes?.trim() || null,
+    scoring_notes: course.scoringNotes?.trim() || null,
+    grade_categories: parseSchoolGradeCategories(
+      course.gradeCategories,
+      "schoolCourse.gradeCategories"
+    ),
+    created_at: course.createdAtIso,
+    updated_at: course.updatedAtIso,
+  };
+}
+
+export function schoolCourseFromRow(row: SchoolCourseRow): SchoolCourse {
+  assertUuid(row.id, "school_courses.id");
+  assertUuid(row.user_id, "school_courses.user_id");
+  assertNonEmptyName(row.name, "school_courses.name");
+  assertIsoTimestamp(row.created_at, "school_courses.created_at");
+  assertIsoTimestamp(row.updated_at, "school_courses.updated_at");
+  if (!isValidIanaTimeZone(row.timezone)) {
+    throw new MapperError("Invalid school_courses.timezone", "school_courses.timezone");
+  }
+  const course: SchoolCourse = {
+    id: row.id,
+    name: row.name.trim(),
+    timezone: row.timezone.trim(),
+    staff: parseSchoolStaff(row.staff, "school_courses.staff"),
+    officeHours: parseSchoolOfficeHours(row.office_hours, "school_courses.office_hours"),
+    gradeCategories: parseSchoolGradeCategories(
+      row.grade_categories,
+      "school_courses.grade_categories"
+    ),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+  if (row.code !== null && row.code.trim()) course.code = row.code.trim();
+  if (row.term !== null && row.term.trim()) course.term = row.term.trim();
+  if (row.notes !== null && row.notes.trim()) course.notes = row.notes.trim();
+  const latePolicy = parseSchoolLatePolicy(row.late_policy, "school_courses.late_policy");
+  if (latePolicy) course.latePolicy = latePolicy;
+  if (row.extra_credit_notes !== null && row.extra_credit_notes.trim()) {
+    course.extraCreditNotes = row.extra_credit_notes.trim();
+  }
+  if (row.scoring_notes !== null && row.scoring_notes.trim()) {
+    course.scoringNotes = row.scoring_notes.trim();
+  }
+  return course;
+}
+
+export function assertValidSchoolReminder(reminder: SchoolReminder): void {
+  assertUuid(reminder.id, "schoolReminder.id");
+  assertUuid(reminder.courseId, "schoolReminder.courseId");
+  assertNonEmptyName(reminder.title, "schoolReminder.title");
+  assertIsoDate(reminder.date, "schoolReminder.date");
+  assertIsoTimestamp(reminder.createdAtIso, "schoolReminder.createdAtIso");
+  assertIsoTimestamp(reminder.updatedAtIso, "schoolReminder.updatedAtIso");
+  if (!isSchoolReminderKind(reminder.kind)) {
+    throw new MapperError("Invalid schoolReminder.kind", "schoolReminder.kind");
+  }
+  if (reminder.notes !== undefined && typeof reminder.notes !== "string") {
+    throw new MapperError("Invalid schoolReminder.notes", "schoolReminder.notes");
+  }
+  if (reminder.fingerprint !== undefined && typeof reminder.fingerprint !== "string") {
+    throw new MapperError("Invalid schoolReminder.fingerprint", "schoolReminder.fingerprint");
+  }
+  assertOptionalHhMm(reminder.startTime, "schoolReminder.startTime");
+  assertOptionalHhMm(reminder.endTime, "schoolReminder.endTime");
+  assertOptionalHhMm(reminder.openTime, "schoolReminder.openTime");
+  assertOptionalHhMm(reminder.closeTime, "schoolReminder.closeTime");
+  if (reminder.endTime !== undefined && reminder.startTime === undefined) {
+    throw new MapperError("schoolReminder.endTime requires startTime", "schoolReminder.endTime");
+  }
+  if (
+    reminder.startTime !== undefined &&
+    reminder.endTime !== undefined &&
+    reminder.endTime <= reminder.startTime
+  ) {
+    throw new MapperError("schoolReminder.endTime must be after startTime", "schoolReminder.endTime");
+  }
+  if (reminder.openDate !== undefined) assertIsoDate(reminder.openDate, "schoolReminder.openDate");
+  if (reminder.closeDate !== undefined) assertIsoDate(reminder.closeDate, "schoolReminder.closeDate");
+  if (reminder.openTime !== undefined && reminder.openDate === undefined) {
+    throw new MapperError("schoolReminder.openTime requires openDate", "schoolReminder.openTime");
+  }
+  if (reminder.closeTime !== undefined && reminder.closeDate === undefined) {
+    throw new MapperError("schoolReminder.closeTime requires closeDate", "schoolReminder.closeTime");
+  }
+  parseSchoolLinks(reminder.links, "schoolReminder.links");
+}
+
+export function schoolReminderToRow(reminder: SchoolReminder, userId: string): SchoolReminderRow {
+  assertUuid(userId, "userId");
+  assertValidSchoolReminder(reminder);
+  return {
+    id: reminder.id,
+    user_id: userId,
+    course_id: reminder.courseId,
+    kind: reminder.kind,
+    title: reminder.title.trim(),
+    due_date: reminder.date,
+    start_time: reminder.startTime ?? null,
+    end_time: reminder.endTime ?? null,
+    open_date: reminder.openDate ?? null,
+    open_time: reminder.openTime ?? null,
+    close_date: reminder.closeDate ?? null,
+    close_time: reminder.closeTime ?? null,
+    notes: reminder.notes?.trim() || null,
+    links: parseSchoolLinks(reminder.links, "schoolReminder.links"),
+    fingerprint: reminder.fingerprint?.trim() || null,
+    created_at: reminder.createdAtIso,
+    updated_at: reminder.updatedAtIso,
+  };
+}
+
+export function schoolReminderFromRow(row: SchoolReminderRow): SchoolReminder {
+  assertUuid(row.id, "school_reminders.id");
+  assertUuid(row.user_id, "school_reminders.user_id");
+  assertUuid(row.course_id, "school_reminders.course_id");
+  assertNonEmptyName(row.title, "school_reminders.title");
+  assertIsoDate(row.due_date, "school_reminders.due_date");
+  assertIsoTimestamp(row.created_at, "school_reminders.created_at");
+  assertIsoTimestamp(row.updated_at, "school_reminders.updated_at");
+  if (!isSchoolReminderKind(row.kind)) {
+    throw new MapperError("Invalid school_reminders.kind", "school_reminders.kind");
+  }
+  const reminder: SchoolReminder = {
+    id: row.id,
+    courseId: row.course_id,
+    kind: row.kind,
+    title: row.title.trim(),
+    date: row.due_date,
+    links: parseSchoolLinks(row.links, "school_reminders.links"),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+  if (row.start_time !== null) {
+    if (!isHhMm(row.start_time)) {
+      throw new MapperError("Invalid school_reminders.start_time", "school_reminders.start_time");
+    }
+    reminder.startTime = row.start_time;
+  }
+  if (row.end_time !== null) {
+    if (!isHhMm(row.end_time)) {
+      throw new MapperError("Invalid school_reminders.end_time", "school_reminders.end_time");
+    }
+    reminder.endTime = row.end_time;
+  }
+  if (row.open_date !== null) {
+    assertIsoDate(row.open_date, "school_reminders.open_date");
+    reminder.openDate = row.open_date;
+  }
+  if (row.open_time !== null) {
+    if (!isHhMm(row.open_time)) {
+      throw new MapperError("Invalid school_reminders.open_time", "school_reminders.open_time");
+    }
+    reminder.openTime = row.open_time;
+  }
+  if (row.close_date !== null) {
+    assertIsoDate(row.close_date, "school_reminders.close_date");
+    reminder.closeDate = row.close_date;
+  }
+  if (row.close_time !== null) {
+    if (!isHhMm(row.close_time)) {
+      throw new MapperError("Invalid school_reminders.close_time", "school_reminders.close_time");
+    }
+    reminder.closeTime = row.close_time;
+  }
+  if (row.notes !== null && row.notes.trim()) reminder.notes = row.notes.trim();
+  if (row.fingerprint !== null && row.fingerprint.trim()) {
+    reminder.fingerprint = row.fingerprint.trim();
+  }
+  assertValidSchoolReminder(reminder);
+  return reminder;
+}
+
+export function assertValidSchoolGradedItem(item: SchoolGradedItem): void {
+  assertUuid(item.id, "schoolGradedItem.id");
+  assertUuid(item.courseId, "schoolGradedItem.courseId");
+  assertNonEmptyName(item.name, "schoolGradedItem.name");
+  assertIsoTimestamp(item.createdAtIso, "schoolGradedItem.createdAtIso");
+  assertIsoTimestamp(item.updatedAtIso, "schoolGradedItem.updatedAtIso");
+  if (item.categoryId !== undefined) assertUuid(item.categoryId, "schoolGradedItem.categoryId");
+  if (item.reminderId !== undefined) assertUuid(item.reminderId, "schoolGradedItem.reminderId");
+  if (item.dueDate !== undefined) assertIsoDate(item.dueDate, "schoolGradedItem.dueDate");
+  assertOptionalHhMm(item.dueTime, "schoolGradedItem.dueTime");
+  if (item.dueTime !== undefined && item.dueDate === undefined) {
+    throw new MapperError("schoolGradedItem.dueTime requires dueDate", "schoolGradedItem.dueTime");
+  }
+  if (item.maxScore !== undefined && !isNonNegativeFiniteNumber(item.maxScore)) {
+    throw new MapperError("Invalid schoolGradedItem.maxScore", "schoolGradedItem.maxScore");
+  }
+  if (item.score !== undefined && !isNonNegativeFiniteNumber(item.score)) {
+    throw new MapperError("Invalid schoolGradedItem.score", "schoolGradedItem.score");
+  }
+  if (item.extraCredit !== undefined && typeof item.extraCredit !== "boolean") {
+    throw new MapperError("Invalid schoolGradedItem.extraCredit", "schoolGradedItem.extraCredit");
+  }
+}
+
+export function schoolGradedItemToRow(item: SchoolGradedItem, userId: string): SchoolGradedItemRow {
+  assertUuid(userId, "userId");
+  assertValidSchoolGradedItem(item);
+  return {
+    id: item.id,
+    user_id: userId,
+    course_id: item.courseId,
+    category_id: item.categoryId ?? null,
+    reminder_id: item.reminderId ?? null,
+    name: item.name.trim(),
+    due_date: item.dueDate ?? null,
+    due_time: item.dueTime ?? null,
+    max_score: item.maxScore ?? null,
+    score: item.score ?? null,
+    extra_credit: item.extraCredit === true,
+    created_at: item.createdAtIso,
+    updated_at: item.updatedAtIso,
+  };
+}
+
+export function schoolGradedItemFromRow(row: SchoolGradedItemRow): SchoolGradedItem {
+  assertUuid(row.id, "school_graded_items.id");
+  assertUuid(row.user_id, "school_graded_items.user_id");
+  assertUuid(row.course_id, "school_graded_items.course_id");
+  assertNonEmptyName(row.name, "school_graded_items.name");
+  assertIsoTimestamp(row.created_at, "school_graded_items.created_at");
+  assertIsoTimestamp(row.updated_at, "school_graded_items.updated_at");
+  if (typeof row.extra_credit !== "boolean") {
+    throw new MapperError("Invalid school_graded_items.extra_credit", "school_graded_items.extra_credit");
+  }
+  const item: SchoolGradedItem = {
+    id: row.id,
+    courseId: row.course_id,
+    name: row.name.trim(),
+    createdAtIso: row.created_at,
+    updatedAtIso: row.updated_at,
+  };
+  if (row.category_id !== null) {
+    assertUuid(row.category_id, "school_graded_items.category_id");
+    item.categoryId = row.category_id;
+  }
+  if (row.reminder_id !== null) {
+    assertUuid(row.reminder_id, "school_graded_items.reminder_id");
+    item.reminderId = row.reminder_id;
+  }
+  if (row.due_date !== null) {
+    assertIsoDate(row.due_date, "school_graded_items.due_date");
+    item.dueDate = row.due_date;
+  }
+  if (row.due_time !== null) {
+    if (!isHhMm(row.due_time)) {
+      throw new MapperError("Invalid school_graded_items.due_time", "school_graded_items.due_time");
+    }
+    item.dueTime = row.due_time;
+  }
+  const maxScore = parseOptionalNumeric(row.max_score, "school_graded_items.max_score");
+  if (maxScore !== undefined) {
+    if (!isNonNegativeFiniteNumber(maxScore)) {
+      throw new MapperError("Invalid school_graded_items.max_score", "school_graded_items.max_score");
+    }
+    item.maxScore = maxScore;
+  }
+  const score = parseOptionalNumeric(row.score, "school_graded_items.score");
+  if (score !== undefined) {
+    if (!isNonNegativeFiniteNumber(score)) {
+      throw new MapperError("Invalid school_graded_items.score", "school_graded_items.score");
+    }
+    item.score = score;
+  }
+  if (row.extra_credit) item.extraCredit = true;
+  assertValidSchoolGradedItem(item);
+  return item;
+}
+
 export function ingredientNutrientsFromRow(row: IngredientNutrientsRow): IngredientNutrients {
   assertUuid(row.id, "ingredient_nutrients.id");
   assertUuid(row.ingredient_id, "ingredient_nutrients.ingredient_id");
@@ -3899,7 +4475,10 @@ export function payloadFromRows(
   recipeRows: RecipeRow[] = [],
   cookingSessionRows: CookingSessionRow[] = [],
   pantryRows: PantryItemRow[] = [],
-  customIngredientRows: CustomIngredientRow[] = []
+  customIngredientRows: CustomIngredientRow[] = [],
+  schoolCourseRows: SchoolCourseRow[] = [],
+  schoolReminderRows: SchoolReminderRow[] = [],
+  schoolGradedItemRows: SchoolGradedItemRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -3920,6 +4499,9 @@ export function payloadFromRows(
   const cookingSessions = cookingSessionRows.map((row) => cookingSessionFromRow(row));
   const pantry = pantryRows.map((row) => pantryItemFromRow(row));
   const customIngredients = customIngredientRows.map((row) => customIngredientFromRow(row));
+  const schoolCourses = schoolCourseRows.map((row) => schoolCourseFromRow(row));
+  const schoolReminders = schoolReminderRows.map((row) => schoolReminderFromRow(row));
+  const schoolGradedItems = schoolGradedItemRows.map((row) => schoolGradedItemFromRow(row));
 
   let careerTarget: CareerTarget | undefined;
   if (careerTargetRows.length > 0) {
@@ -3961,6 +4543,9 @@ export function payloadFromRows(
     cookingSessions,
     pantry,
     customIngredients,
+    schoolCourses,
+    schoolReminders,
+    schoolGradedItems,
     focusFeedback,
     calendarPreferences,
     gamificationState,
@@ -4200,6 +4785,62 @@ export function validatePayloadForUpload(payload: AppPayload): void {
       throw new MapperError(
         `Pantry item references unknown custom ingredient: ${item.customIngredientId}`,
         "pantry.customIngredientId"
+      );
+    }
+  }
+
+  const schoolCourseIds = new Set<string>();
+  for (const course of payload.schoolCourses ?? []) {
+    assertValidSchoolCourse(course);
+    if (schoolCourseIds.has(course.id)) {
+      throw new MapperError(`Duplicate school course id: ${course.id}`, "schoolCourses.id");
+    }
+    schoolCourseIds.add(course.id);
+  }
+
+  const schoolReminderIds = new Set<string>();
+  for (const reminder of payload.schoolReminders ?? []) {
+    assertValidSchoolReminder(reminder);
+    if (schoolReminderIds.has(reminder.id)) {
+      throw new MapperError(`Duplicate school reminder id: ${reminder.id}`, "schoolReminders.id");
+    }
+    schoolReminderIds.add(reminder.id);
+    if (!schoolCourseIds.has(reminder.courseId)) {
+      throw new MapperError(
+        `School reminder references unknown course: ${reminder.courseId}`,
+        "schoolReminders.courseId"
+      );
+    }
+  }
+
+  const schoolGradedItemIds = new Set<string>();
+  const categoryIdsByCourse = new Map<string, Set<string>>();
+  for (const course of payload.schoolCourses ?? []) {
+    categoryIdsByCourse.set(course.id, new Set(course.gradeCategories.map((c) => c.id)));
+  }
+  for (const item of payload.schoolGradedItems ?? []) {
+    assertValidSchoolGradedItem(item);
+    if (schoolGradedItemIds.has(item.id)) {
+      throw new MapperError(`Duplicate school graded item id: ${item.id}`, "schoolGradedItems.id");
+    }
+    schoolGradedItemIds.add(item.id);
+    if (!schoolCourseIds.has(item.courseId)) {
+      throw new MapperError(
+        `School graded item references unknown course: ${item.courseId}`,
+        "schoolGradedItems.courseId"
+      );
+    }
+    if (item.reminderId !== undefined && !schoolReminderIds.has(item.reminderId)) {
+      throw new MapperError(
+        `School graded item references unknown reminder: ${item.reminderId}`,
+        "schoolGradedItems.reminderId"
+      );
+    }
+    const categoryIds = categoryIdsByCourse.get(item.courseId);
+    if (item.categoryId !== undefined && categoryIds && !categoryIds.has(item.categoryId)) {
+      throw new MapperError(
+        `School graded item references unknown category: ${item.categoryId}`,
+        "schoolGradedItems.categoryId"
       );
     }
   }

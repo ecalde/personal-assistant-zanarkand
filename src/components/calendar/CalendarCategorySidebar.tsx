@@ -15,7 +15,10 @@ import {
   CALENDAR_FITNESS_TYPE_FILTERS,
   CALENDAR_COOKING_TYPE_FILTER_LABELS,
   CALENDAR_COOKING_TYPE_FILTERS,
+  CALENDAR_SCHOOL_TYPE_FILTER_LABELS,
+  CALENDAR_SCHOOL_TYPE_FILTERS,
   type CalendarCookingTypeFilter,
+  type CalendarSchoolTypeFilter,
 } from "../../core/calendarView";
 import type { EventType, FitnessType } from "../../core/model";
 import { styles } from "../../ui/appStyles";
@@ -25,10 +28,12 @@ export type CalendarCategorySidebarProps = {
   hiddenEventSubcategories: ReadonlySet<EventType>;
   hiddenFitnessTypes: ReadonlySet<FitnessType>;
   hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter>;
+  hiddenSchoolTypes: ReadonlySet<CalendarSchoolTypeFilter>;
   onToggleCategory: (category: CalendarCategoryKey) => void;
   onToggleEventSubcategory: (eventType: EventType) => void;
   onToggleFitnessType: (fitnessType: FitnessType) => void;
   onToggleCookingType: (cookingType: CalendarCookingTypeFilter) => void;
+  onToggleSchoolType: (schoolType: CalendarSchoolTypeFilter) => void;
   preferences?: CalendarColorPreferences;
   /** Horizontal bar above the calendar; default vertical stack for the calendar page sidebar. */
   layout?: "horizontal" | "vertical";
@@ -101,10 +106,12 @@ export function CalendarCategorySidebar({
   hiddenEventSubcategories,
   hiddenFitnessTypes,
   hiddenCookingTypes,
+  hiddenSchoolTypes,
   onToggleCategory,
   onToggleEventSubcategory,
   onToggleFitnessType,
   onToggleCookingType,
+  onToggleSchoolType,
   preferences,
   layout = "vertical",
 }: CalendarCategorySidebarProps) {
@@ -193,6 +200,27 @@ export function CalendarCategorySidebar({
     );
   });
 
+  const schoolTypeToggles = CALENDAR_SCHOOL_TYPE_FILTERS.map((schoolType) => {
+    const hidden = hiddenSchoolTypes.has(schoolType);
+    const token = resolveCalendarItemColorToken(
+      { categoryKey: "school", subcategoryKey: schoolType },
+      preferences
+    );
+    const swatch = getCalendarColorSwatch(token);
+    const label = CALENDAR_SCHOOL_TYPE_FILTER_LABELS[schoolType];
+
+    return (
+      <FilterToggle
+        key={schoolType}
+        label={label}
+        hidden={hidden}
+        swatchBackground={swatch.background}
+        onToggle={() => onToggleSchoolType(schoolType)}
+        layout={layout}
+      />
+    );
+  });
+
   if (isHorizontal) {
     return (
       <aside style={styles.calendarCategoryBar} aria-label="Calendar filters">
@@ -200,6 +228,7 @@ export function CalendarCategorySidebar({
         <FilterGroup label="Event types">{eventTypeToggles}</FilterGroup>
         <FilterGroup label="Fitness types">{fitnessTypeToggles}</FilterGroup>
         <FilterGroup label="Cooking types">{cookingTypeToggles}</FilterGroup>
+        <FilterGroup label="School types">{schoolTypeToggles}</FilterGroup>
       </aside>
     );
   }
@@ -214,6 +243,8 @@ export function CalendarCategorySidebar({
       <div style={{ display: "grid", gap: 8 }}>{fitnessTypeToggles}</div>
       <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>Cooking types</div>
       <div style={{ display: "grid", gap: 8 }}>{cookingTypeToggles}</div>
+      <div style={{ fontWeight: 800, fontSize: 13, marginTop: 4 }}>School types</div>
+      <div style={{ display: "grid", gap: 8 }}>{schoolTypeToggles}</div>
     </aside>
   );
 }

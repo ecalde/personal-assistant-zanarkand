@@ -6,7 +6,8 @@
 import type { CalendarItem } from "./calendar";
 import { calendarTimeSortTier } from "./calendar";
 import type { CalendarCategoryKey } from "./calendarColors";
-import type { EventType, FitnessType } from "./model";
+import type { EventType, FitnessType, SchoolReminderKind } from "./model";
+import { SCHOOL_REMINDER_KIND_LABELS, SCHOOL_REMINDER_KINDS } from "./school";
 import { formatHHMMToDisplayTime, parseHHMMToMinutes } from "./schedule";
 import { formatLocalDateKey } from "./timeline";
 
@@ -16,7 +17,6 @@ export const CALENDAR_EVENT_TYPE_FILTERS: readonly EventType[] = [
   "hangout",
   "trip",
   "holiday",
-  "school",
   "vacation",
   "work",
   "other",
@@ -27,7 +27,6 @@ export const CALENDAR_EVENT_TYPE_FILTER_LABELS: Record<EventType, string> = {
   hangout: "Hangout",
   trip: "Trip",
   holiday: "Holiday",
-  school: "School",
   vacation: "Vacation",
   work: "Work",
   other: "Other",
@@ -52,6 +51,14 @@ export const CALENDAR_COOKING_TYPE_FILTER_LABELS: Record<CalendarCookingTypeFilt
   planned: "Planned cooks",
   completed: "Cooked meals",
 };
+
+/** School reminder kinds exposed as calendar filter toggles. */
+export const CALENDAR_SCHOOL_TYPE_FILTERS = SCHOOL_REMINDER_KINDS;
+
+export type CalendarSchoolTypeFilter = SchoolReminderKind;
+
+export const CALENDAR_SCHOOL_TYPE_FILTER_LABELS: Record<CalendarSchoolTypeFilter, string> =
+  SCHOOL_REMINDER_KIND_LABELS;
 
 export type CalendarViewMode = "month" | "week" | "threeDay";
 
@@ -585,22 +592,39 @@ export function filterItemsByHiddenCookingTypes(
   });
 }
 
+export function filterItemsByHiddenSchoolTypes(
+  items: CalendarItem[],
+  hidden: ReadonlySet<CalendarSchoolTypeFilter>
+): CalendarItem[] {
+  if (hidden.size === 0) return items;
+  return items.filter((item) => {
+    if (item.categoryKey !== "school") return true;
+    const subcategory = item.subcategoryKey as CalendarSchoolTypeFilter | undefined;
+    if (subcategory === undefined) return true;
+    return !hidden.has(subcategory);
+  });
+}
+
 export function filterCalendarItems(
   items: CalendarItem[],
   hiddenCategories: ReadonlySet<CalendarCategoryKey>,
   hiddenEventSubcategories: ReadonlySet<EventType>,
   hiddenFitnessTypes: ReadonlySet<FitnessType> = new Set(),
-  hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter> = new Set()
+  hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter> = new Set(),
+  hiddenSchoolTypes: ReadonlySet<CalendarSchoolTypeFilter> = new Set()
 ): CalendarItem[] {
-  return filterItemsByHiddenCookingTypes(
-    filterItemsByHiddenFitnessTypes(
-      filterItemsByHiddenEventSubcategories(
-        filterItemsByHiddenCategories(items, hiddenCategories),
-        hiddenEventSubcategories
+  return filterItemsByHiddenSchoolTypes(
+    filterItemsByHiddenCookingTypes(
+      filterItemsByHiddenFitnessTypes(
+        filterItemsByHiddenEventSubcategories(
+          filterItemsByHiddenCategories(items, hiddenCategories),
+          hiddenEventSubcategories
+        ),
+        hiddenFitnessTypes
       ),
-      hiddenFitnessTypes
+      hiddenCookingTypes
     ),
-    hiddenCookingTypes
+    hiddenSchoolTypes
   );
 }
 
@@ -719,9 +743,24 @@ export function formatSourceTypeLabel(item: CalendarItem): string {
       return "Career";
     case "cooking":
       return formatCookingSourceTypeLabel(item);
+    case "school":
+      return formatSchoolSourceTypeLabel(item);
     default:
       return item.sourceType;
   }
+}
+
+function formatSchoolSourceTypeLabel(item: CalendarItem): string {
+  if (item.sourceMeta.kind !== "schoolReminder") return "School";
+  const kindLabel = SCHOOL_REMINDER_KIND_LABELS[item.sourceMeta.reminderKind];
+  return item.sourceMeta.occurrence === "open" ? `${kindLabel} · Opens` : kindLabel;
+}
+
+/** Compact secondary label for week/3-day blocks (school link label, never a raw URL). */
+export function compactCalendarItemSecondaryLabel(item: CalendarItem): string | undefined {
+  if (item.sourceMeta.kind !== "schoolReminder") return undefined;
+  const label = item.sourceMeta.links[0]?.label?.trim();
+  return label && label.length > 0 ? label : undefined;
 }
 
 function formatFitnessSourceTypeLabel(item: CalendarItem): string {

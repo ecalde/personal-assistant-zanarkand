@@ -88,6 +88,27 @@ import {
   type LegacyFitnessFocus,
   type WorkoutLoggerDraft,
 } from "./core/fitness";
+import {
+  createSchoolCourse,
+  createSchoolGradedItem,
+  createSchoolReminder,
+  normalizeCareerFocus,
+  removeSchoolCourse,
+  removeSchoolGradedItem,
+  removeSchoolReminder,
+  sanitizeSchoolReferences,
+  upsertSchoolCourse,
+  upsertSchoolGradedItem,
+  upsertSchoolReminder,
+  type CareerFocus,
+  type CreateSchoolCourseInput,
+  type CreateSchoolGradedItemInput,
+  type CreateSchoolReminderInput,
+} from "./core/school";
+import {
+  applySchoolIngestSuggestions,
+  type SchoolIngestSuggestion,
+} from "./core/schoolParse";
 import { findActiveCookingSession } from "./core/cookingSession";
 import {
   clearFocusPhase,
@@ -254,6 +275,7 @@ export default function App({ userId, onSignOut }: AppProps) {
     onOpenCooking: openCookingPage,
   });
   const [fitnessFocus, setFitnessFocus] = useState<FitnessFocus | undefined>();
+  const [careerFocus, setCareerFocus] = useState<CareerFocus | undefined>();
   const [focusPhase, setFocusPhase] = useState<FocusPhaseState | undefined>(() => readFocusPhase());
   const restoredFocusRef = useRef(false);
   const [eventDraft, setEventDraft] = useState<EventFormDraft | null>(null);
@@ -1166,6 +1188,142 @@ export default function App({ userId, onSignOut }: AppProps) {
     commit({ ...app, payload: nextPayload });
   }
 
+  function commitSchoolPayload(nextPayload: AppPayload) {
+    if (!app) return;
+    commit({
+      ...app,
+      payload: sanitizeSchoolReferences(nextPayload),
+    });
+  }
+
+  function addSchoolCourse(input: CreateSchoolCourseInput) {
+    if (!app) return;
+    const name = input.name.trim();
+    if (!name) return;
+    const now = nowIso();
+    const course = createSchoolCourse({ ...input, name }, { id: id(), nowIso: now });
+    commitSchoolPayload({
+      ...app.payload,
+      schoolCourses: upsertSchoolCourse(app.payload.schoolCourses ?? [], course),
+    });
+  }
+
+  function updateSchoolCourse(courseId: string, input: CreateSchoolCourseInput) {
+    if (!app) return;
+    const existing = (app.payload.schoolCourses ?? []).find((course) => course.id === courseId);
+    if (!existing) return;
+    const name = input.name.trim();
+    if (!name) return;
+    const next = createSchoolCourse({ ...input, name }, { id: existing.id, nowIso: nowIso() });
+    next.createdAtIso = existing.createdAtIso;
+    commitSchoolPayload({
+      ...app.payload,
+      schoolCourses: upsertSchoolCourse(app.payload.schoolCourses ?? [], next),
+    });
+  }
+
+  function deleteSchoolCourse(courseId: string) {
+    if (!app) return;
+    const removed = removeSchoolCourse(
+      app.payload.schoolCourses ?? [],
+      app.payload.schoolReminders ?? [],
+      app.payload.schoolGradedItems ?? [],
+      courseId
+    );
+    commitSchoolPayload({ ...app.payload, ...removed });
+  }
+
+  function addSchoolReminder(input: CreateSchoolReminderInput) {
+    if (!app) return;
+    if (!input.title.trim() || !input.date) return;
+    const reminder = createSchoolReminder(input, { id: id(), nowIso: nowIso() });
+    commitSchoolPayload({
+      ...app.payload,
+      schoolReminders: upsertSchoolReminder(app.payload.schoolReminders ?? [], reminder),
+    });
+  }
+
+  function updateSchoolReminder(reminderId: string, input: CreateSchoolReminderInput) {
+    if (!app) return;
+    const existing = (app.payload.schoolReminders ?? []).find((item) => item.id === reminderId);
+    if (!existing) return;
+    const next = createSchoolReminder(input, { id: existing.id, nowIso: nowIso() });
+    next.createdAtIso = existing.createdAtIso;
+    commitSchoolPayload({
+      ...app.payload,
+      schoolReminders: upsertSchoolReminder(app.payload.schoolReminders ?? [], next),
+    });
+  }
+
+  function deleteSchoolReminder(reminderId: string) {
+    if (!app) return;
+    const removed = removeSchoolReminder(
+      app.payload.schoolReminders ?? [],
+      app.payload.schoolGradedItems ?? [],
+      reminderId
+    );
+    commitSchoolPayload({ ...app.payload, ...removed });
+  }
+
+  function addSchoolGradedItem(input: CreateSchoolGradedItemInput) {
+    if (!app) return;
+    if (!input.name.trim()) return;
+    const item = createSchoolGradedItem(input, { id: id(), nowIso: nowIso() });
+    commitSchoolPayload({
+      ...app.payload,
+      schoolGradedItems: upsertSchoolGradedItem(app.payload.schoolGradedItems ?? [], item),
+    });
+  }
+
+  function updateSchoolGradedItem(itemId: string, input: CreateSchoolGradedItemInput) {
+    if (!app) return;
+    const existing = (app.payload.schoolGradedItems ?? []).find((item) => item.id === itemId);
+    if (!existing) return;
+    const next = createSchoolGradedItem(input, { id: existing.id, nowIso: nowIso() });
+    next.createdAtIso = existing.createdAtIso;
+    commitSchoolPayload({
+      ...app.payload,
+      schoolGradedItems: upsertSchoolGradedItem(app.payload.schoolGradedItems ?? [], next),
+    });
+  }
+
+  function deleteSchoolGradedItem(itemId: string) {
+    if (!app) return;
+    commitSchoolPayload({
+      ...app.payload,
+      schoolGradedItems: removeSchoolGradedItem(app.payload.schoolGradedItems ?? [], itemId),
+    });
+  }
+
+  function applySchoolIngest(courseId: string, suggestions: SchoolIngestSuggestion[]) {
+    if (!app) return;
+    const course = (app.payload.schoolCourses ?? []).find((item) => item.id === courseId);
+    if (!course) return;
+    const approved = suggestions.filter((suggestion) => suggestion.selected);
+    if (approved.length === 0) return;
+    const applied = applySchoolIngestSuggestions(
+      {
+        course,
+        reminders: (app.payload.schoolReminders ?? []).filter((item) => item.courseId === courseId),
+        gradedItems: (app.payload.schoolGradedItems ?? []).filter((item) => item.courseId === courseId),
+        suggestions: approved.map((suggestion) => ({ ...suggestion, selected: true })),
+      },
+      { id, nowIso: nowIso() }
+    );
+    commitSchoolPayload({
+      ...app.payload,
+      schoolCourses: upsertSchoolCourse(app.payload.schoolCourses ?? [], applied.course),
+      schoolReminders: [
+        ...(app.payload.schoolReminders ?? []).filter((item) => item.courseId !== courseId),
+        ...applied.reminders,
+      ],
+      schoolGradedItems: [
+        ...(app.payload.schoolGradedItems ?? []).filter((item) => item.courseId !== courseId),
+        ...applied.gradedItems,
+      ],
+    });
+  }
+
   function setCalendarPreferences(prefs: CalendarColorPreferences | undefined) {
     if (!app) return;
 
@@ -1379,7 +1537,13 @@ export default function App({ userId, onSignOut }: AppProps) {
 
   function goToPage(next: Page) {
     setFitnessFocus(undefined);
+    setCareerFocus(undefined);
     setPage(next);
+  }
+
+  function openCareer(focus?: CareerFocus) {
+    setCareerFocus(normalizeCareerFocus(focus));
+    setPage("career");
   }
 
   function enterWorkoutFocus(session: WorkoutSession, planId?: string) {
@@ -1903,6 +2067,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
+          schoolCourses={app.payload.schoolCourses ?? []}
+          schoolReminders={app.payload.schoolReminders ?? []}
           pantry={app.payload.pantry ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
           calendarPreferences={app.payload.calendarPreferences}
@@ -1919,7 +2085,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenSkills={() => setPage("skills")}
           onOpenEvents={() => setPage("events")}
           onOpenPeople={() => setPage("people")}
-          onOpenCareer={() => setPage("career")}
+          onOpenCareer={openCareer}
           onOpenFitness={openFitness}
           onOpenCooking={openCookingPage}
           onOpenReview={() => setPage("review")}
@@ -1942,9 +2108,11 @@ export default function App({ userId, onSignOut }: AppProps) {
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
+          schoolCourses={app.payload.schoolCourses ?? []}
+          schoolReminders={app.payload.schoolReminders ?? []}
           calendarPreferences={app.payload.calendarPreferences}
           onSaveCalendarPreferences={setCalendarPreferences}
-          onOpenCareer={() => setPage("career")}
+          onOpenCareer={openCareer}
           onOpenFitness={openFitness}
           onOpenCooking={openCookingPage}
           onAddCookingSession={addCookingSession}
@@ -1975,6 +2143,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           supplementIntakeLogs={app.payload.supplementIntakeLogs ?? []}
           recipes={app.payload.recipes ?? []}
           cookingSessions={app.payload.cookingSessions ?? []}
+          schoolCourses={app.payload.schoolCourses ?? []}
+          schoolReminders={app.payload.schoolReminders ?? []}
           focusFeedback={app.payload.focusFeedback ?? []}
         />
       )}
@@ -2027,14 +2197,33 @@ export default function App({ userId, onSignOut }: AppProps) {
 
       {page === "career" && (
         <CareerPage
+          key={
+            careerFocus?.kind === "school"
+              ? `school:${careerFocus.courseId ?? "all"}`
+              : "career"
+          }
           jobApplications={app.payload.jobApplications ?? []}
           careerTarget={app.payload.careerTarget}
           skills={app.payload.skills}
+          schoolCourses={app.payload.schoolCourses ?? []}
+          schoolReminders={app.payload.schoolReminders ?? []}
+          schoolGradedItems={app.payload.schoolGradedItems ?? []}
+          careerFocus={careerFocus}
           onAddApplication={addJobApplication}
           onUpdateApplication={updateJobApplication}
           onDeleteApplication={deleteJobApplication}
           onSetCareerTarget={setCareerTarget}
           onClearCareerTarget={clearCareerTarget}
+          onAddCourse={addSchoolCourse}
+          onUpdateCourse={updateSchoolCourse}
+          onDeleteCourse={deleteSchoolCourse}
+          onAddReminder={addSchoolReminder}
+          onUpdateReminder={updateSchoolReminder}
+          onDeleteReminder={deleteSchoolReminder}
+          onAddGradedItem={addSchoolGradedItem}
+          onUpdateGradedItem={updateSchoolGradedItem}
+          onDeleteGradedItem={deleteSchoolGradedItem}
+          onApplySchoolIngest={applySchoolIngest}
         />
       )}
 

@@ -1,4 +1,5 @@
 import type { CalendarColorPreferences } from "../../core/calendarColors";
+import type { CareerFocus } from "../../core/school";
 import type { FitnessFocus } from "../../core/fitness";
 import { CalendarItemDetailModal } from "../calendar/CalendarItemDetailModal";
 import { CalendarToolbar } from "../calendar/CalendarToolbar";
@@ -14,7 +15,7 @@ export type DashboardCalendarWidgetProps = {
   todayKey: string;
   calendarPreferences?: CalendarColorPreferences;
   onOpenCalendar?: () => void;
-  onOpenCareer?: () => void;
+  onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
 };

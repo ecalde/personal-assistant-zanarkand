@@ -44,6 +44,9 @@ describe("normalizePayload calendar preferences", () => {
     expect(result.recipes).toEqual([]);
     expect(result.cookingSessions).toEqual([]);
     expect(result.customIngredients).toEqual([]);
+    expect(result.schoolCourses).toEqual([]);
+    expect(result.schoolReminders).toEqual([]);
+    expect(result.schoolGradedItems).toEqual([]);
   });
 });
 

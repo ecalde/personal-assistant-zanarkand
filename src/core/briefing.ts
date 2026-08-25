@@ -426,6 +426,12 @@ export function buildFocusSummaryParagraph(
     parts.push(`${followUpCount} contact${followUpCount === 1 ? "" : "s"} need follow-up`);
   }
 
+  if (context.schoolDueSoonCount > 0) {
+    parts.push(
+      `${context.schoolDueSoonCount} school due${context.schoolDueSoonCount === 1 ? "" : "s"} in the next 3 days`
+    );
+  }
+
   if (parts.length === 0) {
     return selectDeterministicTemplate(
       ON_TRACK_FOCUS_TEMPLATES,
@@ -528,6 +534,9 @@ export function focusItemToRecommendation(
     case "event_urgent_upcoming":
     case "event_deadline":
       return item.title.endsWith(".") ? item.title : `Prepare for ${item.title.toLowerCase()}.`;
+    case "school_due_today":
+    case "school_due_soon":
+      return item.title.endsWith(".") ? item.title : `${item.title}.`;
     default:
       return formatFallbackRecommendation(item.title, `${fallbackSeed}|fallback`);
   }

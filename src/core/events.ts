@@ -135,9 +135,9 @@ export function sortPastEvents(events: LifeEvent[]): LifeEvent[] {
 export function migrateLegacyEventTypes(payload: AppPayload): AppPayload {
   let changed = false;
   const events = payload.events.map((event) => {
-    if ((event.type as string) === "deadline") {
+    if ((event.type as string) === "deadline" || (event.type as string) === "school") {
       changed = true;
-      return { ...event, type: "school" as EventType };
+      return { ...event, type: "other" as EventType };
     }
     if ((event.type as string) === "career") {
       changed = true;

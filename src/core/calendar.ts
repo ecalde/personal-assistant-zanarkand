@@ -1,8 +1,9 @@
 // Pure, read-only calendar derivation layer.
 //
 // Converts skills, life events, people birthdays, optional fitness history,
-// career interviews, and cooking sessions into common CalendarItem rows for an
-// inclusive YYYY-MM-DD date range. This is a broader, multi-day DTO than
+// career interviews, cooking sessions, and school reminders into common
+// CalendarItem rows for an inclusive YYYY-MM-DD date range. This is a broader,
+// multi-day DTO than
 // timeline.ts (which stays the today-focused merge with conflict/workload
 // detection). No UI, schema, dependencies, or side effects; total functions
 // that never mutate their inputs.
@@ -23,6 +24,10 @@ import type {
   Person,
   Priority,
   Recipe,
+  SchoolCourse,
+  SchoolLink,
+  SchoolReminder,
+  SchoolReminderKind,
   Skill,
   SupplementIntakeLog,
   SupplementPhaseKind,
@@ -63,6 +68,12 @@ import {
   isProtocolDueOnDate,
   resolvePhaseForDate,
 } from "./supplements";
+import {
+  convertSchoolWallTime,
+  findSchoolCourse,
+  resolveLocalTimeZone,
+  resolveSchoolTimeZone,
+} from "./school";
 import { getWorkoutPlanSeriesDateRange } from "./workoutSeries";
 import { iterateDateRange, weekdayFromDateString } from "./timeline";
 import { expandRecurrenceInstances, type RecurrenceInstance } from "./recurrence";
@@ -77,7 +88,8 @@ export type CalendarSourceType =
   | "people"
   | "fitness"
   | "career"
-  | "cooking";
+  | "cooking"
+  | "school";
 
 /** Planned vs live vs finished treatment for a fitness calendar block. */
 export type CalendarCompletionVisual = "planned" | "in_progress" | "completed";
@@ -156,6 +168,18 @@ export type CalendarItemSourceMeta =
       recipeId: string | null;
       status: "planned" | "completed";
       durationMinutes?: number;
+    }
+  | {
+      kind: "schoolReminder";
+      reminderId: string;
+      courseId: string;
+      courseName: string;
+      reminderKind: SchoolReminderKind;
+      occurrence: "due" | "open";
+      sourceTimeZone: string;
+      sourceDate: string;
+      sourceTime?: string;
+      links: SchoolLink[];
     };
 
 export type CalendarItem = {
@@ -194,6 +218,8 @@ export type BuildCalendarItemsForRangeInput = {
   supplementIntakeLogs?: SupplementIntakeLog[];
   cookingSessions?: CookingSession[];
   recipes?: Recipe[];
+  schoolCourses?: SchoolCourse[];
+  schoolReminders?: SchoolReminder[];
 };
 
 export type BuildCalendarItemsForRangeOptions = {
@@ -206,6 +232,9 @@ export type BuildCalendarItemsForRangeOptions = {
   includeSupplementSchedule?: boolean; // default true
   includeCookingPlanned?: boolean; // default true
   includeCookingHistory?: boolean; // default true
+  includeSchoolReminders?: boolean; // default true
+  /** IANA zone used to place timed school items. Defaults to the browser zone. */
+  localTimeZone?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -235,6 +264,8 @@ export function buildStableCalendarItemId(
       return `fitness:supplement:${meta.protocolId}:${date}`;
     case "cooking":
       return `cooking:session:${meta.sessionId}`;
+    case "schoolReminder":
+      return `school:reminder:${meta.reminderId}:${meta.occurrence}`;
   }
 }
 
@@ -257,6 +288,7 @@ const SOURCE_SORT_ORDER: Record<CalendarSourceType, number> = {
   fitness: 3,
   career: 4,
   cooking: 5,
+  school: 6,
 };
 
 export function compareCalendarItems(a: CalendarItem, b: CalendarItem): number {
@@ -959,6 +991,118 @@ function collectCookingItems(
   return items;
 }
 
+function localizeSchoolOccurrence(
+  sourceDate: string,
+  sourceTime: string | undefined,
+  sourceTimeZone: string,
+  localTimeZone: string
+): { date: string; time?: string; isTimed: boolean } | null {
+  if (!sourceTime) {
+    return { date: sourceDate, isTimed: false };
+  }
+  const converted = convertSchoolWallTime(
+    { date: sourceDate, time: sourceTime },
+    sourceTimeZone,
+    localTimeZone
+  );
+  if (!converted?.time) return null;
+  return { date: converted.date, time: converted.time, isTimed: true };
+}
+
+function buildSchoolReminderCalendarItem(
+  course: SchoolCourse,
+  reminder: SchoolReminder,
+  occurrence: "due" | "open",
+  localTimeZone: string
+): CalendarItem | null {
+  const sourceDate = occurrence === "open" ? reminder.openDate : reminder.date;
+  if (!sourceDate) return null;
+  const sourceStart = occurrence === "open" ? reminder.openTime : reminder.startTime;
+  const sourceEnd = occurrence === "open" ? undefined : reminder.endTime;
+  const sourceTimeZone = resolveSchoolTimeZone(course.timezone);
+  const localStart = localizeSchoolOccurrence(
+    sourceDate,
+    sourceStart,
+    sourceTimeZone,
+    localTimeZone
+  );
+  if (!localStart) return null;
+
+  let localEnd: string | undefined;
+  if (localStart.isTimed && sourceEnd) {
+    const convertedEnd = localizeSchoolOccurrence(
+      sourceDate,
+      sourceEnd,
+      sourceTimeZone,
+      localTimeZone
+    );
+    if (convertedEnd?.time && convertedEnd.date === localStart.date) {
+      localEnd = convertedEnd.time;
+    }
+  }
+
+  const meta: CalendarItemSourceMeta = {
+    kind: "schoolReminder",
+    reminderId: reminder.id,
+    courseId: course.id,
+    courseName: course.name,
+    reminderKind: reminder.kind,
+    occurrence,
+    sourceTimeZone,
+    sourceDate,
+    ...(sourceStart ? { sourceTime: sourceStart } : {}),
+    links: reminder.links.map((link) => ({ url: link.url, label: link.label })),
+  };
+
+  const item: CalendarItem = {
+    id: buildStableCalendarItemId(meta, localStart.date),
+    sourceType: "school",
+    sourceId: reminder.id,
+    title: reminder.title,
+    date: localStart.date,
+    allDay: !localStart.isTimed,
+    categoryKey: "school",
+    subcategoryKey: reminder.kind,
+    isTimed: localStart.isTimed,
+    isMultiDay: false,
+    sourceMeta: meta,
+  };
+  if (localStart.time) item.startTime = localStart.time;
+  if (localEnd) item.endTime = localEnd;
+
+  const descriptionParts: string[] = [];
+  if (course.code) descriptionParts.push(`${course.code} · ${course.name}`);
+  else descriptionParts.push(course.name);
+  if (reminder.notes) descriptionParts.push(reminder.notes);
+  if (descriptionParts.length > 0) item.description = descriptionParts.join(" · ");
+
+  return item;
+}
+
+function collectSchoolReminderItems(
+  courses: SchoolCourse[],
+  reminders: SchoolReminder[],
+  startDate: string,
+  endDate: string,
+  localTimeZone: string
+): CalendarItem[] {
+  const items: CalendarItem[] = [];
+  for (const reminder of reminders) {
+    const course = findSchoolCourse(courses, reminder.courseId);
+    if (!course) continue;
+    const dueItem = buildSchoolReminderCalendarItem(course, reminder, "due", localTimeZone);
+    if (dueItem && dueItem.date >= startDate && dueItem.date <= endDate) {
+      items.push(dueItem);
+    }
+    if (!reminder.openDate) continue;
+    const openItem = buildSchoolReminderCalendarItem(course, reminder, "open", localTimeZone);
+    if (openItem && openItem.date >= startDate && openItem.date <= endDate) {
+      items.push(openItem);
+    }
+  }
+  return items;
+}
+
 // ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
@@ -976,6 +1120,8 @@ export function buildCalendarItemsForRange(
   const includeSupplementSchedule = options.includeSupplementSchedule ?? true;
   const includeCookingPlanned = options.includeCookingPlanned ?? true;
   const includeCookingHistory = options.includeCookingHistory ?? true;
+  const includeSchoolReminders = options.includeSchoolReminders ?? true;
+  const localTimeZone = options.localTimeZone ?? resolveLocalTimeZone();
 
   const dates = iterateDateRange(input.startDate, input.endDate);
   if (dates.length === 0) return [];
@@ -1055,6 +1201,17 @@ export function buildCalendarItemsForRange(
         input.endDate,
         includeCookingPlanned,
         includeCookingHistory
+      )
+    );
+  }
+  if (includeSchoolReminders) {
+    items.push(
+      ...collectSchoolReminderItems(
+        input.schoolCourses ?? [],
+        input.schoolReminders ?? [],
+        input.startDate,
+        input.endDate,
+        localTimeZone
       )
     );
   }

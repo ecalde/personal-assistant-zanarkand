@@ -28,7 +28,7 @@ Core domains and experiences:
 | **Skills** | Weekly schedule blocks, goals, logged minutes, XP/streaks, optional schedule-series bounds |
 | **Events** | Life events (timed, all-day, recurring) with optional people links |
 | **People** | Contacts, birthdays, follow-up cadence, preferences |
-| **Career** | Job applications pipeline, dream-job target, skill-gap awareness |
+| **Career** | Job applications pipeline, dream-job target, skill-gap awareness; School domain model lives under this nav tab (Phase 54+) |
 | **Fitness** | Workout plans (templates), live/in-progress and completed sessions, dashboard quick-complete, weight-progression chart, muscle anatomy coverage |
 | **Daily Focus** | Ranked cross-domain recommendations (not persisted; actionable CTAs) |
 | **Daily Briefing** | Deterministic narrative summary of the day (not persisted) |
@@ -93,6 +93,12 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 51 | **Supplement XP + polish** | Full-day `body` XP (`supplement_adherence_day`, not per dose) under `MAX_BONUS_XP_PER_DAY`; protocol-card due-day streak; calendar modal progress + **Open in Fitness**; `supplement_days_7` achievement. |
 | 52 | **Fitness/cooking focus phase + gallery** | Responsive plan/session card grids; session history grouped by week/month/year; per-exercise taps from a plan do not emit a calendar block until finish (first tap + 60 min default, optional completion time); `pa.focusPhase.v1` resumes an in-progress workout or cook after tab close and keeps logger typing only while focus is on. |
 | 53 | **Muscle anatomy coverage** | Fitness **Progress** front/back muscle map. Exercise names map to primary muscles (`muscleMap.ts`); weekly scheduled vs completed colors reset Monday; past weeks are derived snapshots from sessions; monthly heatmap is completed/scheduled percent per muscle. No new table or chart library. |
+| 54 | **School model + persistence** | `SchoolCourse` / `SchoolReminder` / `SchoolGradedItem` on `AppPayload`; [`school.ts`](../../src/core/school.ts) fingerprints, timezone conversion, link labels; tables `school_courses` / `school_reminders` / `school_graded_items` + RLS; mappers + remote sync. Dropped `EventType` `"school"` (legacy `deadline`/`school` → `other`). No Career UI yet. |
+| 55 | **Career \| School UI** | [`CareerSectionSwitcher`](../../src/components/career/CareerSectionSwitcher.tsx) on Career; school course/reminder/grade CRUD; policy glance; `CareerFocus` deep-link. |
+| 56 | **School calendar** | `school` calendar category, reminder collector (due + open, timezone conversion), kind colors/filters, detail-modal timezone + short links, **Open in Career**. |
+| 57 | **Deterministic school ingest** | [`schoolParse.ts`](../../src/core/schoolParse.ts) auto-detects Canvas weight tables, assignment lists, and messy prose; per-course paste review with approve/skip and duplicate warnings. No AI, PDF, or Canvas API. |
+| 58 | **What-if grades** | [`schoolGrades.ts`](../../src/core/schoolGrades.ts) weighted current / min / max + GT letters, need-for-A average on remaining work, and per-item safe floors. Course grades panel groups scores by category. Extra credit can exceed 100%; ungraded and 0% extra-credit rows do not consume required weight. |
+| 59 | **School Daily Focus** | `SchoolReminder` dues within 3 days as Daily Focus items (`open_career` + `CareerFocus` school). Briefing/review one-liners only. No XP. |
 
 **Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 
@@ -134,13 +140,13 @@ flowchart TB
 
 ### Raw `AppPayload` data
 
-- Canonical user state in [`src/core/model.ts`](../../src/core/model.ts): skills, sessions, overrides, events, people, job applications, career target, workout plans/sessions, supplement protocols/intake logs, focus feedback, optional `calendarPreferences`, etc.
+- Canonical user state in [`src/core/model.ts`](../../src/core/model.ts): skills, sessions, overrides, events, people, job applications, career target, workout plans/sessions, supplement protocols/intake logs, school courses/reminders/graded items, focus feedback, optional `calendarPreferences`, etc.
 - Loaded/saved via [`storage.ts`](../../src/core/storage.ts); normalized on import for backward compatibility.
 - **Not** where XP, daily focus, briefing, or weekly review are stored—they are recomputed.
 
 ### Domain helpers
 
-- Per-entity pure modules: [`schedule.ts`](../../src/core/schedule.ts), [`events.ts`](../../src/core/events.ts), [`people.ts`](../../src/core/people.ts), [`career.ts`](../../src/core/career.ts), [`fitness.ts`](../../src/core/fitness.ts), [`supplements.ts`](../../src/core/supplements.ts), [`sessions.ts`](../../src/core/sessions.ts).
+- Per-entity pure modules: [`schedule.ts`](../../src/core/schedule.ts), [`events.ts`](../../src/core/events.ts), [`people.ts`](../../src/core/people.ts), [`career.ts`](../../src/core/career.ts), [`school.ts`](../../src/core/school.ts), [`schoolParse.ts`](../../src/core/schoolParse.ts), [`fitness.ts`](../../src/core/fitness.ts), [`supplements.ts`](../../src/core/supplements.ts), [`sessions.ts`](../../src/core/sessions.ts).
 - Validation at boundaries; display/search/sort helpers; no React.
 
 ### Derived intelligence layers
@@ -333,16 +339,16 @@ Aligned with [PROJECT_RULES.md](../../PROJECT_RULES.md) and [SECURITY_RULES.md](
 
 ## 7. Current next action
 
-**Recommended next phase: [Phase 37E — Appearance Cloud Sync](#phase-37e--appearance-cloud-sync--planned)** — Phase 37D (Global Visual Effects) shipped, so the `AppearancePreferences` shape is now finalized (profile + intensity + mode + effects + `effectPerformance` + `reducedMotion`). Next, persist it to a Supabase `appearance_preferences` singleton (mirroring `calendar_preferences` / `gamification_state`) with a strict `dbMappers` parser and localStorage fallback. Full detail and ordering rationale: [aether-theme-modes-and-effects.md](./aether-theme-modes-and-effects.md).
+**Recommended next phase:** School Daily Focus (Phase 59) shipped. Remaining called-out work: appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 
 **Fitness supplement track (47–51) is complete.** See [fitness_supplement_tracker plan](../../.cursor/plans/fitness_supplement_tracker_101e5c31.plan.md). Nutrition/calories remains reserved (`FitnessType: "nutrition"`), not built.
 
 **Ordering note:** cloud sync moved from 37C to **37E** so the synced `AppearancePreferences` shape (now including `themeMode`, `effects`, and `effectPerformance`) is finalized before it is committed to a Supabase table + strict parser — avoiding a second migration.
 
-**Parallel / later:** Phase 38 (Notifications) after Settings Notifications category has a home. Optional 37B follow-ups: tokenize remaining semantic status colors and tint native header action buttons if desired.
+**Parallel / later:** Phase 38 (Notifications) after Settings Notifications category has a home. Optional 37B follow-ups: tokenize remaining semantic status colors and tint native header action buttons if desired. Appearance cloud sync (Phase 37E) remains planned.
 
 **Deferred calendar (36.1):** Before recurring-occurrence drag, design the scope picker reusing `EventSeriesEditScope` and Phase 34A helpers; require explicit scope confirmation before commit.
 
 ---
 
-*Last updated: 2026-08-18 — Phase 51 (supplement XP + polish) shipped; fitness supplement track 47–51 complete. Aether next: 37E (Appearance Cloud Sync).*
+*Last updated: 2026-08-24 — Phase 59 (School Daily Focus) shipped.*

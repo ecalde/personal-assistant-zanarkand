@@ -20,6 +20,7 @@ import {
   THREE_DAY_VISIBLE_COUNT,
   type CalendarCookingTypeFilter,
   type CalendarFitnessTypeFilter,
+  type CalendarSchoolTypeFilter,
   type CalendarViewMode,
 } from "../../core/calendarView";
 import {
@@ -38,6 +39,8 @@ import type {
   LifeEvent,
   Person,
   Recipe,
+  SchoolCourse,
+  SchoolReminder,
   Skill,
   SupplementIntakeLog,
   SupplementProtocol,
@@ -57,6 +60,8 @@ export type UseCalendarControllerInput = {
   supplementIntakeLogs?: SupplementIntakeLog[];
   cookingSessions?: CookingSession[];
   recipes?: Recipe[];
+  schoolCourses?: SchoolCourse[];
+  schoolReminders?: SchoolReminder[];
   /** Local `YYYY-MM-DD` for "today" — drives the default anchor and Today button. */
   todayKey: string;
   initialViewMode?: CalendarViewMode;
@@ -75,6 +80,7 @@ export type CalendarController = {
   hiddenEventSubcategories: ReadonlySet<EventType>;
   hiddenFitnessTypes: ReadonlySet<FitnessType>;
   hiddenCookingTypes: ReadonlySet<CalendarCookingTypeFilter>;
+  hiddenSchoolTypes: ReadonlySet<CalendarSchoolTypeFilter>;
   selectedItem: CalendarItem | null;
   itemsByDate: Map<string, CalendarItem[]>;
   title: string;
@@ -89,6 +95,7 @@ export type CalendarController = {
   toggleEventSubcategory: (eventType: EventType) => void;
   toggleFitnessType: (fitnessType: FitnessType) => void;
   toggleCookingType: (cookingType: CalendarCookingTypeFilter) => void;
+  toggleSchoolType: (schoolType: CalendarSchoolTypeFilter) => void;
 };
 
 function getViewModePersistenceContext(
@@ -114,6 +121,7 @@ type CalendarFilterSets = {
   hiddenEventSubcategories: Set<EventType>;
   hiddenFitnessTypes: Set<FitnessType>;
   hiddenCookingTypes: Set<CalendarCookingTypeFilter>;
+  hiddenSchoolTypes: Set<CalendarSchoolTypeFilter>;
 };
 
 function readInitialFilterSets(): CalendarFilterSets {
@@ -123,6 +131,7 @@ function readInitialFilterSets(): CalendarFilterSets {
     hiddenEventSubcategories: new Set(prefs.hiddenEventSubcategories),
     hiddenFitnessTypes: new Set(prefs.hiddenFitnessTypes),
     hiddenCookingTypes: new Set(prefs.hiddenCookingTypes),
+    hiddenSchoolTypes: new Set(prefs.hiddenSchoolTypes),
   };
 }
 
@@ -134,6 +143,7 @@ function persistFilterSets(filters: CalendarFilterSets): void {
       (type): type is CalendarFitnessTypeFilter => type === "workout" || type === "supplement"
     ),
     hiddenCookingTypes: [...filters.hiddenCookingTypes],
+    hiddenSchoolTypes: [...filters.hiddenSchoolTypes],
   });
 }
 
@@ -154,6 +164,8 @@ export function useCalendarController({
   supplementIntakeLogs = [],
   cookingSessions = [],
   recipes = [],
+  schoolCourses = [],
+  schoolReminders = [],
   todayKey,
   initialViewMode = "week",
   viewModeSurface,
@@ -175,7 +187,7 @@ export function useCalendarController({
   const [anchorKey, setAnchorKey] = useState<string>(todayKey);
   const [filters, setFilters] = useState<CalendarFilterSets>(readInitialFilterSets);
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null);
-  const { hiddenCategories, hiddenEventSubcategories, hiddenFitnessTypes, hiddenCookingTypes } =
+  const { hiddenCategories, hiddenEventSubcategories, hiddenFitnessTypes, hiddenCookingTypes, hiddenSchoolTypes } =
     filters;
 
   useEffect(() => {
@@ -210,6 +222,8 @@ export function useCalendarController({
         supplementIntakeLogs,
         cookingSessions,
         recipes,
+        schoolCourses,
+        schoolReminders,
       },
       {
         includeFitnessHistory: true,
@@ -224,7 +238,8 @@ export function useCalendarController({
       hiddenCategories,
       hiddenEventSubcategories,
       hiddenFitnessTypes,
-      hiddenCookingTypes
+      hiddenCookingTypes,
+      hiddenSchoolTypes
     );
     return groupCalendarItemsByDate(visible);
   }, [
@@ -239,10 +254,13 @@ export function useCalendarController({
     supplementIntakeLogs,
     cookingSessions,
     recipes,
+    schoolCourses,
+    schoolReminders,
     hiddenCategories,
     hiddenEventSubcategories,
     hiddenFitnessTypes,
     hiddenCookingTypes,
+    hiddenSchoolTypes,
   ]);
 
   const title = useMemo(() => {
@@ -337,6 +355,17 @@ export function useCalendarController({
     });
   }
 
+  function toggleSchoolType(schoolType: CalendarSchoolTypeFilter) {
+    setFilters((current) => {
+      const next = {
+        ...current,
+        hiddenSchoolTypes: toggleSetMember(current.hiddenSchoolTypes, schoolType),
+      };
+      persistFilterSets(next);
+      return next;
+    });
+  }
+
   return {
     viewMode,
     anchorKey,
@@ -344,6 +373,7 @@ export function useCalendarController({
     hiddenEventSubcategories,
     hiddenFitnessTypes,
     hiddenCookingTypes,
+    hiddenSchoolTypes,
     selectedItem,
     itemsByDate,
     title,
@@ -358,5 +388,6 @@ export function useCalendarController({
     toggleEventSubcategory,
     toggleFitnessType,
     toggleCookingType,
+    toggleSchoolType,
   };
 }

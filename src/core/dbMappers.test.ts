@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
-import type { CalendarColorPreferences, CareerTarget, CookingSession, CustomIngredient, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, PantryItem, Person, Recipe, RecurrenceRule, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
+import type { CalendarColorPreferences, CareerTarget, CookingSession, CustomIngredient, ExerciseEntry, FocusFeedback, JobApplication, LifeEvent, PantryItem, Person, Recipe, RecurrenceRule, SchoolCourse, SchoolGradedItem, SchoolReminder, Session, Skill, SupplementIntakeLog, SupplementPhase, SupplementProtocol, WorkoutPlan, WorkoutSession } from "./model";
 import {
   MapperError,
   calendarPreferencesFromRow,
@@ -43,6 +43,12 @@ import {
   parsePer100g,
   sessionFromRow,
   sessionToRow,
+  schoolCourseFromRow,
+  schoolCourseToRow,
+  schoolGradedItemFromRow,
+  schoolGradedItemToRow,
+  schoolReminderFromRow,
+  schoolReminderToRow,
   skillFromRow,
   skillToRow,
   validatePayloadForUpload,
@@ -343,6 +349,12 @@ describe("event mappers", () => {
     expect(() =>
       eventToRow(sampleEvent({ type: "invalid" as LifeEvent["type"] }), USER_ID)
     ).toThrow(MapperError);
+  });
+
+  it("maps legacy school and deadline rows to other", () => {
+    const row = eventToRow(sampleEvent(), USER_ID);
+    expect(eventFromRow({ ...row, type: "school" }).type).toBe("other");
+    expect(eventFromRow({ ...row, type: "deadline" }).type).toBe("other");
   });
 
   it("rejects invalid date", () => {
@@ -816,6 +828,9 @@ describe("workout mappers", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1058,6 +1073,9 @@ describe("cooking session mappers", () => {
         cookingSessions: [sampleCookingSession()],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1267,6 +1285,9 @@ describe("supplement mappers", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1291,7 +1312,130 @@ describe("supplement mappers", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
+      })
+    ).toThrow(MapperError);
+  });
+});
+
+describe("school mappers", () => {
+  const COURSE_ID = "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1";
+  const STAFF_ID = "a2a2a2a2-a2a2-42a2-82a2-a2a2a2a2a2a2";
+  const HOURS_ID = "a3a3a3a3-a3a3-43a3-83a3-a3a3a3a3a3a3";
+  const CATEGORY_ID = "a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4";
+  const REMINDER_ID = "a5a5a5a5-a5a5-45a5-85a5-a5a5a5a5a5a5";
+  const ITEM_ID = "a6a6a6a6-a6a6-46a6-86a6-a6a6a6a6a6a6";
+
+  function sampleCourse(overrides: Partial<SchoolCourse> = {}): SchoolCourse {
+    return {
+      id: COURSE_ID,
+      name: "CS 1332",
+      code: "CS1332",
+      term: "Fall 2026",
+      timezone: "America/New_York",
+      staff: [{ id: STAFF_ID, role: "professor", name: "Dr. Example", email: "ex@gatech.edu" }],
+      officeHours: [{ id: HOURS_ID, who: "Professor", whenText: "Tue 2–4pm", locationOrLink: "KL 123" }],
+      latePolicy: { summary: "10% per day", lateDaysAllowed: 3, deductionPercentPerDay: 10 },
+      gradeCategories: [{ id: CATEGORY_ID, name: "Quizzes", weightPercent: 12 }],
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  function sampleReminder(overrides: Partial<SchoolReminder> = {}): SchoolReminder {
+    return {
+      id: REMINDER_ID,
+      courseId: COURSE_ID,
+      kind: "quiz",
+      title: "Unit Quiz 1",
+      date: "2026-09-07",
+      startTime: "07:59",
+      links: [{ url: "https://gatech.instructure.com/courses/1/assignments/2", label: "Canvas" }],
+      fingerprint: "quiz|unit quiz 1|2026-09-07",
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  function sampleGradedItem(overrides: Partial<SchoolGradedItem> = {}): SchoolGradedItem {
+    return {
+      id: ITEM_ID,
+      courseId: COURSE_ID,
+      categoryId: CATEGORY_ID,
+      reminderId: REMINDER_ID,
+      name: "Unit Quiz 1",
+      dueDate: "2026-09-07",
+      dueTime: "07:59",
+      maxScore: 45,
+      createdAtIso: NOW,
+      updatedAtIso: NOW,
+      ...overrides,
+    };
+  }
+
+  it("round-trips a course with nested jsonb", () => {
+    const course = sampleCourse({ notes: "Data structures", extraCreditNotes: "Discussions" });
+    const row = schoolCourseToRow(course, USER_ID);
+    expect(row.user_id).toBe(USER_ID);
+    expect(row.timezone).toBe("America/New_York");
+    expect(schoolCourseFromRow(row)).toEqual(course);
+  });
+
+  it("round-trips a timed reminder with links", () => {
+    const reminder = sampleReminder();
+    const row = schoolReminderToRow(reminder, USER_ID);
+    expect(row.due_date).toBe("2026-09-07");
+    expect(row.start_time).toBe("07:59");
+    expect(schoolReminderFromRow(row)).toEqual(reminder);
+  });
+
+  it("round-trips a graded item including a zero score", () => {
+    const item = sampleGradedItem({ score: 0 });
+    const row = schoolGradedItemToRow(item, USER_ID);
+    expect(row.score).toBe(0);
+    expect(schoolGradedItemFromRow(row)).toEqual(item);
+  });
+
+  it("rejects an invalid course timezone", () => {
+    expect(() =>
+      schoolCourseToRow(sampleCourse({ timezone: "Not/AZone" }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects reminder endTime without startTime", () => {
+    expect(() =>
+      schoolReminderToRow(sampleReminder({ startTime: undefined, endTime: "08:00" }), USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("rejects a graded item that points at an unknown course", () => {
+    expect(() =>
+      validatePayloadForUpload({
+        ...{
+          skills: [],
+          sessions: [],
+          overrides: [],
+          events: [],
+          people: [],
+          jobApplications: [],
+          workoutPlans: [],
+          workoutSessions: [],
+          supplementProtocols: [],
+          supplementIntakeLogs: [],
+          recipes: [],
+          cookingSessions: [],
+          pantry: [],
+          customIngredients: [],
+          schoolCourses: [],
+          schoolReminders: [],
+          schoolGradedItems: [sampleGradedItem()],
+          focusFeedback: [],
+        },
       })
     ).toThrow(MapperError);
   });
@@ -1316,6 +1460,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1338,6 +1485,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1361,6 +1511,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1383,6 +1536,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1405,6 +1561,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1428,6 +1587,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1450,6 +1612,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
       })
     ).toThrow(MapperError);
@@ -1472,6 +1637,9 @@ describe("validatePayloadForUpload", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
         careerTarget: sampleCareerTarget(),
       })
@@ -1650,6 +1818,9 @@ describe("calendar preferences mappers", () => {
         cookingSessions: [],
         pantry: [],
         customIngredients: [],
+        schoolCourses: [],
+        schoolReminders: [],
+        schoolGradedItems: [],
         focusFeedback: [],
         calendarPreferences: { categories: { skill: "bad.token" as never } },
       })

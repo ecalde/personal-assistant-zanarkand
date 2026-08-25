@@ -37,15 +37,22 @@ function samplePerson(overrides: Partial<Person> = {}): Person {
 }
 
 describe("migrateLegacyEventTypes", () => {
-  it("renames deadline events to school", () => {
+  it("renames deadline and school events to other", () => {
     const payload = {
       ...defaultPayload(),
-      events: [sampleEvent({ type: "deadline" as LifeEvent["type"] })],
+      events: [
+        sampleEvent({ type: "deadline" as LifeEvent["type"] }),
+        sampleEvent({
+          id: "55555555-5555-4555-8555-555555555555",
+          type: "school" as LifeEvent["type"],
+        }),
+      ],
     };
 
     const migrated = migrateLegacyEventTypes(payload);
 
-    expect(migrated.events[0].type).toBe("school");
+    expect(migrated.events[0].type).toBe("other");
+    expect(migrated.events[1].type).toBe("other");
     expect(() => validatePayloadForUpload(migrated)).not.toThrow();
   });
 

@@ -11,6 +11,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from "./model";
+import { createSchoolCourse, createSchoolReminder } from "./school";
 import { defaultWeeklySchedule } from "./state";
 import {
   addDaysIso,
@@ -20,6 +21,7 @@ import {
   endOfLocalDayIso,
   filterExpiredFocusItems,
   fitnessFocusFromFocusItem,
+  careerFocusFromFocusItem,
   formatFocusActionLabel,
   formatFocusContextLine,
   formatFocusExpirationHint,
@@ -45,6 +47,8 @@ const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 const SESSION_ID = "22222222-2222-4222-8222-222222222222";
 const TARGET_ID = "55555555-5555-4555-8555-555555555555";
 const PROTOCOL_ID = "77777777-7777-4777-8777-777777777777";
+const COURSE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const REMINDER_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 
 function sampleSkill(overrides: Partial<Skill> = {}): Skill {
   return {
@@ -736,11 +740,25 @@ describe("formatFocusContextLine", () => {
       netAvailableSkillMinutes: 45,
       workoutsThisWeek: 1,
       applicationsNeedingAttention: 1,
+      schoolDueSoonCount: 0,
     });
     expect(line).toContain("30m conflicts");
     expect(line).toContain("45m available for skills");
     expect(line).toContain("1 workout this week");
     expect(line).toContain("1 career item");
+  });
+
+  it("includes upcoming school dues", () => {
+    const line = formatFocusContextLine({
+      skillOverdueCount: 0,
+      eventsTodayCount: 0,
+      timelineConflictMinutes: 0,
+      netAvailableSkillMinutes: 0,
+      workoutsThisWeek: 0,
+      applicationsNeedingAttention: 0,
+      schoolDueSoonCount: 2,
+    });
+    expect(line).toContain("2 school dues");
   });
 });
 
@@ -862,5 +880,142 @@ describe("cooking focus items", () => {
       })
     );
     expect(summary.items.some((item) => item.reasonCodes.includes("cooking_make_now"))).toBe(true);
+  });
+});
+
+describe("school focus items", () => {
+  const nowIso = "2026-05-26T12:00:00.000Z";
+
+  function course() {
+    return createSchoolCourse(
+      { name: "CS 1332", code: "CS1332", timezone: "America/New_York" },
+      { id: COURSE_ID, nowIso }
+    );
+  }
+
+  function reminder(
+    overrides: Partial<{ date: string; startTime: string; title: string; kind: "assignment" | "quiz" }> = {}
+  ) {
+    return createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: overrides.kind ?? "assignment",
+        title: overrides.title ?? "Homework 1",
+        date: overrides.date ?? TODAY,
+        startTime: overrides.startTime,
+      },
+      { id: REMINDER_ID, nowIso }
+    );
+  }
+
+  it("surfaces a school due today with an Open in School career deep-link", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        schoolCourses: [course()],
+        schoolReminders: [reminder()],
+        localTimeZone: "America/New_York",
+        now: NOW_MORNING,
+      })
+    );
+    const item = summary.items.find((entry) =>
+      entry.reasonCodes.includes("school_due_today")
+    );
+    expect(item).toBeDefined();
+    expect(item?.title).toBe("Homework 1 due today");
+    expect(item?.description).toContain("Assignment");
+    expect(item?.description).toContain("CS1332");
+    expect(item?.suggestedActionType).toBe("open_career");
+    expect(item?.actionLabel).toBe("Open in School");
+    expect(item?.actionTargetId).toBe(COURSE_ID);
+    expect(careerFocusFromFocusItem(item!)).toEqual({
+      kind: "school",
+      courseId: COURSE_ID,
+    });
+    expect(summary.context.schoolDueSoonCount).toBe(1);
+  });
+
+  it("surfaces dues within 3 days and ignores later ones", () => {
+    const tomorrow = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "quiz",
+        title: "Unit Quiz",
+        date: "2026-05-28",
+      },
+      { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", nowIso }
+    );
+    const inThreeDays = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "exam",
+        title: "Midterm",
+        date: "2026-05-30",
+      },
+      { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", nowIso }
+    );
+    const later = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "project",
+        title: "Report",
+        date: "2026-05-31",
+      },
+      { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee03", nowIso }
+    );
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        schoolCourses: [course()],
+        schoolReminders: [tomorrow, inThreeDays, later],
+        localTimeZone: "America/New_York",
+      })
+    );
+    const titles = summary.byCategory.career.map((item) => item.title);
+    expect(titles).toContain("Unit Quiz due tomorrow");
+    expect(titles).toContain("Midterm due in 3 days");
+    expect(titles.some((title) => title.includes("Report"))).toBe(false);
+    expect(
+      summary.byCategory.career.every((item) =>
+        item.reasonCodes.includes("school_due_soon")
+      )
+    ).toBe(true);
+    expect(summary.context.schoolDueSoonCount).toBe(2);
+  });
+
+  it("skips orphan reminders and past dues", () => {
+    const orphan = createSchoolReminder(
+      {
+        courseId: "missing-course",
+        kind: "exam",
+        title: "Final",
+        date: TODAY,
+      },
+      { id: REMINDER_ID, nowIso }
+    );
+    const past = reminder({ date: "2026-05-26" });
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        schoolCourses: [course()],
+        schoolReminders: [orphan, past],
+        localTimeZone: "America/New_York",
+      })
+    );
+    expect(summary.byCategory.career).toEqual([]);
+    expect(summary.context.schoolDueSoonCount).toBe(0);
+  });
+
+  it("uses the local date after timezone conversion", () => {
+    const summary = buildDailyFocusSummary(
+      emptyInput({
+        schoolCourses: [course()],
+        schoolReminders: [reminder({ date: "2026-05-28", startTime: "00:30" })],
+        localTimeZone: "America/Chicago",
+        todayKey: "2026-05-27",
+      })
+    );
+    const item = summary.items.find((entry) =>
+      entry.reasonCodes.includes("school_due_today")
+    );
+    expect(item?.title).toBe("Homework 1 due today");
+    expect(item?.description).toContain("at 23:30");
   });
 });

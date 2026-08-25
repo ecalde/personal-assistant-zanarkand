@@ -20,6 +20,9 @@ import {
   cookingSessionToRow,
   pantryItemToRow,
   customIngredientToRow,
+  schoolCourseToRow,
+  schoolReminderToRow,
+  schoolGradedItemToRow,
   sessionToRow,
   skillToRow,
   workoutPlanToRow,
@@ -38,6 +41,9 @@ import {
   type CookingSessionRow,
   type PantryItemRow,
   type CustomIngredientRow,
+  type SchoolCourseRow,
+  type SchoolReminderRow,
+  type SchoolGradedItemRow,
   type SessionRow,
   type SkillRow,
   type WorkoutPlanRow,
@@ -63,6 +69,9 @@ type AppTable =
   | "cooking_sessions"
   | "user_pantry"
   | "custom_ingredients"
+  | "school_courses"
+  | "school_reminders"
+  | "school_graded_items"
   | "focus_feedback"
   | "calendar_preferences"
   | "gamification_state";
@@ -200,6 +209,21 @@ function syncFailureMessage(
     );
   }
 
+  if (
+    (table === "school_courses" ||
+      table === "school_reminders" ||
+      table === "school_graded_items") &&
+    (error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      (msg.includes("schema cache") && msg.includes("school_")) ||
+      (msg.includes("relation") && msg.includes("school_")))
+  ) {
+    return (
+      "Could not sync school data. Your Supabase database is missing the school " +
+      "domain migration (20260824100000_school_domain.sql). Apply it, then retry cloud save."
+    );
+  }
+
   return `Could not sync ${table}. Please try again.`;
 }
 
@@ -279,6 +303,9 @@ async function upsertRows(
     | CookingSessionRow[]
     | PantryItemRow[]
     | CustomIngredientRow[]
+    | SchoolCourseRow[]
+    | SchoolReminderRow[]
+    | SchoolGradedItemRow[]
     | FocusFeedbackRow[]
 ): Promise<void> {
   if (rows.length === 0) return;
@@ -343,7 +370,7 @@ async function replaceGamificationState(
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, customIngredientsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, customIngredientsResult, schoolCoursesResult, schoolRemindersResult, schoolGradedItemsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -360,6 +387,9 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("cooking_sessions").select("*").eq("user_id", userId),
     supabase.from("user_pantry").select("*").eq("user_id", userId),
     supabase.from("custom_ingredients").select("*").eq("user_id", userId),
+    supabase.from("school_courses").select("*").eq("user_id", userId),
+    supabase.from("school_reminders").select("*").eq("user_id", userId),
+    supabase.from("school_graded_items").select("*").eq("user_id", userId),
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
     supabase.from("calendar_preferences").select("*").eq("user_id", userId),
     supabase.from("gamification_state").select("*").eq("user_id", userId),
@@ -380,6 +410,9 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(cookingSessionsResult.error, "cooking_sessions");
   throwOnSupabaseError(pantryResult.error, "user_pantry");
   throwOnSupabaseError(customIngredientsResult.error, "custom_ingredients");
+  throwOnSupabaseError(schoolCoursesResult.error, "school_courses");
+  throwOnSupabaseError(schoolRemindersResult.error, "school_reminders");
+  throwOnSupabaseError(schoolGradedItemsResult.error, "school_graded_items");
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
   throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
   throwOnSupabaseError(gamificationStateResult.error, "gamification_state");
@@ -403,7 +436,10 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<RecipeRow>(recipesResult.data),
       asRows<CookingSessionRow>(cookingSessionsResult.data),
       asRows<PantryItemRow>(pantryResult.data),
-      asRows<CustomIngredientRow>(customIngredientsResult.data)
+      asRows<CustomIngredientRow>(customIngredientsResult.data),
+      asRows<SchoolCourseRow>(schoolCoursesResult.data),
+      asRows<SchoolReminderRow>(schoolRemindersResult.data),
+      asRows<SchoolGradedItemRow>(schoolGradedItemsResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -450,6 +486,15 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const customIngredientRows = (payload.customIngredients ?? []).map((item) =>
     customIngredientToRow(item, userId)
   );
+  const schoolCourseRows = (payload.schoolCourses ?? []).map((course) =>
+    schoolCourseToRow(course, userId)
+  );
+  const schoolReminderRows = (payload.schoolReminders ?? []).map((reminder) =>
+    schoolReminderToRow(reminder, userId)
+  );
+  const schoolGradedItemRows = (payload.schoolGradedItems ?? []).map((item) =>
+    schoolGradedItemToRow(item, userId)
+  );
   const focusFeedbackRows = payload.focusFeedback.map((entry) =>
     focusFeedbackToRow(entry, userId)
   );
@@ -475,6 +520,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await upsertRows("cooking_sessions", cookingSessionRows);
   await upsertRows("custom_ingredients", customIngredientRows);
   await upsertRows("user_pantry", pantryRows);
+  await upsertRows("school_courses", schoolCourseRows);
+  await upsertRows("school_reminders", schoolReminderRows);
+  await upsertRows("school_graded_items", schoolGradedItemRows);
   await upsertRows("focus_feedback", focusFeedbackRows);
 
   const sessionIds = payload.sessions.map((s) => s.id);
@@ -492,6 +540,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const cookingSessionIds = payload.cookingSessions.map((s) => s.id);
   const pantryIds = payload.pantry.map((item) => item.id);
   const customIngredientIds = (payload.customIngredients ?? []).map((item) => item.id);
+  const schoolCourseIds = (payload.schoolCourses ?? []).map((course) => course.id);
+  const schoolReminderIds = (payload.schoolReminders ?? []).map((reminder) => reminder.id);
+  const schoolGradedItemIds = (payload.schoolGradedItems ?? []).map((item) => item.id);
   const focusFeedbackIds = payload.focusFeedback.map((f) => f.id);
 
   await deleteRowsNotIn("sessions", userId, sessionIds);
@@ -508,6 +559,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   await deleteRowsNotIn("recipes", userId, recipeIds);
   await deleteRowsNotIn("user_pantry", userId, pantryIds);
   await deleteRowsNotIn("custom_ingredients", userId, customIngredientIds);
+  await deleteRowsNotIn("school_graded_items", userId, schoolGradedItemIds);
+  await deleteRowsNotIn("school_reminders", userId, schoolReminderIds);
+  await deleteRowsNotIn("school_courses", userId, schoolCourseIds);
   await deleteRowsNotIn("supplement_protocols", userId, supplementProtocolIds);
   await deleteRowsNotIn("focus_feedback", userId, focusFeedbackIds);
 
@@ -532,6 +586,9 @@ export function payloadHasData(payload: AppPayload): boolean {
     payload.cookingSessions.length > 0 ||
     payload.pantry.length > 0 ||
     (payload.customIngredients?.length ?? 0) > 0 ||
+    (payload.schoolCourses?.length ?? 0) > 0 ||
+    (payload.schoolReminders?.length ?? 0) > 0 ||
+    (payload.schoolGradedItems?.length ?? 0) > 0 ||
     payload.focusFeedback.length > 0 ||
     payload.calendarPreferences !== undefined ||
     payload.gamificationState !== undefined

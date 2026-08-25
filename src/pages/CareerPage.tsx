@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   applyQuickStatusTransition,
   filterAndSortApplications,
@@ -6,11 +6,29 @@ import {
   type ApplicationsSortMode,
   type QuickStatusAction,
 } from "../core/career";
-import type { CareerTarget, JobApplication, Skill } from "../core/model";
+import type {
+  CareerTarget,
+  JobApplication,
+  SchoolCourse,
+  SchoolGradedItem,
+  SchoolReminder,
+  Skill,
+} from "../core/model";
+import type {
+  CareerFocus,
+  CreateSchoolCourseInput,
+  CreateSchoolGradedItemInput,
+  CreateSchoolReminderInput,
+} from "../core/school";
+import type { SchoolIngestSuggestion } from "../core/schoolParse";
 import { formatLocalDateKey } from "../core/timeline";
 import { ApplicationCard } from "../components/career/ApplicationCard";
 import { ApplicationForm } from "../components/career/ApplicationForm";
 import { ApplicationsToolbar } from "../components/career/ApplicationsToolbar";
+import {
+  CareerSectionSwitcher,
+  type CareerSection,
+} from "../components/career/CareerSectionSwitcher";
 import { CareerTargetSection } from "../components/career/CareerTargetSection";
 import { InterviewStageSummaryBar } from "../components/career/InterviewStageSummary";
 import { NeedsAttentionSection } from "../components/career/NeedsAttentionSection";
@@ -22,12 +40,17 @@ import {
   validateApplicationForm,
   type ApplicationFormState,
 } from "../components/career/applicationFormState";
+import { SchoolSection } from "../components/school/SchoolSection";
 import { styles } from "../ui/appStyles";
 
 export type CareerPageProps = {
   jobApplications: JobApplication[];
   careerTarget: CareerTarget | undefined;
   skills: Skill[];
+  schoolCourses: SchoolCourse[];
+  schoolReminders: SchoolReminder[];
+  schoolGradedItems: SchoolGradedItem[];
+  careerFocus?: CareerFocus;
   onAddApplication: (
     input: Omit<JobApplication, "id" | "createdAtIso" | "updatedAtIso">
   ) => void;
@@ -35,18 +58,45 @@ export type CareerPageProps = {
   onDeleteApplication: (applicationId: string) => void;
   onSetCareerTarget: (input: Omit<CareerTarget, "id" | "updatedAtIso">) => void;
   onClearCareerTarget: () => void;
+  onAddCourse: (input: CreateSchoolCourseInput) => void;
+  onUpdateCourse: (courseId: string, input: CreateSchoolCourseInput) => void;
+  onDeleteCourse: (courseId: string) => void;
+  onAddReminder: (input: CreateSchoolReminderInput) => void;
+  onUpdateReminder: (reminderId: string, input: CreateSchoolReminderInput) => void;
+  onDeleteReminder: (reminderId: string) => void;
+  onAddGradedItem: (input: CreateSchoolGradedItemInput) => void;
+  onUpdateGradedItem: (itemId: string, input: CreateSchoolGradedItemInput) => void;
+  onDeleteGradedItem: (itemId: string) => void;
+  onApplySchoolIngest: (courseId: string, suggestions: SchoolIngestSuggestion[]) => void;
 };
 
 export default function CareerPage({
   jobApplications,
   careerTarget,
   skills,
+  schoolCourses,
+  schoolReminders,
+  schoolGradedItems,
+  careerFocus,
   onAddApplication,
   onUpdateApplication,
   onDeleteApplication,
   onSetCareerTarget,
   onClearCareerTarget,
+  onAddCourse,
+  onUpdateCourse,
+  onDeleteCourse,
+  onAddReminder,
+  onUpdateReminder,
+  onDeleteReminder,
+  onAddGradedItem,
+  onUpdateGradedItem,
+  onDeleteGradedItem,
+  onApplySchoolIngest,
 }: CareerPageProps) {
+  const [section, setSection] = useState<CareerSection>(() =>
+    careerFocus?.kind === "school" ? "school" : "career"
+  );
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ApplicationFormState>(emptyApplicationFormState());
@@ -68,6 +118,15 @@ export default function CareerPage({
       }),
     [jobApplications, query, sortMode, statusFilter, todayKey]
   );
+
+  useEffect(() => {
+    if (careerFocus?.kind !== "school") return;
+    setSection("school");
+    if (!careerFocus.courseId) return;
+    document.getElementById(`school-course-${careerFocus.courseId}`)?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [careerFocus]);
 
   function resetForm() {
     setForm(emptyApplicationFormState());
@@ -117,108 +176,143 @@ export default function CareerPage({
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <header>
-        <h1 style={{ fontWeight: 900, margin: "0 0 6px 0" }}>Career</h1>
-        <p style={{ margin: 0, ...styles.textMuted }}>
-          Track job applications, salaries, and skills needed for your dream role.
-        </p>
-      </header>
-
-      <NeedsAttentionSection jobApplications={jobApplications} todayKey={todayKey} />
-
-      <InterviewStageSummaryBar jobApplications={jobApplications} />
-
-      <CareerTargetSection
-        careerTarget={careerTarget}
-        skills={skills}
-        onSet={onSetCareerTarget}
-        onClear={onClearCareerTarget}
-      />
-
-      <SkillGapPanel skills={skills} careerTarget={careerTarget} />
-
-      <section aria-label="Job applications">
+      <div style={styles.card}>
         <div
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: 12,
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginBottom: 8,
           }}
         >
-          <h2 style={{ fontWeight: 800, margin: 0, fontSize: 16 }}>Applications</h2>
-          {!showForm && (
-            <button type="button" onClick={openCreateForm}>
-              Add application
-            </button>
-          )}
+          <div style={styles.cardTitle}>Career</div>
+          <CareerSectionSwitcher value={section} onChange={setSection} />
         </div>
+        <div style={{ ...styles.textSecondary }}>
+          {section === "career"
+            ? "Track job applications, salaries, and skills needed for your dream role."
+            : "Track courses, reminders, staff, and grades. Paste a syllabus or Canvas table to review suggestions."}
+        </div>
+      </div>
 
-        {showForm && (
-          <ApplicationForm
-            form={form}
+      {section === "school" ? (
+        <SchoolSection
+          courses={schoolCourses}
+          reminders={schoolReminders}
+          gradedItems={schoolGradedItems}
+          focusCourseId={careerFocus?.kind === "school" ? careerFocus.courseId : undefined}
+          onAddCourse={onAddCourse}
+          onUpdateCourse={onUpdateCourse}
+          onDeleteCourse={onDeleteCourse}
+          onAddReminder={onAddReminder}
+          onUpdateReminder={onUpdateReminder}
+          onDeleteReminder={onDeleteReminder}
+          onAddGradedItem={onAddGradedItem}
+          onUpdateGradedItem={onUpdateGradedItem}
+          onDeleteGradedItem={onDeleteGradedItem}
+          onApplyIngest={onApplySchoolIngest}
+        />
+      ) : (
+        <>
+          <NeedsAttentionSection jobApplications={jobApplications} todayKey={todayKey} />
+
+          <InterviewStageSummaryBar jobApplications={jobApplications} />
+
+          <CareerTargetSection
+            careerTarget={careerTarget}
             skills={skills}
-            formError={formError}
-            editing={editingId !== null}
-            onChange={setForm}
-            onSubmit={handleSubmit}
-            onCancel={resetForm}
+            onSet={onSetCareerTarget}
+            onClear={onClearCareerTarget}
           />
-        )}
 
-        {jobApplications.length === 0 && !showForm ? (
-          <p style={{ ...styles.helpText, margin: 0 }}>
-            No applications yet. Save roles you&apos;re interested in or track where you&apos;ve
-            applied.
-          </p>
-        ) : (
-          <>
-            <ApplicationsToolbar
-              query={query}
-              sortMode={sortMode}
-              statusFilter={statusFilter}
-              resultCount={filteredApplications.length}
-              totalCount={jobApplications.length}
-              onQueryChange={setQuery}
-              onSortModeChange={setSortMode}
-              onStatusFilterChange={setStatusFilter}
-            />
+          <SkillGapPanel skills={skills} careerTarget={careerTarget} />
 
-            {filteredApplications.length === 0 ? (
+          <section aria-label="Job applications">
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ fontWeight: 800, margin: 0, fontSize: 16 }}>Applications</h2>
+              {!showForm && (
+                <button type="button" onClick={openCreateForm}>
+                  Add application
+                </button>
+              )}
+            </div>
+
+            {showForm && (
+              <ApplicationForm
+                form={form}
+                skills={skills}
+                formError={formError}
+                editing={editingId !== null}
+                onChange={setForm}
+                onSubmit={handleSubmit}
+                onCancel={resetForm}
+              />
+            )}
+
+            {jobApplications.length === 0 && !showForm ? (
               <p style={{ ...styles.helpText, margin: 0 }}>
-                {statusFilter === "needs-attention"
-                  ? "Nothing needs attention right now — you're caught up on follow-ups."
-                  : query.trim()
-                    ? `No matches for '${query.trim()}'.`
-                    : "No applications match this filter."}
+                No applications yet. Save roles you&apos;re interested in or track where you&apos;ve
+                applied.
               </p>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {filteredApplications.map((application) => (
-                  <ApplicationCard
-                    key={application.id}
-                    application={application}
-                    skills={skills}
-                    todayKey={todayKey}
-                    expanded={expandedId === application.id}
-                    onToggleExpand={() =>
-                      setExpandedId((current) =>
-                        current === application.id ? null : application.id
-                      )
-                    }
-                    onEdit={() => openEditForm(application)}
-                    onDelete={() => onDeleteApplication(application.id)}
-                    onUpdateApplication={onUpdateApplication}
-                    onQuickAction={(action) => handleQuickAction(application, action)}
-                  />
-                ))}
-              </div>
+              <>
+                <ApplicationsToolbar
+                  query={query}
+                  sortMode={sortMode}
+                  statusFilter={statusFilter}
+                  resultCount={filteredApplications.length}
+                  totalCount={jobApplications.length}
+                  onQueryChange={setQuery}
+                  onSortModeChange={setSortMode}
+                  onStatusFilterChange={setStatusFilter}
+                />
+
+                {filteredApplications.length === 0 ? (
+                  <p style={{ ...styles.helpText, margin: 0 }}>
+                    {statusFilter === "needs-attention"
+                      ? "Nothing needs attention right now — you're caught up on follow-ups."
+                      : query.trim()
+                        ? `No matches for '${query.trim()}'.`
+                        : "No applications match this filter."}
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {filteredApplications.map((application) => (
+                      <ApplicationCard
+                        key={application.id}
+                        application={application}
+                        skills={skills}
+                        todayKey={todayKey}
+                        expanded={expandedId === application.id}
+                        onToggleExpand={() =>
+                          setExpandedId((current) =>
+                            current === application.id ? null : application.id
+                          )
+                        }
+                        onEdit={() => openEditForm(application)}
+                        onDelete={() => onDeleteApplication(application.id)}
+                        onUpdateApplication={onUpdateApplication}
+                        onQuickAction={(action) => handleQuickAction(application, action)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </section>
+          </section>
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultWeeklySchedule } from "./state";
+import { createSchoolCourse, createSchoolReminder } from "./school";
 import type {
   CookingSession,
   FocusFeedback,
@@ -465,6 +466,8 @@ describe("buildCareerWeekSection", () => {
     expect(section.updatedThisWeek).toHaveLength(1);
     expect(section.updatedThisWeek[0].company).toBe("NVIDIA");
     expect(section.stillNeedingAttention.some((item) => item.company === "Saved Co")).toBe(true);
+    expect(section.schoolDueThisWeek).toBe(0);
+    expect(section.schoolDueNextWeek).toBe(0);
   });
 });
 
@@ -804,5 +807,92 @@ describe("buildWeeklyHeadline", () => {
     });
 
     expect(buildWeeklyHeadline(review)).toContain("risk");
+  });
+});
+
+describe("school review one-liners", () => {
+  const COURSE_ID = "caaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const nowIso = "2026-05-26T12:00:00.000Z";
+
+  function course() {
+    return createSchoolCourse(
+      { name: "CS 1332", code: "CS1332", timezone: "America/New_York" },
+      { id: COURSE_ID, nowIso }
+    );
+  }
+
+  it("summarizes school dues this week and next week", () => {
+    const thisWeek = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "assignment",
+        title: "Homework 1",
+        date: "2026-05-29",
+      },
+      { id: "daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", nowIso }
+    );
+    const nextWeek = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "quiz",
+        title: "Quiz 2",
+        date: "2026-06-02",
+      },
+      { id: "dbaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", nowIso }
+    );
+    const review = buildWeeklyReview({
+      skills: [],
+      sessions: [],
+      events: [],
+      people: [],
+      jobApplications: [],
+      workoutPlans: [],
+      workoutSessions: [],
+      schoolCourses: [course()],
+      schoolReminders: [thisWeek, nextWeek],
+      focusFeedback: [],
+      todayKey: TODAY,
+      now: NOW,
+      localTimeZone: "America/New_York",
+    });
+
+    expect(review.career.schoolDueThisWeek).toBe(1);
+    expect(review.career.schoolDueNextWeek).toBe(1);
+    expect(review.summary).toContain("1 school due date this week");
+    expect(review.summary).toContain("1 school due date next week");
+  });
+
+  it("flags a heavy next-week school load as a risk", () => {
+    const reminders = [1, 2, 3].map((n) =>
+      createSchoolReminder(
+        {
+          courseId: COURSE_ID,
+          kind: "assignment",
+          title: `HW ${n}`,
+          date: `2026-06-0${n}`,
+        },
+        { id: `d${n}aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`, nowIso }
+      )
+    );
+    const review = buildWeeklyReview({
+      skills: [],
+      sessions: [],
+      events: [],
+      people: [],
+      jobApplications: [],
+      workoutPlans: [],
+      workoutSessions: [],
+      schoolCourses: [course()],
+      schoolReminders: reminders,
+      focusFeedback: [],
+      todayKey: TODAY,
+      now: NOW,
+      localTimeZone: "America/New_York",
+    });
+
+    expect(review.career.schoolDueNextWeek).toBe(3);
+    expect(review.risks.some((risk) => risk.includes("school dues coming up next week"))).toBe(
+      true
+    );
   });
 });

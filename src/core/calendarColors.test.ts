@@ -82,6 +82,34 @@ describe("resolution precedence", () => {
     ).toBe("orange.base");
   });
 
+  it("uses school category and subcategory defaults", () => {
+    expect(resolveCalendarItemColorToken({ categoryKey: "school" })).toBe("teal.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "school",
+        subcategoryKey: "assignment",
+      })
+    ).toBe("sky.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "school",
+        subcategoryKey: "quiz",
+      })
+    ).toBe("yellow.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "school",
+        subcategoryKey: "exam",
+      })
+    ).toBe("rose.base");
+    expect(
+      resolveCalendarItemColorToken({
+        categoryKey: "school",
+        subcategoryKey: "other",
+      })
+    ).toBe(DEFAULT_CATEGORY_COLOR_TOKENS.school);
+  });
+
   it("inherits the category color when the subcategory has no default or preference", () => {
     const token = resolveCalendarItemColorToken({
       categoryKey: "event",
@@ -214,7 +242,7 @@ describe("color usage labeling", () => {
     const prefs: CalendarColorPreferences = {
       subcategories: { "fitness:workout": "lime.base" },
     };
-    expect(describeColorUsage("lime.base", prefs)).toBe("Workouts");
+    expect(describeColorUsage("lime.base", prefs)).toBe("Workouts, Reading");
   });
 
   it("labels cooking subcategory defaults with readable names", () => {
@@ -230,7 +258,7 @@ describe("color usage labeling", () => {
     const prefs: CalendarColorPreferences = {
       subcategories: { "event:trip": "teal.base" },
     };
-    expect(describeColorUsage("teal.base", prefs)).toBe("Trips");
+    expect(describeColorUsage("teal.base", prefs)).toBe("School, Trips");
   });
 });
 
@@ -268,6 +296,7 @@ describe("palette integrity", () => {
     expect(isCalendarColorToken(undefined)).toBe(false);
     expect(isCalendarCategoryKey("event")).toBe(true);
     expect(isCalendarCategoryKey("cooking")).toBe(true);
+    expect(isCalendarCategoryKey("school")).toBe(true);
     expect(isCalendarCategoryKey("events")).toBe(false);
   });
 });

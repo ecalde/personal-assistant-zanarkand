@@ -26,6 +26,7 @@ import {
   buildUpcomingBirthdayItems,
 } from "../core/people";
 import type { FitnessFocus } from "../core/fitness";
+import type { CareerFocus } from "../core/school";
 import {
   buildUnifiedTimelineRange,
   computeDailyWorkloadForDay,
@@ -75,6 +76,8 @@ import type {
   Recipe,
   CookingSession,
   PantryItem,
+  SchoolCourse,
+  SchoolReminder,
 } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -103,6 +106,8 @@ export type DashboardPageProps = {
   supplementIntakeLogs: SupplementIntakeLog[];
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  schoolCourses: SchoolCourse[];
+  schoolReminders: SchoolReminder[];
   pantry?: PantryItem[];
   focusFeedback: FocusFeedback[];
   onAddSession: (skillId: string, minutes: number) => void;
@@ -115,7 +120,7 @@ export type DashboardPageProps = {
   onOpenSkills?: () => void;
   onOpenEvents?: () => void;
   onOpenPeople?: () => void;
-  onOpenCareer?: () => void;
+  onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
   onOpenReview?: () => void;
@@ -146,6 +151,8 @@ export default function DashboardPage({
   supplementIntakeLogs,
   recipes,
   cookingSessions,
+  schoolCourses,
+  schoolReminders,
   pantry = [],
   focusFeedback,
   onAddSession,
@@ -184,6 +191,8 @@ export default function DashboardPage({
     supplementIntakeLogs,
     cookingSessions,
     recipes,
+    schoolCourses,
+    schoolReminders,
     todayKey: today,
     viewModeSurface: DASHBOARD_CALENDAR_VIEW_SURFACE,
     viewModeViewport: isDesktop ? "desktop" : "mobile",
@@ -242,6 +251,9 @@ export default function DashboardPage({
       cookingSessions,
       pantry: [],
       customIngredients: [],
+      schoolCourses: [],
+      schoolReminders: [],
+      schoolGradedItems: [],
       focusFeedback,
       gamificationState,
     };
@@ -311,6 +323,8 @@ export default function DashboardPage({
         recipes,
         cookingSessions,
         pantry,
+        schoolCourses,
+        schoolReminders,
         todayKey: today,
       }),
     [
@@ -327,6 +341,8 @@ export default function DashboardPage({
       recipes,
       cookingSessions,
       pantry,
+      schoolCourses,
+      schoolReminders,
       today,
     ]
   );
@@ -425,6 +441,8 @@ export default function DashboardPage({
         supplementIntakeLogs,
         recipes,
         cookingSessions,
+        schoolCourses,
+        schoolReminders,
         focusFeedback,
         todayKey: today,
       }),
@@ -440,6 +458,8 @@ export default function DashboardPage({
       supplementIntakeLogs,
       recipes,
       cookingSessions,
+      schoolCourses,
+      schoolReminders,
       focusFeedback,
       today,
     ]
@@ -486,10 +506,12 @@ export default function DashboardPage({
       hiddenEventSubcategories={calendar.hiddenEventSubcategories}
       hiddenFitnessTypes={calendar.hiddenFitnessTypes}
       hiddenCookingTypes={calendar.hiddenCookingTypes}
+      hiddenSchoolTypes={calendar.hiddenSchoolTypes}
       onToggleCategory={calendar.toggleCategory}
       onToggleEventSubcategory={calendar.toggleEventSubcategory}
       onToggleFitnessType={calendar.toggleFitnessType}
       onToggleCookingType={calendar.toggleCookingType}
+      onToggleSchoolType={calendar.toggleSchoolType}
       preferences={calendarPreferences}
       layout="horizontal"
     />

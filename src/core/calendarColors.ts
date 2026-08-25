@@ -16,7 +16,8 @@ export type CalendarCategoryKey =
   | "people"
   | "fitness"
   | "career"
-  | "cooking";
+  | "cooking"
+  | "school";
 
 export type CalendarPaletteHue =
   | "red"
@@ -89,6 +90,7 @@ export const CALENDAR_CATEGORY_KEYS: readonly CalendarCategoryKey[] = [
   "fitness",
   "career",
   "cooking",
+  "school",
 ];
 
 const HUE_VARIANTS: readonly CalendarHueVariant[] = ["soft", "base", "strong"];
@@ -259,6 +261,7 @@ export const DEFAULT_CATEGORY_COLOR_TOKENS: Record<
   fitness: "green.base",
   career: "violet.base",
   cooking: "orange.base",
+  school: "teal.base",
 };
 
 // Sparse: unset subcategories intentionally inherit their category color.
@@ -267,6 +270,12 @@ export const DEFAULT_SUBCATEGORY_COLOR_TOKENS: Record<string, CalendarColorToken
   "fitness:supplement": "cyan.base",
   "cooking:planned": "orange.soft",
   "cooking:completed": "orange.base",
+  "school:assignment": "sky.base",
+  "school:quiz": "yellow.base",
+  "school:exam": "rose.base",
+  "school:project": "fuchsia.base",
+  "school:study": "emerald.base",
+  "school:reading": "lime.base",
 };
 
 export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
@@ -276,6 +285,7 @@ export const DEFAULT_CATEGORY_LABELS: Record<CalendarCategoryKey, string> = {
   fitness: "Fitness",
   career: "Career",
   cooking: "Cooking",
+  school: "School",
 };
 
 // Readable labels for the supported subcategory keys (used for "color used by" copy).
@@ -288,7 +298,6 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "event:hangout": "Hangouts",
   "event:trip": "Trips",
   "event:holiday": "Holidays",
-  "event:school": "School",
   "event:vacation": "Vacation",
   "event:work": "Work",
   "event:other": "Other events",
@@ -300,6 +309,13 @@ export const DEFAULT_SUBCATEGORY_LABELS: Record<string, string> = {
   "skill:scheduleBlock": "Schedule blocks",
   "cooking:planned": "Planned cooks",
   "cooking:completed": "Cooked meals",
+  "school:assignment": "Assignment",
+  "school:quiz": "Quiz",
+  "school:exam": "Exam",
+  "school:project": "Project",
+  "school:study": "Study",
+  "school:reading": "Reading",
+  "school:other": "Other school",
 };
 
 // Stable ordering for usage indexing and "used by" descriptions.
@@ -312,7 +328,6 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "event:hangout",
   "event:trip",
   "event:holiday",
-  "event:school",
   "event:vacation",
   "event:work",
   "event:other",
@@ -324,6 +339,13 @@ const SUBCATEGORY_USAGE_ORDER: readonly string[] = [
   "skill:scheduleBlock",
   "cooking:planned",
   "cooking:completed",
+  "school:assignment",
+  "school:quiz",
+  "school:exam",
+  "school:project",
+  "school:study",
+  "school:reading",
+  "school:other",
 ];
 
 export function isCalendarColorToken(value: unknown): value is CalendarColorToken {
@@ -371,10 +393,6 @@ export function resolveCalendarItemColorToken(
     const key = subcategoryPrefKey(input.categoryKey, input.subcategoryKey);
     const fromPrefs = readValidToken(prefs?.subcategories?.[key]);
     if (fromPrefs) return fromPrefs;
-    if (input.categoryKey === "event" && input.subcategoryKey === "school") {
-      const legacyDeadline = readValidToken(prefs?.subcategories?.["event:deadline"]);
-      if (legacyDeadline) return legacyDeadline;
-    }
     if (input.categoryKey === "event" && input.subcategoryKey === "vacation") {
       const legacyCareer = readValidToken(prefs?.subcategories?.["event:career"]);
       if (legacyCareer) return legacyCareer;

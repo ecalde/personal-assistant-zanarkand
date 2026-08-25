@@ -6,6 +6,7 @@ import {
 } from "../../core/calendarColors";
 import {
   computeTimedItemLayout,
+  compactCalendarItemSecondaryLabel,
   formatCalendarItemButtonLabel,
   formatItemTimeLabel,
   type TimedItemLayout,
@@ -95,6 +96,11 @@ export function CalendarEventBlock({
         ) : null}
       </div>
       {timeLabel ? <div>{timeLabel}</div> : null}
+      {compactCalendarItemSecondaryLabel(item) ? (
+        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {compactCalendarItemSecondaryLabel(item)}
+        </div>
+      ) : null}
 
       {resizable && resize ? (
         <div

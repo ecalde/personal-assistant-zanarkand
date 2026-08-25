@@ -9,6 +9,8 @@ import type {
   LifeEvent,
   Person,
   Recipe,
+  SchoolCourse,
+  SchoolReminder,
   Skill,
   SupplementIntakeLog,
   SupplementProtocol,
@@ -37,6 +39,7 @@ import {
 } from "../core/calendarDrag";
 import type { EventSeriesEditScope } from "../core/eventSeries";
 import type { FitnessFocus } from "../core/fitness";
+import type { CareerFocus } from "../core/school";
 import { styles } from "../ui/appStyles";
 import { useIsDesktopViewport } from "../ui/useMediaQuery";
 
@@ -53,6 +56,8 @@ export type CalendarPageProps = {
   supplementIntakeLogs: SupplementIntakeLog[];
   recipes: Recipe[];
   cookingSessions: CookingSession[];
+  schoolCourses: SchoolCourse[];
+  schoolReminders: SchoolReminder[];
   calendarPreferences?: CalendarColorPreferences;
   onSaveCalendarPreferences: (prefs: CalendarColorPreferences | undefined) => void;
   onEditOccurrence?: (
@@ -77,7 +82,7 @@ export type CalendarPageProps = {
   onResizeItem?: (eventId: string, endTime: string) => CalendarEventUndoPayload | null;
   onOpenEventDraft?: (seed: CalendarEventDraftSeed) => void;
   onUndoCalendarEvent?: (payload: CalendarEventUndoPayload) => void;
-  onOpenCareer?: () => void;
+  onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
   onAddCookingSession?: (
@@ -98,6 +103,8 @@ export default function CalendarPage({
   supplementIntakeLogs,
   recipes,
   cookingSessions,
+  schoolCourses,
+  schoolReminders,
   calendarPreferences,
   onSaveCalendarPreferences,
   onOpenCareer,
@@ -132,6 +139,8 @@ export default function CalendarPage({
     supplementIntakeLogs,
     cookingSessions,
     recipes,
+    schoolCourses,
+    schoolReminders,
     todayKey,
     viewModeSurface: "calendarPage",
     viewModeViewport: isDesktop ? "desktop" : "mobile",
@@ -299,10 +308,12 @@ export default function CalendarPage({
             hiddenEventSubcategories={calendar.hiddenEventSubcategories}
             hiddenFitnessTypes={calendar.hiddenFitnessTypes}
             hiddenCookingTypes={calendar.hiddenCookingTypes}
+            hiddenSchoolTypes={calendar.hiddenSchoolTypes}
             onToggleCategory={calendar.toggleCategory}
             onToggleEventSubcategory={calendar.toggleEventSubcategory}
             onToggleFitnessType={calendar.toggleFitnessType}
             onToggleCookingType={calendar.toggleCookingType}
+            onToggleSchoolType={calendar.toggleSchoolType}
             preferences={calendarPreferences}
           />
         </div>

@@ -22,7 +22,9 @@ import {
   filterItemsByHiddenEventSubcategories,
   filterItemsByHiddenFitnessTypes,
   filterItemsByHiddenCookingTypes,
+  filterItemsByHiddenSchoolTypes,
   filterCalendarItems,
+  compactCalendarItemSecondaryLabel,
   formatHourLabel,
   formatItemTimeLabel,
   formatSourceTypeLabel,
@@ -38,6 +40,7 @@ import {
   timedItemsOverlapMinutes,
   TIMED_BLOCK_HORIZONTAL_INSET_PERCENT,
   type CalendarCookingTypeFilter,
+  type CalendarSchoolTypeFilter,
 } from "./calendarView";
 import type { CalendarCategoryKey } from "./calendarColors";
 import type { EventType, FitnessType, LifeEvent, Skill, WeeklySchedule } from "./model";
@@ -230,18 +233,18 @@ describe("category filtering (render-only)", () => {
 describe("event subcategory filtering (render-only)", () => {
   it("removes event items whose subcategory is hidden", () => {
     const items: CalendarItem[] = [
-      makeEventItem({ id: "school", subcategoryKey: "school" }),
+      makeEventItem({ id: "holiday", subcategoryKey: "holiday" }),
       makeEventItem({ id: "work", subcategoryKey: "work" }),
       makeEventItem({ id: "s1", categoryKey: "skill", sourceType: "skill" }),
     ];
-    const hidden = new Set<EventType>(["school"]);
+    const hidden = new Set<EventType>(["holiday"]);
     const filtered = filterItemsByHiddenEventSubcategories(items, hidden);
     expect(filtered.map((i) => i.id)).toEqual(["work", "s1"]);
   });
 
   it("composes category and event subcategory filters", () => {
     const items: CalendarItem[] = [
-      makeEventItem({ id: "school", subcategoryKey: "school" }),
+      makeEventItem({ id: "holiday", subcategoryKey: "holiday" }),
       makeEventItem({ id: "work", subcategoryKey: "work" }),
       makeEventItem({ id: "s1", categoryKey: "skill", sourceType: "skill" }),
     ];
@@ -250,7 +253,7 @@ describe("event subcategory filtering (render-only)", () => {
       new Set<CalendarCategoryKey>(["skill"]),
       new Set<EventType>(["work"])
     );
-    expect(filtered.map((i) => i.id)).toEqual(["school"]);
+    expect(filtered.map((i) => i.id)).toEqual(["holiday"]);
   });
 });
 
@@ -386,6 +389,66 @@ describe("cooking type filtering (render-only)", () => {
       new Set<CalendarCookingTypeFilter>(["completed"])
     );
     expect(filtered.map((i) => i.id)).toEqual(["planned-1"]);
+  });
+});
+
+describe("school type filtering (render-only)", () => {
+  function makeSchoolItem(
+    id: string,
+    subcategoryKey: CalendarSchoolTypeFilter
+  ): CalendarItem {
+    return {
+      id,
+      sourceType: "school",
+      sourceId: id,
+      title: "Homework 1",
+      date: "2026-09-07",
+      categoryKey: "school",
+      subcategoryKey,
+      isTimed: false,
+      isMultiDay: false,
+      allDay: true,
+      sourceMeta: {
+        kind: "schoolReminder",
+        reminderId: id,
+        courseId: "c1",
+        courseName: "CS 1332",
+        reminderKind: subcategoryKey,
+        occurrence: "due",
+        sourceTimeZone: "America/New_York",
+        sourceDate: "2026-09-07",
+        links: [{ url: "https://canvas.gatech.edu/hw1", label: "Canvas" }],
+      },
+    };
+  }
+
+  it("hides quizzes without hiding assignments", () => {
+    const items: CalendarItem[] = [
+      makeSchoolItem("quiz-1", "quiz"),
+      makeSchoolItem("hw-1", "assignment"),
+      makeEventItem({ id: "e1" }),
+    ];
+    const filtered = filterCalendarItems(
+      items,
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set<CalendarSchoolTypeFilter>(["quiz"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["hw-1", "e1"]);
+  });
+
+  it("hides assignments without hiding quizzes", () => {
+    const items: CalendarItem[] = [
+      makeSchoolItem("quiz-1", "quiz"),
+      makeSchoolItem("hw-1", "assignment"),
+    ];
+    const filtered = filterItemsByHiddenSchoolTypes(
+      items,
+      new Set<CalendarSchoolTypeFilter>(["assignment"])
+    );
+    expect(filtered.map((i) => i.id)).toEqual(["quiz-1"]);
   });
 });
 
@@ -689,5 +752,59 @@ describe("formatSourceTypeLabel", () => {
     };
     expect(formatSourceTypeLabel(planned)).toBe("Planned cook");
     expect(formatSourceTypeLabel(completed)).toBe("Cooked meal");
+  });
+
+  it("labels school reminders by kind and open occurrence", () => {
+    const due: CalendarItem = {
+      ...makeEventItem({ id: "school-due" }),
+      sourceType: "school",
+      categoryKey: "school",
+      subcategoryKey: "quiz",
+      title: "Unit Quiz 1",
+      sourceMeta: {
+        kind: "schoolReminder",
+        reminderId: "r1",
+        courseId: "c1",
+        courseName: "CS 1332",
+        reminderKind: "quiz",
+        occurrence: "due",
+        sourceTimeZone: "America/New_York",
+        sourceDate: "2026-09-07",
+        links: [],
+      },
+    };
+    const open: CalendarItem = {
+      ...due,
+      id: "school-open",
+      sourceMeta: {
+        kind: "schoolReminder",
+        reminderId: "r1",
+        courseId: "c1",
+        courseName: "CS 1332",
+        reminderKind: "quiz",
+        occurrence: "open",
+        sourceTimeZone: "America/New_York",
+        sourceDate: "2026-09-07",
+        links: [],
+      },
+    };
+    expect(formatSourceTypeLabel(due)).toBe("Quiz");
+    expect(formatSourceTypeLabel(open)).toBe("Quiz · Opens");
+    expect(
+      compactCalendarItemSecondaryLabel({
+        ...due,
+        sourceMeta: {
+          kind: "schoolReminder",
+          reminderId: "r1",
+          courseId: "c1",
+          courseName: "CS 1332",
+          reminderKind: "quiz",
+          occurrence: "due",
+          sourceTimeZone: "America/New_York",
+          sourceDate: "2026-09-07",
+          links: [{ url: "https://canvas.gatech.edu/q1", label: "Canvas" }],
+        },
+      })
+    ).toBe("Canvas");
   });
 });

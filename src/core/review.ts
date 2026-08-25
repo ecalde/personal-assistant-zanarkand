@@ -49,6 +49,7 @@ import {
   summarizeWeek,
 } from "./timeline";
 import { dayKeyFromIso } from "./progression";
+import { listLocalizedSchoolDues, resolveLocalTimeZone } from "./school";
 import type {
   ApplicationStatus,
   CookingSession,
@@ -58,6 +59,8 @@ import type {
   Person,
   Recipe,
   RecipeNutrition,
+  SchoolCourse,
+  SchoolReminder,
   Session,
   Skill,
   SupplementIntakeLog,
@@ -93,6 +96,7 @@ const CONSISTENCY_RISK_THRESHOLD = 0.5;
 const BEHIND_GOAL_RATIO = 0.5;
 const FOCUS_REPEAT_RISK_THRESHOLD = 3;
 const HEAVY_NEXT_WEEK_EVENTS = 3;
+const SCHOOL_HEAVY_DUE_COUNT = 3;
 const FITNESS_WIN_SESSION_COUNT = 2;
 const FITNESS_WIN_DURATION_MINUTES = 90;
 const COOKING_WIN_SESSION_COUNT = 3;
@@ -188,6 +192,8 @@ export type CareerWeekItem = {
 export type CareerWeekSection = {
   updatedThisWeek: CareerWeekItem[];
   stillNeedingAttention: CareerWeekItem[];
+  schoolDueThisWeek: number;
+  schoolDueNextWeek: number;
 };
 
 export type PeopleWeekSection = {
@@ -267,10 +273,13 @@ export type BuildWeeklyReviewInput = {
   supplementIntakeLogs?: SupplementIntakeLog[];
   recipes?: Recipe[];
   cookingSessions?: CookingSession[];
+  schoolCourses?: SchoolCourse[];
+  schoolReminders?: SchoolReminder[];
   nutritionByRecipeId?: ReadonlyMap<string, RecipeNutrition>;
   focusFeedback: FocusFeedback[];
   todayKey: string;
   now?: Date;
+  localTimeZone?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -644,7 +653,52 @@ export function buildCareerWeekSection(
     )
   );
 
-  return { updatedThisWeek, stillNeedingAttention };
+  return { updatedThisWeek, stillNeedingAttention, schoolDueThisWeek: 0, schoolDueNextWeek: 0 };
+}
+
+function countSchoolDuesInRange(
+  courses: readonly SchoolCourse[],
+  reminders: readonly SchoolReminder[],
+  startKey: string,
+  endKey: string,
+  localTimeZone: string
+): number {
+  let count = 0;
+  for (const due of listLocalizedSchoolDues(courses, reminders, localTimeZone)) {
+    if (due.localDate >= startKey && due.localDate <= endKey) count += 1;
+  }
+  return count;
+}
+
+function attachSchoolDueCounts(
+  section: CareerWeekSection,
+  week: LocalWeekRange,
+  courses: readonly SchoolCourse[],
+  reminders: readonly SchoolReminder[],
+  localTimeZone: string
+): CareerWeekSection {
+  const nextWeekStartKey = addDaysToDateKey(week.weekEndKey, 1);
+  const nextWeekEndKey = addDaysToDateKey(week.weekEndKey, 7);
+  return {
+    ...section,
+    schoolDueThisWeek: countSchoolDuesInRange(
+      courses,
+      reminders,
+      week.weekStartKey,
+      week.weekEndKey,
+      localTimeZone
+    ),
+    schoolDueNextWeek:
+      nextWeekStartKey && nextWeekEndKey
+        ? countSchoolDuesInRange(
+            courses,
+            reminders,
+            nextWeekStartKey,
+            nextWeekEndKey,
+            localTimeZone
+          )
+        : 0,
+  };
 }
 
 export function buildPeopleWeekSection(
@@ -916,6 +970,16 @@ export function collectWeeklyRisks(review: WeeklyReview, todayKey: string): stri
     );
   }
 
+  if (review.career.schoolDueThisWeek >= SCHOOL_HEAVY_DUE_COUNT) {
+    risks.push(
+      `${review.career.schoolDueThisWeek} school due dates this week — plan ahead.`
+    );
+  } else if (review.career.schoolDueNextWeek >= SCHOOL_HEAVY_DUE_COUNT) {
+    risks.push(
+      `${review.career.schoolDueNextWeek} school dues coming up next week — plan ahead.`
+    );
+  }
+
   if (
     review.cooking.recipeCount > 0 &&
     review.cooking.completedCount === 0 &&
@@ -1041,11 +1105,15 @@ function buildWeeklyReviewSummary(
     review.cooking.completedCount
   );
 
+  const hasSchoolDues =
+    review.career.schoolDueThisWeek > 0 || review.career.schoolDueNextWeek > 0;
+
   if (
     review.skills.totalMinutes === 0 &&
     review.fitness.count === 0 &&
     !review.fitness.supplementSummaryLine &&
-    review.cooking.completedCount === 0
+    review.cooking.completedCount === 0 &&
+    !hasSchoolDues
   ) {
     parts.push(selectDeterministicTemplate(EMPTY_WEEK_SUMMARY_TEMPLATES, seed));
   } else if (
@@ -1088,6 +1156,17 @@ function buildWeeklyReviewSummary(
     );
   }
 
+  if (review.career.schoolDueThisWeek > 0) {
+    parts.push(
+      `${review.career.schoolDueThisWeek} school due date${review.career.schoolDueThisWeek === 1 ? "" : "s"} this week.`
+    );
+  }
+  if (review.career.schoolDueNextWeek > 0) {
+    parts.push(
+      `${review.career.schoolDueNextWeek} school due date${review.career.schoolDueNextWeek === 1 ? "" : "s"} next week.`
+    );
+  }
+
   return parts.join(" ");
 }
 
@@ -1115,10 +1194,12 @@ export function buildWeeklyReview(input: BuildWeeklyReviewInput): WeeklyReview {
     input.todayKey,
     input.nutritionByRecipeId
   );
-  const career = buildCareerWeekSection(
-    input.jobApplications,
+  const career = attachSchoolDueCounts(
+    buildCareerWeekSection(input.jobApplications, week, input.todayKey),
     week,
-    input.todayKey
+    input.schoolCourses ?? [],
+    input.schoolReminders ?? [],
+    input.localTimeZone ?? resolveLocalTimeZone()
   );
   const people = buildPeopleWeekSection(input.people, week, input.todayKey);
   const events = buildEventsWeekSection(input.events, week, input.todayKey);
