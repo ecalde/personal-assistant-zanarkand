@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import {
+  getPersonAgeYears,
   getPersonBirthdayStatus,
   getPersonFollowUpStatus,
+  getUpcomingBirthdayAge,
 } from "../../core/people";
 import type { LifeEvent, Person } from "../../core/model";
 import { PersonLinkedEvents } from "./PersonLinkedEvents";
@@ -65,6 +67,10 @@ export function PersonCard({
 }: PersonCardProps) {
   const birthdayStatus = getPersonBirthdayStatus(person, todayKey);
   const followUpStatus = getPersonFollowUpStatus(person, todayKey);
+  const ageYears = getPersonAgeYears(person, todayKey);
+  const turningAge = birthdayStatus
+    ? getUpcomingBirthdayAge(person, birthdayStatus.nextDateKey)
+    : null;
   const contactedToday = person.lastContactDate === todayKey;
 
   const hasPreferences = Boolean(
@@ -112,6 +118,14 @@ export function PersonCard({
               {person.relationship && (
                 <span style={styles.statusPill}>{person.relationship}</span>
               )}
+              {ageYears !== null && (
+                <span style={{ ...styles.textSecondary, fontSize: 13 }}>Age {ageYears}</span>
+              )}
+              {ageYears === null && person.birthYear !== undefined && (
+                <span style={{ ...styles.textSecondary, fontSize: 13 }}>
+                  Born {person.birthYear}
+                </span>
+              )}
             </div>
             <div style={{ ...styles.textMuted, fontSize: 13 }}>{summaryLine}</div>
           </div>
@@ -123,6 +137,7 @@ export function PersonCard({
               <span style={{ ...styles.statusPill, ...styles.statusIdle }}>
                 Birthday {formatBirthdayDate(birthdayStatus.nextDateKey)} ·{" "}
                 {birthdayStatus.urgencyLabel}
+                {turningAge !== null ? ` · turns ${turningAge}` : ""}
               </span>
             )}
             {followUpStatus?.needsFollowUp && (

@@ -230,6 +230,7 @@ export type PersonRow = {
   name: string;
   nickname: string | null;
   birthday_month_day: string | null;
+  birth_year: number | null;
   relationship: string | null;
   likes: string | null;
   dislikes: string | null;
@@ -556,6 +557,13 @@ export function isNonNegativeInteger(value: number): boolean {
 
 export function isBirthdayMonthDay(value: string): boolean {
   return BIRTHDAY_MONTH_DAY_RE.test(value);
+}
+
+export const MIN_BIRTH_YEAR = 1900;
+export const MAX_BIRTH_YEAR = 2100;
+
+export function isBirthYear(value: number): boolean {
+  return Number.isInteger(value) && value >= MIN_BIRTH_YEAR && value <= MAX_BIRTH_YEAR;
 }
 
 export function isIsoDate(value: string): boolean {
@@ -980,6 +988,9 @@ export function assertValidPerson(person: Person): void {
     ) {
       throw new MapperError("Invalid person.birthdayMonthDay", "person.birthdayMonthDay");
     }
+  }
+  if (person.birthYear !== undefined && !isBirthYear(person.birthYear)) {
+    throw new MapperError("Invalid person.birthYear", "person.birthYear");
   }
   if (person.relationship !== undefined && typeof person.relationship !== "string") {
     throw new MapperError("Invalid person.relationship", "person.relationship");
@@ -2049,6 +2060,7 @@ export function personToRow(person: Person, userId: string): PersonRow {
     name: person.name.trim(),
     nickname: person.nickname?.trim() || null,
     birthday_month_day: person.birthdayMonthDay ?? null,
+    birth_year: person.birthYear ?? null,
     relationship: person.relationship?.trim() || null,
     likes: person.likes?.trim() || null,
     dislikes: person.dislikes?.trim() || null,
@@ -2073,6 +2085,9 @@ export function personFromRow(row: PersonRow): Person {
     !isBirthdayMonthDay(row.birthday_month_day)
   ) {
     throw new MapperError("Invalid people.birthday_month_day", "people.birthday_month_day");
+  }
+  if (row.birth_year !== null && !isBirthYear(row.birth_year)) {
+    throw new MapperError("Invalid people.birth_year", "people.birth_year");
   }
   if (row.last_contact_date !== null) {
     assertIsoDate(row.last_contact_date, "people.last_contact_date");
@@ -2099,6 +2114,9 @@ export function personFromRow(row: PersonRow): Person {
   }
   if (row.birthday_month_day !== null) {
     person.birthdayMonthDay = row.birthday_month_day;
+  }
+  if (row.birth_year !== null) {
+    person.birthYear = row.birth_year;
   }
   if (row.relationship !== null && row.relationship.trim().length > 0) {
     person.relationship = row.relationship.trim();

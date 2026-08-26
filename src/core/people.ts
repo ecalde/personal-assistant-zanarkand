@@ -95,6 +95,32 @@ export function getNextBirthdayDateKey(person: Person, todayKey: string): string
   return formatLocalDateKey(candidate);
 }
 
+export function getPersonAgeYears(person: Person, todayKey: string): number | null {
+  if (person.birthYear === undefined || !person.birthdayMonthDay) return null;
+  const today = parseDateKey(todayKey);
+  if (!today) return null;
+
+  const [monthStr, dayStr] = person.birthdayMonthDay.split("-");
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!month || !day) return null;
+
+  let age = today.getFullYear() - person.birthYear;
+  const birthdayDay = birthdayMonthDayToDay(month, day, today.getFullYear());
+  const birthdayThisYear = new Date(today.getFullYear(), month - 1, birthdayDay);
+  if (today < birthdayThisYear) age -= 1;
+
+  return age < 0 ? null : age;
+}
+
+export function getUpcomingBirthdayAge(person: Person, nextDateKey: string): number | null {
+  if (person.birthYear === undefined) return null;
+  const year = Number(nextDateKey.slice(0, 4));
+  if (!Number.isInteger(year) || year <= 0) return null;
+  const turning = year - person.birthYear;
+  return turning < 0 ? null : turning;
+}
+
 export function buildUpcomingBirthdayItems(
   people: Person[],
   todayKey: string,

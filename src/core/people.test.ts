@@ -9,8 +9,10 @@ import {
   filterAndSortPeople,
   filterPeopleByQuery,
   getNextBirthdayDateKey,
+  getPersonAgeYears,
   getPersonBirthdayStatus,
   getPersonFollowUpStatus,
+  getUpcomingBirthdayAge,
   personMatchesQuery,
   filterPeopleByIdentityQuery,
   personMatchesIdentityQuery,
@@ -67,6 +69,48 @@ describe("getNextBirthdayDateKey", () => {
     expect(getNextBirthdayDateKey(samplePerson({ birthdayMonthDay: undefined }), "2026-05-26")).toBe(
       null
     );
+  });
+});
+
+describe("getPersonAgeYears", () => {
+  it("returns completed years when birthday has passed this year", () => {
+    expect(
+      getPersonAgeYears(samplePerson({ birthdayMonthDay: "03-10", birthYear: 1994 }), "2026-05-26")
+    ).toBe(32);
+  });
+
+  it("returns previous age when birthday is still ahead", () => {
+    expect(
+      getPersonAgeYears(samplePerson({ birthdayMonthDay: "06-15", birthYear: 1994 }), "2026-05-26")
+    ).toBe(31);
+  });
+
+  it("returns the new age on the birthday", () => {
+    expect(
+      getPersonAgeYears(samplePerson({ birthdayMonthDay: "05-26", birthYear: 1994 }), "2026-05-26")
+    ).toBe(32);
+  });
+
+  it("returns null when year of birth is missing", () => {
+    expect(getPersonAgeYears(samplePerson({ birthYear: undefined }), "2026-05-26")).toBe(null);
+  });
+
+  it("returns null when month and day are missing", () => {
+    expect(
+      getPersonAgeYears(samplePerson({ birthdayMonthDay: undefined, birthYear: 1994 }), "2026-05-26")
+    ).toBe(null);
+  });
+});
+
+describe("getUpcomingBirthdayAge", () => {
+  it("returns the age they will turn on the next birthday", () => {
+    expect(
+      getUpcomingBirthdayAge(samplePerson({ birthYear: 1994 }), "2026-06-15")
+    ).toBe(32);
+  });
+
+  it("returns null without a year of birth", () => {
+    expect(getUpcomingBirthdayAge(samplePerson({ birthYear: undefined }), "2026-06-15")).toBe(null);
   });
 });
 

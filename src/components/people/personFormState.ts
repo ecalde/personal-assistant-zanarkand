@@ -5,6 +5,7 @@ export type PersonFormState = {
   nickname: string;
   birthdayMonth: string;
   birthdayDay: string;
+  birthYear: string;
   relationship: string;
   likes: string;
   dislikes: string;
@@ -20,6 +21,7 @@ export function emptyPersonFormState(): PersonFormState {
     nickname: "",
     birthdayMonth: "",
     birthdayDay: "",
+    birthYear: "",
     relationship: "",
     likes: "",
     dislikes: "",
@@ -44,6 +46,7 @@ export function personFormFromPerson(person: Person): PersonFormState {
     nickname: person.nickname ?? "",
     birthdayMonth: month,
     birthdayDay: day,
+    birthYear: person.birthYear !== undefined ? String(person.birthYear) : "",
     relationship: person.relationship ?? "",
     likes: person.likes ?? "",
     dislikes: person.dislikes ?? "",
@@ -63,6 +66,15 @@ export function validatePersonForm(form: PersonFormState): string | null {
   const day = form.birthdayDay.trim();
   if ((month && !day) || (!month && day)) {
     return "Enter both birthday month and day, or leave both empty.";
+  }
+
+  const yearRaw = form.birthYear.trim();
+  if (yearRaw) {
+    const parsed = Number(yearRaw);
+    const currentYear = new Date().getFullYear();
+    if (!Number.isInteger(parsed) || parsed < 1900 || parsed > currentYear) {
+      return `Year of birth must be between 1900 and ${currentYear}.`;
+    }
   }
 
   const cadenceRaw = form.contactCadenceDays.trim();
@@ -85,10 +97,14 @@ export function personPayloadFromForm(
     contactCadenceDays = Number(cadenceRaw);
   }
 
+  const yearRaw = form.birthYear.trim();
+  const birthYear = yearRaw ? Number(yearRaw) : undefined;
+
   return {
     name: form.name.trim(),
     nickname: form.nickname.trim() || undefined,
     birthdayMonthDay: birthdayMonthDayFromForm(form),
+    birthYear,
     relationship: form.relationship.trim() || undefined,
     likes: form.likes.trim() || undefined,
     dislikes: form.dislikes.trim() || undefined,

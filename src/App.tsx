@@ -907,6 +907,7 @@ export default function App({ userId, onSignOut }: AppProps) {
 
     if (input.nickname?.trim()) newPerson.nickname = input.nickname.trim();
     if (input.birthdayMonthDay) newPerson.birthdayMonthDay = input.birthdayMonthDay;
+    if (input.birthYear !== undefined) newPerson.birthYear = input.birthYear;
     if (input.relationship?.trim()) newPerson.relationship = input.relationship.trim();
     if (input.likes?.trim()) newPerson.likes = input.likes.trim();
     if (input.dislikes?.trim()) newPerson.dislikes = input.dislikes.trim();
@@ -948,6 +949,11 @@ export default function App({ userId, onSignOut }: AppProps) {
       nextPerson.birthdayMonthDay = updated.birthdayMonthDay;
     } else {
       delete nextPerson.birthdayMonthDay;
+    }
+    if (updated.birthYear !== undefined) {
+      nextPerson.birthYear = updated.birthYear;
+    } else {
+      delete nextPerson.birthYear;
     }
     if (updated.relationship?.trim()) {
       nextPerson.relationship = updated.relationship.trim();

@@ -586,6 +586,17 @@ describe("person mappers", () => {
       personToRow(samplePerson({ birthdayMonthDay: "13-40" }), USER_ID)
     ).toThrow(MapperError);
   });
+
+  it("round-trips birth year", () => {
+    const person = samplePerson({ birthYear: 1994 });
+    const row = personToRow(person, USER_ID);
+    expect(row.birth_year).toBe(1994);
+    expect(personFromRow(row)).toEqual(person);
+  });
+
+  it("rejects invalid birth year", () => {
+    expect(() => personToRow(samplePerson({ birthYear: 1800 }), USER_ID)).toThrow(MapperError);
+  });
 });
 
 describe("override mappers", () => {

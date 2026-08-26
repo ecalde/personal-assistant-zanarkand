@@ -122,6 +122,8 @@ export type Person = {
   name: string;
   nickname?: string;
   birthdayMonthDay?: string;
+  /** Four-digit year of birth; optional even when month/day is set. */
+  birthYear?: number;
   relationship?: string;
   likes?: string;
   dislikes?: string;

@@ -88,6 +88,18 @@ export function PersonForm({
           />
         </label>
         <label style={fieldLabel}>
+          Year of birth (optional)
+          <input
+            type="number"
+            min={1900}
+            max={2100}
+            value={form.birthYear}
+            onChange={(e) => onChange({ ...form, birthYear: e.target.value })}
+            placeholder="YYYY"
+            style={fieldInput}
+          />
+        </label>
+        <label style={fieldLabel}>
           Last contact date (optional)
           <input
             type="date"
