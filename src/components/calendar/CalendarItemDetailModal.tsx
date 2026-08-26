@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CalendarCompletionVisual, CalendarItem } from "../../core/calendar";
 import {
-  resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import {
@@ -103,7 +103,7 @@ export function CalendarItemDetailModal({
   onCancelPlannedCook,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  const color = resolveCalendarItemColor(item, preferences);
+  const color = resolveCalendarItemColorStyle(item, preferences);
   const timeLabel = formatItemTimeLabel(item);
 
   const isRecurringOccurrence =

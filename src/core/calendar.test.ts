@@ -1378,6 +1378,35 @@ describe("school calendar items", () => {
     });
   });
 
+  it("copies the course color onto the calendar item as an accent overlay key", () => {
+    const colored = createSchoolCourse(
+      {
+        name: "CS 1332",
+        code: "CS1332",
+        timezone: "America/New_York",
+        colorToken: "blue.base",
+      },
+      { id: COURSE_ID, nowIso: NOW }
+    );
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "exam",
+        title: "Midterm",
+        date: "2026-09-07",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [colored], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.find((item) => item.sourceType === "school");
+    expect(school?.subcategoryKey).toBe("exam");
+    expect(school?.accentColorKey).toBe("blue.base");
+    expect(school?.colorKey).toBeUndefined();
+  });
+
   it("converts timed Eastern due times into the local zone", () => {
     const reminder = createSchoolReminder(
       {

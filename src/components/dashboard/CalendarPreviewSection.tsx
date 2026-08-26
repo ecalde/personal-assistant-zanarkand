@@ -10,7 +10,7 @@ import {
   groupCalendarItemsByDate,
 } from "../../core/calendar";
 import {
-  resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import { formatItemTimeLabel } from "../../core/calendarView";
@@ -147,7 +147,7 @@ export function CalendarPreviewSection({
                 </div>
                 <div style={{ display: "grid", gap: 4 }}>
                   {dayItems.map((item) => {
-                    const color = resolveCalendarItemColor(item, calendarPreferences);
+                    const color = resolveCalendarItemColorStyle(item, calendarPreferences);
                     const timeLabel = formatItemTimeLabel(item);
                     return (
                       <div

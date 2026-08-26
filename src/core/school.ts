@@ -6,6 +6,7 @@
  * local zone. All-day (no time) dates are not shifted.
  */
 
+import { isCalendarColorToken, type CalendarColorToken } from "./calendarColors";
 import type {
   AppPayload,
   SchoolCourse,
@@ -72,6 +73,7 @@ export type CreateSchoolCourseInput = {
   term?: string;
   timezone?: string;
   notes?: string;
+  colorToken?: CalendarColorToken;
   staff?: SchoolStaffMember[];
   officeHours?: SchoolOfficeHours[];
   latePolicy?: SchoolLatePolicy;
@@ -144,6 +146,11 @@ export function isValidIanaTimeZone(value: string): boolean {
 export function resolveSchoolTimeZone(value: string | undefined): string {
   if (value && isValidIanaTimeZone(value)) return value.trim();
   return DEFAULT_SCHOOL_TIMEZONE;
+}
+
+/** Allowlisted calendar palette token, or undefined when unset/invalid. */
+export function resolveSchoolCourseColorToken(value: unknown): CalendarColorToken | undefined {
+  return isCalendarColorToken(value) ? value : undefined;
 }
 
 export function resolveLocalTimeZone(): string {
@@ -245,6 +252,8 @@ export function createSchoolCourse(
   if (term) course.term = term;
   const notes = input.notes?.trim();
   if (notes) course.notes = notes;
+  const colorToken = resolveSchoolCourseColorToken(input.colorToken);
+  if (colorToken) course.colorToken = colorToken;
   if (input.latePolicy) course.latePolicy = { ...input.latePolicy };
   const extraCreditNotes = input.extraCreditNotes?.trim();
   if (extraCreditNotes) course.extraCreditNotes = extraCreditNotes;

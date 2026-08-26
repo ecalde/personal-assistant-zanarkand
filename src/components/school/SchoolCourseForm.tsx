@@ -1,5 +1,6 @@
 import { styles } from "../../ui/appStyles";
-import { SCHOOL_STAFF_ROLE_LABELS, SCHOOL_STAFF_ROLES } from "../../core/school";
+import { SCHOOL_STAFF_ROLE_LABELS, SCHOOL_STAFF_ROLES, resolveSchoolCourseColorToken } from "../../core/school";
+import { CalendarColorSwatchPicker } from "../calendar/CalendarColorSwatchPicker";
 import type { SchoolCourseFormState } from "./schoolCourseFormState";
 import { emptyOfficeHoursFormRow, emptyStaffFormRow } from "./schoolCourseFormState";
 import { SchoolGradeCategoriesFields } from "./SchoolGradeCategoriesFields";
@@ -101,6 +102,19 @@ export function SchoolCourseForm({
           ))}
         </datalist>
       </label>
+      <div style={{ display: "grid", gap: 6 }}>
+        <span style={styles.label}>Class color</span>
+        <p style={{ ...styles.helpText, margin: 0 }}>
+          Optional. School reminders keep their exam/quiz colors; this adds a small right-to-left
+          overlay so you can see which class they belong to.
+        </p>
+        <CalendarColorSwatchPicker
+          value={resolveSchoolCourseColorToken(form.colorToken)}
+          onChange={(token) => patch({ colorToken: token })}
+          onClear={() => patch({ colorToken: "" })}
+          ariaLabel="Choose class calendar color"
+        />
+      </div>
       <label style={styles.label}>
         Notes
         <textarea

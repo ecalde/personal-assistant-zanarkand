@@ -56,6 +56,19 @@ describe("school type guards and defaults", () => {
     );
   });
 
+  it("stores an allowlisted class color and ignores invalid tokens", () => {
+    expect(
+      createSchoolCourse({ name: "Algo", colorToken: "blue.base" }, { id: COURSE_ID, nowIso: NOW })
+        .colorToken
+    ).toBe("blue.base");
+    expect(
+      createSchoolCourse(
+        { name: "Algo", colorToken: "not-a-color" as "blue.base" },
+        { id: COURSE_ID, nowIso: NOW }
+      ).colorToken
+    ).toBeUndefined();
+  });
+
   it("maps GT letter bands", () => {
     expect(letterGradeFromPercent(90)).toBe("A");
     expect(letterGradeFromPercent(89.9)).toBe("B");

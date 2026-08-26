@@ -446,6 +446,7 @@ export type SchoolCourseRow = {
   extra_credit_notes: string | null;
   scoring_notes: string | null;
   grade_categories: unknown;
+  color_token: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -3749,6 +3750,9 @@ export function assertValidSchoolCourse(course: SchoolCourse): void {
   if (course.scoringNotes !== undefined && typeof course.scoringNotes !== "string") {
     throw new MapperError("Invalid schoolCourse.scoringNotes", "schoolCourse.scoringNotes");
   }
+  if (course.colorToken !== undefined && !isCalendarColorToken(course.colorToken)) {
+    throw new MapperError("Invalid schoolCourse.colorToken", "schoolCourse.colorToken");
+  }
   parseSchoolStaff(course.staff, "schoolCourse.staff");
   parseSchoolOfficeHours(course.officeHours, "schoolCourse.officeHours");
   parseSchoolGradeCategories(course.gradeCategories, "schoolCourse.gradeCategories");
@@ -3779,6 +3783,7 @@ export function schoolCourseToRow(course: SchoolCourse, userId: string): SchoolC
       course.gradeCategories,
       "schoolCourse.gradeCategories"
     ),
+    color_token: course.colorToken ?? null,
     created_at: course.createdAtIso,
     updated_at: course.updatedAtIso,
   };
@@ -3816,6 +3821,12 @@ export function schoolCourseFromRow(row: SchoolCourseRow): SchoolCourse {
   }
   if (row.scoring_notes !== null && row.scoring_notes.trim()) {
     course.scoringNotes = row.scoring_notes.trim();
+  }
+  if (row.color_token !== null && row.color_token !== undefined) {
+    if (!isCalendarColorToken(row.color_token)) {
+      throw new MapperError("Invalid school_courses.color_token", "school_courses.color_token");
+    }
+    course.colorToken = row.color_token;
   }
   return course;
 }

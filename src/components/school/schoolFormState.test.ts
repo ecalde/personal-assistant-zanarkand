@@ -53,6 +53,24 @@ describe("schoolCourseFormState", () => {
     expect(payload.latePolicy?.lateDaysAllowed).toBe(2);
   });
 
+  it("round-trips a class color and rejects unknown tokens", () => {
+    const course = createSchoolCourse(
+      { name: "Algo", colorToken: "indigo.strong" },
+      { id: COURSE_ID, nowIso: NOW }
+    );
+    const form = schoolCourseFormFromCourse(course);
+    expect(form.colorToken).toBe("indigo.strong");
+    expect(validateSchoolCourseForm(form)).toBeNull();
+    expect(schoolCoursePayloadFromForm(form).colorToken).toBe("indigo.strong");
+    expect(
+      validateSchoolCourseForm({ ...emptySchoolCourseFormState(), name: "Algo", colorToken: "nope" })
+    ).toMatch(/palette color/);
+    expect(
+      schoolCoursePayloadFromForm({ ...emptySchoolCourseFormState(), name: "Algo", colorToken: "" })
+        .colorToken
+    ).toBeUndefined();
+  });
+
   it("validates and builds weighted grade categories", () => {
     const empty = emptySchoolCourseFormState();
     expect(

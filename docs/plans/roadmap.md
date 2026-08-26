@@ -99,6 +99,7 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 57 | **Deterministic school ingest** | [`schoolParse.ts`](../../src/core/schoolParse.ts) auto-detects Canvas weight tables, assignment lists, and messy prose; per-course paste review with approve/skip and duplicate warnings. No AI, PDF, or Canvas API. |
 | 58 | **What-if grades** | [`schoolGrades.ts`](../../src/core/schoolGrades.ts) weighted current / min / max + GT letters, need-for-A average on remaining work, and per-item safe floors. Course grades panel groups scores by category. Extra credit can exceed 100%; ungraded and 0% extra-credit rows do not consume required weight. |
 | 59 | **School Daily Focus** | `SchoolReminder` dues within 3 days as Daily Focus items (`open_career` + `CareerFocus` school). Briefing/review one-liners only. No XP. |
+| 60 | **School course calendar color** | Optional per-course palette color on the course form (same swatches as Calendar settings). Reminders keep kind colors (exam/quiz/…) and overlay the course color as a small right-to-left gradient (`accentColorKey`). |
 
 **Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
 

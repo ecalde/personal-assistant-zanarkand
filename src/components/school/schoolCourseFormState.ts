@@ -10,6 +10,7 @@ import {
   DEFAULT_SCHOOL_TIMEZONE,
   isSchoolStaffRole,
   isValidIanaTimeZone,
+  resolveSchoolCourseColorToken,
   type CreateSchoolCourseInput,
 } from "../../core/school";
 import {
@@ -47,6 +48,7 @@ export type SchoolCourseFormState = {
   notes: string;
   extraCreditNotes: string;
   scoringNotes: string;
+  colorToken: string;
   lateSummary: string;
   lateDaysAllowed: string;
   deductionPercentPerDay: string;
@@ -77,6 +79,7 @@ export function emptySchoolCourseFormState(): SchoolCourseFormState {
     notes: "",
     extraCreditNotes: "",
     scoringNotes: "",
+    colorToken: "",
     lateSummary: "",
     lateDaysAllowed: "",
     deductionPercentPerDay: "",
@@ -96,6 +99,7 @@ export function schoolCourseFormFromCourse(course: SchoolCourse): SchoolCourseFo
     notes: course.notes ?? "",
     extraCreditNotes: course.extraCreditNotes ?? "",
     scoringNotes: course.scoringNotes ?? "",
+    colorToken: course.colorToken ?? "",
     lateSummary: course.latePolicy?.summary ?? "",
     lateDaysAllowed:
       course.latePolicy?.lateDaysAllowed !== undefined
@@ -132,6 +136,9 @@ export function validateSchoolCourseForm(form: SchoolCourseFormState): string | 
   if (!form.name.trim()) return "Course name is required.";
   if (!isValidIanaTimeZone(form.timezone)) {
     return "Timezone must be a valid IANA zone such as America/New_York.";
+  }
+  if (form.colorToken.trim() && !resolveSchoolCourseColorToken(form.colorToken)) {
+    return "Class color must be a calendar palette color.";
   }
 
   for (let i = 0; i < form.staff.length; i += 1) {
@@ -231,6 +238,8 @@ export function schoolCoursePayloadFromForm(form: SchoolCourseFormState): Create
   if (form.code.trim()) input.code = form.code.trim();
   if (form.term.trim()) input.term = form.term.trim();
   if (form.notes.trim()) input.notes = form.notes.trim();
+  const colorToken = resolveSchoolCourseColorToken(form.colorToken);
+  if (colorToken) input.colorToken = colorToken;
   if (form.extraCreditNotes.trim()) input.extraCreditNotes = form.extraCreditNotes.trim();
   if (form.scoringNotes.trim()) input.scoringNotes = form.scoringNotes.trim();
 

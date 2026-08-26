@@ -3,11 +3,13 @@ import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/
 import {
   formatSchoolDueCaption,
   resolveLocalTimeZone,
+  resolveSchoolCourseColorToken,
   SCHOOL_REMINDER_KIND_LABELS,
   type CreateSchoolCourseInput,
   type CreateSchoolGradedItemInput,
   type CreateSchoolReminderInput,
 } from "../../core/school";
+import { getCalendarColorSwatch } from "../../core/calendarColors";
 import { computeCourseGradeWhatIf, formatSchoolGradePercent } from "../../core/schoolGrades";
 import type { SchoolIngestSuggestion } from "../../core/schoolParse";
 import { formatLocalDateKey } from "../../core/timeline";
@@ -170,7 +172,10 @@ export function SchoolCourseCard({
         <>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{course.name}</h2>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+                <CourseColorSwatch colorToken={course.colorToken} />
+                {course.name}
+              </h2>
               <p style={{ ...styles.textMuted, margin: "4px 0 0" }}>
                 {[course.code, course.term, course.timezone].filter(Boolean).join(" · ")}
               </p>
@@ -417,6 +422,25 @@ function CourseFold({
 function stopFoldToggle(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
   event.stopPropagation();
+}
+
+function CourseColorSwatch({ colorToken }: { colorToken: SchoolCourse["colorToken"] }) {
+  const token = resolveSchoolCourseColorToken(colorToken);
+  if (!token) return null;
+  const swatch = getCalendarColorSwatch(token);
+  return (
+    <span
+      aria-hidden="true"
+      title={swatch.label}
+      style={{
+        ...styles.calendarCategorySwatch,
+        width: 14,
+        height: 14,
+        background: swatch.background,
+        borderColor: swatch.border,
+      }}
+    />
+  );
 }
 
 function compactSchoolDate(date: string): string {

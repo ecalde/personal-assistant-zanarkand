@@ -7,8 +7,9 @@
 //
 // CalendarColorPreferences is persisted per user (AppPayload.calendarPreferences +
 // calendar_preferences Supabase table). This module stays pure — resolution only;
-// storage and UI wiring live elsewhere. CalendarItem is unchanged — colorKey is the
-// per-item override hook.
+// storage and UI wiring live elsewhere. CalendarItem.colorKey is the per-item
+// override hook; accentColorKey is an optional right-to-left overlay (school
+// course color) that never replaces the resolved fill.
 
 export type CalendarCategoryKey =
   | "skill"
@@ -73,6 +74,8 @@ export type CalendarColorResolutionInput = {
   categoryKey: string;
   subcategoryKey?: string;
   colorKey?: string;
+  /** Right-to-left overlay (e.g. school course color). Does not replace the resolved fill. */
+  accentColorKey?: string;
 };
 
 export type CalendarColorUsage = {
@@ -419,6 +422,43 @@ export function resolveCalendarItemColor(
   prefs?: CalendarColorPreferences
 ): CalendarColorSwatch {
   return getCalendarColorSwatch(resolveCalendarItemColorToken(input, prefs));
+}
+
+export type CalendarItemColorStyle = {
+  background: string;
+  color: string;
+  borderColor: string;
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Kind/category fill stays the resolved color. When `accentColorKey` is a valid
+ * palette token, a small right-to-left gradient is layered on top so a school
+ * reminder can still read as an exam (fill) while showing which class it is for.
+ */
+export function resolveCalendarItemColorStyle(
+  input: CalendarColorResolutionInput,
+  prefs?: CalendarColorPreferences
+): CalendarItemColorStyle {
+  const swatch = resolveCalendarItemColor(input, prefs);
+  const accentToken = readValidToken(input.accentColorKey);
+  if (!accentToken) {
+    return {
+      background: swatch.background,
+      color: swatch.foreground,
+      borderColor: swatch.border,
+    };
+  }
+  const accent = getCalendarColorSwatch(accentToken);
+  return {
+    background: `linear-gradient(to left, ${hexToRgba(accent.background, 0.88)} 0%, ${hexToRgba(accent.background, 0)} 48%), ${swatch.background}`,
+    color: swatch.foreground,
+    borderColor: swatch.border,
+  };
 }
 
 /**

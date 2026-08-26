@@ -1394,7 +1394,23 @@ describe("school mappers", () => {
     const row = schoolCourseToRow(course, USER_ID);
     expect(row.user_id).toBe(USER_ID);
     expect(row.timezone).toBe("America/New_York");
+    expect(row.color_token).toBeNull();
     expect(schoolCourseFromRow(row)).toEqual(course);
+  });
+
+  it("round-trips a course color token", () => {
+    const course = sampleCourse({ colorToken: "blue.base" });
+    const row = schoolCourseToRow(course, USER_ID);
+    expect(row.color_token).toBe("blue.base");
+    expect(schoolCourseFromRow(row)).toEqual(course);
+  });
+
+  it("rejects an invalid course color token", () => {
+    expect(() =>
+      schoolCourseToRow(sampleCourse({ colorToken: "not-a-color" as SchoolCourse["colorToken"] }), USER_ID)
+    ).toThrow(MapperError);
+    const row = schoolCourseToRow(sampleCourse(), USER_ID);
+    expect(() => schoolCourseFromRow({ ...row, color_token: "octarine.base" })).toThrow(MapperError);
   });
 
   it("round-trips a timed reminder with links", () => {

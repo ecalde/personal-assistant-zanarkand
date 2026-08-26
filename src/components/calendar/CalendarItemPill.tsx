@@ -1,6 +1,6 @@
 import type { CalendarItem } from "../../core/calendar";
 import {
-  resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import { formatCalendarItemButtonLabel, formatItemTimeLabel } from "../../core/calendarView";
@@ -21,7 +21,7 @@ export type CalendarItemPillProps = {
 
 /** Compact month-view pill: dot + time + title in a single line. */
 export function CalendarItemPill({ item, preferences, onSelect, drag }: CalendarItemPillProps) {
-  const color = resolveCalendarItemColor(item, preferences);
+  const color = resolveCalendarItemColorStyle(item, preferences);
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
   const isDimmed = drag?.isDimmed ?? false;
@@ -42,8 +42,8 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
         ...styles.calendarPill,
         ...completionStyle,
         background: color.background,
-        color: color.foreground,
-        borderColor: color.border,
+        color: color.color,
+        borderColor: color.borderColor,
         cursor: draggable ? "grab" : undefined,
         opacity: completionVisualOpacity(item.completionVisual, isDimmed),
       }}

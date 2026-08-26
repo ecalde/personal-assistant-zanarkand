@@ -8,9 +8,11 @@ import {
   DEFAULT_SUBCATEGORY_COLOR_TOKENS,
   describeColorUsage,
   FALLBACK_COLOR_TOKEN,
+  getCalendarColorSwatch,
   isCalendarCategoryKey,
   isCalendarColorToken,
   resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   resolveCalendarItemColorToken,
   resolveCategoryLabel,
   sanitizeCategoryAlias,
@@ -165,6 +167,43 @@ describe("resolveCalendarItemColor", () => {
     expect(swatch.background).toMatch(/^#[0-9a-f]{6}$/i);
     expect(swatch.foreground).toMatch(/^#[0-9a-f]{6}$/i);
     expect(swatch.border).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+});
+
+describe("accent overlay style", () => {
+  it("keeps the kind fill when no accent is set", () => {
+    const exam = getCalendarColorSwatch("rose.base");
+    const style = resolveCalendarItemColorStyle({
+      categoryKey: "school",
+      subcategoryKey: "exam",
+    });
+    expect(style.background).toBe(exam.background);
+    expect(style.color).toBe(exam.foreground);
+    expect(style.borderColor).toBe(exam.border);
+  });
+
+  it("layers a right-to-left course overlay on top of the kind color", () => {
+    const exam = getCalendarColorSwatch("rose.base");
+    const style = resolveCalendarItemColorStyle({
+      categoryKey: "school",
+      subcategoryKey: "exam",
+      accentColorKey: "blue.base",
+    });
+    expect(style.background).toContain("linear-gradient(to left");
+    expect(style.background).toMatch(/rgba\(59, 130, 246/);
+    expect(style.background.endsWith(`, ${exam.background}`)).toBe(true);
+    expect(style.color).toBe(exam.foreground);
+    expect(style.borderColor).toBe(exam.border);
+  });
+
+  it("ignores an invalid accent token so the kind color is unchanged", () => {
+    const exam = getCalendarColorSwatch("rose.base");
+    const style = resolveCalendarItemColorStyle({
+      categoryKey: "school",
+      subcategoryKey: "exam",
+      accentColorKey: "not-a-real-token",
+    });
+    expect(style.background).toBe(exam.background);
   });
 });
 

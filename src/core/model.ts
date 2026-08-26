@@ -2,8 +2,8 @@
 
 // Re-exported so AppPayload can reference the persisted calendar preferences
 // singleton without depending on the (pure) calendarColors module's logic.
-export type { CalendarColorPreferences } from "./calendarColors";
-import type { CalendarColorPreferences } from "./calendarColors";
+export type { CalendarColorPreferences, CalendarColorToken } from "./calendarColors";
+import type { CalendarColorPreferences, CalendarColorToken } from "./calendarColors";
 
 // Re-exported so LifeEvent can carry an optional recurrence rule without
 // depending on the (pure) recurrence module's logic. Type-only cross-import:
@@ -617,6 +617,8 @@ export type SchoolCourse = {
   term?: string;
   timezone: string;
   notes?: string;
+  /** Optional calendar palette token used as a course overlay (not the reminder-kind color). */
+  colorToken?: CalendarColorToken;
   staff: SchoolStaffMember[];
   officeHours: SchoolOfficeHours[];
   latePolicy?: SchoolLatePolicy;

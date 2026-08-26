@@ -194,6 +194,8 @@ export type CalendarItem = {
   categoryKey: string; // mirrors sourceType; assignable to CalendarColorResolutionInput
   subcategoryKey?: string;
   colorKey?: string; // per-item color override hook (unused here)
+  /** Optional overlay token (school course color). Does not replace category/subcategory fill. */
+  accentColorKey?: string;
   iconKey?: string; // per-item icon override hook (unused here)
   description?: string;
   isTimed: boolean;
@@ -1069,6 +1071,7 @@ function buildSchoolReminderCalendarItem(
   };
   if (localStart.time) item.startTime = localStart.time;
   if (localEnd) item.endTime = localEnd;
+  if (course.colorToken) item.accentColorKey = course.colorToken;
 
   const descriptionParts: string[] = [];
   if (course.code) descriptionParts.push(`${course.code} · ${course.name}`);

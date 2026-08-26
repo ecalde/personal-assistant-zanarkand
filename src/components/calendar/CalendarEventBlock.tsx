@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { CalendarItem } from "../../core/calendar";
 import {
-  resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import {
@@ -43,7 +43,7 @@ export function CalendarEventBlock({
   resize,
 }: CalendarEventBlockProps) {
   const [isRaised, setIsRaised] = useState(false);
-  const color = resolveCalendarItemColor(item, preferences);
+  const color = resolveCalendarItemColorStyle(item, preferences);
   const resolvedLayout = layout ?? computeTimedItemLayout(item);
   const timeLabel = formatItemTimeLabel(item);
   const draggable = drag?.draggable ?? false;
@@ -80,8 +80,8 @@ export function CalendarEventBlock({
         right: "auto",
         zIndex: blockZIndex,
         background: color.background,
-        color: color.foreground,
-        borderColor: color.border,
+        color: color.color,
+        borderColor: color.borderColor,
         cursor: draggable ? (isDragging ? "grabbing" : "grab") : undefined,
         touchAction: draggable ? "none" : undefined,
         opacity: completionVisualOpacity(item.completionVisual, isDimmed),
@@ -138,7 +138,7 @@ export function CalendarDragGhostBlock({
   durationMinutes,
   pixelsPerMinute,
 }: CalendarDragGhostBlockProps) {
-  const color = resolveCalendarItemColor(item, preferences);
+  const color = resolveCalendarItemColorStyle(item, preferences);
 
   return (
     <div
@@ -154,8 +154,8 @@ export function CalendarDragGhostBlock({
         top: topMinutes * pixelsPerMinute,
         height: Math.max(16, durationMinutes * pixelsPerMinute - 2),
         background: color.background,
-        color: color.foreground,
-        borderColor: color.border,
+        color: color.color,
+        borderColor: color.borderColor,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       }}
     >

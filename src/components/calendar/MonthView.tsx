@@ -1,6 +1,6 @@
 import type { CalendarItem } from "../../core/calendar";
 import {
-  resolveCalendarItemColor,
+  resolveCalendarItemColorStyle,
   type CalendarColorPreferences,
 } from "../../core/calendarColors";
 import {
@@ -40,7 +40,7 @@ export function MonthView({
 }: MonthViewProps) {
   const weeks = buildMonthGrid(monthAnchorKey, todayKey);
   const { getItemDragBindings, ghost } = useCalendarMonthItemDrag({ onMoveItem });
-  const ghostColor = ghost ? resolveCalendarItemColor(ghost.item, preferences) : null;
+  const ghostColor = ghost ? resolveCalendarItemColorStyle(ghost.item, preferences) : null;
 
   return (
     <div>
@@ -134,8 +134,8 @@ export function MonthView({
             zIndex: 1000,
             maxWidth: 200,
             background: ghostColor.background,
-            color: ghostColor.foreground,
-            borderColor: ghostColor.border,
+            color: ghostColor.color,
+            borderColor: ghostColor.borderColor,
             boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
           }}
         >

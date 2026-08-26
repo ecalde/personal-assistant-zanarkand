@@ -7,8 +7,10 @@ import {
 import { styles } from "../../ui/appStyles";
 
 export type CalendarColorSwatchPickerProps = {
-  value: CalendarColorToken;
+  value?: CalendarColorToken;
   onChange: (token: CalendarColorToken) => void;
+  /** When set, the picker can clear back to no color (class overlay off). */
+  onClear?: () => void;
   usageLabel?: string;
   disabled?: boolean;
   /** Accessible name for the color trigger button. */
@@ -18,6 +20,7 @@ export type CalendarColorSwatchPickerProps = {
 export function CalendarColorSwatchPicker({
   value,
   onChange,
+  onClear,
   usageLabel,
   disabled = false,
   ariaLabel = "Choose color",
@@ -25,7 +28,7 @@ export function CalendarColorSwatchPicker({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
-  const preview = getCalendarColorSwatch(value);
+  const preview = value ? getCalendarColorSwatch(value) : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +55,11 @@ export function CalendarColorSwatchPicker({
     setOpen(false);
   }
 
+  function clearColor() {
+    onClear?.();
+    setOpen(false);
+  }
+
   return (
     <div ref={rootRef} style={styles.calendarColorPopoverRoot}>
       <button
@@ -70,13 +78,18 @@ export function CalendarColorSwatchPicker({
         <span
           style={{
             ...styles.calendarColorPreviewSwatch,
-            background: preview.background,
-            color: preview.foreground,
-            borderColor: preview.border,
+            background: preview?.background ?? "transparent",
+            color: preview?.foreground ?? "inherit",
+            borderColor: preview?.border ?? "var(--aether-border, #e5e5e5)",
+            backgroundImage: preview
+              ? undefined
+              : "linear-gradient(to bottom right, transparent calc(50% - 1px), var(--aether-border, #e5e5e5) calc(50% - 1px), var(--aether-border, #e5e5e5) calc(50% + 1px), transparent calc(50% + 1px))",
           }}
           aria-hidden="true"
         />
-        <span style={styles.calendarColorPopoverTriggerLabel}>{preview.label}</span>
+        <span style={styles.calendarColorPopoverTriggerLabel}>
+          {preview?.label ?? "None"}
+        </span>
         <span aria-hidden="true" style={styles.calendarColorPopoverChevron}>
           {open ? "▴" : "▾"}
         </span>
@@ -91,6 +104,17 @@ export function CalendarColorSwatchPicker({
         >
           {usageLabel ? (
             <p style={styles.calendarColorUsageText}>Used by: {usageLabel}</p>
+          ) : null}
+          {onClear ? (
+            <button
+              type="button"
+              role="option"
+              aria-selected={!value}
+              onClick={clearColor}
+              style={styles.calendarColorNoneOption}
+            >
+              No color
+            </button>
           ) : null}
           <div style={styles.calendarPaletteGrid}>
             {CALENDAR_PALETTE_HUES.map((hue) => (
