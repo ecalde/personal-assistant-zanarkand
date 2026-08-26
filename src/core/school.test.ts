@@ -22,6 +22,9 @@ import {
   resolveSchoolLinkLabel,
   resolveSchoolTimeZone,
   sanitizeSchoolReferences,
+  SCHOOL_STAFF_ROLE_COLORS,
+  SCHOOL_STAFF_ROLE_LABELS,
+  SCHOOL_STAFF_ROLES,
   upsertSchoolReminder,
   withReminderFingerprint,
 } from "./school";
@@ -75,6 +78,17 @@ describe("school type guards and defaults", () => {
     expect(letterGradeFromPercent(70)).toBe("C");
     expect(letterGradeFromPercent(60)).toBe("D");
     expect(letterGradeFromPercent(59.9)).toBe("F");
+  });
+
+  it("gives each staff role a distinct label and color token", () => {
+    expect(SCHOOL_STAFF_ROLES).toEqual(["professor", "ta", "other"]);
+    expect(SCHOOL_STAFF_ROLE_LABELS).toEqual({
+      professor: "Professor",
+      ta: "TA",
+      other: "Staff",
+    });
+    const colors = SCHOOL_STAFF_ROLES.map((role) => SCHOOL_STAFF_ROLE_COLORS[role]);
+    expect(new Set(colors).size).toBe(SCHOOL_STAFF_ROLES.length);
   });
 });
 

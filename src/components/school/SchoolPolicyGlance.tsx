@@ -1,12 +1,13 @@
+import type { ReactNode } from "react";
 import type { SchoolCourse } from "../../core/model";
-import { SCHOOL_STAFF_ROLE_LABELS } from "../../core/school";
+import { SCHOOL_STAFF_ROLE_COLORS, SCHOOL_STAFF_ROLE_LABELS } from "../../core/school";
 import { styles } from "../../ui/appStyles";
 
 export type SchoolPolicyGlanceProps = {
   course: SchoolCourse;
 };
 
-function GlanceRow({ label, value }: { label: string; value: string }) {
+function GlanceRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div style={{ fontWeight: 700, fontSize: 12 }}>{label}</div>
@@ -17,15 +18,31 @@ function GlanceRow({ label, value }: { label: string; value: string }) {
 
 export function SchoolPolicyGlance({ course }: SchoolPolicyGlanceProps) {
   const staffValue =
-    course.staff.length === 0
-      ? "None yet"
-      : course.staff
-          .map((member) => {
-            const role = SCHOOL_STAFF_ROLE_LABELS[member.role];
-            const email = member.email ? ` · ${member.email}` : "";
-            return `${role}: ${member.name}${email}`;
-          })
-          .join("\n");
+    course.staff.length === 0 ? (
+      "None yet"
+    ) : (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 16px",
+          whiteSpace: "normal",
+        }}
+      >
+        {course.staff.map((member) => {
+          const email = member.email ? ` · ${member.email}` : "";
+          return (
+            <span
+              key={member.id}
+              style={{ color: SCHOOL_STAFF_ROLE_COLORS[member.role], fontWeight: 600 }}
+            >
+              {SCHOOL_STAFF_ROLE_LABELS[member.role]}: {member.name}
+              {email}
+            </span>
+          );
+        })}
+      </div>
+    );
 
   const officeValue =
     course.officeHours.length === 0

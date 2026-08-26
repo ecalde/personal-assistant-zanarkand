@@ -1,5 +1,10 @@
 import { styles } from "../../ui/appStyles";
-import { SCHOOL_STAFF_ROLE_LABELS, SCHOOL_STAFF_ROLES, resolveSchoolCourseColorToken } from "../../core/school";
+import {
+  SCHOOL_STAFF_ROLE_COLORS,
+  SCHOOL_STAFF_ROLE_LABELS,
+  SCHOOL_STAFF_ROLES,
+  resolveSchoolCourseColorToken,
+} from "../../core/school";
 import { CalendarColorSwatchPicker } from "../calendar/CalendarColorSwatchPicker";
 import type { SchoolCourseFormState } from "./schoolCourseFormState";
 import { emptyOfficeHoursFormRow, emptyStaffFormRow } from "./schoolCourseFormState";
@@ -126,51 +131,82 @@ export function SchoolCourseForm({
 
       <fieldset style={{ border: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
         <legend style={{ fontWeight: 700 }}>Staff</legend>
-        {form.staff.map((row, index) => (
-          <div key={row.id} style={{ display: "grid", gap: 8 }}>
-            <select
-              value={row.role}
-              onChange={(event) => {
-                const staff = [...form.staff];
-                staff[index] = { ...row, role: event.target.value as typeof row.role };
-                patch({ staff });
-              }}
-              style={styles.input}
-            >
-              {SCHOOL_STAFF_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {SCHOOL_STAFF_ROLE_LABELS[role]}
-                </option>
-              ))}
-            </select>
-            <input
-              value={row.name}
-              placeholder="Name"
-              onChange={(event) => {
-                const staff = [...form.staff];
-                staff[index] = { ...row, name: event.target.value };
-                patch({ staff });
-              }}
-              style={styles.input}
-            />
-            <input
-              value={row.email}
-              placeholder="Email"
-              onChange={(event) => {
-                const staff = [...form.staff];
-                staff[index] = { ...row, email: event.target.value };
-                patch({ staff });
-              }}
-              style={styles.input}
-            />
-            <button
-              type="button"
-              onClick={() => patch({ staff: form.staff.filter((item) => item.id !== row.id) })}
-            >
-              Remove staff
-            </button>
+        {form.staff.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+              alignItems: "start",
+            }}
+          >
+            {form.staff.map((row, index) => (
+              <div
+                key={row.id}
+                style={{
+                  display: "grid",
+                  gap: 6,
+                  minWidth: 0,
+                  padding: 8,
+                  borderRadius: 10,
+                  border: "1px solid var(--aether-panel-border, #e5e5e5)",
+                  background: "var(--aether-surface-sunken, #fafafa)",
+                  borderLeft: `3px solid ${SCHOOL_STAFF_ROLE_COLORS[row.role]}`,
+                }}
+              >
+                <select
+                  value={row.role}
+                  onChange={(event) => {
+                    const staff = [...form.staff];
+                    staff[index] = { ...row, role: event.target.value as typeof row.role };
+                    patch({ staff });
+                  }}
+                  style={{
+                    ...styles.inputCompact,
+                    color: SCHOOL_STAFF_ROLE_COLORS[row.role],
+                    fontWeight: 700,
+                  }}
+                  aria-label={`Staff ${index + 1} role`}
+                >
+                  {SCHOOL_STAFF_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {SCHOOL_STAFF_ROLE_LABELS[role]}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={row.name}
+                  placeholder="Name"
+                  onChange={(event) => {
+                    const staff = [...form.staff];
+                    staff[index] = { ...row, name: event.target.value };
+                    patch({ staff });
+                  }}
+                  style={styles.inputCompact}
+                  aria-label={`Staff ${index + 1} name`}
+                />
+                <input
+                  value={row.email}
+                  placeholder="Email"
+                  onChange={(event) => {
+                    const staff = [...form.staff];
+                    staff[index] = { ...row, email: event.target.value };
+                    patch({ staff });
+                  }}
+                  style={styles.inputCompact}
+                  aria-label={`Staff ${index + 1} email`}
+                />
+                <button
+                  type="button"
+                  style={styles.ghostBtn}
+                  onClick={() => patch({ staff: form.staff.filter((item) => item.id !== row.id) })}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
+        ) : null}
         <button type="button" onClick={() => patch({ staff: [...form.staff, emptyStaffFormRow()] })}>
           Add staff
         </button>

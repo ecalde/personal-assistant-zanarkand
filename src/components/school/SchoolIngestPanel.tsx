@@ -3,6 +3,7 @@ import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/
 import {
   SCHOOL_REMINDER_KIND_LABELS,
   SCHOOL_REMINDER_KINDS,
+  SCHOOL_STAFF_ROLE_COLORS,
   SCHOOL_STAFF_ROLE_LABELS,
   SCHOOL_STAFF_ROLES,
 } from "../../core/school";
@@ -242,7 +243,15 @@ function IngestSuggestionRow({
           checked={suggestion.selected}
           onChange={(event) => onPatch({ selected: event.target.checked })}
         />
-        <strong>{suggestionLabel(suggestion)}</strong>
+        <strong
+          style={
+            suggestion.type === "staff"
+              ? { color: SCHOOL_STAFF_ROLE_COLORS[suggestion.role] }
+              : undefined
+          }
+        >
+          {suggestionLabel(suggestion)}
+        </strong>
       </label>
       {suggestion.warning ? <p style={{ ...styles.helpText, margin: 0 }}>{suggestion.warning}</p> : null}
       {suggestion.type === "gradeCategory" ? (
@@ -284,7 +293,11 @@ function IngestSuggestionRow({
             <select
               value={suggestion.role}
               onChange={(event) => onPatch({ role: event.target.value as typeof suggestion.role })}
-              style={styles.inputFluid}
+              style={{
+                ...styles.inputFluid,
+                color: SCHOOL_STAFF_ROLE_COLORS[suggestion.role],
+                fontWeight: 700,
+              }}
             >
               {SCHOOL_STAFF_ROLES.map((role) => (
                 <option key={role} value={role}>

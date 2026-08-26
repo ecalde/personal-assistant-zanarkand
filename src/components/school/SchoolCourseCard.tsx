@@ -191,7 +191,19 @@ export function SchoolCourseCard({
               >
                 Edit
               </button>
-              <button type="button" onClick={onDeleteCourse}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Delete ${course.name}? Reminders and grades for this class will also be removed.`
+                    )
+                  ) {
+                    return;
+                  }
+                  onDeleteCourse();
+                }}
+              >
                 Delete
               </button>
             </div>

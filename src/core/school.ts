@@ -53,6 +53,13 @@ export const SCHOOL_STAFF_ROLE_LABELS: Record<SchoolStaffRole, string> = {
   other: "Staff",
 };
 
+/** Mode-aware text colors so staff roles stay distinct on glance and edit views. */
+export const SCHOOL_STAFF_ROLE_COLORS: Record<SchoolStaffRole, string> = {
+  professor: "var(--aether-chip-info-text, #0d47a1)",
+  ta: "var(--aether-chip-warning-text, #7a5b12)",
+  other: "var(--aether-chip-marker-text, #6a1b9a)",
+};
+
 /** Georgia Tech default letter scale (helpers only; not stored per course). */
 export const GT_LETTER_SCALE: ReadonlyArray<{ letter: SchoolLetterGrade; minPercent: number }> = [
   { letter: "A", minPercent: 90 },
