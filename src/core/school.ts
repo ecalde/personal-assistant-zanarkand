@@ -423,6 +423,28 @@ export function upsertSchoolGradedItem(
   return upsertById(items, item);
 }
 
+/** Copies a reminder's due date/time onto linked graded items so the school table stays in sync. */
+export function syncGradedItemScheduleFromReminder(
+  items: readonly SchoolGradedItem[],
+  reminder: SchoolReminder
+): SchoolGradedItem[] {
+  return items.map((item) => {
+    if (item.reminderId !== reminder.id) return item;
+    const nextDueTime = reminder.startTime;
+    if (item.dueDate === reminder.date && (item.dueTime ?? undefined) === nextDueTime) {
+      return item;
+    }
+    const next: SchoolGradedItem = {
+      ...item,
+      dueDate: reminder.date,
+      updatedAtIso: reminder.updatedAtIso,
+    };
+    if (nextDueTime) next.dueTime = nextDueTime;
+    else delete next.dueTime;
+    return next;
+  });
+}
+
 export function removeSchoolCourse(
   courses: readonly SchoolCourse[],
   reminders: readonly SchoolReminder[],

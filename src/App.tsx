@@ -102,6 +102,7 @@ import {
   setSchoolCourseEnrollmentStatus,
   setSchoolGradedItemCompleted,
   setSchoolReminderCompleted,
+  syncGradedItemScheduleFromReminder,
   upsertSchoolCourse,
   upsertSchoolGradedItem,
   upsertSchoolReminder,
@@ -1290,6 +1291,10 @@ export default function App({ userId, onSignOut }: AppProps) {
     commitSchoolPayload({
       ...app.payload,
       schoolReminders: upsertSchoolReminder(app.payload.schoolReminders ?? [], next),
+      schoolGradedItems: syncGradedItemScheduleFromReminder(
+        app.payload.schoolGradedItems ?? [],
+        next
+      ),
     });
   }
 

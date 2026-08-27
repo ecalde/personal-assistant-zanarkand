@@ -253,7 +253,8 @@ function collectScheduleEntries(input: {
     const course = courseById.get(item.courseId);
     if (!course || !isSchoolCourseEnrolled(course)) continue;
     const linked = item.reminderId ? reminderById.get(item.reminderId) : undefined;
-    const dueDate = item.dueDate ?? linked?.date;
+    // Linked reminders are the schedule source of truth (same as the calendar).
+    const dueDate = linked?.date ?? item.dueDate;
     if (!dueDate) continue;
     if (item.reminderId) linkedReminderIds.add(item.reminderId);
     const columnKey = columnKeyForGradedItem(course, item, linked);

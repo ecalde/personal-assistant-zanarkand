@@ -28,6 +28,7 @@ import {
   setSchoolCourseEnrollmentStatus,
   setSchoolGradedItemCompleted,
   setSchoolReminderCompleted,
+  syncGradedItemScheduleFromReminder,
   upsertSchoolReminder,
   withReminderFingerprint,
 } from "./school";
@@ -320,6 +321,54 @@ describe("school CRUD helpers", () => {
     expect(cleaned.schoolReminders).toEqual([]);
     expect(cleaned.schoolGradedItems[0]?.categoryId).toBeUndefined();
     expect(cleaned.schoolGradedItems[0]?.reminderId).toBeUndefined();
+  });
+
+  it("copies a reminder due date and time onto linked graded items", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "assignment",
+        title: "Exercise 2",
+        date: "2026-09-21",
+        startTime: "07:59",
+      },
+      { id: REMINDER_ID, nowIso: "2026-08-26T18:00:00.000Z" }
+    );
+    const linked = createSchoolGradedItem(
+      {
+        courseId: COURSE_ID,
+        reminderId: REMINDER_ID,
+        name: "Exercise 2",
+        dueDate: "2026-09-14",
+        dueTime: "07:59",
+      },
+      { id: ITEM_ID, nowIso: NOW }
+    );
+    const unlinked = createSchoolGradedItem(
+      {
+        courseId: COURSE_ID,
+        name: "Quiz 1",
+        dueDate: "2026-09-06",
+      },
+      { id: CATEGORY_ID, nowIso: NOW }
+    );
+
+    const synced = syncGradedItemScheduleFromReminder([linked, unlinked], reminder);
+    expect(synced[0]).toMatchObject({
+      id: ITEM_ID,
+      dueDate: "2026-09-21",
+      dueTime: "07:59",
+      updatedAtIso: "2026-08-26T18:00:00.000Z",
+    });
+    expect(synced[1]).toBe(unlinked);
+
+    const allDay = createSchoolReminder(
+      { courseId: COURSE_ID, kind: "assignment", title: "Exercise 2", date: "2026-09-28" },
+      { id: REMINDER_ID, nowIso: "2026-08-26T19:00:00.000Z" }
+    );
+    const cleared = syncGradedItemScheduleFromReminder(synced, allDay);
+    expect(cleared[0]?.dueDate).toBe("2026-09-28");
+    expect(cleared[0]?.dueTime).toBeUndefined();
   });
 });
 

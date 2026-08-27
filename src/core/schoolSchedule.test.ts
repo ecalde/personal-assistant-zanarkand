@@ -175,6 +175,34 @@ describe("buildSchoolSemesterSchedule", () => {
     });
   });
 
+  it("follows a linked reminder when its due date moves", () => {
+    const reminder: SchoolReminder = createSchoolReminder(
+      { courseId: COURSE_A, kind: "assignment", title: "Exercise 2", date: "2026-09-21" },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const item: SchoolGradedItem = createSchoolGradedItem(
+      {
+        courseId: COURSE_A,
+        categoryId: CAT_EXERCISE,
+        reminderId: REMINDER_ID,
+        name: "Exercise 2",
+        dueDate: "2026-09-14",
+      },
+      { id: ITEM_ID, nowIso: NOW }
+    );
+    const schedule = buildSchoolSemesterSchedule({
+      courses: [courseA()],
+      reminders: [reminder],
+      gradedItems: [item],
+      now: new Date(2026, 7, 26),
+    });
+    expect(schedule.weeks[2]?.entriesByColumn.exercise).toEqual([]);
+    expect(schedule.weeks[3]?.entriesByColumn.exercise.map((entry) => entry.title)).toEqual([
+      "Exercise 2",
+    ]);
+    expect(schedule.weeks[3]?.entriesByColumn.exercise[0]?.dueDate).toBe("2026-09-21");
+  });
+
   it("moves a cell when an assignment due date changes", () => {
     const item: SchoolGradedItem = createSchoolGradedItem(
       {
