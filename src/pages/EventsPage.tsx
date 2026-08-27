@@ -18,7 +18,11 @@ import {
   type EventSeriesEditScope,
 } from "../core/eventSeries";
 import { buildPeopleById, resolveEventPersonLabel } from "../core/people";
-import { parseHHMMToMinutes } from "../core/schedule";
+import {
+  formatHHMMTo12HourClock,
+  parseFlexibleTimeToHHMM,
+  parseHHMMToMinutes,
+} from "../core/schedule";
 import type { EventType, LifeEvent, Person } from "../core/model";
 import { styles } from "../ui/appStyles";
 
@@ -113,12 +117,25 @@ function emptyFormState(): EventFormState {
   };
 }
 
+function toTimeFieldDisplay(value: string | undefined): string {
+  if (!value) return "";
+  const hhmm = parseFlexibleTimeToHHMM(value);
+  return hhmm ? formatHHMMTo12HourClock(hhmm) : value;
+}
+
+function commitTimeFieldDisplay(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const hhmm = parseFlexibleTimeToHHMM(trimmed);
+  return hhmm ? formatHHMMTo12HourClock(hhmm) : value;
+}
+
 function formFromDraft(draft: EventFormDraft): EventFormState {
   return {
     ...emptyFormState(),
     ...draft,
-    startTime: draft.startTime ?? "",
-    endTime: draft.endTime ?? "",
+    startTime: toTimeFieldDisplay(draft.startTime),
+    endTime: toTimeFieldDisplay(draft.endTime),
     personIds: draft.personIds ?? (draft.personId ? [draft.personId] : []),
     personName: draft.personName ?? "",
     useCustomPersonName: draft.useCustomPersonName ?? false,
@@ -135,8 +152,8 @@ function formFromEvent(event: LifeEvent): EventFormState {
     title: event.title,
     date: event.date,
     type: event.type,
-    startTime: event.startTime ?? "",
-    endTime: event.endTime ?? "",
+    startTime: toTimeFieldDisplay(event.startTime),
+    endTime: toTimeFieldDisplay(event.endTime),
     personIds: eventPersonIds(event),
     personName: event.personName ?? "",
     useCustomPersonName: eventPersonIds(event).length === 0 && Boolean(event.personName),
@@ -357,9 +374,19 @@ export default function EventsPage({
       return;
     }
 
-    const startTime = form.startTime.trim() || undefined;
-    const endTime = form.endTime.trim() || undefined;
+    const startRaw = form.startTime.trim();
+    const endRaw = form.endTime.trim();
+    const startTime = startRaw ? parseFlexibleTimeToHHMM(startRaw) : undefined;
+    const endTime = endRaw ? parseFlexibleTimeToHHMM(endRaw) : undefined;
 
+    if (startRaw && !startTime) {
+      setFormError("Start time must be a valid time, like 6:30 PM.");
+      return;
+    }
+    if (endRaw && !endTime) {
+      setFormError("End time must be a valid time, like 6:30 PM.");
+      return;
+    }
     if (endTime && !startTime) {
       setFormError("Start time is required when end time is set.");
       return;
@@ -580,24 +607,42 @@ export default function EventsPage({
               <label style={styles.label}>
                 Start time (optional)
                 <input
-                  type="time"
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  placeholder="6:30 PM"
                   value={form.startTime}
                   onChange={(e) =>
                     setForm((current) => ({ ...current, startTime: e.target.value }))
                   }
-                  style={styles.timeInput}
+                  onBlur={() =>
+                    setForm((current) => ({
+                      ...current,
+                      startTime: commitTimeFieldDisplay(current.startTime),
+                    }))
+                  }
+                  style={styles.eventTimeInput}
                 />
               </label>
 
               <label style={styles.label}>
                 End time (optional)
                 <input
-                  type="time"
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  placeholder="11:00 PM"
                   value={form.endTime}
                   onChange={(e) =>
                     setForm((current) => ({ ...current, endTime: e.target.value }))
                   }
-                  style={styles.timeInput}
+                  onBlur={() =>
+                    setForm((current) => ({
+                      ...current,
+                      endTime: commitTimeFieldDisplay(current.endTime),
+                    }))
+                  }
+                  style={styles.eventTimeInput}
                 />
               </label>
             </div>

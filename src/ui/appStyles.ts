@@ -649,6 +649,17 @@ export const styles: Record<string, CSSProperties> = {
     color: AETHER_TEXT.primary,
   },
   timeInput: { width: 76, padding: "4px 6px", borderRadius: 8, border: `1px solid ${SURFACE.border}`, background: SURFACE.bg, color: AETHER_TEXT.primary },
+  /** Typed 12-hour time field (e.g. "6:30 PM"). Wider than compact HH:MM chips. */
+  eventTimeInput: {
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: `1px solid ${SURFACE.border}`,
+    width: 168,
+    minWidth: 168,
+    boxSizing: "border-box",
+    background: SURFACE.bg,
+    color: AETHER_TEXT.primary,
+  },
   minInput: { width: 54, padding: "4px 6px", borderRadius: 8, border: `1px solid ${SURFACE.border}`, textAlign: "right", background: SURFACE.bg, color: AETHER_TEXT.primary },
   smallBtn: {
     padding: "2px 6px",
