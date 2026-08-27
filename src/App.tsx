@@ -100,6 +100,8 @@ import {
   removeSchoolReminder,
   sanitizeSchoolReferences,
   setSchoolCourseEnrollmentStatus,
+  setSchoolGradedItemCompleted,
+  setSchoolReminderCompleted,
   upsertSchoolCourse,
   upsertSchoolGradedItem,
   upsertSchoolReminder,
@@ -1284,6 +1286,7 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (!existing) return;
     const next = createSchoolReminder(input, { id: existing.id, nowIso: nowIso() });
     next.createdAtIso = existing.createdAtIso;
+    if (existing.completedAtIso) next.completedAtIso = existing.completedAtIso;
     commitSchoolPayload({
       ...app.payload,
       schoolReminders: upsertSchoolReminder(app.payload.schoolReminders ?? [], next),
@@ -1316,6 +1319,7 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (!existing) return;
     const next = createSchoolGradedItem(input, { id: existing.id, nowIso: nowIso() });
     next.createdAtIso = existing.createdAtIso;
+    if (existing.completedAtIso) next.completedAtIso = existing.completedAtIso;
     commitSchoolPayload({
       ...app.payload,
       schoolGradedItems: upsertSchoolGradedItem(app.payload.schoolGradedItems ?? [], next),
@@ -1327,6 +1331,28 @@ export default function App({ userId, onSignOut }: AppProps) {
     commitSchoolPayload({
       ...app.payload,
       schoolGradedItems: removeSchoolGradedItem(app.payload.schoolGradedItems ?? [], itemId),
+    });
+  }
+
+  function setSchoolReminderComplete(reminderId: string, completed: boolean) {
+    if (!app) return;
+    const existing = (app.payload.schoolReminders ?? []).find((item) => item.id === reminderId);
+    if (!existing) return;
+    const next = setSchoolReminderCompleted(existing, completed, nowIso());
+    commitSchoolPayload({
+      ...app.payload,
+      schoolReminders: upsertSchoolReminder(app.payload.schoolReminders ?? [], next),
+    });
+  }
+
+  function setSchoolGradedItemComplete(itemId: string, completed: boolean) {
+    if (!app) return;
+    const existing = (app.payload.schoolGradedItems ?? []).find((item) => item.id === itemId);
+    if (!existing) return;
+    const next = setSchoolGradedItemCompleted(existing, completed, nowIso());
+    commitSchoolPayload({
+      ...app.payload,
+      schoolGradedItems: upsertSchoolGradedItem(app.payload.schoolGradedItems ?? [], next),
     });
   }
 
@@ -2136,6 +2162,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenCooking={openCookingPage}
           onOpenReview={() => setPage("review")}
           onOpenCalendar={() => setPage("calendar")}
+          onSetSchoolReminderCompleted={setSchoolReminderComplete}
           onToggleTodayExercise={toggleTodayExercise}
           onSetTodayExerciseWeight={setTodayExerciseWeight}
           onUpsertSupplementIntake={upsertSupplementIntake}
@@ -2161,6 +2188,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onOpenCareer={openCareer}
           onOpenFitness={openFitness}
           onOpenCooking={openCookingPage}
+          onSetSchoolReminderCompleted={setSchoolReminderComplete}
           onAddCookingSession={addCookingSession}
           onUpdateCookingSession={updateCookingSession}
           onDeleteCookingSession={deleteCookingSession}
@@ -2273,6 +2301,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           onApplySchoolIngest={applySchoolIngest}
           schoolTimelineLayout={app.payload.schoolTimelineLayout}
           onSaveTimelineLayout={setSchoolTimelineLayout}
+          onSetReminderCompleted={setSchoolReminderComplete}
+          onSetGradedItemCompleted={setSchoolGradedItemComplete}
         />
       )}
 

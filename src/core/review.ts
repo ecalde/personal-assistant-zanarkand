@@ -665,6 +665,7 @@ function countSchoolDuesInRange(
 ): number {
   let count = 0;
   for (const due of listLocalizedSchoolDues(courses, reminders, localTimeZone)) {
+    if (due.reminder.completedAtIso) continue;
     if (due.localDate >= startKey && due.localDate <= endKey) count += 1;
   }
   return count;

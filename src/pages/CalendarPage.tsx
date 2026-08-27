@@ -85,6 +85,7 @@ export type CalendarPageProps = {
   onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
+  onSetSchoolReminderCompleted?: (reminderId: string, completed: boolean) => void;
   onAddCookingSession?: (
     input: Omit<CookingSession, "id" | "createdAtIso" | "updatedAtIso">
   ) => void;
@@ -110,6 +111,7 @@ export default function CalendarPage({
   onOpenCareer,
   onOpenFitness,
   onOpenCooking,
+  onSetSchoolReminderCompleted,
   onAddCookingSession,
   onUpdateCookingSession,
   onDeleteCookingSession,
@@ -326,6 +328,7 @@ export default function CalendarPage({
             onOpenCareer={onOpenCareer}
             onOpenFitness={onOpenFitness}
             onOpenCooking={onOpenCooking}
+            onSetSchoolReminderCompleted={onSetSchoolReminderCompleted}
             onLogCooking={
               onUpdateCookingSession
                 ? (sessionId) => setLoggingSessionId(sessionId)

@@ -84,7 +84,7 @@ export function CalendarEventBlock({
         borderColor: color.borderColor,
         cursor: draggable ? (isDragging ? "grabbing" : "grab") : undefined,
         touchAction: draggable ? "none" : undefined,
-        opacity: completionVisualOpacity(item.completionVisual, isDimmed),
+        opacity: completionVisualOpacity(item.completionVisual, isDimmed, item.sourceType),
         boxShadow: showRaised ? "0 2px 8px rgba(0,0,0,0.18)" : undefined,
       }}
     >

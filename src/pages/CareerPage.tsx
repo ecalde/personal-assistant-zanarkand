@@ -23,6 +23,7 @@ import type {
   CreateSchoolReminderInput,
 } from "../core/school";
 import type { SchoolIngestSuggestion } from "../core/schoolParse";
+import { persistCareerSection, readCareerSection } from "../core/careerSectionPreferences";
 import { formatLocalDateKey } from "../core/timeline";
 import { ApplicationCard } from "../components/career/ApplicationCard";
 import { ApplicationForm } from "../components/career/ApplicationForm";
@@ -77,6 +78,8 @@ export type CareerPageProps = {
   onApplySchoolIngest: (courseId: string, suggestions: SchoolIngestSuggestion[]) => void;
   schoolTimelineLayout?: SchoolTimelineLayout;
   onSaveTimelineLayout: (layout: SchoolTimelineLayout | undefined) => void;
+  onSetReminderCompleted: (reminderId: string, completed: boolean) => void;
+  onSetGradedItemCompleted: (itemId: string, completed: boolean) => void;
 };
 
 export default function CareerPage({
@@ -105,9 +108,11 @@ export default function CareerPage({
   onApplySchoolIngest,
   schoolTimelineLayout,
   onSaveTimelineLayout,
+  onSetReminderCompleted,
+  onSetGradedItemCompleted,
 }: CareerPageProps) {
   const [section, setSection] = useState<CareerSection>(() =>
-    careerFocus?.kind === "school" ? "school" : "career"
+    careerFocus?.kind === "school" ? "school" : readCareerSection("career")
   );
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -200,7 +205,13 @@ export default function CareerPage({
           }}
         >
           <div style={styles.cardTitle}>Career</div>
-          <CareerSectionSwitcher value={section} onChange={setSection} />
+          <CareerSectionSwitcher
+            value={section}
+            onChange={(next) => {
+              setSection(next);
+              persistCareerSection(next);
+            }}
+          />
         </div>
         <div style={{ ...styles.textSecondary }}>
           {section === "career"
@@ -228,6 +239,8 @@ export default function CareerPage({
           onApplyIngest={onApplySchoolIngest}
           timelineLayout={schoolTimelineLayout}
           onSaveTimelineLayout={onSaveTimelineLayout}
+          onSetReminderCompleted={onSetReminderCompleted}
+          onSetGradedItemCompleted={onSetGradedItemCompleted}
         />
       ) : (
         <>

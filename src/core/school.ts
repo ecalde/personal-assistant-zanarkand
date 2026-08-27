@@ -254,6 +254,40 @@ export function withReminderFingerprint(reminder: SchoolReminder): SchoolReminde
   };
 }
 
+export function isSchoolWorkCompleted(value: { completedAtIso?: string } | undefined): boolean {
+  return typeof value?.completedAtIso === "string" && value.completedAtIso.length > 0;
+}
+
+function setCompletedAtIso<T extends { completedAtIso?: string; updatedAtIso: string }>(
+  item: T,
+  completed: boolean,
+  nowIso: string
+): T {
+  const next = { ...item, updatedAtIso: nowIso };
+  if (completed) {
+    next.completedAtIso = item.completedAtIso ?? nowIso;
+  } else {
+    delete next.completedAtIso;
+  }
+  return next;
+}
+
+export function setSchoolReminderCompleted(
+  reminder: SchoolReminder,
+  completed: boolean,
+  nowIso: string
+): SchoolReminder {
+  return setCompletedAtIso(reminder, completed, nowIso);
+}
+
+export function setSchoolGradedItemCompleted(
+  item: SchoolGradedItem,
+  completed: boolean,
+  nowIso: string
+): SchoolGradedItem {
+  return setCompletedAtIso(item, completed, nowIso);
+}
+
 /**
  * Auto-label from hostname + last path segment. The reminder title stays the
  * assignment name; this label is for tappable short links only.

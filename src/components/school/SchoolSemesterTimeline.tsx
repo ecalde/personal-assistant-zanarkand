@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { SchoolCourse, SchoolGradedItem, SchoolReminder, SchoolTimelineLayout } from "../../core/model";
 import {
   getCalendarColorSwatch,
@@ -9,6 +9,7 @@ import { resolveSchoolCourseColorToken } from "../../core/school";
 import {
   applySchoolTimelineLayout,
   buildSchoolSemesterSchedule,
+  formatSchoolSundayDate,
   isSchoolTimelineLayoutEmpty,
   mergeTimelineColumns,
   renameTimelineColumn,
@@ -22,6 +23,7 @@ import {
   type SchoolTimelineDisplayWeek,
 } from "../../core/schoolSchedule";
 import { styles } from "../../ui/appStyles";
+import { MarkCompleteCheckbox } from "./MarkCompleteCheckbox";
 
 export type SchoolSemesterTimelineProps = {
   courses: SchoolCourse[];
@@ -29,6 +31,8 @@ export type SchoolSemesterTimelineProps = {
   gradedItems: SchoolGradedItem[];
   layout?: SchoolTimelineLayout;
   onSaveLayout: (layout: SchoolTimelineLayout | undefined) => void;
+  onSetReminderCompleted: (reminderId: string, completed: boolean) => void;
+  onSetGradedItemCompleted: (itemId: string, completed: boolean) => void;
 };
 
 export function SchoolSemesterTimeline({
@@ -37,9 +41,12 @@ export function SchoolSemesterTimeline({
   gradedItems,
   layout,
   onSaveLayout,
+  onSetReminderCompleted,
+  onSetGradedItemCompleted,
 }: SchoolSemesterTimelineProps) {
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [editing, setEditing] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
 
   const allEnrolledSchedule = useMemo(
     () =>
@@ -68,6 +75,16 @@ export function SchoolSemesterTimeline({
     [allEnrolledSchedule, activeFilter, courses, reminders, gradedItems]
   );
   const view = useMemo(() => applySchoolTimelineLayout(schedule, layout), [schedule, layout]);
+  const selectedEntry = useMemo(() => {
+    if (!selectedEntryId) return null;
+    for (const week of view.weeks) {
+      for (const entries of Object.values(week.entriesByColumn)) {
+        const match = entries.find((entry) => entry.id === selectedEntryId);
+        if (match) return match;
+      }
+    }
+    return null;
+  }, [selectedEntryId, view]);
 
   function persist(next: SchoolTimelineLayout) {
     onSaveLayout(isSchoolTimelineLayoutEmpty(next) ? undefined : next);
@@ -267,7 +284,12 @@ export function SchoolSemesterTimeline({
                         {entries.length === 0 ? null : (
                           <div style={{ display: "grid", gap: 4 }}>
                             {entries.map((entry) => (
-                              <SchedulePill key={entry.id} entry={entry} showCourse={enrolled.length > 1 && activeFilter === "all"} />
+                              <SchedulePill
+                                key={entry.id}
+                                entry={entry}
+                                showCourse={enrolled.length > 1 && activeFilter === "all"}
+                                onSelect={() => setSelectedEntryId(entry.id)}
+                              />
                             ))}
                           </div>
                         )}
@@ -280,6 +302,26 @@ export function SchoolSemesterTimeline({
           </tbody>
         </table>
       </div>
+      {selectedEntry ? (
+        <SchoolWorkDetailModal
+          entry={selectedEntry}
+          reminder={
+            selectedEntry.reminderId
+              ? reminders.find((item) => item.id === selectedEntry.reminderId)
+              : undefined
+          }
+          onClose={() => setSelectedEntryId(null)}
+          onSetCompleted={(completed) => {
+            if (selectedEntry.reminderId) {
+              onSetReminderCompleted(selectedEntry.reminderId, completed);
+              return;
+            }
+            if (selectedEntry.gradedItemId) {
+              onSetGradedItemCompleted(selectedEntry.gradedItemId, completed);
+            }
+          }}
+        />
+      ) : null}
     </section>
   );
 }
@@ -609,15 +651,26 @@ function FilterChip({
 function SchedulePill({
   entry,
   showCourse,
+  onSelect,
 }: {
   entry: SchoolScheduleEntry;
   showCourse: boolean;
+  onSelect: () => void;
 }) {
   const swatch = overlaySwatch(entry.colorToken);
+  const label = showCourse ? `${entry.courseLabel}: ${entry.title}` : entry.title;
   return (
-    <div
-      title={showCourse ? `${entry.courseLabel}: ${entry.title}` : entry.title}
+    <button
+      type="button"
+      title={entry.completed ? `${label} (completed)` : label}
+      aria-label={entry.completed ? `${label}, completed` : label}
+      onClick={onSelect}
       style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        cursor: "pointer",
+        font: "inherit",
         borderRadius: 8,
         padding: "5px 8px",
         background: swatch.background,
@@ -626,6 +679,7 @@ function SchedulePill({
         boxShadow: `inset 3px 0 0 ${accentBar(entry.colorToken)}`,
         lineHeight: 1.25,
         overflow: "hidden",
+        opacity: entry.completed ? 0.48 : 1,
       }}
     >
       {showCourse ? (
@@ -634,7 +688,90 @@ function SchedulePill({
         </div>
       ) : null}
       <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis" }}>
+        {entry.completed ? (
+          <span aria-hidden="true" style={{ marginRight: 4 }}>
+            ✓
+          </span>
+        ) : null}
         {entry.title}
+      </div>
+    </button>
+  );
+}
+
+function SchoolWorkDetailModal({
+  entry,
+  reminder,
+  onClose,
+  onSetCompleted,
+}: {
+  entry: SchoolScheduleEntry;
+  reminder?: SchoolReminder;
+  onClose: () => void;
+  onSetCompleted: (completed: boolean) => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const links = reminder?.links ?? [];
+  return (
+    <div style={styles.calendarModalOverlay} onClick={onClose} role="presentation">
+      <div
+        style={styles.calendarModalCard}
+        role="dialog"
+        aria-modal="true"
+        aria-label={entry.title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, flex: 1 }}>{entry.title}</h2>
+          <button type="button" style={styles.smallBtn} onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div style={{ display: "grid", gap: 6 }}>
+          <div style={styles.calendarModalRow}>
+            <span style={styles.calendarModalLabel}>Course</span>
+            <span>{entry.courseLabel}</span>
+          </div>
+          <div style={styles.calendarModalRow}>
+            <span style={styles.calendarModalLabel}>Due</span>
+            <span>{formatSchoolSundayDate(entry.dueDate)}</span>
+          </div>
+          {entry.completed ? (
+            <div style={styles.calendarModalRow}>
+              <span style={styles.calendarModalLabel}>Status</span>
+              <span>Complete</span>
+            </div>
+          ) : null}
+          {links.length > 0 ? (
+            <div style={styles.calendarModalRow}>
+              <span style={styles.calendarModalLabel}>Links</span>
+              <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {links.map((link) => (
+                  <a
+                    key={`${link.url}:${link.label}`}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        <MarkCompleteCheckbox
+          id={`timeline-complete-${entry.id}`}
+          checked={entry.completed}
+          onChange={onSetCompleted}
+        />
       </div>
     </div>
   );

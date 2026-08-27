@@ -45,7 +45,7 @@ export function CalendarItemPill({ item, preferences, onSelect, drag }: Calendar
         color: color.color,
         borderColor: color.borderColor,
         cursor: draggable ? "grab" : undefined,
-        opacity: completionVisualOpacity(item.completionVisual, isDimmed),
+        opacity: completionVisualOpacity(item.completionVisual, isDimmed, item.sourceType),
       }}
     >
       {timeLabel ? <span>{timeLabel} </span> : null}

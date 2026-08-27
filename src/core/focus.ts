@@ -1101,6 +1101,7 @@ export function collectSchoolFocusItems(
   const dues = listLocalizedSchoolDues(courses, reminders, localTimeZone);
 
   for (const due of dues) {
+    if (due.reminder.completedAtIso) continue;
     const daysUntil = daysBetweenDateKeys(todayKey, due.localDate);
     if (daysUntil === null || daysUntil < 0 || daysUntil > SCHOOL_FOCUS_WINDOW_DAYS) {
       continue;
@@ -1657,6 +1658,7 @@ function countSchoolDuesSoon(
 ): number {
   let count = 0;
   for (const due of listLocalizedSchoolDues(courses, reminders, localTimeZone)) {
+    if (due.reminder.completedAtIso) continue;
     const daysUntil = daysBetweenDateKeys(todayKey, due.localDate);
     if (daysUntil !== null && daysUntil >= 0 && daysUntil <= SCHOOL_FOCUS_WINDOW_DAYS) {
       count += 1;

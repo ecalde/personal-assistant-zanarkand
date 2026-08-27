@@ -40,6 +40,8 @@ export type SchoolSectionProps = {
   onApplyIngest: (courseId: string, suggestions: SchoolIngestSuggestion[]) => void;
   timelineLayout?: SchoolTimelineLayout;
   onSaveTimelineLayout: (layout: SchoolTimelineLayout | undefined) => void;
+  onSetReminderCompleted: (reminderId: string, completed: boolean) => void;
+  onSetGradedItemCompleted: (itemId: string, completed: boolean) => void;
 };
 
 export function SchoolSection({
@@ -60,6 +62,8 @@ export function SchoolSection({
   onApplyIngest,
   timelineLayout,
   onSaveTimelineLayout,
+  onSetReminderCompleted,
+  onSetGradedItemCompleted,
 }: SchoolSectionProps) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<SchoolCourseFormState>(emptySchoolCourseFormState());
@@ -101,6 +105,8 @@ export function SchoolSection({
         gradedItems={gradedItems}
         layout={timelineLayout}
         onSaveLayout={onSaveTimelineLayout}
+        onSetReminderCompleted={onSetReminderCompleted}
+        onSetGradedItemCompleted={onSetGradedItemCompleted}
       />
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>

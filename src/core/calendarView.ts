@@ -753,7 +753,8 @@ export function formatSourceTypeLabel(item: CalendarItem): string {
 function formatSchoolSourceTypeLabel(item: CalendarItem): string {
   if (item.sourceMeta.kind !== "schoolReminder") return "School";
   const kindLabel = SCHOOL_REMINDER_KIND_LABELS[item.sourceMeta.reminderKind];
-  return item.sourceMeta.occurrence === "open" ? `${kindLabel} · Opens` : kindLabel;
+  const base = item.sourceMeta.occurrence === "open" ? `${kindLabel} · Opens` : kindLabel;
+  return item.completionVisual === "completed" ? `${base} · Completed` : base;
 }
 
 /** Compact secondary label for week/3-day blocks (school link label, never a raw URL). */

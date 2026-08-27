@@ -123,6 +123,7 @@ export type DashboardPageProps = {
   onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
+  onSetSchoolReminderCompleted?: (reminderId: string, completed: boolean) => void;
   onOpenReview?: () => void;
   onOpenCalendar?: () => void;
   onToggleTodayExercise?: (planId: string, exerciseId: string) => void;
@@ -169,6 +170,7 @@ export default function DashboardPage({
   onOpenCooking,
   onOpenReview,
   onOpenCalendar,
+  onSetSchoolReminderCompleted,
   onToggleTodayExercise,
   onSetTodayExerciseWeight,
   onUpsertSupplementIntake,
@@ -477,6 +479,7 @@ export default function DashboardPage({
       onOpenCareer={onOpenCareer}
       onOpenFitness={onOpenFitness}
       onOpenCooking={onOpenCooking}
+      onSetSchoolReminderCompleted={onSetSchoolReminderCompleted}
     />
   );
 

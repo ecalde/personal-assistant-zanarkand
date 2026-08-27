@@ -475,6 +475,7 @@ export type SchoolReminderRow = {
   notes: string | null;
   links: unknown;
   fingerprint: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -491,6 +492,7 @@ export type SchoolGradedItemRow = {
   max_score: number | string | null;
   score: number | string | null;
   extra_credit: boolean;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -3902,6 +3904,9 @@ export function assertValidSchoolReminder(reminder: SchoolReminder): void {
     throw new MapperError("schoolReminder.closeTime requires closeDate", "schoolReminder.closeTime");
   }
   parseSchoolLinks(reminder.links, "schoolReminder.links");
+  if (reminder.completedAtIso !== undefined) {
+    assertIsoTimestamp(reminder.completedAtIso, "schoolReminder.completedAtIso");
+  }
 }
 
 export function schoolReminderToRow(reminder: SchoolReminder, userId: string): SchoolReminderRow {
@@ -3923,6 +3928,7 @@ export function schoolReminderToRow(reminder: SchoolReminder, userId: string): S
     notes: reminder.notes?.trim() || null,
     links: parseSchoolLinks(reminder.links, "schoolReminder.links"),
     fingerprint: reminder.fingerprint?.trim() || null,
+    completed_at: reminder.completedAtIso ?? null,
     created_at: reminder.createdAtIso,
     updated_at: reminder.updatedAtIso,
   };
@@ -3985,6 +3991,10 @@ export function schoolReminderFromRow(row: SchoolReminderRow): SchoolReminder {
   if (row.fingerprint !== null && row.fingerprint.trim()) {
     reminder.fingerprint = row.fingerprint.trim();
   }
+  if (row.completed_at !== null) {
+    assertIsoTimestamp(row.completed_at, "school_reminders.completed_at");
+    reminder.completedAtIso = row.completed_at;
+  }
   assertValidSchoolReminder(reminder);
   return reminder;
 }
@@ -4011,6 +4021,9 @@ export function assertValidSchoolGradedItem(item: SchoolGradedItem): void {
   if (item.extraCredit !== undefined && typeof item.extraCredit !== "boolean") {
     throw new MapperError("Invalid schoolGradedItem.extraCredit", "schoolGradedItem.extraCredit");
   }
+  if (item.completedAtIso !== undefined) {
+    assertIsoTimestamp(item.completedAtIso, "schoolGradedItem.completedAtIso");
+  }
 }
 
 export function schoolGradedItemToRow(item: SchoolGradedItem, userId: string): SchoolGradedItemRow {
@@ -4028,6 +4041,7 @@ export function schoolGradedItemToRow(item: SchoolGradedItem, userId: string): S
     max_score: item.maxScore ?? null,
     score: item.score ?? null,
     extra_credit: item.extraCredit === true,
+    completed_at: item.completedAtIso ?? null,
     created_at: item.createdAtIso,
     updated_at: item.updatedAtIso,
   };
@@ -4083,6 +4097,10 @@ export function schoolGradedItemFromRow(row: SchoolGradedItemRow): SchoolGradedI
     item.score = score;
   }
   if (row.extra_credit) item.extraCredit = true;
+  if (row.completed_at !== null) {
+    assertIsoTimestamp(row.completed_at, "school_graded_items.completed_at");
+    item.completedAtIso = row.completed_at;
+  }
   assertValidSchoolGradedItem(item);
   return item;
 }

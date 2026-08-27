@@ -649,6 +649,8 @@ export type SchoolReminder = {
   notes?: string;
   links: SchoolLink[];
   fingerprint?: string;
+  /** Set when the reminder is marked complete; omitted means incomplete. */
+  completedAtIso?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };
@@ -664,6 +666,8 @@ export type SchoolGradedItem = {
   maxScore?: number;
   score?: number;
   extraCredit?: boolean;
+  /** Set when unlinked graded work is marked complete; omitted means incomplete. */
+  completedAtIso?: string;
   createdAtIso: string;
   updatedAtIso: string;
 };

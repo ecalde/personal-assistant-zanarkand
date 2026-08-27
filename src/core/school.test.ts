@@ -26,6 +26,8 @@ import {
   SCHOOL_STAFF_ROLE_LABELS,
   SCHOOL_STAFF_ROLES,
   setSchoolCourseEnrollmentStatus,
+  setSchoolGradedItemCompleted,
+  setSchoolReminderCompleted,
   upsertSchoolReminder,
   withReminderFingerprint,
 } from "./school";
@@ -259,6 +261,27 @@ describe("school CRUD helpers", () => {
     expect(afterCourseDelete.schoolCourses).toEqual([]);
     expect(afterCourseDelete.schoolReminders).toEqual([]);
     expect(afterCourseDelete.schoolGradedItems).toEqual([]);
+  });
+
+  it("marks reminders and graded items complete and incomplete", () => {
+    const reminder = createSchoolReminder(
+      { courseId: COURSE_ID, kind: "quiz", title: "Unit Quiz 1", date: "2026-09-07" },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const completed = setSchoolReminderCompleted(reminder, true, "2026-08-26T18:00:00.000Z");
+    expect(completed.completedAtIso).toBe("2026-08-26T18:00:00.000Z");
+    expect(completed.updatedAtIso).toBe("2026-08-26T18:00:00.000Z");
+    const stillComplete = setSchoolReminderCompleted(completed, true, "2026-08-26T19:00:00.000Z");
+    expect(stillComplete.completedAtIso).toBe("2026-08-26T18:00:00.000Z");
+    expect(setSchoolReminderCompleted(completed, false, "2026-08-26T19:00:00.000Z").completedAtIso).toBeUndefined();
+
+    const item = createSchoolGradedItem(
+      { courseId: COURSE_ID, name: "E1" },
+      { id: ITEM_ID, nowIso: NOW }
+    );
+    expect(setSchoolGradedItemCompleted(item, true, "2026-08-26T18:00:00.000Z").completedAtIso).toBe(
+      "2026-08-26T18:00:00.000Z"
+    );
   });
 
   it("drops orphan reminder, course, and category refs", () => {

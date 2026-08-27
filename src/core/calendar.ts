@@ -1072,6 +1072,7 @@ function buildSchoolReminderCalendarItem(
   if (localStart.time) item.startTime = localStart.time;
   if (localEnd) item.endTime = localEnd;
   if (course.colorToken) item.accentColorKey = course.colorToken;
+  if (reminder.completedAtIso) item.completionVisual = "completed";
 
   const descriptionParts: string[] = [];
   if (course.code) descriptionParts.push(`${course.code} · ${course.name}`);

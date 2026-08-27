@@ -20,6 +20,7 @@ import {
   type CareerFocus,
 } from "../../core/school";
 import { styles } from "../../ui/appStyles";
+import { MarkCompleteCheckbox } from "../school/MarkCompleteCheckbox";
 
 export type CalendarItemDetailModalProps = {
   item: CalendarItem;
@@ -43,6 +44,7 @@ export type CalendarItemDetailModalProps = {
   onOpenCooking?: () => void;
   onLogCooking?: (sessionId: string) => void;
   onCancelPlannedCook?: (sessionId: string) => void;
+  onSetSchoolReminderCompleted?: (reminderId: string, completed: boolean) => void;
 };
 
 function formatLongDate(dateKey: string): string {
@@ -101,6 +103,7 @@ export function CalendarItemDetailModal({
   onOpenCooking,
   onLogCooking,
   onCancelPlannedCook,
+  onSetSchoolReminderCompleted,
 }: CalendarItemDetailModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const color = resolveCalendarItemColorStyle(item, preferences);
@@ -284,6 +287,9 @@ export function CalendarItemDetailModal({
                   prefix: item.sourceMeta.occurrence === "open" ? "Opens" : "Due",
                 })}
               />
+              {item.completionVisual === "completed" ? (
+                <DetailRow label="Status" value="Complete" />
+              ) : null}
               {item.sourceMeta.links.length > 0 ? (
                 <div style={styles.calendarModalRow}>
                   <span style={styles.calendarModalLabel}>Links</span>
@@ -320,19 +326,31 @@ export function CalendarItemDetailModal({
           </div>
         ) : null}
 
-        {isSchoolReminder && onOpenCareer ? (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              style={styles.smallBtn}
-              onClick={() => {
-                if (item.sourceMeta.kind !== "schoolReminder") return;
-                onOpenCareer({ kind: "school", courseId: item.sourceMeta.courseId });
-                onClose();
-              }}
-            >
-              Open in Career
-            </button>
+        {isSchoolReminder && (onOpenCareer || onSetSchoolReminderCompleted) ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {onSetSchoolReminderCompleted ? (
+              <MarkCompleteCheckbox
+                id={`calendar-school-complete-${item.id}`}
+                checked={item.completionVisual === "completed"}
+                onChange={(completed) => {
+                  if (item.sourceMeta.kind !== "schoolReminder") return;
+                  onSetSchoolReminderCompleted(item.sourceMeta.reminderId, completed);
+                }}
+              />
+            ) : null}
+            {onOpenCareer ? (
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={() => {
+                  if (item.sourceMeta.kind !== "schoolReminder") return;
+                  onOpenCareer({ kind: "school", courseId: item.sourceMeta.courseId });
+                  onClose();
+                }}
+              >
+                Open in Career
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -492,7 +510,7 @@ export function CalendarItemDetailModal({
           </p>
         ) : item.sourceMeta.kind === "schoolReminder" ? (
           <p style={{ ...styles.helpText, margin: 0 }}>
-            Edit this reminder on the Career page, School section.
+            Mark complete here, or edit this reminder on the Career page, School section.
           </p>
         ) : (
           <p style={{ ...styles.helpText, margin: 0 }}>

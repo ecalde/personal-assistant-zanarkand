@@ -1460,6 +1460,18 @@ describe("school mappers", () => {
     expect(schoolReminderFromRow(row)).toEqual(reminder);
   });
 
+  it("round-trips reminder and graded-item completion timestamps", () => {
+    const reminder = sampleReminder({ completedAtIso: NOW });
+    const reminderRow = schoolReminderToRow(reminder, USER_ID);
+    expect(reminderRow.completed_at).toBe(NOW);
+    expect(schoolReminderFromRow(reminderRow)).toEqual(reminder);
+
+    const item = sampleGradedItem({ completedAtIso: NOW });
+    const itemRow = schoolGradedItemToRow(item, USER_ID);
+    expect(itemRow.completed_at).toBe(NOW);
+    expect(schoolGradedItemFromRow(itemRow)).toEqual(item);
+  });
+
   it("round-trips a graded item including a zero score", () => {
     const item = sampleGradedItem({ score: 0 });
     const row = schoolGradedItemToRow(item, USER_ID);

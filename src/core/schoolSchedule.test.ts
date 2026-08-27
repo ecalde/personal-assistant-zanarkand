@@ -133,6 +133,48 @@ describe("buildSchoolSemesterSchedule", () => {
     );
   });
 
+  it("flags completed reminders and linked graded items", () => {
+    const reminder: SchoolReminder = {
+      ...createSchoolReminder(
+        { courseId: COURSE_A, kind: "quiz", title: "Q1", date: "2026-09-06" },
+        { id: REMINDER_ID, nowIso: NOW }
+      ),
+      completedAtIso: NOW,
+    };
+    const quizItem: SchoolGradedItem = createSchoolGradedItem(
+      {
+        courseId: COURSE_A,
+        categoryId: CAT_QUIZ,
+        reminderId: REMINDER_ID,
+        name: "Q1",
+        dueDate: "2026-09-06",
+      },
+      { id: ITEM_ID, nowIso: NOW }
+    );
+    const exercise: SchoolGradedItem = {
+      ...createSchoolGradedItem(
+        { courseId: COURSE_A, categoryId: CAT_EXERCISE, name: "E1", dueDate: "2026-09-13" },
+        { id: "77777777-7777-4777-8777-777777777777", nowIso: NOW }
+      ),
+      completedAtIso: NOW,
+    };
+    const schedule = buildSchoolSemesterSchedule({
+      courses: [courseA()],
+      reminders: [reminder],
+      gradedItems: [quizItem, exercise],
+      now: new Date(2026, 7, 26),
+    });
+    expect(schedule.weeks[1]?.entriesByColumn.quiz[0]).toMatchObject({
+      reminderId: REMINDER_ID,
+      gradedItemId: ITEM_ID,
+      completed: true,
+    });
+    expect(schedule.weeks[2]?.entriesByColumn.exercise[0]).toMatchObject({
+      gradedItemId: "77777777-7777-4777-8777-777777777777",
+      completed: true,
+    });
+  });
+
   it("moves a cell when an assignment due date changes", () => {
     const item: SchoolGradedItem = createSchoolGradedItem(
       {

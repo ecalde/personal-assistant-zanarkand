@@ -18,6 +18,7 @@ export type DashboardCalendarWidgetProps = {
   onOpenCareer?: (focus?: CareerFocus) => void;
   onOpenFitness?: (focus?: FitnessFocus) => void;
   onOpenCooking?: () => void;
+  onSetSchoolReminderCompleted?: (reminderId: string, completed: boolean) => void;
 };
 
 /**
@@ -34,6 +35,7 @@ export function DashboardCalendarWidget({
   onOpenCareer,
   onOpenFitness,
   onOpenCooking,
+  onSetSchoolReminderCompleted,
 }: DashboardCalendarWidgetProps) {
   const nowMinutes = useNowMinutes();
 
@@ -95,6 +97,7 @@ export function DashboardCalendarWidget({
           onOpenCareer={onOpenCareer}
           onOpenFitness={onOpenFitness}
           onOpenCooking={onOpenCooking}
+          onSetSchoolReminderCompleted={onSetSchoolReminderCompleted}
         />
       ) : null}
     </section>

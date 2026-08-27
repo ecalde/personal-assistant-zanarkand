@@ -263,6 +263,18 @@ export function useCalendarController({
     hiddenSchoolTypes,
   ]);
 
+  useEffect(() => {
+    if (!selectedItem) return;
+    for (const dayItems of itemsByDate.values()) {
+      const match = dayItems.find((item) => item.id === selectedItem.id);
+      if (!match) continue;
+      if (match.completionVisual !== selectedItem.completionVisual) {
+        setSelectedItem(match);
+      }
+      return;
+    }
+  }, [itemsByDate, selectedItem]);
+
   const title = useMemo(() => {
     if (viewMode === "month") return formatMonthTitle(anchorKey);
     if (viewMode === "threeDay") return formatThreeDayRangeTitle(anchorKey);

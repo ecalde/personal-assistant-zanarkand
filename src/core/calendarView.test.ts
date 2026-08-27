@@ -790,6 +790,9 @@ describe("formatSourceTypeLabel", () => {
     };
     expect(formatSourceTypeLabel(due)).toBe("Quiz");
     expect(formatSourceTypeLabel(open)).toBe("Quiz · Opens");
+    expect(formatSourceTypeLabel({ ...due, completionVisual: "completed" })).toBe(
+      "Quiz · Completed"
+    );
     expect(
       compactCalendarItemSecondaryLabel({
         ...due,

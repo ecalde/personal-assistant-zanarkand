@@ -20,6 +20,7 @@ import type {
 import {
   enrolledSchoolCourses,
   isSchoolCourseEnrolled,
+  isSchoolWorkCompleted,
   SCHOOL_REMINDER_KIND_LABELS,
   SCHOOL_REMINDER_KINDS,
 } from "./school";
@@ -50,6 +51,9 @@ export type SchoolScheduleEntry = {
   weekSunday: string;
   colorToken?: CalendarColorToken;
   source: "gradedItem" | "reminder";
+  reminderId?: string;
+  gradedItemId?: string;
+  completed: boolean;
 };
 
 export type SchoolScheduleWeek = {
@@ -265,6 +269,9 @@ function collectScheduleEntries(input: {
       weekSunday,
       ...(course.colorToken ? { colorToken: course.colorToken } : {}),
       source: "gradedItem",
+      gradedItemId: item.id,
+      ...(linked ? { reminderId: linked.id } : {}),
+      completed: isSchoolWorkCompleted(linked) || (!linked && isSchoolWorkCompleted(item)),
     });
   }
 
@@ -284,6 +291,8 @@ function collectScheduleEntries(input: {
       weekSunday,
       ...(course.colorToken ? { colorToken: course.colorToken } : {}),
       source: "reminder",
+      reminderId: reminder.id,
+      completed: isSchoolWorkCompleted(reminder),
     });
   }
 

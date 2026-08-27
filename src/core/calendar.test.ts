@@ -1521,4 +1521,23 @@ describe("school calendar items", () => {
     );
     expect(disabled.filter((item) => item.sourceType === "school")).toEqual([]);
   });
+
+  it("marks completed reminders with a completion visual", () => {
+    const reminder = createSchoolReminder(
+      {
+        courseId: COURSE_ID,
+        kind: "assignment",
+        title: "Homework 1",
+        date: "2026-09-07",
+      },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    reminder.completedAtIso = NOW;
+    const items = buildCalendarItemsForRange(
+      { ...range, schoolCourses: [course()], schoolReminders: [reminder] },
+      { localTimeZone: "America/Chicago" }
+    );
+    const school = items.find((item) => item.sourceType === "school");
+    expect(school?.completionVisual).toBe("completed");
+  });
 });
