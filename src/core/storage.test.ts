@@ -47,6 +47,7 @@ describe("normalizePayload calendar preferences", () => {
     expect(result.schoolCourses).toEqual([]);
     expect(result.schoolReminders).toEqual([]);
     expect(result.schoolGradedItems).toEqual([]);
+    expect(result.schoolTimelineLayout).toBeUndefined();
   });
 });
 

@@ -25,6 +25,7 @@ import {
   SCHOOL_STAFF_ROLE_COLORS,
   SCHOOL_STAFF_ROLE_LABELS,
   SCHOOL_STAFF_ROLES,
+  setSchoolCourseEnrollmentStatus,
   upsertSchoolReminder,
   withReminderFingerprint,
 } from "./school";
@@ -70,6 +71,14 @@ describe("school type guards and defaults", () => {
         { id: COURSE_ID, nowIso: NOW }
       ).colorToken
     ).toBeUndefined();
+  });
+
+  it("stores completed enrollment and treats missing status as enrolled", () => {
+    expect(
+      createSchoolCourse({ name: "Algo", enrollmentStatus: "completed" }, { id: COURSE_ID, nowIso: NOW })
+        .enrollmentStatus
+    ).toBe("completed");
+    expect(createSchoolCourse({ name: "Algo" }, { id: COURSE_ID, nowIso: NOW }).enrollmentStatus).toBeUndefined();
   });
 
   it("maps GT letter bands", () => {
@@ -216,6 +225,15 @@ describe("timezone conversion", () => {
       localTime: "06:59",
       reminder: timed,
     });
+  });
+
+  it("skips dues for completed and dropped classes", () => {
+    const reminder = createSchoolReminder(
+      { courseId: COURSE_ID, kind: "quiz", title: "Q1", date: "2026-09-07" },
+      { id: REMINDER_ID, nowIso: NOW }
+    );
+    const completed = setSchoolCourseEnrollmentStatus(sampleCourse(), "completed", NOW);
+    expect(listLocalizedSchoolDues([completed], [reminder], "America/New_York")).toEqual([]);
   });
 });
 

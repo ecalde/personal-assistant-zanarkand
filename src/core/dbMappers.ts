@@ -81,6 +81,7 @@ import type {
   SchoolOfficeHours,
   SchoolReminder,
   SchoolStaffMember,
+  SchoolTimelineLayout,
 } from "./model";
 import {
   isCookingMethod,
@@ -93,10 +94,16 @@ import {
   isRecipeStepKind,
 } from "./cooking";
 import {
+  isSchoolEnrollmentStatus,
   isSchoolReminderKind,
   isSchoolStaffRole,
   isValidIanaTimeZone,
+  resolveSchoolEnrollmentStatus,
 } from "./school";
+import {
+  isSchoolTimelineLayoutEmpty,
+  parseSchoolTimelineLayout,
+} from "./schoolSchedule";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -447,6 +454,7 @@ export type SchoolCourseRow = {
   scoring_notes: string | null;
   grade_categories: unknown;
   color_token: string | null;
+  enrollment_status: string;
   created_at: string;
   updated_at: string;
 };
@@ -523,6 +531,12 @@ export type CalendarPreferencesRow = {
 export type GamificationStateRow = {
   user_id: string;
   state: unknown;
+  updated_at: string;
+};
+
+export type SchoolTimelineLayoutRow = {
+  user_id: string;
+  layout: unknown;
   updated_at: string;
 };
 
@@ -3753,6 +3767,12 @@ export function assertValidSchoolCourse(course: SchoolCourse): void {
   if (course.colorToken !== undefined && !isCalendarColorToken(course.colorToken)) {
     throw new MapperError("Invalid schoolCourse.colorToken", "schoolCourse.colorToken");
   }
+  if (
+    course.enrollmentStatus !== undefined &&
+    !isSchoolEnrollmentStatus(course.enrollmentStatus)
+  ) {
+    throw new MapperError("Invalid schoolCourse.enrollmentStatus", "schoolCourse.enrollmentStatus");
+  }
   parseSchoolStaff(course.staff, "schoolCourse.staff");
   parseSchoolOfficeHours(course.officeHours, "schoolCourse.officeHours");
   parseSchoolGradeCategories(course.gradeCategories, "schoolCourse.gradeCategories");
@@ -3784,6 +3804,7 @@ export function schoolCourseToRow(course: SchoolCourse, userId: string): SchoolC
       "schoolCourse.gradeCategories"
     ),
     color_token: course.colorToken ?? null,
+    enrollment_status: resolveSchoolEnrollmentStatus(course.enrollmentStatus),
     created_at: course.createdAtIso,
     updated_at: course.updatedAtIso,
   };
@@ -3827,6 +3848,17 @@ export function schoolCourseFromRow(row: SchoolCourseRow): SchoolCourse {
       throw new MapperError("Invalid school_courses.color_token", "school_courses.color_token");
     }
     course.colorToken = row.color_token;
+  }
+  if (row.enrollment_status !== undefined && row.enrollment_status !== null) {
+    if (!isSchoolEnrollmentStatus(row.enrollment_status)) {
+      throw new MapperError(
+        "Invalid school_courses.enrollment_status",
+        "school_courses.enrollment_status"
+      );
+    }
+    if (row.enrollment_status !== "enrolled") {
+      course.enrollmentStatus = row.enrollment_status;
+    }
   }
   return course;
 }
@@ -4400,6 +4432,34 @@ export function gamificationStateFromRow(
   return parseGamificationState(row.state, "gamification_state.state");
 }
 
+export function assertValidSchoolTimelineLayout(layout: SchoolTimelineLayout): void {
+  parseSchoolTimelineLayout(layout);
+}
+
+export function schoolTimelineLayoutToRow(
+  layout: SchoolTimelineLayout,
+  userId: string
+): SchoolTimelineLayoutRow {
+  assertUuid(userId, "userId");
+  const canonical = parseSchoolTimelineLayout(layout);
+  return {
+    user_id: userId,
+    layout: canonical,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function schoolTimelineLayoutFromRow(row: SchoolTimelineLayoutRow): SchoolTimelineLayout {
+  assertUuid(row.user_id, "school_timeline_layout.user_id");
+  assertIsoTimestamp(row.updated_at, "school_timeline_layout.updated_at");
+  try {
+    return parseSchoolTimelineLayout(row.layout);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid school_timeline_layout.layout";
+    throw new MapperError(message, "school_timeline_layout.layout");
+  }
+}
+
 function readOverrideId(item: unknown): string | undefined {
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return undefined;
@@ -4507,7 +4567,8 @@ export function payloadFromRows(
   customIngredientRows: CustomIngredientRow[] = [],
   schoolCourseRows: SchoolCourseRow[] = [],
   schoolReminderRows: SchoolReminderRow[] = [],
-  schoolGradedItemRows: SchoolGradedItemRow[] = []
+  schoolGradedItemRows: SchoolGradedItemRow[] = [],
+  schoolTimelineLayoutRows: SchoolTimelineLayoutRow[] = []
 ): AppPayload {
   const skills = skillRows.map((row) => skillFromRow(row));
   const sessions = sessionRows.map((row) => sessionFromRow(row));
@@ -4556,6 +4617,15 @@ export function payloadFromRows(
     gamificationState = gamificationStateFromRow(sorted[0]!);
   }
 
+  let schoolTimelineLayout: SchoolTimelineLayout | undefined;
+  if (schoolTimelineLayoutRows.length > 0) {
+    const sorted = [...schoolTimelineLayoutRows].sort((a, b) =>
+      b.updated_at.localeCompare(a.updated_at)
+    );
+    const parsed = schoolTimelineLayoutFromRow(sorted[0]!);
+    if (!isSchoolTimelineLayoutEmpty(parsed)) schoolTimelineLayout = parsed;
+  }
+
   const payload: AppPayload = {
     skills,
     sessions,
@@ -4578,6 +4648,7 @@ export function payloadFromRows(
     focusFeedback,
     calendarPreferences,
     gamificationState,
+    schoolTimelineLayout,
   };
   validatePayloadForUpload(payload);
   return payload;
@@ -4889,5 +4960,14 @@ export function validatePayloadForUpload(payload: AppPayload): void {
 
   if (payload.gamificationState !== undefined) {
     assertValidGamificationState(payload.gamificationState);
+  }
+
+  if (payload.schoolTimelineLayout !== undefined) {
+    try {
+      assertValidSchoolTimelineLayout(payload.schoolTimelineLayout);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Invalid schoolTimelineLayout";
+      throw new MapperError(message, "schoolTimelineLayout");
+    }
   }
 }

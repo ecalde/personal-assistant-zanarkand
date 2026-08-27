@@ -5,6 +5,7 @@ import { sanitizeEventReferences } from "./events";
 import { sanitizeSkillReferences } from "./sessions";
 import { sanitizeCookingReferences } from "./cooking";
 import { sanitizeSchoolReferences } from "./school";
+import { normalizeSchoolTimelineLayout } from "./schoolSchedule";
 import { normalizeGamificationState } from "./progressionModel";
 import { defaultPayload } from "./state";
 
@@ -83,6 +84,7 @@ export function normalizePayload(payload: unknown): AppPayload {
                 ? (p.calendarPreferences as AppPayload["calendarPreferences"])
                 : undefined,
         gamificationState: normalizeGamificationState(p.gamificationState),
+        schoolTimelineLayout: normalizeSchoolTimelineLayout(p.schoolTimelineLayout),
     };
 
     return sanitizeEventReferences(

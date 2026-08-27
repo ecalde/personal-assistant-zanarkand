@@ -574,6 +574,9 @@ export type SchoolReminderKind =
   | "reading"
   | "other";
 
+/** Enrolled classes appear on the Term Timeline. Completed/dropped stay stored unless deleted. */
+export type SchoolEnrollmentStatus = "enrolled" | "completed" | "dropped";
+
 export type SchoolStaffRole = "professor" | "ta" | "other";
 
 export type SchoolStaffMember = {
@@ -625,6 +628,8 @@ export type SchoolCourse = {
   extraCreditNotes?: string;
   scoringNotes?: string;
   gradeCategories: SchoolGradeCategory[];
+  /** Omitted or `enrolled` means the class is current. */
+  enrollmentStatus?: SchoolEnrollmentStatus;
   createdAtIso: string;
   updatedAtIso: string;
 };
@@ -663,6 +668,20 @@ export type SchoolGradedItem = {
   updatedAtIso: string;
 };
 
+export type SchoolTimelineColumnGroup = {
+  id: string;
+  memberKeys: string[];
+  /** Custom header; omitted means join the original member labels. */
+  label?: string;
+};
+
+/** Term Timeline presentation only — never edits course grade categories. */
+export type SchoolTimelineLayout = {
+  columnGroups: SchoolTimelineColumnGroup[];
+  columnLabels: Record<string, string>;
+  rowLabels: Record<string, string>;
+};
+
 export type FocusFeedbackAction = "dismissed" | "snoozed";
 
 export type FocusFeedback = {
@@ -697,4 +716,5 @@ export type AppPayload = {
   focusFeedback: FocusFeedback[];
   calendarPreferences?: CalendarColorPreferences;
   gamificationState?: GamificationState;
+  schoolTimelineLayout?: SchoolTimelineLayout;
 };

@@ -1,9 +1,12 @@
 import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/model";
+import type { SchoolCourse, SchoolEnrollmentStatus, SchoolGradedItem, SchoolReminder } from "../../core/model";
 import {
   formatSchoolDueCaption,
   resolveLocalTimeZone,
   resolveSchoolCourseColorToken,
+  resolveSchoolEnrollmentStatus,
+  SCHOOL_ENROLLMENT_STATUS_LABELS,
+  SCHOOL_ENROLLMENT_STATUSES,
   SCHOOL_REMINDER_KIND_LABELS,
   type CreateSchoolCourseInput,
   type CreateSchoolGradedItemInput,
@@ -41,6 +44,10 @@ export type SchoolCourseCardProps = {
   gradedItems: SchoolGradedItem[];
   highlighted?: boolean;
   onUpdateCourse: (input: CreateSchoolCourseInput) => void;
+  onSetEnrollment: (
+    status: SchoolEnrollmentStatus,
+    options?: { deleteData?: boolean }
+  ) => void;
   onDeleteCourse: () => void;
   onAddReminder: (input: CreateSchoolReminderInput) => void;
   onUpdateReminder: (reminderId: string, input: CreateSchoolReminderInput) => void;
@@ -57,6 +64,7 @@ export function SchoolCourseCard({
   gradedItems,
   highlighted,
   onUpdateCourse,
+  onSetEnrollment,
   onDeleteCourse,
   onAddReminder,
   onUpdateReminder,
@@ -82,6 +90,7 @@ export function SchoolCourseCard({
   const [gradesOpen, setGradesOpen] = useState(false);
   const [gradesAddRequestId, setGradesAddRequestId] = useState(0);
   const [editingCategories, setEditingCategories] = useState(false);
+  const [dropPrompt, setDropPrompt] = useState(false);
 
   const sortedReminders = useMemo(
     () =>
@@ -112,6 +121,7 @@ export function SchoolCourseCard({
         ? "None"
         : `${course.gradeCategories.length} categor${course.gradeCategories.length === 1 ? "y" : "ies"}`;
 
+  const enrollmentStatus = resolveSchoolEnrollmentStatus(course.enrollmentStatus);
   const dueCaption = formatSchoolDueCaption({
     date: reminderForm.date,
     time: reminderForm.startTime || undefined,
@@ -180,7 +190,30 @@ export function SchoolCourseCard({
                 {[course.code, course.term, course.timezone].filter(Boolean).join(" · ")}
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <EnrollmentStatusControl
+                courseId={course.id}
+                courseName={course.name}
+                status={enrollmentStatus}
+                dropPrompt={dropPrompt}
+                onRequestStatus={(status) => {
+                  if (status === "dropped" && enrollmentStatus !== "dropped") {
+                    setDropPrompt(true);
+                    return;
+                  }
+                  setDropPrompt(false);
+                  onSetEnrollment(status);
+                }}
+                onKeepDropped={() => {
+                  setDropPrompt(false);
+                  onSetEnrollment("dropped");
+                }}
+                onDeleteDropped={() => {
+                  setDropPrompt(false);
+                  onSetEnrollment("dropped", { deleteData: true });
+                }}
+                onCancelDrop={() => setDropPrompt(false)}
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -434,6 +467,107 @@ function CourseFold({
 function stopFoldToggle(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
   event.stopPropagation();
+}
+
+function EnrollmentStatusControl({
+  courseId,
+  courseName,
+  status,
+  dropPrompt,
+  onRequestStatus,
+  onKeepDropped,
+  onDeleteDropped,
+  onCancelDrop,
+}: {
+  courseId: string;
+  courseName: string;
+  status: SchoolEnrollmentStatus;
+  dropPrompt: boolean;
+  onRequestStatus: (status: SchoolEnrollmentStatus) => void;
+  onKeepDropped: () => void;
+  onDeleteDropped: () => void;
+  onCancelDrop: () => void;
+}) {
+  const dialogLabelId = `drop-class-${courseId}`;
+  return (
+    <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+      <div
+        role="group"
+        aria-label={`Enrollment for ${courseName}`}
+        style={{
+          display: "inline-flex",
+          border: "1px solid var(--aether-border, #ccc)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        {SCHOOL_ENROLLMENT_STATUSES.map((value) => {
+          const selected = value === status;
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onRequestStatus(value)}
+              style={{
+                ...styles.ghostBtn,
+                border: "none",
+                borderRadius: 0,
+                fontWeight: selected ? 800 : 650,
+                background: selected
+                  ? value === "dropped"
+                    ? "var(--aether-chip-danger-bg, #ffecec)"
+                    : value === "completed"
+                      ? "var(--aether-chip-success-bg, #ecfff1)"
+                      : "color-mix(in srgb, var(--aether-accent, #46c6ff) 18%, transparent)"
+                  : "transparent",
+                color:
+                  selected && value === "dropped"
+                    ? "var(--aether-chip-danger-text, #8a1c1c)"
+                    : selected && value === "completed"
+                      ? "var(--aether-chip-success-text, #1b5e20)"
+                      : "var(--aether-text-primary, inherit)",
+              }}
+            >
+              {SCHOOL_ENROLLMENT_STATUS_LABELS[value]}
+            </button>
+          );
+        })}
+      </div>
+      {dropPrompt ? (
+        <div
+          role="dialog"
+          aria-labelledby={dialogLabelId}
+          style={{
+            ...styles.card,
+            padding: 12,
+            maxWidth: 320,
+            display: "grid",
+            gap: 8,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+          }}
+        >
+          <p id={dialogLabelId} style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
+            Drop {courseName}?
+          </p>
+          <p style={{ ...styles.captionText, margin: 0 }}>
+            Keep reminders and grades stored, or delete this class entirely.
+          </p>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button type="button" style={styles.ghostBtn} onClick={onCancelDrop}>
+              Cancel
+            </button>
+            <button type="button" onClick={onKeepDropped}>
+              Keep stored
+            </button>
+            <button type="button" onClick={onDeleteDropped}>
+              Delete class
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function CourseColorSwatch({ colorToken }: { colorToken: SchoolCourse["colorToken"] }) {

@@ -49,6 +49,8 @@ import {
   schoolGradedItemToRow,
   schoolReminderFromRow,
   schoolReminderToRow,
+  schoolTimelineLayoutFromRow,
+  schoolTimelineLayoutToRow,
   skillFromRow,
   skillToRow,
   validatePayloadForUpload,
@@ -1405,12 +1407,49 @@ describe("school mappers", () => {
     expect(schoolCourseFromRow(row)).toEqual(course);
   });
 
+  it("round-trips completed enrollment and defaults enrolled to omitted", () => {
+    const enrolledRow = schoolCourseToRow(sampleCourse(), USER_ID);
+    expect(enrolledRow.enrollment_status).toBe("enrolled");
+    expect(schoolCourseFromRow(enrolledRow).enrollmentStatus).toBeUndefined();
+    const completed = sampleCourse({ enrollmentStatus: "completed" });
+    const row = schoolCourseToRow(completed, USER_ID);
+    expect(row.enrollment_status).toBe("completed");
+    expect(schoolCourseFromRow(row)).toEqual(completed);
+  });
+
   it("rejects an invalid course color token", () => {
     expect(() =>
       schoolCourseToRow(sampleCourse({ colorToken: "not-a-color" as SchoolCourse["colorToken"] }), USER_ID)
     ).toThrow(MapperError);
     const row = schoolCourseToRow(sampleCourse(), USER_ID);
     expect(() => schoolCourseFromRow({ ...row, color_token: "octarine.base" })).toThrow(MapperError);
+  });
+
+  it("rejects an invalid enrollment status", () => {
+    expect(() =>
+      schoolCourseToRow(
+        sampleCourse({ enrollmentStatus: "waitlisted" as SchoolCourse["enrollmentStatus"] }),
+        USER_ID
+      )
+    ).toThrow(MapperError);
+    const row = schoolCourseToRow(sampleCourse(), USER_ID);
+    expect(() => schoolCourseFromRow({ ...row, enrollment_status: "waitlisted" })).toThrow(MapperError);
+  });
+
+  it("round-trips a term timeline layout", () => {
+    const layout = {
+      columnGroups: [
+        {
+          id: "12121212-1212-4121-8121-121212121212",
+          memberKeys: ["termprojectmilestones1", "termprojectmilestones2"],
+          label: "Term Project",
+        },
+      ],
+      columnLabels: { quiz: "Weekly Quizzes" },
+      rowLabels: { "2026-09-06": "Labor Day week" },
+    };
+    const row = schoolTimelineLayoutToRow(layout, USER_ID);
+    expect(schoolTimelineLayoutFromRow(row)).toEqual(layout);
   });
 
   it("round-trips a timed reminder with links", () => {

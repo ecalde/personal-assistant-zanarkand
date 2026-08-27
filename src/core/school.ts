@@ -10,6 +10,7 @@ import { isCalendarColorToken, type CalendarColorToken } from "./calendarColors"
 import type {
   AppPayload,
   SchoolCourse,
+  SchoolEnrollmentStatus,
   SchoolGradeCategory,
   SchoolGradedItem,
   SchoolLatePolicy,
@@ -37,6 +38,12 @@ export const SCHOOL_REMINDER_KINDS: readonly SchoolReminderKind[] = [
 
 export const SCHOOL_STAFF_ROLES: readonly SchoolStaffRole[] = ["professor", "ta", "other"];
 
+export const SCHOOL_ENROLLMENT_STATUSES: readonly SchoolEnrollmentStatus[] = [
+  "enrolled",
+  "completed",
+  "dropped",
+];
+
 export const SCHOOL_REMINDER_KIND_LABELS: Record<SchoolReminderKind, string> = {
   assignment: "Assignment",
   quiz: "Quiz",
@@ -51,6 +58,12 @@ export const SCHOOL_STAFF_ROLE_LABELS: Record<SchoolStaffRole, string> = {
   professor: "Professor",
   ta: "TA",
   other: "Staff",
+};
+
+export const SCHOOL_ENROLLMENT_STATUS_LABELS: Record<SchoolEnrollmentStatus, string> = {
+  enrolled: "Enrolled",
+  completed: "Done",
+  dropped: "Dropped",
 };
 
 /** Mode-aware text colors so staff roles stay distinct on glance and edit views. */
@@ -87,6 +100,7 @@ export type CreateSchoolCourseInput = {
   extraCreditNotes?: string;
   scoringNotes?: string;
   gradeCategories?: SchoolGradeCategory[];
+  enrollmentStatus?: SchoolEnrollmentStatus;
 };
 
 export type CreateSchoolReminderInput = {
@@ -138,6 +152,37 @@ export function isSchoolReminderKind(value: string): value is SchoolReminderKind
 
 export function isSchoolStaffRole(value: string): value is SchoolStaffRole {
   return (SCHOOL_STAFF_ROLES as readonly string[]).includes(value);
+}
+
+export function isSchoolEnrollmentStatus(value: string): value is SchoolEnrollmentStatus {
+  return (SCHOOL_ENROLLMENT_STATUSES as readonly string[]).includes(value);
+}
+
+/** Missing or unknown values resolve to enrolled so legacy courses stay active. */
+export function resolveSchoolEnrollmentStatus(value: unknown): SchoolEnrollmentStatus {
+  return typeof value === "string" && isSchoolEnrollmentStatus(value) ? value : "enrolled";
+}
+
+export function isSchoolCourseEnrolled(course: SchoolCourse): boolean {
+  return resolveSchoolEnrollmentStatus(course.enrollmentStatus) === "enrolled";
+}
+
+export function enrolledSchoolCourses(courses: readonly SchoolCourse[]): SchoolCourse[] {
+  return courses.filter(isSchoolCourseEnrolled);
+}
+
+export function setSchoolCourseEnrollmentStatus(
+  course: SchoolCourse,
+  status: SchoolEnrollmentStatus,
+  nowIso: string
+): SchoolCourse {
+  const next: SchoolCourse = { ...course, updatedAtIso: nowIso };
+  if (status === "enrolled") {
+    delete next.enrollmentStatus;
+  } else {
+    next.enrollmentStatus = status;
+  }
+  return next;
 }
 
 export function isValidIanaTimeZone(value: string): boolean {
@@ -266,6 +311,8 @@ export function createSchoolCourse(
   if (extraCreditNotes) course.extraCreditNotes = extraCreditNotes;
   const scoringNotes = input.scoringNotes?.trim();
   if (scoringNotes) course.scoringNotes = scoringNotes;
+  const enrollmentStatus = resolveSchoolEnrollmentStatus(input.enrollmentStatus);
+  if (enrollmentStatus !== "enrolled") course.enrollmentStatus = enrollmentStatus;
   return course;
 }
 
@@ -509,7 +556,7 @@ export function listLocalizedSchoolDues(
   const dues: LocalizedSchoolDue[] = [];
   for (const reminder of reminders) {
     const course = courseById.get(reminder.courseId);
-    if (!course) continue;
+    if (!course || !isSchoolCourseEnrolled(course)) continue;
     const local = convertSchoolWallTime(
       { date: reminder.date, time: reminder.startTime },
       course.timezone,

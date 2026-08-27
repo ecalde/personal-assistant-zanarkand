@@ -18,6 +18,8 @@ import type {
   CookingSession,
   PantryItem,
   CustomIngredient,
+  SchoolEnrollmentStatus,
+  SchoolTimelineLayout,
 } from "./core/model";
 import {
   cleanupExpiredFeedback,
@@ -97,6 +99,7 @@ import {
   removeSchoolGradedItem,
   removeSchoolReminder,
   sanitizeSchoolReferences,
+  setSchoolCourseEnrollmentStatus,
   upsertSchoolCourse,
   upsertSchoolGradedItem,
   upsertSchoolReminder,
@@ -109,6 +112,10 @@ import {
   applySchoolIngestSuggestions,
   type SchoolIngestSuggestion,
 } from "./core/schoolParse";
+import {
+  isSchoolTimelineLayoutEmpty,
+  parseSchoolTimelineLayout,
+} from "./core/schoolSchedule";
 import { findActiveCookingSession } from "./core/cookingSession";
 import {
   clearFocusPhase,
@@ -1220,7 +1227,10 @@ export default function App({ userId, onSignOut }: AppProps) {
     if (!existing) return;
     const name = input.name.trim();
     if (!name) return;
-    const next = createSchoolCourse({ ...input, name }, { id: existing.id, nowIso: nowIso() });
+    const next = createSchoolCourse(
+      { ...input, name, enrollmentStatus: input.enrollmentStatus ?? existing.enrollmentStatus },
+      { id: existing.id, nowIso: nowIso() }
+    );
     next.createdAtIso = existing.createdAtIso;
     commitSchoolPayload({
       ...app.payload,
@@ -1237,6 +1247,25 @@ export default function App({ userId, onSignOut }: AppProps) {
       courseId
     );
     commitSchoolPayload({ ...app.payload, ...removed });
+  }
+
+  function setSchoolCourseEnrollment(
+    courseId: string,
+    status: SchoolEnrollmentStatus,
+    options?: { deleteData?: boolean }
+  ) {
+    if (!app) return;
+    if (status === "dropped" && options?.deleteData) {
+      deleteSchoolCourse(courseId);
+      return;
+    }
+    const existing = (app.payload.schoolCourses ?? []).find((course) => course.id === courseId);
+    if (!existing) return;
+    const next = setSchoolCourseEnrollmentStatus(existing, status, nowIso());
+    commitSchoolPayload({
+      ...app.payload,
+      schoolCourses: upsertSchoolCourse(app.payload.schoolCourses ?? [], next),
+    });
   }
 
   function addSchoolReminder(input: CreateSchoolReminderInput) {
@@ -1338,6 +1367,17 @@ export default function App({ userId, onSignOut }: AppProps) {
       delete nextPayload.calendarPreferences;
     } else {
       nextPayload.calendarPreferences = parseCalendarColorPreferences(prefs);
+    }
+    commit({ ...app, payload: nextPayload });
+  }
+
+  function setSchoolTimelineLayout(layout: SchoolTimelineLayout | undefined) {
+    if (!app) return;
+    const nextPayload = { ...app.payload };
+    if (!layout || isSchoolTimelineLayoutEmpty(layout)) {
+      delete nextPayload.schoolTimelineLayout;
+    } else {
+      nextPayload.schoolTimelineLayout = parseSchoolTimelineLayout(layout);
     }
     commit({ ...app, payload: nextPayload });
   }
@@ -2222,6 +2262,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onClearCareerTarget={clearCareerTarget}
           onAddCourse={addSchoolCourse}
           onUpdateCourse={updateSchoolCourse}
+          onSetEnrollment={setSchoolCourseEnrollment}
           onDeleteCourse={deleteSchoolCourse}
           onAddReminder={addSchoolReminder}
           onUpdateReminder={updateSchoolReminder}
@@ -2230,6 +2271,8 @@ export default function App({ userId, onSignOut }: AppProps) {
           onUpdateGradedItem={updateSchoolGradedItem}
           onDeleteGradedItem={deleteSchoolGradedItem}
           onApplySchoolIngest={applySchoolIngest}
+          schoolTimelineLayout={app.payload.schoolTimelineLayout}
+          onSaveTimelineLayout={setSchoolTimelineLayout}
         />
       )}
 

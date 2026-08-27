@@ -23,6 +23,7 @@ import {
   schoolCourseToRow,
   schoolReminderToRow,
   schoolGradedItemToRow,
+  schoolTimelineLayoutToRow,
   sessionToRow,
   skillToRow,
   workoutPlanToRow,
@@ -44,6 +45,7 @@ import {
   type SchoolCourseRow,
   type SchoolReminderRow,
   type SchoolGradedItemRow,
+  type SchoolTimelineLayoutRow,
   type SessionRow,
   type SkillRow,
   type WorkoutPlanRow,
@@ -74,7 +76,8 @@ type AppTable =
   | "school_graded_items"
   | "focus_feedback"
   | "calendar_preferences"
-  | "gamification_state";
+  | "gamification_state"
+  | "school_timeline_layout";
 
 export class RemoteStorageError extends Error {
   readonly code?: string;
@@ -367,10 +370,29 @@ async function replaceGamificationState(
   throwOnSupabaseError(error, "gamification_state");
 }
 
+async function replaceSchoolTimelineLayout(
+  userId: string,
+  row: SchoolTimelineLayoutRow | null
+): Promise<void> {
+  if (row) {
+    const { error } = await supabase
+      .from("school_timeline_layout")
+      .upsert(row, { onConflict: "user_id" });
+    throwOnSupabaseError(error, "school_timeline_layout");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("school_timeline_layout")
+    .delete()
+    .eq("user_id", userId);
+  throwOnSupabaseError(error, "school_timeline_layout");
+}
+
 export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   assertUserId(userId);
 
-  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, customIngredientsResult, schoolCoursesResult, schoolRemindersResult, schoolGradedItemsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult] =
+  const [skillsResult, sessionsResult, overridesResult, eventsResult, peopleResult, jobApplicationsResult, careerTargetsResult, workoutPlansResult, workoutSessionsResult, supplementProtocolsResult, supplementIntakeLogsResult, recipesResult, cookingSessionsResult, pantryResult, customIngredientsResult, schoolCoursesResult, schoolRemindersResult, schoolGradedItemsResult, focusFeedbackResult, calendarPreferencesResult, gamificationStateResult, schoolTimelineLayoutResult] =
     await Promise.all([
     supabase.from("skills").select("*").eq("user_id", userId),
     supabase.from("sessions").select("*").eq("user_id", userId),
@@ -393,6 +415,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
     supabase.from("focus_feedback").select("*").eq("user_id", userId),
     supabase.from("calendar_preferences").select("*").eq("user_id", userId),
     supabase.from("gamification_state").select("*").eq("user_id", userId),
+    supabase.from("school_timeline_layout").select("*").eq("user_id", userId),
   ]);
 
   throwOnSupabaseError(skillsResult.error, "skills");
@@ -416,6 +439,7 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
   throwOnSupabaseError(focusFeedbackResult.error, "focus_feedback");
   throwOnSupabaseError(calendarPreferencesResult.error, "calendar_preferences");
   throwOnSupabaseError(gamificationStateResult.error, "gamification_state");
+  throwOnSupabaseError(schoolTimelineLayoutResult.error, "school_timeline_layout");
 
   try {
     return payloadFromRows(
@@ -439,7 +463,8 @@ export async function fetchRemotePayload(userId: string): Promise<AppPayload> {
       asRows<CustomIngredientRow>(customIngredientsResult.data),
       asRows<SchoolCourseRow>(schoolCoursesResult.data),
       asRows<SchoolReminderRow>(schoolRemindersResult.data),
-      asRows<SchoolGradedItemRow>(schoolGradedItemsResult.data)
+      asRows<SchoolGradedItemRow>(schoolGradedItemsResult.data),
+      asRows<SchoolTimelineLayoutRow>(schoolTimelineLayoutResult.data)
     );
   } catch (err) {
     throw toRemoteStorageError(err, "skills");
@@ -504,6 +529,9 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
   const gamificationStateRow = payload.gamificationState
     ? gamificationStateToRow(payload.gamificationState, userId)
     : null;
+  const schoolTimelineLayoutRow = payload.schoolTimelineLayout
+    ? schoolTimelineLayoutToRow(payload.schoolTimelineLayout, userId)
+    : null;
 
   await upsertRows("skills", skillRows);
   await upsertRows("sessions", sessionRows);
@@ -567,6 +595,7 @@ export async function replaceRemotePayload(userId: string, payload: AppPayload):
 
   await replaceCalendarPreferences(userId, calendarPreferencesRow);
   await replaceGamificationState(userId, gamificationStateRow);
+  await replaceSchoolTimelineLayout(userId, schoolTimelineLayoutRow);
 }
 
 export function payloadHasData(payload: AppPayload): boolean {
@@ -591,7 +620,8 @@ export function payloadHasData(payload: AppPayload): boolean {
     (payload.schoolGradedItems?.length ?? 0) > 0 ||
     payload.focusFeedback.length > 0 ||
     payload.calendarPreferences !== undefined ||
-    payload.gamificationState !== undefined
+    payload.gamificationState !== undefined ||
+    payload.schoolTimelineLayout !== undefined
   );
 }
 

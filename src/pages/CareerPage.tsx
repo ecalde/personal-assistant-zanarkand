@@ -10,8 +10,10 @@ import type {
   CareerTarget,
   JobApplication,
   SchoolCourse,
+  SchoolEnrollmentStatus,
   SchoolGradedItem,
   SchoolReminder,
+  SchoolTimelineLayout,
   Skill,
 } from "../core/model";
 import type {
@@ -60,6 +62,11 @@ export type CareerPageProps = {
   onClearCareerTarget: () => void;
   onAddCourse: (input: CreateSchoolCourseInput) => void;
   onUpdateCourse: (courseId: string, input: CreateSchoolCourseInput) => void;
+  onSetEnrollment: (
+    courseId: string,
+    status: SchoolEnrollmentStatus,
+    options?: { deleteData?: boolean }
+  ) => void;
   onDeleteCourse: (courseId: string) => void;
   onAddReminder: (input: CreateSchoolReminderInput) => void;
   onUpdateReminder: (reminderId: string, input: CreateSchoolReminderInput) => void;
@@ -68,6 +75,8 @@ export type CareerPageProps = {
   onUpdateGradedItem: (itemId: string, input: CreateSchoolGradedItemInput) => void;
   onDeleteGradedItem: (itemId: string) => void;
   onApplySchoolIngest: (courseId: string, suggestions: SchoolIngestSuggestion[]) => void;
+  schoolTimelineLayout?: SchoolTimelineLayout;
+  onSaveTimelineLayout: (layout: SchoolTimelineLayout | undefined) => void;
 };
 
 export default function CareerPage({
@@ -85,6 +94,7 @@ export default function CareerPage({
   onClearCareerTarget,
   onAddCourse,
   onUpdateCourse,
+  onSetEnrollment,
   onDeleteCourse,
   onAddReminder,
   onUpdateReminder,
@@ -93,6 +103,8 @@ export default function CareerPage({
   onUpdateGradedItem,
   onDeleteGradedItem,
   onApplySchoolIngest,
+  schoolTimelineLayout,
+  onSaveTimelineLayout,
 }: CareerPageProps) {
   const [section, setSection] = useState<CareerSection>(() =>
     careerFocus?.kind === "school" ? "school" : "career"
@@ -205,6 +217,7 @@ export default function CareerPage({
           focusCourseId={careerFocus?.kind === "school" ? careerFocus.courseId : undefined}
           onAddCourse={onAddCourse}
           onUpdateCourse={onUpdateCourse}
+          onSetEnrollment={onSetEnrollment}
           onDeleteCourse={onDeleteCourse}
           onAddReminder={onAddReminder}
           onUpdateReminder={onUpdateReminder}
@@ -213,6 +226,8 @@ export default function CareerPage({
           onUpdateGradedItem={onUpdateGradedItem}
           onDeleteGradedItem={onDeleteGradedItem}
           onApplyIngest={onApplySchoolIngest}
+          timelineLayout={schoolTimelineLayout}
+          onSaveTimelineLayout={onSaveTimelineLayout}
         />
       ) : (
         <>

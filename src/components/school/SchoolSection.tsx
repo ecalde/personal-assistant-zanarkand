@@ -1,14 +1,16 @@
-import { useState } from "react";
-import type { SchoolCourse, SchoolGradedItem, SchoolReminder } from "../../core/model";
+import { useEffect, useRef, useState } from "react";
+import type { SchoolCourse, SchoolEnrollmentStatus, SchoolGradedItem, SchoolReminder, SchoolTimelineLayout } from "../../core/model";
 import type {
   CreateSchoolCourseInput,
   CreateSchoolGradedItemInput,
   CreateSchoolReminderInput,
 } from "../../core/school";
+import { isSchoolCourseEnrolled } from "../../core/school";
 import type { SchoolIngestSuggestion } from "../../core/schoolParse";
 import { styles } from "../../ui/appStyles";
 import { SchoolCourseCard } from "./SchoolCourseCard";
 import { SchoolCourseForm } from "./SchoolCourseForm";
+import { SchoolSemesterTimeline } from "./SchoolSemesterTimeline";
 import {
   emptySchoolCourseFormState,
   schoolCoursePayloadFromForm,
@@ -23,6 +25,11 @@ export type SchoolSectionProps = {
   focusCourseId?: string;
   onAddCourse: (input: CreateSchoolCourseInput) => void;
   onUpdateCourse: (courseId: string, input: CreateSchoolCourseInput) => void;
+  onSetEnrollment: (
+    courseId: string,
+    status: SchoolEnrollmentStatus,
+    options?: { deleteData?: boolean }
+  ) => void;
   onDeleteCourse: (courseId: string) => void;
   onAddReminder: (input: CreateSchoolReminderInput) => void;
   onUpdateReminder: (reminderId: string, input: CreateSchoolReminderInput) => void;
@@ -31,6 +38,8 @@ export type SchoolSectionProps = {
   onUpdateGradedItem: (itemId: string, input: CreateSchoolGradedItemInput) => void;
   onDeleteGradedItem: (itemId: string) => void;
   onApplyIngest: (courseId: string, suggestions: SchoolIngestSuggestion[]) => void;
+  timelineLayout?: SchoolTimelineLayout;
+  onSaveTimelineLayout: (layout: SchoolTimelineLayout | undefined) => void;
 };
 
 export function SchoolSection({
@@ -40,6 +49,7 @@ export function SchoolSection({
   focusCourseId,
   onAddCourse,
   onUpdateCourse,
+  onSetEnrollment,
   onDeleteCourse,
   onAddReminder,
   onUpdateReminder,
@@ -48,16 +58,28 @@ export function SchoolSection({
   onUpdateGradedItem,
   onDeleteGradedItem,
   onApplyIngest,
+  timelineLayout,
+  onSaveTimelineLayout,
 }: SchoolSectionProps) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<SchoolCourseFormState>(emptySchoolCourseFormState());
   const [formError, setFormError] = useState<string | null>(null);
+  const [pastOpen, setPastOpen] = useState(() =>
+    Boolean(focusCourseId && courses.some((course) => course.id === focusCourseId && !isSchoolCourseEnrolled(course)))
+  );
 
-  const sortedCourses = [...courses].sort((left, right) => {
-    if (left.id === focusCourseId) return -1;
-    if (right.id === focusCourseId) return 1;
-    return left.name.localeCompare(right.name);
-  });
+  const enrolledCourses = courses.filter(isSchoolCourseEnrolled);
+  const pastCourses = courses.filter((course) => !isSchoolCourseEnrolled(course));
+  const pastCount = pastCourses.length;
+  const previousPastCount = useRef(pastCount);
+
+  useEffect(() => {
+    if (pastCount > previousPastCount.current) setPastOpen(true);
+    previousPastCount.current = pastCount;
+  }, [pastCount]);
+
+  const sortedEnrolled = sortCourses(enrolledCourses, focusCourseId);
+  const sortedPast = sortCourses(pastCourses, focusCourseId);
 
   function submit() {
     const error = validateSchoolCourseForm(form);
@@ -73,6 +95,14 @@ export function SchoolSection({
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
+      <SchoolSemesterTimeline
+        courses={courses}
+        reminders={reminders}
+        gradedItems={gradedItems}
+        layout={timelineLayout}
+        onSaveLayout={onSaveTimelineLayout}
+      />
+
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
         <p style={{ ...styles.textSecondary, margin: 0 }}>
           Courses, reminders, and grades. Paste a Canvas table or syllabus into a course to review
@@ -106,12 +136,12 @@ export function SchoolSection({
         />
       ) : null}
 
-      {sortedCourses.length === 0 && !showForm ? (
+      {sortedEnrolled.length === 0 && !showForm ? (
         <p style={{ ...styles.helpText, margin: 0 }}>
-          No courses yet. Add a class to track reminders, staff, and grades.
+          No enrolled classes. Add a course or mark a past class as enrolled.
         </p>
       ) : (
-        sortedCourses.map((course) => (
+        sortedEnrolled.map((course) => (
           <SchoolCourseCard
             key={course.id}
             course={course}
@@ -119,6 +149,7 @@ export function SchoolSection({
             gradedItems={gradedItems.filter((item) => item.courseId === course.id)}
             highlighted={focusCourseId === course.id}
             onUpdateCourse={(input) => onUpdateCourse(course.id, input)}
+            onSetEnrollment={(status, options) => onSetEnrollment(course.id, status, options)}
             onDeleteCourse={() => onDeleteCourse(course.id)}
             onAddReminder={onAddReminder}
             onUpdateReminder={onUpdateReminder}
@@ -130,6 +161,50 @@ export function SchoolSection({
           />
         ))
       )}
+
+      {sortedPast.length > 0 ? (
+        <details
+          open={pastOpen}
+          onToggle={(event) => setPastOpen(event.currentTarget.open)}
+          style={styles.sessionHistoryGroup}
+        >
+          <summary style={{ ...styles.sessionHistorySummary, fontSize: 14, padding: "8px 12px" }}>
+            <span>Past classes</span>
+            <span style={{ ...styles.textMuted, fontWeight: 700, fontSize: 12 }}>
+              {sortedPast.length}
+            </span>
+          </summary>
+          <div style={{ ...styles.sessionHistoryBody, padding: "0 10px 10px", display: "grid", gap: 12 }}>
+            {sortedPast.map((course) => (
+              <SchoolCourseCard
+                key={course.id}
+                course={course}
+                reminders={reminders.filter((reminder) => reminder.courseId === course.id)}
+                gradedItems={gradedItems.filter((item) => item.courseId === course.id)}
+                highlighted={focusCourseId === course.id}
+                onUpdateCourse={(input) => onUpdateCourse(course.id, input)}
+                onSetEnrollment={(status, options) => onSetEnrollment(course.id, status, options)}
+                onDeleteCourse={() => onDeleteCourse(course.id)}
+                onAddReminder={onAddReminder}
+                onUpdateReminder={onUpdateReminder}
+                onDeleteReminder={onDeleteReminder}
+                onAddGradedItem={onAddGradedItem}
+                onUpdateGradedItem={onUpdateGradedItem}
+                onDeleteGradedItem={onDeleteGradedItem}
+                onApplyIngest={(suggestions) => onApplyIngest(course.id, suggestions)}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
+}
+
+function sortCourses(courses: SchoolCourse[], focusCourseId?: string): SchoolCourse[] {
+  return [...courses].sort((left, right) => {
+    if (left.id === focusCourseId) return -1;
+    if (right.id === focusCourseId) return 1;
+    return left.name.localeCompare(right.name);
+  });
 }
