@@ -1,0 +1,21 @@
+---
+description: Resume Tool one-phase-per-chat implementation (read progress file; do not chain phases)
+alwaysApply: true
+---
+
+# Resume Tool implementation
+
+When the user asks to implement, continue, or work on the **Resume Tool / Resume Tailoring / Resume Editor** feature:
+
+1. This is **not** ordinary feature work. Follow [`docs/RESUME_TOOL_IMPLEMENTATION_PLAN.md`](docs/RESUME_TOOL_IMPLEMENTATION_PLAN.md) only.
+2. **One Cursor chat = exactly one implementation phase.** After that phase, update [`docs/RESUME_TOOL_PROGRESS.md`](docs/RESUME_TOOL_PROGRESS.md) and **stop**. Do not start the next phase in the same chat, even if the plan says a later phase is “eligible.”
+3. At session start, read (in addition to other project rules):
+   - `docs/RESUME_TOOL_ARCHITECTURE.md`
+   - `docs/RESUME_TOOL_IMPLEMENTATION_PLAN.md`
+   - `docs/RESUME_TOOL_PROGRESS.md`
+4. Use those files plus the actual repository to choose the earliest incomplete phase. If progress and the repo disagree, ask Edwin. Do not skip gates.
+5. If progress says implementation is **not** approved, or status is `AWAITING MANUAL VERIFICATION` / `BLOCKED`, do not begin a new phase unless Edwin is only reporting verification results for the parked phase.
+6. Never mark a phase `COMPLETE` in the progress file until Edwin has reported required manual verification (Word, production HTTPS, UI walkthroughs, human checkpoints) as passed.
+7. Do not implement Resume application code while the planning docs still say planning-only **and** progress says not approved.
+
+Do not apply this one-phase rule to unrelated domains (cooking, career applications, school, fitness, etc.).
