@@ -14,15 +14,81 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 | Field | Value |
 | --- | --- |
 | Implementation approved by Edwin | **Yes** |
-| Last phase number | 2D |
-| Last phase name | Duplicate resume |
-| Status | `COMPLETE` |
-| What was completed | Duplicate-resume capability wired end to end (architecture §35: "Save as new resume copies lineage with a new `resume_id` and new original = current working bytes"). New pure helper `duplicateResumeName` (+ `RESUME_COPY_SUFFIX = " (copy)"`) in `src/core/resume/resumeLibrary.ts`: normalizes the source name and appends " (copy)", truncating the base so the result always stays ≤200 chars and passes `validateResumeName`. In `resumeRemote.ts`, extracted the shared create path into private `createResumeLineage({ userId, name, sourceFilename, sourceKind, bytes })` (uploads identical original + working bytes, inserts resume + version 1, sets `active_version_id`, full storage+row rollback on error). `insertResumeWithOriginal` now delegates to it with `source_kind = "upload"` (behavior unchanged, incl. `isDefault`). New `duplicateResume(userId, resumeId)`: owner-scoped fetch + `parseResumeRow` of the source, resolves the source's **active version** working path via `buildResumeWorkingStoragePath`, downloads those working bytes from the private `resume-docs` bucket, then calls `createResumeLineage` with `source_kind = "duplicate"`, the copied name, and the source's `sourceFilename`. The copy gets a brand-new `resume_id`/`version_id`, is never default, and shares **no** storage objects with the source (so later edits to either cannot affect the other — full isolation is re-tested in 4F). `useResumes` exposes `duplicateResume(resumeId)` (sets `mutatingId` on the source row, refreshes the list on success since the copy is a new row, generic error + refresh on failure). `ResumeSection` renders a per-row **Duplicate** button; `CareerPage` drops the `resumeDuplicateStub` no-op and passes the real callback. No DOCX bytes in `AppPayload`/`localStorage`; no `replaceRemotePayload`; RLS + owner-scoped `.eq("user_id", …)` gate every read/write and the storage download path is owner-validated. |
-| Automated verification | `npm test` pass (1318 passed, 1 skipped; +4 new `duplicateResumeName` tests → `resumeLibrary` now 16). `npx tsc -b` pass. `npm run build` pass (pre-existing >500 kB chunk warning; lazy-load is 10F). `npx eslint` on changed files: only the pre-existing `react-hooks/set-state-in-effect` on `CareerPage.tsx` (now line 158, same `careerFocus` school effect; shifted up 4 lines only because this phase removed the 5-line duplicate stub). No resumeRemote unit test — like 1D/2B/2C the Supabase-facing remote layer is Edwin-verified; the pure logic (`duplicateResumeName`) is unit-tested. |
-| Manual verification | Edwin reported pass **2026-09-15**: Duplicate creates a "(copy)" row (not default) that persists after reload; copy has its own `resumes`/`resume_versions` rows (`source_kind='duplicate'`) and distinct storage objects; rename/default/delete act on the copy independently of the source. |
-| Important files changed | `src/core/resume/resumeLibrary.ts`, `src/core/resume/resumeLibrary.test.ts`, `src/lib/resumeRemote.ts`, `src/components/resume/useResumes.ts`, `src/components/resume/ResumeSection.tsx`, `src/pages/CareerPage.tsx`, `docs/RESUME_TOOL_PROGRESS.md` |
-| Blockers / notes | Do not start 3A in this chat. Open a new Cursor chat for 3A. Deep source-vs-copy edit isolation is fully re-tested in Phase 4F (editor autosave). |
-| **Next eligible phase** | **3A — Full OOXML block parse** |
+| Last phase number | 4B |
+| Last phase name | Font preflight |
+| Status | `AWAITING MANUAL VERIFICATION` |
+| What was completed | Font preflight for the read-only preview (architecture §40, RES-DOC-005, RES-FID-002). New pure module **`src/core/resume/resumeFonts.ts`**: `documentFontFamilies` collects named run fonts from the persisted graph and treats inherited/`null` runs as **Calibri**; `evaluateFontPreflight` uses an injected checker (browser: `document.fonts.check('10pt "Family"')` per §40) and, if any document font is missing, sets `substitutionActive` plus an honest warning that wrapping may differ from Word and that **export keeps original font names**. Bundled **Carlito** SIL OFL files under **`public/fonts/`** (Regular/Bold/Italic/BoldItalic + `OFL.txt` from googlefonts/carlito). **`resumeEditor.css`** registers `@font-face` for those four cuts (`font-display: swap`; URLs `/fonts/Carlito-*.ttf`). Hook **`useResumeFontPreflight`** loads Carlito then evaluates; **`ResumeDocumentPane`** shows the warning as an Aether `statusWarning` banner (`role="status"`). **`ResumePageSurface`** now imports the CSS and the shared `PREVIEW_FONT_STACK` (`"Calibri", "Carlito", …`). **Did not** rewrite OOXML font names, add `@fontsource`, ship Calibri binaries, add `contentEditable` (4C), or persist a new jsonb key. No migration, no new npm dependency. |
+| Automated verification | `npm test` pass (**1438 passed, 7 skipped**; +17 tests in new `resumeFonts.test.ts`). `npx tsc -b` pass. `npx eslint` clean on the five TS files this phase touched. `npm run build` pass (pre-existing >500 kB chunk warning; lazy-load is 10F); `dist/fonts/` contains the four Carlito TTFs + OFL, and the built CSS includes the Carlito `@font-face` rules. Cases covered — families: inherited/null → Calibri, unique named fonts sorted, generics/`+theme` skipped, empty graph → no families; preflight: all available → no warning, missing Calibri → substitution + copy that names Carlito/Word/wrapping/original names and does **not** claim pixel-perfect or an ATS score; checker throw → missing; `checkBrowserFont` is false in node; bundled files are real TTF (`00 01 00 00`) and no Calibri filename is present. |
+| Manual verification | **Still waiting:** Edwin UI walkthrough on a machine/browser without Calibri (banner must show). See the 4B section below. Export font names remaining Calibri in XML is **9A**, not this phase — this phase does not rewrite OOXML. |
+| Important files changed | `src/core/resume/resumeFonts.ts` (new), `src/core/resume/resumeFonts.test.ts` (new), `src/components/resume/resumeEditor.css` (new), `src/components/resume/useResumeFontPreflight.ts` (new), `src/components/resume/ResumeDocumentPane.tsx` (banner), `src/components/resume/ResumePageSurface.tsx` (shared stack + `@font-face` import), `public/fonts/Carlito-Regular.ttf`, `public/fonts/Carlito-Bold.ttf`, `public/fonts/Carlito-Italic.ttf`, `public/fonts/Carlito-BoldItalic.ttf`, `public/fonts/OFL.txt`, `docs/RESUME_TOOL_PROGRESS.md`. **No migration, no new dependency.** |
+| Blockers / notes | Do not start 4C in this chat. Do not mark 4B `COMPLETE` until Edwin reports the walkthrough below as passed. Carry-forward for **9A**: confirm exported OOXML still names Calibri (this phase never rewrites `w:rFonts`). Carry-forward for later layout waves: US Letter + 1-inch-margin preview default (`sectPr` not in `extracted_structure`); 8A canvas `measureText`; 8C page-count warning. Earlier carry-forwards still stand: (a) `sha256` is the **original** bytes' digest, not the working copy's; (b) duplicate reuses the source's block ids by design; (c) the persisted graph keeps document text un-folded (text≡runs byte-for-byte); (d) `page_count_estimated` is still `null`; (e) `classifyMentionsAgainstLedger` is not called at import; (f) `extracted_structure` is refreshed only at lineage creation. |
+| **Next eligible phase** | **4B — Font preflight** (parked on Edwin's UI check) |
+
+### 4B manual verification (Edwin)
+
+Goal: confirm the preview warns when Calibri (or another document font) is missing, substitutes **Carlito**, and does **not** rewrite Word font names. Agent cannot run a browser, so this UI walkthrough is required before 4B is `COMPLETE`.
+
+1. Open Career → **Resume**. If the library is empty, upload `fixtures/resume/public/geometry-canary.docx` (Calibri body).
+2. Click **Open**. Confirm the existing paper preview still renders.
+3. In DevTools console on that page, run:
+   - `document.fonts.check('10pt "Calibri"')`
+   - `document.fonts.check('10pt "Carlito"')`
+   Record true/false for each. Carlito should be **true** after the preview is open (bundled `@font-face`).
+4. **If Calibri is `false`** (typical macOS without Microsoft Office): a warning banner must appear above the pages. It must name **Calibri**, say the preview uses **Carlito**, say **wrapping / page breaks may differ from Microsoft Word**, and say **exported Word files keep the original font names**. It must **not** claim the preview is identical to Word or mention an ATS score.
+5. **If Calibri is `true`** (Office installed): the banner must **not** appear (honest — substitution is not active). Still do steps 6–8. To complete the required “machine without Calibri” check, repeat steps 2–4 in a browser/profile that does not have Calibri, or report that Calibri is installed so we know the missing-font path is still unverified.
+6. DevTools **Network**: opening the preview should request `/fonts/Carlito-Regular.ttf` (and usually the other cuts) with HTTP 200. There must be **no** Calibri `.ttf` request from this app.
+7. Toggle **dark mode**. The warning banner (if shown) stays readable via Aether warning tokens; the paper stays **light**.
+8. Close / switch resume still works as in 4A. There is no export control in this phase — do **not** expect a download. OOXML font names are unchanged by 4B (verified later in **9A**).
+9. Report pass/fail here so a new chat can mark 4B `COMPLETE` and advance to **4C — Per-block editing (local state)**. If the banner is missing when Calibri is unavailable, claims pixel-perfect Word, or the preview is unreadable, report it as a **fail** → 4B becomes `BLOCKED`.
+
+### 4A manual verification (Edwin)
+
+Goal: confirm the read-only paginated preview renders a real resume as light "paper" pages, that mixed-run formatting shows, and that dark mode keeps the paper readable. Agent cannot run a browser, so this UI walkthrough is required before 4A is `COMPLETE`.
+
+1. Open Career → **Resume**. If the library is empty, upload `fixtures/resume/public/geometry-canary.docx` (or use any existing resume).
+2. Click **Open** on a resume. A preview pane appears **below** the library titled with the resume name, and the row is highlighted; the button reads **Previewing**.
+3. Confirm the preview shows a white **page surface** (US Letter proportions) with the resume text laid out top-down: name, headings, and bullets in reading order. The disclaimer "Approximate on-screen preview. Microsoft Word is the source of truth…" is visible.
+4. Upload / open **`mixed-runs-canary.docx`** and confirm the mixed paragraph shows its **bold**, *italic*, and hyperlink-styled runs distinctly (not flattened to one style).
+5. Open a **2-page** resume (Edwin's private `current-resume.docx`, 44 blocks) and confirm the preview renders **about two** page surfaces stacked with a small gap (an approximation — exact Word page count is not guaranteed here).
+6. Toggle **dark mode** (Appearance/Settings). The paper stays **light and readable** (dark ink on white); the surrounding pane chrome uses the Aether theme.
+7. Click **Close preview** (or click **Previewing** again) → the pane closes. Open a different resume → the preview switches. Deleting the open resume closes the preview.
+8. Report pass/fail here so a new chat can mark 4A `COMPLETE` and advance to **4B — Font preflight**. If the preview fails to render, shows raw HTML/markup, or the paper is unreadable in dark mode, report it as a **fail** → 4A becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 4A checks pass (open preview; mixed-run formatting; ~2 pages on the private resume; dark-mode paper stays light; Close/switch/delete).
+
+### 3F manual verification (Edwin)
+
+Goal: confirm the version row now carries real structure jsonb, and that the stored working copy is the bookmarked one while the original is untouched.
+
+1. Open Career → Resume and **upload** `fixtures/resume/public/geometry-canary.docx` (a fresh upload, not an existing row — 3F only runs at lineage creation).
+2. In the Supabase dashboard → Table editor → `resume_versions`, open the new row and inspect `extracted_structure`. Expected **exactly four** top-level keys: `mentionIndex`, `graph`, `blockMap`, `atsWarnings`.
+   - `graph.blocks` has one entry per paragraph, each with `order`, `text`, `blockId`, `bookmarkName` (`pa_` + the block id), and a `runs` array.
+   - `blockMap` has the same length as `graph.blocks`, with `order` running 0,1,2,….
+   - `atsWarnings` is an array (empty is fine for the canary).
+   - **There must be no base64 blob, no `docx` key, and no “score”** anywhere in the jsonb.
+3. Same row: `page_count_estimated` is `null` (Wave 4 owns page estimation) and `sha256` matches the `original/<sha256>.docx` object name.
+4. `resumes` table: the new row's `import_fact_ledger.facts` is **non-empty**, and every fact has `provenance: "imported_source"` with `firstSeenVersionId` equal to the new version's id.
+5. Storage → `resume-docs` → `{uid}/{resumeId}/`: the `versions/{versionId}.docx` object is **slightly larger** than the `original/{sha256}.docx` object (the bookmarks). Download both; the original must still open in Word unchanged, and the working copy must open without a repair dialog.
+6. (Sanity) **Duplicate** that resume: the copy gets its own version row whose `extracted_structure` is populated the same way, and its own `import_fact_ledger`.
+7. Report pass/fail here so a new chat can mark 3F `COMPLETE` and advance to **4A — Paginated CSS preview (read-only)**. If the jsonb is empty/short, contains bytes, or the upload now fails with “Could not read this resume's structure.”, report it as a **fail** → 3F becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 3F checks pass (upload canary; version jsonb keys; import ledger; Storage original vs bookmarked working; duplicate).
+
+### 3B manual verification (Edwin)
+
+The bookmark writer only runs on the **working** copy; the immutable original is never bookmarked. Two bookmarked working copies were generated for this check (both gitignored, not committed):
+
+- Public: `fixtures/resume/public/out/geometry-canary.bookmarked.docx`
+- Private: `fixtures/resume/private/current-resume.bookmarked.docx`
+
+(To regenerate: `npx vitest run src/core/resume/resumeOoxmlWrite.test.ts` for the public copy, and `RESUME_PRIVATE_FIXTURE=1 npx vitest run src/core/resume/resumeOoxmlWrite.test.ts` for the private copy.)
+
+1. Open **both** bookmarked files in **Microsoft Word**. Confirm **no** "Word found unreadable content" repair dialog.
+2. Compare each against its source (`geometry-canary.docx` / `current-resume.docx`): page count, margins, fonts, bullet indentation, and hyperlinks are unchanged. Bookmarks must be **invisible** — no visible boxes, brackets, or text shifts.
+3. (Optional) Turn on Word's bookmark display (File → Options → Advanced → "Show bookmarks") or Insert → Bookmark. You should see one `pa_…` bookmark per paragraph (44 for the private resume) and nothing else disturbed.
+4. Report pass/fail here so a new chat can mark 3B `COMPLETE` and advance to **3C — Fact ledger**. If Word repairs the file or layout shifts, report it as a **fail** → 3B becomes `BLOCKED` and we switch to the custom-XML-part mapping (secondary map) the architecture allows.
+
+**Signed off 2026-09-15:** Edwin reported all Word checks pass (geometry + private bookmarked copies; no repair; layout OK; bookmarks invisible).
 
 ### 2D manual verification (Edwin)
 
@@ -129,6 +195,14 @@ Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
+| 4B | Font preflight | `AWAITING MANUAL VERIFICATION` | 2026-09-15 | Carlito OFL bundled under `public/fonts/` + `@font-face`; `resumeFonts.ts` preflight (`document.fonts.check`) + warning banner in `ResumeDocumentPane`. No OOXML rewrite, no Calibri binaries, no 4C editing. Tests 1438 pass / 7 skip; tsc/eslint/build green. Waiting on Edwin: missing-Calibri banner + Carlito network load. |
+| 4A | Paginated CSS preview (read-only) | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (open preview; mixed-run formatting; ~2 pages; dark-mode paper; Close/switch/delete). New `resumePreviewGeometry.ts` (twip/pt→px, US Letter 816×1056, soft-estimate pagination) + `ResumePageSurface`/`ResumeDocumentPane` (escaped text, light paper in dark mode, no `dangerouslySetInnerHTML`) + `getResumeVersionById`/`useResumeVersion` + Open toggle in `ResumeSection`/`CareerPage`. Carlito binary + font preflight deferred to 4B; US Letter default (no persisted `sectPr`). Tests 1421 pass / 7 skip; tsc/eslint/build green. |
+| 3F | Persist `extracted_structure` on version | `COMPLETE` | 2026-09-15 | Edwin dashboard + Storage + duplicate pass. New `resumeIngest.ts` runs the §23 pipeline once at lineage creation; `createResumeLineage` stores bookmarked working bytes + `extracted_structure = { mentionIndex, graph, blockMap, atsWarnings }` + frozen import ledger. Strict mapper rejects DOCX base64 / ATS scores. Wave 3 closed. |
+| 3E | Unicode + plaintext extraction policy | `COMPLETE` | 2026-09-15 | New `resumeUnicode.ts`: asymmetric policy — `sanitizeGeneratedText` (NFC, strip all `Cf` invisibles, fold NBSP/exotic spaces/tabs/line breaks, collapse, trim) for text **we** author; faithful reading-order extraction (`documentPlaintextFromParagraphs` / `readResumeDocumentPlaintext`, NFC only) that keeps the document's NBSP, tabs and ordinary hyphens; `normalizeDocumentTextForComparison` folds for matching only. Em dash preserved on purpose (style is 6E). No manual verification required. Private: 44 lines, 0 NBSP/tab/invisible, nothing emptied by sanitation. Tests 1395 pass / 6 skip; tsc/eslint/build green. |
+| 3D | ATS structural checks | `COMPLETE` | 2026-09-15 | New `resumeAtsChecks.ts`: ten parseability warning codes (tables, text boxes, columns/sections, header-only contact, alt-text, decorative bullet glyphs, floating reading order, broken links, no selectable text). Warnings only — result is `{ warnings }`, no score, no vendor claims (ADR-014 / RES-ATS-001). Bullet check resolves **used** numbering levels and ignores Word's default bullets (first draft false-fired 57× on the private resume). No manual verification required. Private resume: zero warnings, verified truthful against the package. Tests 1378 pass / 5 skip; tsc/eslint/build green. |
+| 3C | Fact ledger (deterministic, frozen import) | `COMPLETE` | 2026-09-15 | New `resumeSkillLexicon.ts` (alias data, no JD input) + `resumeFacts.ts` (frozen `imported_source` ledger from the original, mention index from the working copy, provenance reconcile, `allowedEvidenceForBlock`). REST APIs → imported technology; Kubernetes absent though the lexicon knows it; typed Kubernetes stays `user_added_unverified` and cannot ground another block until verified; deleted terms keep their imported facts. No manual verification required. Private: 44 blocks → 65 facts. Tests 1358 pass / 4 skip; tsc/eslint/build green. |
+| 3B | Bookmark stable IDs | `COMPLETE` | 2026-09-15 | Edwin Word pass on geometry + private bookmarked copies (no repair; layout OK; bookmarks invisible). New `resumeOoxmlWrite.ts`: reuse-first `pa_<uuid>` per `w:p`, working-copy only. Private: 44 paras → 44 bookmarks. Tests 1329 pass / 3 skip. |
+| 3A | Full OOXML block parse | `COMPLETE` | 2026-09-15 | New `resumeBlocks.ts` block graph (paragraph → distinct runs, bold/italic/underline/font/size + hyperlink rel id, no flatten). Public fixtures + private (44 blocks, max 17 runs). No bookmarks/ids yet (3B). Tests 1321 pass / 2 skip; tsc/eslint/build green. |
 | 2D | Duplicate resume | `COMPLETE` | 2026-09-15 | Edwin browser + Supabase pass; copy lineage (new original = source working bytes, `source_kind='duplicate'`, new id + distinct storage objects) persists and is independent of the source. Wave 2 closed. |
 | 2C | Rename, default, delete | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass; rename / default / confirm-delete + cross-user sanity OK. |
 | 2B | Upload + validate | `COMPLETE` | 2026-09-15 | Edwin browser + Supabase Storage pass; validation + upload/list persist after reload. |

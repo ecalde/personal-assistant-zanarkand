@@ -231,7 +231,10 @@ function decodeUtf8(bytes: Uint8Array): string {
   return new TextDecoder().decode(bytes);
 }
 
-function walkElements(nodes: FxpNode[], visit: (tag: string, node: FxpNode) => void): void {
+export function walkElements(
+  nodes: FxpNode[],
+  visit: (tag: string, node: FxpNode) => void
+): void {
   for (const node of nodes) {
     const tag = elementTag(node);
     if (!tag) continue;

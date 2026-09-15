@@ -44,7 +44,9 @@ import {
   type ApplicationFormState,
 } from "../components/career/applicationFormState";
 import { ResumeSection } from "../components/resume/ResumeSection";
+import { ResumeDocumentPane } from "../components/resume/ResumeDocumentPane";
 import { useResumes } from "../components/resume/useResumes";
+import { useResumeVersion } from "../components/resume/useResumeVersion";
 import { SchoolSection } from "../components/school/SchoolSection";
 import { styles } from "../ui/appStyles";
 
@@ -127,6 +129,8 @@ export default function CareerPage({
   const [statusFilter, setStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+
   const {
     resumes,
     loading: resumesLoading,
@@ -139,6 +143,15 @@ export default function CareerPage({
     deleteResume,
     duplicateResume,
   } = useResumes(userId, { enabled: section === "resume" });
+
+  const selectedResume = resumes.find((resume) => resume.id === selectedResumeId) ?? null;
+  const {
+    version: selectedVersion,
+    loading: previewLoading,
+    error: previewError,
+  } = useResumeVersion(userId, selectedResume, {
+    enabled: section === "resume" && selectedResume !== null,
+  });
 
   const todayKey = formatLocalDateKey(new Date());
 
@@ -240,28 +253,44 @@ export default function CareerPage({
       </div>
 
       {section === "resume" ? (
-        <ResumeSection
-          resumes={resumes}
-          loading={resumesLoading}
-          uploading={resumeUploading}
-          mutatingId={resumeMutatingId}
-          error={resumeError}
-          onUpload={(file) => {
-            void uploadResume(file);
-          }}
-          onRename={(resumeId, name) => {
-            void renameResume(resumeId, name);
-          }}
-          onSetDefault={(resumeId) => {
-            void setDefaultResume(resumeId);
-          }}
-          onDelete={(resumeId) => {
-            void deleteResume(resumeId);
-          }}
-          onDuplicate={(resumeId) => {
-            void duplicateResume(resumeId);
-          }}
-        />
+        <>
+          <ResumeSection
+            resumes={resumes}
+            loading={resumesLoading}
+            uploading={resumeUploading}
+            mutatingId={resumeMutatingId}
+            selectedResumeId={selectedResumeId}
+            error={resumeError}
+            onUpload={(file) => {
+              void uploadResume(file);
+            }}
+            onRename={(resumeId, name) => {
+              void renameResume(resumeId, name);
+            }}
+            onSetDefault={(resumeId) => {
+              void setDefaultResume(resumeId);
+            }}
+            onDelete={(resumeId) => {
+              if (resumeId === selectedResumeId) setSelectedResumeId(null);
+              void deleteResume(resumeId);
+            }}
+            onDuplicate={(resumeId) => {
+              void duplicateResume(resumeId);
+            }}
+            onOpen={(resumeId) => {
+              setSelectedResumeId((current) => (current === resumeId ? null : resumeId));
+            }}
+          />
+          {selectedResume && (
+            <ResumeDocumentPane
+              resumeName={selectedResume.name}
+              graph={selectedVersion?.extractedStructure.graph}
+              loading={previewLoading}
+              error={previewError}
+              onClose={() => setSelectedResumeId(null)}
+            />
+          )}
+        </>
       ) : section === "school" ? (
         <SchoolSection
           courses={schoolCourses}

@@ -23,6 +23,7 @@ const OTHER_RESUME_ID = "32222222-2222-4222-8222-222222222222";
 const VERSION_ID = "33333333-3333-4333-8333-333333333333";
 const SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CREATED = "2026-09-15T00:00:00.000Z";
+const BLOCK_ID = "44444444-4444-4444-8444-444444444444";
 
 type AppPayloadHasResumeKey = "resumes" extends keyof AppPayload ? true : false;
 const _appPayloadHasNoResumeKey: AppPayloadHasResumeKey extends true ? never : true = true;
@@ -150,17 +151,55 @@ describe("parseExtractedStructure", () => {
     expect(parseResumeVersionRow(row).extractedStructure).toEqual({ mentionIndex: [] });
   });
 
-  it("round-trips mention index entries and an optional graph snapshot", () => {
+  it("round-trips the graph, block map, mention index and ATS warnings", () => {
     const extractedStructure = {
       mentionIndex: [
         {
           normalized: "typescript",
           type: "technology",
-          blockId: "pa_block_1",
+          blockId: BLOCK_ID,
           verbatim: "TypeScript",
         },
       ],
-      graph: { blocks: [{ id: "pa_block_1", type: "paragraph" }] },
+      graph: {
+        blocks: [
+          {
+            order: 0,
+            text: "Built TypeScript services",
+            blockId: BLOCK_ID,
+            bookmarkName: `pa_${BLOCK_ID}`,
+            runs: [
+              {
+                text: "Built ",
+                bold: false,
+                italic: false,
+                underline: false,
+                font: "Calibri",
+                sizePt: 11,
+                hyperlinkRelId: null,
+              },
+              {
+                text: "TypeScript services",
+                bold: true,
+                italic: false,
+                underline: false,
+                font: null,
+                sizePt: null,
+                hyperlinkRelId: "rId5",
+              },
+            ],
+          },
+        ],
+      },
+      blockMap: [{ blockId: BLOCK_ID, bookmarkName: `pa_${BLOCK_ID}`, order: 0 }],
+      atsWarnings: [
+        {
+          code: "table_layout",
+          severity: "warning",
+          occurrences: 2,
+          message: "This document uses tables for layout.",
+        },
+      ],
     };
 
     expect(parseExtractedStructure(extractedStructure)).toEqual(extractedStructure);
@@ -171,6 +210,115 @@ describe("parseExtractedStructure", () => {
     const row = resumeVersionToRow(version);
     expect(row.extracted_structure).toEqual(extractedStructure);
     expect(parseResumeVersionRow(row).extractedStructure).toEqual(extractedStructure);
+  });
+
+  it("rejects a graph that is not a block graph, including encoded document bytes", () => {
+    const docxBase64 = `UEsDBBQABgAIAAAAIQA${"A".repeat(200)}`;
+    expect(() => parseExtractedStructure({ mentionIndex: [], graph: docxBase64 })).toThrow(
+      MapperError
+    );
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], graph: { blocks: [], docx: docxBase64 } })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], graph: { blocks: "not-an-array" } })
+    ).toThrow(MapperError);
+    // Legacy loose shapes are no longer accepted: the graph must be typed.
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], graph: { blocks: [{ id: "b1" }] } })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects blocks whose identity or run text does not add up", () => {
+    const run = {
+      text: "Alpha",
+      bold: false,
+      italic: false,
+      underline: false,
+      font: null,
+      sizePt: null,
+      hyperlinkRelId: null,
+    };
+    const block = {
+      order: 0,
+      text: "Alpha",
+      blockId: BLOCK_ID,
+      bookmarkName: `pa_${BLOCK_ID}`,
+      runs: [run],
+    };
+    const graphWith = (overrides: Record<string, unknown>): unknown => ({
+      mentionIndex: [],
+      graph: { blocks: [{ ...block, ...overrides }] },
+    });
+
+    // Paragraph text must equal the concatenated run text (no flattening drift).
+    expect(() => parseExtractedStructure(graphWith({ text: "Alpha Beta" }))).toThrow(MapperError);
+    // Bookmark name and block id are one identity, written together.
+    expect(() => parseExtractedStructure(graphWith({ bookmarkName: "pa_other" }))).toThrow(
+      MapperError
+    );
+    expect(() => parseExtractedStructure(graphWith({ bookmarkName: null }))).toThrow(MapperError);
+    expect(() => parseExtractedStructure(graphWith({ bookmarkName: BLOCK_ID }))).toThrow(
+      MapperError
+    );
+    expect(() => parseExtractedStructure(graphWith({ order: -1 }))).toThrow(MapperError);
+    expect(() => parseExtractedStructure(graphWith({ runs: [{ ...run, bold: "yes" }] }))).toThrow(
+      MapperError
+    );
+    expect(() => parseExtractedStructure(graphWith({ runs: [{ ...run, leaked: 1 }] }))).toThrow(
+      MapperError
+    );
+
+    // A block with no stable id yet (pre-injection) is still readable.
+    expect(() =>
+      parseExtractedStructure(graphWith({ blockId: null, bookmarkName: null }))
+    ).not.toThrow();
+  });
+
+  it("rejects a block map that is not contiguous reading order", () => {
+    const entry = { blockId: BLOCK_ID, bookmarkName: `pa_${BLOCK_ID}`, order: 0 };
+    expect(() => parseExtractedStructure({ mentionIndex: [], blockMap: [entry] })).not.toThrow();
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], blockMap: [{ ...entry, order: 3 }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], blockMap: [{ ...entry, bookmarkName: "x_1" }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], blockMap: [{ ...entry, blockId: null }] })
+    ).toThrow(MapperError);
+    expect(() => parseExtractedStructure({ mentionIndex: [], blockMap: {} })).toThrow(MapperError);
+  });
+
+  it("rejects ATS warnings outside the allowlist and any aggregate score", () => {
+    const warning = {
+      code: "table_layout",
+      severity: "warning",
+      occurrences: 1,
+      message: "This document uses tables for layout.",
+    };
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [warning] })
+    ).not.toThrow();
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [{ ...warning, code: "made_up" }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [{ ...warning, severity: "fatal" }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [{ ...warning, occurrences: 0 }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [{ ...warning, message: " " }] })
+    ).toThrow(MapperError);
+    // An "ATS score" has no place on the row (ADR-014 / RES-ATS-001).
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [{ ...warning, score: 72 }] })
+    ).toThrow(MapperError);
+    expect(() =>
+      parseExtractedStructure({ mentionIndex: [], atsWarnings: [], atsScore: 72 })
+    ).toThrow(MapperError);
   });
 
   it("rejects unknown keys and invalid mention index entries", () => {

@@ -5,14 +5,21 @@
 
 import { MapperError, isUuid } from "../dbMappers";
 import {
+  isAtsWarningCode,
+  isAtsWarningSeverity,
   isFactProvenance,
   isFactType,
   isResumeSourceKind,
   type DocumentMention,
   type Resume,
+  type ResumeAtsWarning,
+  type ResumeBlockMapEntry,
   type ResumeExtractedStructure,
   type ResumeFact,
   type ResumeFactLedger,
+  type ResumeStructureBlock,
+  type ResumeStructureGraph,
+  type ResumeStructureRun,
   type ResumeVersion,
 } from "./resumeModel";
 
@@ -57,8 +64,24 @@ const FACT_KEYS = [
   "firstSeenVersionId",
   "verifiedAtIso",
 ] as const;
-const EXTRACTED_STRUCTURE_KEYS = ["mentionIndex", "graph"] as const;
+const EXTRACTED_STRUCTURE_KEYS = ["mentionIndex", "graph", "blockMap", "atsWarnings"] as const;
 const MENTION_KEYS = ["normalized", "type", "blockId", "verbatim"] as const;
+const GRAPH_KEYS = ["blocks"] as const;
+const GRAPH_BLOCK_KEYS = ["order", "text", "blockId", "bookmarkName", "runs"] as const;
+const GRAPH_RUN_KEYS = [
+  "text",
+  "bold",
+  "italic",
+  "underline",
+  "font",
+  "sizePt",
+  "hyperlinkRelId",
+] as const;
+const BLOCK_MAP_KEYS = ["blockId", "bookmarkName", "order"] as const;
+const ATS_WARNING_KEYS = ["code", "severity", "occurrences", "message"] as const;
+
+/** Bookmark prefix this feature owns; duplicated here to keep mappers free of the writer. */
+const BLOCK_BOOKMARK_PREFIX = "pa_";
 
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
@@ -330,9 +353,188 @@ export function parseExtractedStructure(
     ),
   };
   if (raw.graph !== undefined) {
-    structure.graph = raw.graph;
+    structure.graph = parseStructureGraph(raw.graph, `${field}.graph`);
+  }
+  if (raw.blockMap !== undefined) {
+    structure.blockMap = parseBlockMap(raw.blockMap, `${field}.blockMap`);
+  }
+  if (raw.atsWarnings !== undefined) {
+    structure.atsWarnings = parseAtsWarnings(raw.atsWarnings, `${field}.atsWarnings`);
   }
   return structure;
+}
+
+/**
+ * Strict so the jsonb column can only ever hold document *structure*. An
+ * encoded DOCX (base64 blob, any unlisted key) is rejected here rather than
+ * persisted — the bytes belong in the `resume-docs` bucket (3F failure mode).
+ */
+function parseStructureGraph(raw: unknown, field: string): ResumeStructureGraph {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, GRAPH_KEYS, field);
+  if (!Array.isArray(raw.blocks)) {
+    throw new MapperError(`Invalid ${field}.blocks: expected array`, `${field}.blocks`);
+  }
+  return {
+    blocks: raw.blocks.map((item, index) => parseStructureBlock(item, `${field}.blocks[${index}]`)),
+  };
+}
+
+function parseStructureBlock(raw: unknown, field: string): ResumeStructureBlock {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, GRAPH_BLOCK_KEYS, field);
+  if (typeof raw.order !== "number" || !Number.isInteger(raw.order) || raw.order < 0) {
+    throw new MapperError(`Invalid ${field}.order`, `${field}.order`);
+  }
+  if (typeof raw.text !== "string") {
+    throw new MapperError(`Invalid ${field}.text: expected string`, `${field}.text`);
+  }
+  const bookmarkName = parseOptionalBookmarkName(raw.bookmarkName, `${field}.bookmarkName`);
+  const blockId = parseOptionalBlockId(raw.blockId, `${field}.blockId`);
+  if ((bookmarkName === null) !== (blockId === null)) {
+    throw new MapperError(
+      `Invalid ${field}.blockId: block id and bookmark name must be set together`,
+      `${field}.blockId`
+    );
+  }
+  if (bookmarkName !== null && bookmarkName !== `${BLOCK_BOOKMARK_PREFIX}${blockId}`) {
+    throw new MapperError(
+      `Invalid ${field}.bookmarkName: must be pa_ + block id`,
+      `${field}.bookmarkName`
+    );
+  }
+  if (!Array.isArray(raw.runs)) {
+    throw new MapperError(`Invalid ${field}.runs: expected array`, `${field}.runs`);
+  }
+  const runs = raw.runs.map((item, index) => parseStructureRun(item, `${field}.runs[${index}]`));
+  if (runs.map((run) => run.text).join("") !== raw.text) {
+    throw new MapperError(
+      `Invalid ${field}.text: must equal the concatenated run text`,
+      `${field}.text`
+    );
+  }
+  return { order: raw.order, text: raw.text, blockId, bookmarkName, runs };
+}
+
+function parseStructureRun(raw: unknown, field: string): ResumeStructureRun {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, GRAPH_RUN_KEYS, field);
+  if (typeof raw.text !== "string") {
+    throw new MapperError(`Invalid ${field}.text: expected string`, `${field}.text`);
+  }
+  for (const flag of ["bold", "italic", "underline"] as const) {
+    if (typeof raw[flag] !== "boolean") {
+      throw new MapperError(`Invalid ${field}.${flag}`, `${field}.${flag}`);
+    }
+  }
+  if (raw.font !== null && typeof raw.font !== "string") {
+    throw new MapperError(`Invalid ${field}.font`, `${field}.font`);
+  }
+  if (raw.sizePt !== null && (typeof raw.sizePt !== "number" || !Number.isFinite(raw.sizePt))) {
+    throw new MapperError(`Invalid ${field}.sizePt`, `${field}.sizePt`);
+  }
+  if (raw.hyperlinkRelId !== null && typeof raw.hyperlinkRelId !== "string") {
+    throw new MapperError(`Invalid ${field}.hyperlinkRelId`, `${field}.hyperlinkRelId`);
+  }
+  return {
+    text: raw.text,
+    bold: raw.bold as boolean,
+    italic: raw.italic as boolean,
+    underline: raw.underline as boolean,
+    font: raw.font as string | null,
+    sizePt: raw.sizePt as number | null,
+    hyperlinkRelId: raw.hyperlinkRelId as string | null,
+  };
+}
+
+function parseOptionalBlockId(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || value.length === 0 || value.includes("..")) {
+    throw new MapperError(`Invalid ${field}`, field);
+  }
+  return value;
+}
+
+function parseOptionalBookmarkName(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || !value.startsWith(BLOCK_BOOKMARK_PREFIX)) {
+    throw new MapperError(`Invalid ${field}: expected a pa_ bookmark name`, field);
+  }
+  return value;
+}
+
+/** Secondary block map (architecture §19.2): contiguous reading order, pa_ names. */
+function parseBlockMap(raw: unknown, field: string): ResumeBlockMapEntry[] {
+  if (!Array.isArray(raw)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  return raw.map((item, index) => {
+    const entryField = `${field}[${index}]`;
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${entryField}: expected object`, entryField);
+    }
+    assertAllowedKeys(item, BLOCK_MAP_KEYS, entryField);
+    const blockId = parseOptionalBlockId(item.blockId, `${entryField}.blockId`);
+    const bookmarkName = parseOptionalBookmarkName(item.bookmarkName, `${entryField}.bookmarkName`);
+    if (blockId === null || bookmarkName === null) {
+      throw new MapperError(`Invalid ${entryField}.blockId`, `${entryField}.blockId`);
+    }
+    if (bookmarkName !== `${BLOCK_BOOKMARK_PREFIX}${blockId}`) {
+      throw new MapperError(
+        `Invalid ${entryField}.bookmarkName: must be pa_ + block id`,
+        `${entryField}.bookmarkName`
+      );
+    }
+    if (item.order !== index) {
+      throw new MapperError(
+        `Invalid ${entryField}.order: expected contiguous reading order`,
+        `${entryField}.order`
+      );
+    }
+    return { blockId, bookmarkName, order: index };
+  });
+}
+
+/** Warnings only: an aggregate ATS score is forbidden (ADR-014 / RES-ATS-001). */
+function parseAtsWarnings(raw: unknown, field: string): ResumeAtsWarning[] {
+  if (!Array.isArray(raw)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  return raw.map((item, index) => {
+    const entryField = `${field}[${index}]`;
+    if (!isPlainObject(item)) {
+      throw new MapperError(`Invalid ${entryField}: expected object`, entryField);
+    }
+    assertAllowedKeys(item, ATS_WARNING_KEYS, entryField);
+    if (!isAtsWarningCode(item.code)) {
+      throw new MapperError(`Invalid ${entryField}.code`, `${entryField}.code`);
+    }
+    if (!isAtsWarningSeverity(item.severity)) {
+      throw new MapperError(`Invalid ${entryField}.severity`, `${entryField}.severity`);
+    }
+    if (
+      typeof item.occurrences !== "number" ||
+      !Number.isInteger(item.occurrences) ||
+      item.occurrences < 1
+    ) {
+      throw new MapperError(`Invalid ${entryField}.occurrences`, `${entryField}.occurrences`);
+    }
+    if (typeof item.message !== "string" || item.message.trim().length === 0) {
+      throw new MapperError(`Invalid ${entryField}.message`, `${entryField}.message`);
+    }
+    return {
+      code: item.code,
+      severity: item.severity,
+      occurrences: item.occurrences,
+      message: item.message,
+    };
+  });
 }
 
 function parseDocumentMention(raw: unknown, field: string): DocumentMention {

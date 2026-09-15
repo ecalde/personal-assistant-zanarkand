@@ -1,0 +1,35 @@
+/*
+ * Resume preview substitute font (Phase 4B).
+ * Carlito is SIL OFL (see public/fonts/OFL.txt). Do not add Calibri binaries.
+ */
+@font-face {
+  font-family: "Carlito";
+  src: url("/fonts/Carlito-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Carlito";
+  src: url("/fonts/Carlito-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Carlito";
+  src: url("/fonts/Carlito-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Carlito";
+  src: url("/fonts/Carlito-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}

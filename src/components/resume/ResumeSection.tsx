@@ -13,12 +13,15 @@ export type ResumeSectionProps = {
   uploading?: boolean;
   /** Resume id currently being renamed / set-default / deleted, or null. */
   mutatingId?: string | null;
+  /** Resume id currently open in the preview pane, or null. */
+  selectedResumeId?: string | null;
   error?: string | null;
   onUpload: (file: File) => void;
   onRename: (resumeId: string, name: string) => void;
   onSetDefault: (resumeId: string) => void;
   onDelete: (resumeId: string) => void;
   onDuplicate: (resumeId: string) => void;
+  onOpen?: (resumeId: string) => void;
 };
 
 const MAX_MEGABYTES = Math.round(RESUME_UPLOAD_MAX_BYTES / (1024 * 1024));
@@ -28,12 +31,14 @@ export function ResumeSection({
   loading = false,
   uploading = false,
   mutatingId = null,
+  selectedResumeId = null,
   error = null,
   onUpload,
   onRename,
   onSetDefault,
   onDelete,
   onDuplicate,
+  onOpen,
 }: ResumeSectionProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -109,8 +114,19 @@ export function ResumeSection({
           {resumes.map((resume) => {
             const busy = mutatingId === resume.id;
             const isRenaming = renamingId === resume.id;
+            const isSelected = selectedResumeId === resume.id;
             return (
-              <li key={resume.id} style={styles.listRow}>
+              <li
+                key={resume.id}
+                style={
+                  isSelected
+                    ? {
+                        ...styles.listRow,
+                        border: "1px solid var(--aether-accent, #46c6ff)",
+                      }
+                    : styles.listRow
+                }
+              >
                 <div
                   style={{
                     display: "flex",
@@ -136,6 +152,16 @@ export function ResumeSection({
 
                   {!isRenaming && (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {onOpen && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-pressed={isSelected}
+                          onClick={() => onOpen(resume.id)}
+                        >
+                          {isSelected ? "Previewing" : "Open"}
+                        </button>
+                      )}
                       {!resume.isDefault && (
                         <button
                           type="button"

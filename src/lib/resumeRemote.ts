@@ -21,6 +21,7 @@ import {
   resumeToRow,
   resumeVersionToRow,
 } from "../core/resume/resumeDbMappers";
+import { ingestResumeOriginal } from "../core/resume/resumeIngest";
 import type { Resume, ResumeSourceKind, ResumeVersion } from "../core/resume/resumeModel";
 
 export const RESUME_DOCS_BUCKET = "resume-docs";
@@ -164,10 +165,15 @@ export async function listResumes(userId: string): Promise<Resume[]> {
 }
 
 /**
- * Shared create path: upload identical original + working bytes for a brand-new
- * resume lineage, insert the resume row + version 1, then point
- * `active_version_id` at that version. Fully rolls back storage + rows on error.
- * Used by both upload (source_kind `upload`) and duplicate (source_kind `duplicate`).
+ * Shared create path for a brand-new resume lineage: store the immutable
+ * original bytes, store the bookmarked **working** copy, insert the resume row
+ * (with its frozen import ledger) + version 1 (with `extracted_structure`),
+ * then point `active_version_id` at that version. Fully rolls back storage +
+ * rows on error. Used by both upload (`upload`) and duplicate (`duplicate`).
+ *
+ * `sha256` is the digest of the bytes stored at `original_storage_path`, which
+ * is what the canonical path in §34 (enforced by the Phase 1D mappers) is
+ * derived from. The working copy differs from it by the 3B bookmarks.
  */
 async function createResumeLineage(args: {
   userId: string;
@@ -191,13 +197,22 @@ async function createResumeLineage(args: {
     throw toResumeRemoteError(err, "Could not save resume.");
   }
 
+  // §23: parse the package once, before anything is written. Fail closed — a
+  // lineage whose block identity is unknown must not reach storage.
+  let ingest: Awaited<ReturnType<typeof ingestResumeOriginal>>;
+  try {
+    ingest = await ingestResumeOriginal(bytes, { versionId });
+  } catch {
+    throw new ResumeRemoteError("Could not read this resume's structure.");
+  }
+
   const uploadedPaths: string[] = [];
   let insertedResumeId: string | null = null;
 
   try {
     await uploadResumeDocx({ userId, path: originalPath, bytes });
     uploadedPaths.push(originalPath);
-    await uploadResumeDocx({ userId, path: workingPath, bytes });
+    await uploadResumeDocx({ userId, path: workingPath, bytes: ingest.workingBytes });
     uploadedPaths.push(workingPath);
 
     const resumeDraft: Resume = {
@@ -207,7 +222,7 @@ async function createResumeLineage(args: {
       sourceFilename,
       isDefault: false,
       activeVersionId: null,
-      importFactLedger: { facts: [] },
+      importFactLedger: ingest.importFactLedger,
       createdAtIso: now,
       updatedAtIso: now,
     };
@@ -222,7 +237,7 @@ async function createResumeLineage(args: {
       originalStoragePath: originalPath,
       workingStoragePath: workingPath,
       sha256,
-      extractedStructure: { mentionIndex: [] },
+      extractedStructure: ingest.extractedStructure,
       pageCountEstimated: null,
       createdAtIso: now,
     };
@@ -346,6 +361,38 @@ export async function duplicateResume(
     sourceKind: "duplicate",
     bytes,
   });
+}
+
+/**
+ * Load a single version row (with its `extracted_structure`) for the read-only
+ * preview (Phase 4A). Scoped to the owner + resume; returns null when the
+ * version is missing (e.g. the resume was deleted under us).
+ */
+export async function getResumeVersionById(
+  userId: string,
+  resumeId: string,
+  versionId: string
+): Promise<ResumeVersion | null> {
+  const owner = assertUserId(userId);
+  if (!isUuid(resumeId) || !isUuid(versionId)) {
+    throw new ResumeRemoteError("Invalid resume id.");
+  }
+
+  const { data, error } = await supabase
+    .from("resume_versions")
+    .select("*")
+    .eq("id", versionId.trim().toLowerCase())
+    .eq("resume_id", resumeId.trim().toLowerCase())
+    .eq("user_id", owner)
+    .maybeSingle();
+  throwOnError(error, "Could not load resume preview.");
+  if (!data) return null;
+
+  try {
+    return parseResumeVersionRow(data);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not load resume preview.");
+  }
 }
 
 export async function renameResume(

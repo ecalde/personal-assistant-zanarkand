@@ -62,9 +62,85 @@ export const RESUME_SOURCE_KINDS = ["upload", "edit", "tailor", "duplicate"] as 
 
 export type ResumeSourceKind = (typeof RESUME_SOURCE_KINDS)[number];
 
+export const ATS_WARNING_CODES = [
+  "no_selectable_text",
+  "table_layout",
+  "text_box_content",
+  "multi_column_section",
+  "multiple_sections",
+  "contact_only_in_header_footer",
+  "image_without_alt_text",
+  "nonstandard_bullet_font",
+  "reading_order_uncertain",
+  "broken_hyperlink",
+] as const;
+
+export type AtsWarningCode = (typeof ATS_WARNING_CODES)[number];
+
+/**
+ * `warning` = a documented parser failure mode is present. `info` = a
+ * structure worth knowing about that often parses fine. Neither is a verdict.
+ */
+export type AtsWarningSeverity = "info" | "warning";
+
+export type ResumeAtsWarning = {
+  code: AtsWarningCode;
+  severity: AtsWarningSeverity;
+  /** How many offending structures were found (1 when counting is meaningless). */
+  occurrences: number;
+  message: string;
+};
+
+/**
+ * Deliberately just a warning list. No aggregate number belongs here: an
+ * "ATS score" is forbidden by ADR-014 / RES-ATS-001.
+ */
+export type ResumeAtsReport = {
+  warnings: ResumeAtsWarning[];
+};
+
+/** Secondary block map entry (architecture §19.2). */
+export type ResumeBlockMapEntry = {
+  /** Stable UUID (bookmark name without the `pa_` prefix). */
+  blockId: string;
+  /** Full bookmark name written into the DOCX (`pa_<uuid>`). */
+  bookmarkName: string;
+  /** Zero-based document reading order of the paragraph. */
+  order: number;
+};
+
+/** One formatting-homogeneous run as persisted on the version row. */
+export type ResumeStructureRun = {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  font: string | null;
+  sizePt: number | null;
+  hyperlinkRelId: string | null;
+};
+
+export type ResumeStructureBlock = {
+  order: number;
+  text: string;
+  blockId: string | null;
+  bookmarkName: string | null;
+  runs: ResumeStructureRun[];
+};
+
+/**
+ * Persisted projection of the Phase 3A block graph. Structure only — the DOCX
+ * bytes stay in Storage and are never encoded into this jsonb.
+ */
+export type ResumeStructureGraph = {
+  blocks: ResumeStructureBlock[];
+};
+
 export type ResumeExtractedStructure = {
   mentionIndex: DocumentMention[];
-  graph?: unknown;
+  graph?: ResumeStructureGraph;
+  blockMap?: ResumeBlockMapEntry[];
+  atsWarnings?: ResumeAtsWarning[];
 };
 
 export type Resume = {
@@ -241,6 +317,14 @@ export function isFactType(value: unknown): value is FactType {
 
 export function isResumeSourceKind(value: unknown): value is ResumeSourceKind {
   return isAllowlisted(value, RESUME_SOURCE_KINDS);
+}
+
+export function isAtsWarningCode(value: unknown): value is AtsWarningCode {
+  return isAllowlisted(value, ATS_WARNING_CODES);
+}
+
+export function isAtsWarningSeverity(value: unknown): value is AtsWarningSeverity {
+  return isAllowlisted(value, ["info", "warning"] as const);
 }
 
 export function isJobSessionRetention(value: unknown): value is JobSessionRetention {
