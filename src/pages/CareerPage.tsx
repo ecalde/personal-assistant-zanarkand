@@ -43,10 +43,13 @@ import {
   validateApplicationForm,
   type ApplicationFormState,
 } from "../components/career/applicationFormState";
+import { ResumeSection } from "../components/resume/ResumeSection";
+import { useResumes } from "../components/resume/useResumes";
 import { SchoolSection } from "../components/school/SchoolSection";
 import { styles } from "../ui/appStyles";
 
 export type CareerPageProps = {
+  userId: string;
   jobApplications: JobApplication[];
   careerTarget: CareerTarget | undefined;
   skills: Skill[];
@@ -83,6 +86,7 @@ export type CareerPageProps = {
 };
 
 export default function CareerPage({
+  userId,
   jobApplications,
   careerTarget,
   skills,
@@ -122,6 +126,19 @@ export default function CareerPage({
   const [sortMode, setSortMode] = useState<ApplicationsSortMode>("recent");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const {
+    resumes,
+    loading: resumesLoading,
+    uploading: resumeUploading,
+    mutatingId: resumeMutatingId,
+    error: resumeError,
+    uploadResume,
+    renameResume,
+    setDefaultResume,
+    deleteResume,
+    duplicateResume,
+  } = useResumes(userId, { enabled: section === "resume" });
 
   const todayKey = formatLocalDateKey(new Date());
 
@@ -216,11 +233,36 @@ export default function CareerPage({
         <div style={{ ...styles.textSecondary }}>
           {section === "career"
             ? "Track job applications, salaries, and skills needed for your dream role."
-            : "Track courses, reminders, staff, and grades. Paste a syllabus or Canvas table to review suggestions."}
+            : section === "school"
+              ? "Track courses, reminders, staff, and grades. Paste a syllabus or Canvas table to review suggestions."
+              : "Upload and tailor DOCX resumes for job applications."}
         </div>
       </div>
 
-      {section === "school" ? (
+      {section === "resume" ? (
+        <ResumeSection
+          resumes={resumes}
+          loading={resumesLoading}
+          uploading={resumeUploading}
+          mutatingId={resumeMutatingId}
+          error={resumeError}
+          onUpload={(file) => {
+            void uploadResume(file);
+          }}
+          onRename={(resumeId, name) => {
+            void renameResume(resumeId, name);
+          }}
+          onSetDefault={(resumeId) => {
+            void setDefaultResume(resumeId);
+          }}
+          onDelete={(resumeId) => {
+            void deleteResume(resumeId);
+          }}
+          onDuplicate={(resumeId) => {
+            void duplicateResume(resumeId);
+          }}
+        />
+      ) : section === "school" ? (
         <SchoolSection
           courses={schoolCourses}
           reminders={schoolReminders}

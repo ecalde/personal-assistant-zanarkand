@@ -2281,6 +2281,7 @@ export default function App({ userId, onSignOut }: AppProps) {
               ? `school:${careerFocus.courseId ?? "all"}`
               : "career"
           }
+          userId={userId}
           jobApplications={app.payload.jobApplications ?? []}
           careerTarget={app.payload.careerTarget}
           skills={app.payload.skills}

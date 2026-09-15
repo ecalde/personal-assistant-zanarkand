@@ -1,10 +1,10 @@
 /** Client-local storage key for Career vs School tab (not synced). */
 export const CAREER_SECTION_PREFERENCES_KEY = "pa.career.section.v1";
 
-export type PersistedCareerSection = "career" | "school";
+export type PersistedCareerSection = "career" | "school" | "resume";
 
 function isCareerSection(value: unknown): value is PersistedCareerSection {
-  return value === "career" || value === "school";
+  return value === "career" || value === "school" || value === "resume";
 }
 
 export function readCareerSection(

@@ -14,29 +14,37 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 | Field | Value |
 | --- | --- |
 | Implementation approved by Edwin | **Yes** |
-| Last phase number | 0F |
-| Last phase name | Ollama connectivity gate (CORS + Local Network Access) |
-| Status | `AWAITING MANUAL VERIFICATION` |
-| What was completed | Mocked `src/lib/ollamaClient.ts`: `listModels()` GET `/api/tags`, default `http://127.0.0.1:11434`, timeout, no secrets/Authorization, JSON error mapping, loopback-only base URL, `targetAddressSpace: "loopback"` with Request feature-detect + retry if the option is rejected. Distinct errors: `OllamaUnavailable`, `OllamaCors`, `OllamaLocalNetworkDenied`. No Settings UI, Career UI, migrations, or Vercel/Supabase Ollama proxy. |
-| Automated verification | `npx vitest run src/lib/ollamaClient.test.ts` pass (18). `npx vitest run src/lib src/core/resume` pass (50 + 1 skipped). `npx tsc -b` pass. `npx eslint src/lib/ollamaClient.ts src/lib/ollamaClient.test.ts` pass. Agent `curl http://127.0.0.1:11434/api/tags` on this machine: connection refused (Ollama not running). |
-| Manual verification | Still waiting: Edwin reviews the HTTPS→loopback matrix below (Vite CORS is not sufficient). Do not mark 0F `COMPLETE` until that review is reported. |
-| Important files changed | `src/lib/ollamaClient.ts`, `src/lib/ollamaClient.test.ts`, `docs/RESUME_TOOL_PROGRESS.md` |
-| Blockers / notes | Production HTTPS DevTools checks cannot be completed by the agent. Product plan on any failure: deterministic-only fallback; no Supabase/Vercel proxy. After Edwin signs off 0F, Wave 1 (1A) may become eligible even if Ollama is red; Wave 6 must not pretend this gate passed. |
-| **Next eligible phase** | **0F — Ollama connectivity gate (CORS + Local Network Access)** |
+| Last phase number | 2D |
+| Last phase name | Duplicate resume |
+| Status | `COMPLETE` |
+| What was completed | Duplicate-resume capability wired end to end (architecture §35: "Save as new resume copies lineage with a new `resume_id` and new original = current working bytes"). New pure helper `duplicateResumeName` (+ `RESUME_COPY_SUFFIX = " (copy)"`) in `src/core/resume/resumeLibrary.ts`: normalizes the source name and appends " (copy)", truncating the base so the result always stays ≤200 chars and passes `validateResumeName`. In `resumeRemote.ts`, extracted the shared create path into private `createResumeLineage({ userId, name, sourceFilename, sourceKind, bytes })` (uploads identical original + working bytes, inserts resume + version 1, sets `active_version_id`, full storage+row rollback on error). `insertResumeWithOriginal` now delegates to it with `source_kind = "upload"` (behavior unchanged, incl. `isDefault`). New `duplicateResume(userId, resumeId)`: owner-scoped fetch + `parseResumeRow` of the source, resolves the source's **active version** working path via `buildResumeWorkingStoragePath`, downloads those working bytes from the private `resume-docs` bucket, then calls `createResumeLineage` with `source_kind = "duplicate"`, the copied name, and the source's `sourceFilename`. The copy gets a brand-new `resume_id`/`version_id`, is never default, and shares **no** storage objects with the source (so later edits to either cannot affect the other — full isolation is re-tested in 4F). `useResumes` exposes `duplicateResume(resumeId)` (sets `mutatingId` on the source row, refreshes the list on success since the copy is a new row, generic error + refresh on failure). `ResumeSection` renders a per-row **Duplicate** button; `CareerPage` drops the `resumeDuplicateStub` no-op and passes the real callback. No DOCX bytes in `AppPayload`/`localStorage`; no `replaceRemotePayload`; RLS + owner-scoped `.eq("user_id", …)` gate every read/write and the storage download path is owner-validated. |
+| Automated verification | `npm test` pass (1318 passed, 1 skipped; +4 new `duplicateResumeName` tests → `resumeLibrary` now 16). `npx tsc -b` pass. `npm run build` pass (pre-existing >500 kB chunk warning; lazy-load is 10F). `npx eslint` on changed files: only the pre-existing `react-hooks/set-state-in-effect` on `CareerPage.tsx` (now line 158, same `careerFocus` school effect; shifted up 4 lines only because this phase removed the 5-line duplicate stub). No resumeRemote unit test — like 1D/2B/2C the Supabase-facing remote layer is Edwin-verified; the pure logic (`duplicateResumeName`) is unit-tested. |
+| Manual verification | Edwin reported pass **2026-09-15**: Duplicate creates a "(copy)" row (not default) that persists after reload; copy has its own `resumes`/`resume_versions` rows (`source_kind='duplicate'`) and distinct storage objects; rename/default/delete act on the copy independently of the source. |
+| Important files changed | `src/core/resume/resumeLibrary.ts`, `src/core/resume/resumeLibrary.test.ts`, `src/lib/resumeRemote.ts`, `src/components/resume/useResumes.ts`, `src/components/resume/ResumeSection.tsx`, `src/pages/CareerPage.tsx`, `docs/RESUME_TOOL_PROGRESS.md` |
+| Blockers / notes | Do not start 3A in this chat. Open a new Cursor chat for 3A. Deep source-vs-copy edit isolation is fully re-tested in Phase 4F (editor autosave). |
+| **Next eligible phase** | **3A — Full OOXML block parse** |
+
+### 2D manual verification (Edwin)
+
+1. Open Career → Resume. Upload `geometry-canary.docx` if the library is empty.
+2. Click **Duplicate** on a resume. A new row appears named "<name> (copy)"; it is **not** the default.
+3. Reload the browser: the copy persists.
+4. In the Supabase dashboard, confirm the copy has its **own** `resumes` row (new id), a `resume_versions` row with `source_kind = 'duplicate'`, and **new** storage objects under `resume-docs/{uid}/{newResumeId}/original/…` and `…/versions/…` (distinct paths from the source).
+5. Rename / set-default / delete work on the copy independently of the source; deleting the copy does not touch the source's files.
+6. (Sanity) Duplicating twice yields two independent copies.
+7. Report pass/fail here so a new chat can mark 2D `COMPLETE` and advance to 3A.
 
 ### 0F HTTPS→loopback matrix (Edwin)
 
-Record pass / fail / N/A. No resume or JD text. Use the **actual** deployed origin (scheme + host + port), not only Vite.
+Signed off **2026-09-15**: Edwin reported all matrix checks pass (availability, `OLLAMA_ORIGINS`, Vite CORS, production HTTPS + LNA Allow/Block, deny distinct from down, Chrome/Safari/Firefox). No resume or JD text recorded.
 
-Likely GitHub Pages origin to try: `https://ecalde.github.io` (confirm the origin as served; `vite` `base` is `/`). Also record a Vercel origin if that is what you use.
-
-**Agent-recorded (2026-09-14):**
+**Agent-recorded during implementation (2026-09-14), superseded by Edwin’s pass:**
 
 | Check | Result |
 | --- | --- |
-| Ollama process on this machine (`curl http://127.0.0.1:11434/api/tags`) | **Down** — `curl: (7) Failed to connect to 127.0.0.1 port 11434` |
+| Ollama process on this machine (`curl http://127.0.0.1:11434/api/tags`) | Was down at implement time; Edwin later verified up as part of the pass. |
 
-**Edwin to run:**
+**Checks Edwin ran:**
 
 1. **Ollama availability (your laptop):** `curl http://127.0.0.1:11434/api/tags` — note up vs connection refused. If down, start Ollama and repeat. Leave it **up** for steps 3–6.
 2. **Origins:** with `OLLAMA_ORIGINS` **unset**, then set to the Vite origin `http://localhost:5173`, then set to the **production HTTPS origin**. Restart Ollama after each change. Record which values allow `/api/tags`.
@@ -48,10 +56,10 @@ Likely GitHub Pages origin to try: `https://ecalde.github.io` (confirm the origi
 
 | Origin / browser | Ollama up | CORS | LNA prompt | Allow | Block / deny distinct from down | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Vite `http://localhost:5173` | | | | | | |
-| Production HTTPS + Chrome | | | | | | |
-| Production HTTPS + Safari | | | | | | |
-| Production HTTPS + Firefox | | | | | | |
+| Vite `http://localhost:5173` | pass | pass | pass | pass | pass | Edwin 2026-09-15: all pass |
+| Production HTTPS + Chrome | pass | pass | pass | pass | pass | Edwin 2026-09-15: all pass |
+| Production HTTPS + Safari | pass | pass | pass | pass | pass | Edwin 2026-09-15: all pass |
+| Production HTTPS + Firefox | pass | pass | pass | pass | pass | Edwin 2026-09-15: all pass |
 
 Allowed `Status` values for a phase row:
 
@@ -121,7 +129,16 @@ Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
-| 0F | Ollama connectivity gate (CORS + LNA) | `AWAITING MANUAL VERIFICATION` | 2026-09-14 | Client + mocked tests landed. Ollama was down locally. Waiting on Edwin HTTPS→loopback matrix. |
+| 2D | Duplicate resume | `COMPLETE` | 2026-09-15 | Edwin browser + Supabase pass; copy lineage (new original = source working bytes, `source_kind='duplicate'`, new id + distinct storage objects) persists and is independent of the source. Wave 2 closed. |
+| 2C | Rename, default, delete | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass; rename / default / confirm-delete + cross-user sanity OK. |
+| 2B | Upload + validate | `COMPLETE` | 2026-09-15 | Edwin browser + Supabase Storage pass; validation + upload/list persist after reload. |
+| 2A | Career \| Resume pane shell | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass; Resume tab + empty state; preference persists `"resume"`. |
+| 1E | Persistence tests + mapper battery | `COMPLETE` | 2026-09-15 | `extracted_structure` + ledger round-trips; invalid `source_kind` → `MapperError`. Wave 1 closed. |
+| 1D | Mappers + isolated remote API | `COMPLETE` | 2026-09-15 | Strict parsers + path builders + `resumeRemote` CRUD. Not in AppPayload. |
+| 1C | Postgres tables | `COMPLETE` | 2026-09-15 | RLS tables + CHECKs. Edwin applied 2026-09-15 (“nothing returned”). |
+| 1B | Storage bucket + policies | `COMPLETE` | 2026-09-15 | Private `resume-docs` + uid-prefix policies. First apply failed on `ALTER TABLE storage.objects`; corrected SQL applied 2026-09-15. |
+| 1A | Domain types | `COMPLETE` | 2026-09-15 | Types + allowlist guards only; AppPayload untouched. |
+| 0F | Ollama connectivity gate (CORS + LNA) | `COMPLETE` | 2026-09-15 | Edwin reported HTTPS→loopback matrix all pass (Vite + production HTTPS, CORS, LNA allow/deny). |
 | 0E | Parse Edwin geometry (read-only) | `COMPLETE` | 2026-09-14 | Public canary US Letter + Calibri; private parse succeeded (local note only). |
 | 0D | Run-aware text-patch fidelity gate | `COMPLETE` | 2026-09-14 | Word pass on geometry, mixed-runs, and private patched DOCX. Architecture D remains selected. |
 | 0C | Identity round-trip spike | `COMPLETE` | 2026-09-14 | Word pass on geometry-canary.roundtrip.docx (no repair, 1 page). |

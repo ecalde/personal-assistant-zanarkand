@@ -41,4 +41,19 @@ describe("career section preference", () => {
     persistCareerSection("school");
     expect(setItem).toHaveBeenCalledWith(CAREER_SECTION_PREFERENCES_KEY, "school");
   });
+
+  it("reads a stored resume tab", () => {
+    const getItem = vi.fn((key: string) =>
+      key === CAREER_SECTION_PREFERENCES_KEY ? "resume" : null
+    );
+    mockLocalStorage(getItem, vi.fn());
+    expect(readCareerSection()).toBe("resume");
+  });
+
+  it("persists the resume tab", () => {
+    const setItem = vi.fn();
+    mockLocalStorage(vi.fn(() => null), setItem);
+    persistCareerSection("resume");
+    expect(setItem).toHaveBeenCalledWith(CAREER_SECTION_PREFERENCES_KEY, "resume");
+  });
 });

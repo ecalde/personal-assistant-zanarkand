@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { AETHER_TEXT, SURFACE } from "../../ui/appStyles";
 
-export type CareerSection = "career" | "school";
+export type CareerSection = "career" | "school" | "resume";
 
 const switcher: CSSProperties = {
   display: "inline-flex",
@@ -29,6 +29,7 @@ const btnActive: CSSProperties = {
 const OPTIONS: { id: CareerSection; label: string }[] = [
   { id: "career", label: "Career" },
   { id: "school", label: "School" },
+  { id: "resume", label: "Resume" },
 ];
 
 export type CareerSectionSwitcherProps = {
