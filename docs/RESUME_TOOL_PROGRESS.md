@@ -13,16 +13,45 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 
 | Field | Value |
 | --- | --- |
-| Implementation approved by Edwin | **No** — planning only; do not start Phase 0A until Edwin explicitly approves implementation |
-| Last phase number | — |
-| Last phase name | — |
-| Status | `NOT STARTED` |
-| What was completed | Planning documents only. No Resume Tool application code. |
-| Automated verification | Not applicable |
-| Manual verification | Not applicable |
-| Important files changed (planning) | `docs/RESUME_TOOL_ARCHITECTURE.md`, `docs/RESUME_TOOL_IMPLEMENTATION_PLAN.md`, `docs/RESUME_TOOL_PROGRESS.md`, `.cursor/rules/60-resume-tool.mdc` |
-| Blockers / notes | Wait for implementation approval. Then the first implementation chat is **Phase 0A** only. |
-| **Next eligible phase** | **0A — Environment verification** (eligible only after explicit implementation approval) |
+| Implementation approved by Edwin | **Yes** |
+| Last phase number | 0F |
+| Last phase name | Ollama connectivity gate (CORS + Local Network Access) |
+| Status | `AWAITING MANUAL VERIFICATION` |
+| What was completed | Mocked `src/lib/ollamaClient.ts`: `listModels()` GET `/api/tags`, default `http://127.0.0.1:11434`, timeout, no secrets/Authorization, JSON error mapping, loopback-only base URL, `targetAddressSpace: "loopback"` with Request feature-detect + retry if the option is rejected. Distinct errors: `OllamaUnavailable`, `OllamaCors`, `OllamaLocalNetworkDenied`. No Settings UI, Career UI, migrations, or Vercel/Supabase Ollama proxy. |
+| Automated verification | `npx vitest run src/lib/ollamaClient.test.ts` pass (18). `npx vitest run src/lib src/core/resume` pass (50 + 1 skipped). `npx tsc -b` pass. `npx eslint src/lib/ollamaClient.ts src/lib/ollamaClient.test.ts` pass. Agent `curl http://127.0.0.1:11434/api/tags` on this machine: connection refused (Ollama not running). |
+| Manual verification | Still waiting: Edwin reviews the HTTPS→loopback matrix below (Vite CORS is not sufficient). Do not mark 0F `COMPLETE` until that review is reported. |
+| Important files changed | `src/lib/ollamaClient.ts`, `src/lib/ollamaClient.test.ts`, `docs/RESUME_TOOL_PROGRESS.md` |
+| Blockers / notes | Production HTTPS DevTools checks cannot be completed by the agent. Product plan on any failure: deterministic-only fallback; no Supabase/Vercel proxy. After Edwin signs off 0F, Wave 1 (1A) may become eligible even if Ollama is red; Wave 6 must not pretend this gate passed. |
+| **Next eligible phase** | **0F — Ollama connectivity gate (CORS + Local Network Access)** |
+
+### 0F HTTPS→loopback matrix (Edwin)
+
+Record pass / fail / N/A. No resume or JD text. Use the **actual** deployed origin (scheme + host + port), not only Vite.
+
+Likely GitHub Pages origin to try: `https://ecalde.github.io` (confirm the origin as served; `vite` `base` is `/`). Also record a Vercel origin if that is what you use.
+
+**Agent-recorded (2026-09-14):**
+
+| Check | Result |
+| --- | --- |
+| Ollama process on this machine (`curl http://127.0.0.1:11434/api/tags`) | **Down** — `curl: (7) Failed to connect to 127.0.0.1 port 11434` |
+
+**Edwin to run:**
+
+1. **Ollama availability (your laptop):** `curl http://127.0.0.1:11434/api/tags` — note up vs connection refused. If down, start Ollama and repeat. Leave it **up** for steps 3–6.
+2. **Origins:** with `OLLAMA_ORIGINS` **unset**, then set to the Vite origin `http://localhost:5173`, then set to the **production HTTPS origin**. Restart Ollama after each change. Record which values allow `/api/tags`.
+3. **Vite origin:** `npm run dev`, open `http://localhost:5173`, DevTools console: `fetch('http://127.0.0.1:11434/api/tags')`. Record CORS success/fail. This is **not** the production gate.
+4. **Production HTTPS origin (required):** open the **deployed** SPA. DevTools: `fetch('http://127.0.0.1:11434/api/tags', { targetAddressSpace: 'loopback' })`. If the browser throws on the unknown property, omit `targetAddressSpace`. Record: Ollama up, CORS, **permission prompt**, Allow vs Block.
+5. **Permission denied:** Block local/loopback access (prompt Block, or Chrome `chrome://settings/content/localNetworkAccess`). Confirm the fetch fails **and** that this is distinguishable from “Ollama not installed” (`OllamaLocalNetworkDenied` vs `OllamaUnavailable`). Then Allow again if you want rewriting later.
+6. **Browsers:** repeat step 4 on **Chrome** (primary), **Safari**, and **Firefox** if available. Note mixed-content or missing LNA.
+7. Confirm product plan: on any failure, coverage later stays deterministic-only; **do not** proxy Ollama through Supabase or Vercel.
+
+| Origin / browser | Ollama up | CORS | LNA prompt | Allow | Block / deny distinct from down | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vite `http://localhost:5173` | | | | | | |
+| Production HTTPS + Chrome | | | | | | |
+| Production HTTPS + Safari | | | | | | |
+| Production HTTPS + Firefox | | | | | | |
 
 Allowed `Status` values for a phase row:
 
@@ -88,11 +117,17 @@ Every phase, including **0A** (no application-code changes), must rewrite **Curr
 
 ## Phase history
 
-Newest first after work begins. Until then this table stays empty.
+Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | `NOT STARTED` | — | Implementation not approved |
+| 0F | Ollama connectivity gate (CORS + LNA) | `AWAITING MANUAL VERIFICATION` | 2026-09-14 | Client + mocked tests landed. Ollama was down locally. Waiting on Edwin HTTPS→loopback matrix. |
+| 0E | Parse Edwin geometry (read-only) | `COMPLETE` | 2026-09-14 | Public canary US Letter + Calibri; private parse succeeded (local note only). |
+| 0D | Run-aware text-patch fidelity gate | `COMPLETE` | 2026-09-14 | Word pass on geometry, mixed-runs, and private patched DOCX. Architecture D remains selected. |
+| 0C | Identity round-trip spike | `COMPLETE` | 2026-09-14 | Word pass on geometry-canary.roundtrip.docx (no repair, 1 page). |
+| 0B | Fixture protocol | `COMPLETE` | 2026-09-14 | Word pass. Geometry is 1 page / not tight; mixed-runs formatting visible. Private resume on disk, gitignored. |
+| 0A | Environment verification | `COMPLETE` | 2026-09-01 | Tests + build green. Lint already red on unrelated calendar/school. No Resume app code. |
+| — | — | `NOT STARTED` | — | Implementation not approved (superseded) |
 
 ---
 
