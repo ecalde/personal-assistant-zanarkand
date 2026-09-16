@@ -18,10 +18,13 @@ import {
   assertResumeOwnerStoragePath,
   buildResumeOriginalStoragePath,
   buildResumeWorkingStoragePath,
+  assertSuggestionBelongsToSession,
   parseResumeJobSessionRow,
   parseResumeRow,
+  parseResumeSuggestionRow,
   parseResumeVersionRow,
   resumeJobSessionToRow,
+  resumeSuggestionToRow,
   resumeToRow,
   resumeVersionToRow,
 } from "../core/resume/resumeDbMappers";
@@ -38,6 +41,8 @@ import type {
   ResumeJobSession,
   ResumeSourceKind,
   ResumeStructureGraph,
+  ResumeSuggestion,
+  ResumeSuggestionRecord,
   ResumeVersion,
 } from "../core/resume/resumeModel";
 
@@ -823,6 +828,67 @@ export async function updateResumeJobSession(
     return parseResumeJobSessionRow(data);
   } catch (err) {
     throw toResumeRemoteError(err, "Could not save job session.");
+  }
+}
+
+export type InsertResumeSuggestionInput = {
+  userId: string;
+  sessionId: string;
+  resumeId: string;
+  resumeVersionId: string;
+  suggestion: ResumeSuggestion;
+};
+
+/** Persist one grounded suggestion row (Phase 6F). Does not go through AppPayload. */
+export async function insertResumeSuggestion(
+  input: InsertResumeSuggestionInput
+): Promise<ResumeSuggestionRecord> {
+  const owner = assertUserId(input.userId);
+  if (!isUuid(input.sessionId)) {
+    throw new ResumeRemoteError("Invalid job session id.");
+  }
+  if (!isUuid(input.resumeId)) {
+    throw new ResumeRemoteError("Invalid resume id.");
+  }
+  if (!isUuid(input.resumeVersionId)) {
+    throw new ResumeRemoteError("Invalid resume version id.");
+  }
+  const sessionId = input.sessionId.trim().toLowerCase();
+  const resumeId = input.resumeId.trim().toLowerCase();
+  const resumeVersionId = input.resumeVersionId.trim().toLowerCase();
+
+  const now = new Date().toISOString();
+  const draft: ResumeSuggestionRecord = {
+    ...input.suggestion,
+    userId: owner,
+    sessionId,
+    resumeId,
+    resumeVersionId,
+    createdAtIso: now,
+    updatedAtIso: now,
+  };
+
+  let row;
+  try {
+    row = resumeSuggestionToRow(draft);
+    assertSuggestionBelongsToSession(draft, sessionId, resumeId, owner);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save suggestion.");
+  }
+
+  const { data, error } = await supabase
+    .from("resume_suggestions")
+    .insert(row)
+    .select("*")
+    .single();
+  throwOnError(error, "Could not save suggestion.");
+
+  try {
+    const record = parseResumeSuggestionRow(data);
+    assertSuggestionBelongsToSession(record, sessionId, resumeId, owner);
+    return record;
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save suggestion.");
   }
 }
 

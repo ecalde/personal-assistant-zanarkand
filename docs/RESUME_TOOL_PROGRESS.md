@@ -14,15 +14,15 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 | Field | Value |
 | --- | --- |
 | Implementation approved by Edwin | **Yes** |
-| Last phase number | 6A |
-| Last phase name | Settings connection test (includes LNA) |
+| Last phase number | 6G |
+| Last phase name | AI QUALITY GATE |
 | Status | `COMPLETE` |
-| What was completed | Settings → **Resume AI**: loopback base URL (default `http://127.0.0.1:11434`), model select from `/api/tags`, **Test connection**. Distinct copy for Ollama down, CORS/`OLLAMA_ORIGINS`, local/loopback permission denied, and mixed-content / browser-unsupported. Prefs in `localStorage` `pa.resume.ai.v1` (not AppPayload). Onboarding matches architecture §29. No Edge Function, no paid API, no Generate Suggestions, no editor disable. Coverage + editor stay usable if Test fails. |
-| Automated verification | `npm test` pass (**1581 passed, 7 skipped**). `npx tsc -b` pass. eslint clean on 6A files. |
-| Manual verification | **Edwin reported pass 2026-09-16** on the Settings → Resume AI HTTPS→loopback matrix (Vite + production HTTPS, CORS, LNA Allow/Block distinct from Ollama down, browsers, editor still works if Test fails). |
-| Important files changed | `src/core/resume/resumeAiPreferences.ts`, `src/core/resume/resumeAiPreferences.test.ts`, `src/core/resume/resumeAiConnection.ts`, `src/core/resume/resumeAiConnection.test.ts`, `src/lib/ollamaClient.ts`, `src/lib/ollamaClient.test.ts`, `src/components/settings/ResumeAiSettingsSection.tsx`, `src/components/settings/SettingsSidebar.tsx`, `src/components/settings/SettingsGlyph.tsx`, `src/components/settings/settingsStyles.ts`, `src/pages/SettingsPage.tsx`, `docs/RESUME_TOOL_PROGRESS.md`. |
-| Blockers / notes | 6A closed. Next chat is **6B** only (structured LLM JSON schema). Carry-forwards from 4G unchanged: **9A** named `Name-role.docx`; US Letter preview default; 8A canvas `measureText`; 8C page-count; working vs original sha256; duplicate block ids; NBSP draft vs flushed graph; `page_count_estimated` null. |
-| **Next eligible phase** | **6B — Structured output schema** |
+| What was completed | Architecture §59 Cases A–G as Vitest tests against a fake model through `generateBlockSuggestion` (plus matcher coverage for A/C/G). Case B/E/G fail closed (`rejected_ungrounded`). Case F: injection JD stays in user JSON, not the system prompt, and Kubernetes is still rejected. Optional live Ollama rewrite skipped unless `RESUME_LIVE_OLLAMA=1`. No suggestion cards / Wave 7 UI. |
+| Automated verification | `npm test` pass (**1663 passed, 8 skipped**). `npx tsc -b` pass. eslint clean on `resumeSuggestions.quality.test.ts`. Live test skipped (CI default). |
+| Manual verification | None required for the fake-LLM gate. Optional live rewrite was not run: Ollama answered `/api/tags` but **no models are installed**. |
+| Important files changed | `src/core/resume/resumeSuggestions.quality.test.ts`, `docs/RESUME_TOOL_PROGRESS.md`. |
+| Blockers / notes | 6G closed. Wave 6 quality gate passed against the fake LLM. Next chat is **7A** only. After `ollama pull gemma4:12b` (or `gemma4:e4b`), optional live check: `RESUME_LIVE_OLLAMA=1 npx vitest run src/core/resume/resumeSuggestions.quality.test.ts`. Carry-forwards from 4G unchanged: **9A** named `Name-role.docx`; US Letter preview default; 8A canvas `measureText`; 8C page-count; working vs original sha256; duplicate block ids; NBSP draft vs flushed graph; `page_count_estimated` null. |
+| **Next eligible phase** | **7A — Cards bound to block IDs** |
 
 ### 6A manual verification (Edwin)
 
@@ -375,6 +375,12 @@ Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
+| 6G | AI QUALITY GATE | `COMPLETE` | 2026-09-16 | Cases A–G via `resumeSuggestions.quality.test.ts` + fake LLM. B/E/G fail closed; F injection fenced. Live Ollama skipped (process up, zero models). No Wave 7 UI. Tests 1663 pass / 8 skip. Next chat: **7A**. |
+| 6F | Single-block generator | `COMPLETE` | 2026-09-16 | `resumeSuggestions.ts` `generateBlockSuggestion` + `insertResumeSuggestion`; Ollama `/api/chat`; fake LLM Kubernetes rejected. No UI / no 6G suite. Tests 1654 pass / 7 skip. Next chat: **6G**. |
+| 6E | Style lint + unicode on outputs | `COMPLETE` | 2026-09-16 | `resumeStyleLint.ts` `prepareSuggestionText`: em dash, leveraged, first person, adjective pile-up, hidden ATS; ZWSP stripped on generated text. No generator/UI. Tests 1644 pass / 7 skip. Next chat: **6F**. |
+| 6D | Grounding validator | `COMPLETE` | 2026-09-16 | `resumeGrounding.ts`: fail-closed allow-list (verbatim of B, role-scoped import, Skills-line only for Skills, `user_verified` reuse, inherited transformations). Cases B, E, G. No JD input, no style lint/chat/UI. Tests 1626 pass / 7 skip. Next chat: **6E**. |
+| 6C | Injection-safe prompts | `COMPLETE` | 2026-09-16 | Frozen system policy vs user JSON data fence (`resumeLlmPrompts.ts`). JD/resume/evidence never enter system; Case F canary stays in user JSON; hidden-ATS tricks banned in rewrite policy. No grounding/chat/UI. Tests 1606 pass / 7 skip. Next chat: **6D**. |
+| 6B | Structured output schema | `COMPLETE` | 2026-09-16 | Zod-less `resumeLlmSchema.ts`: rewrite JSON requires `proposedText`, rejects extra fields / missing or empty text; JD classify + evidence-map shapes. No prompts/grounding/generator. Tests 1598 pass / 7 skip. Next chat: **6C**. |
 | 6A | Settings connection test (includes LNA) | `COMPLETE` | 2026-09-16 | Edwin Settings HTTPS→loopback matrix pass (Vite + production HTTPS, CORS, LNA allow/deny distinct from down, editor still works). Loopback Test connection + `pa.resume.ai.v1`. No Edge Function / no Generate Suggestions. Tests 1581 pass / 7 skip. Next chat: **6B**. |
 | 5F | Invalidation | `COMPLETE` | 2026-09-16 | Edwin walkthrough pass: Replace drops coverage without rewriting the resume; document edit does not re-Analyze; JD change hides stale coverage. Large-deletion regression also pass (imperative contentEditable host paint). Wave 5 closed. Tests 1556 pass / 7 skip. Next chat: **6A**. |
 | 5E | Coverage panel (honest copy) | `COMPLETE` | 2026-09-16 | Edwin walkthrough pass after live-plaintext Analyze retry (disclosure; named bars; Kubernetes missing then on-page unverified; Reset; no ATS score). Two earlier 2026-09-15 fails on Saved Kubernetes. Provenance unverified ≠ imported. Wave 5 coverage UI closed. |

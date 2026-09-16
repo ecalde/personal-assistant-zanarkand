@@ -358,6 +358,16 @@ export type ResumeSuggestion = {
   generation: SuggestionGeneration;
 };
 
+/** Persisted suggestion row (architecture §33 `resume_suggestions`). */
+export type ResumeSuggestionRecord = ResumeSuggestion & {
+  userId: string;
+  sessionId: string;
+  resumeId: string;
+  resumeVersionId: string;
+  createdAtIso: string;
+  updatedAtIso: string;
+};
+
 export function isFactProvenance(value: unknown): value is FactProvenance {
   return isAllowlisted(value, FACT_PROVENANCES);
 }

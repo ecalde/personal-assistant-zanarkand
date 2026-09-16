@@ -21,7 +21,7 @@
  *
  * Style questions (em dash usage, banned phrases) are **not** decided here.
  * `sanitizeGeneratedText` keeps em dashes intact on purpose; `resumeStyleLint`
- * (Phase 6E) is what judges them.
+ * `prepareSuggestionText` is what judges them.
  */
 
 import { listParagraphPlaintexts } from "./resumeOoxmlRead";

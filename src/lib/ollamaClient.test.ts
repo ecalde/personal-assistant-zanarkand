@@ -5,10 +5,12 @@ import {
   OllamaCors,
   OllamaLocalNetworkDenied,
   OllamaUnavailable,
+  chatCompletion,
   classifyOllamaFetchFailure,
   isLoopbackOllamaHostname,
   listModels,
   mapOllamaFetchFailure,
+  ollamaChatUrl,
   ollamaTagsUrl,
   supportsLoopbackTargetAddressSpace,
   withLoopbackTargetAddressSpace,
@@ -215,5 +217,40 @@ describe("listModels", () => {
     );
     await expect(listModels({ fetchImpl })).rejects.toBeInstanceOf(OllamaUnavailable);
     expect(fetchImpl).toHaveBeenCalled();
+  });
+});
+
+describe("chatCompletion", () => {
+  it("posts JSON chat to loopback /api/chat and returns message content", async () => {
+    const fetchImpl = vi.fn(
+      asFetch(async (url, init) => {
+        expect(String(url)).toBe(ollamaChatUrl());
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body)) as {
+          model: string;
+          format?: string;
+          stream: boolean;
+          messages: { role: string; content: string }[];
+        };
+        expect(body.model).toBe("gemma4:12b");
+        expect(body.format).toBe("json");
+        expect(body.stream).toBe(false);
+        expect(body.messages).toHaveLength(2);
+        return jsonResponse({
+          message: { role: "assistant", content: '{"proposedText":"Built REST APIs."}' },
+        });
+      })
+    );
+
+    const content = await chatCompletion({
+      fetchImpl,
+      model: "gemma4:12b",
+      format: "json",
+      messages: [
+        { role: "system", content: "policy" },
+        { role: "user", content: "{}" },
+      ],
+    });
+    expect(content).toBe('{"proposedText":"Built REST APIs."}');
   });
 });

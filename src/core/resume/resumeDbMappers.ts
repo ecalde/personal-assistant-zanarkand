@@ -11,10 +11,17 @@ import {
   isFactType,
   isJobSessionRetention,
   isRequirementCategory,
+  isLayoutStatus,
   isRequirementMatchStatus,
   isRequirementPriority,
   isResumeSourceKind,
+  isSuggestionFactualityStatus,
+  isSuggestionStatus,
+  isSuggestionTransformationType,
   type DocumentMention,
+  type LayoutReport,
+  type ResumeSuggestionRecord,
+  type SuggestionGeneration,
   type MatchCoverageSummary,
   type MatchResult,
   type ParsedJobDescription,
@@ -1316,6 +1323,329 @@ export function assertJobSessionBelongsToResume(
     throw new MapperError(
       "Invalid resume_job_sessions.user_id: session belongs to a different user",
       "resume_job_sessions.user_id"
+    );
+  }
+}
+
+const RESUME_SUGGESTION_ROW_KEYS = [
+  "id",
+  "user_id",
+  "session_id",
+  "resume_id",
+  "resume_version_id",
+  "source_block_id",
+  "original_text",
+  "original_text_hash",
+  "proposed_text",
+  "target_requirement_ids",
+  "evidence_ids",
+  "evidence_quotes",
+  "reasoning",
+  "transformation_type",
+  "confidence",
+  "factuality_status",
+  "layout_result",
+  "status",
+  "generation",
+  "created_at",
+  "updated_at",
+] as const;
+
+export type ResumeSuggestionRow = {
+  id: string;
+  user_id: string;
+  session_id: string;
+  resume_id: string;
+  resume_version_id: string;
+  source_block_id: string;
+  original_text: string;
+  original_text_hash: string;
+  proposed_text: string;
+  target_requirement_ids: unknown;
+  evidence_ids: unknown;
+  evidence_quotes: unknown;
+  reasoning: string;
+  transformation_type: string;
+  confidence: number;
+  factuality_status: string;
+  layout_result: unknown;
+  status: string;
+  generation: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
+const GENERATION_KEYS = ["pipelineVersion", "promptVersion", "model", "quantization"] as const;
+const LAYOUT_REPORT_KEYS = [
+  "status",
+  "estimatedLineCount",
+  "estimatedPageCount",
+  "characterCount",
+  "stale",
+] as const;
+
+function parseStringArray(raw: unknown, field: string, maxItems = 128): string[] {
+  if (!Array.isArray(raw)) {
+    throw new MapperError(`Invalid ${field}: expected array`, field);
+  }
+  if (raw.length > maxItems) {
+    throw new MapperError(`Invalid ${field}: too many items`, field);
+  }
+  const out: string[] = [];
+  for (let index = 0; index < raw.length; index += 1) {
+    const item = raw[index];
+    if (typeof item !== "string") {
+      throw new MapperError(`Invalid ${field}[${index}]`, `${field}[${index}]`);
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      throw new MapperError(`Invalid ${field}[${index}]`, `${field}[${index}]`);
+    }
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function parseLayoutReport(raw: unknown, field: string): LayoutReport {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, LAYOUT_REPORT_KEYS, field);
+  if (!isLayoutStatus(raw.status)) {
+    throw new MapperError(`Invalid ${field}.status`, `${field}.status`);
+  }
+  const report: LayoutReport = { status: raw.status };
+  if (raw.estimatedLineCount !== undefined) {
+    if (typeof raw.estimatedLineCount !== "number" || !Number.isFinite(raw.estimatedLineCount)) {
+      throw new MapperError(`Invalid ${field}.estimatedLineCount`, `${field}.estimatedLineCount`);
+    }
+    report.estimatedLineCount = raw.estimatedLineCount;
+  }
+  if (raw.estimatedPageCount !== undefined) {
+    if (typeof raw.estimatedPageCount !== "number" || !Number.isFinite(raw.estimatedPageCount)) {
+      throw new MapperError(`Invalid ${field}.estimatedPageCount`, `${field}.estimatedPageCount`);
+    }
+    report.estimatedPageCount = raw.estimatedPageCount;
+  }
+  if (raw.characterCount !== undefined) {
+    if (typeof raw.characterCount !== "number" || !Number.isFinite(raw.characterCount)) {
+      throw new MapperError(`Invalid ${field}.characterCount`, `${field}.characterCount`);
+    }
+    report.characterCount = raw.characterCount;
+  }
+  if (raw.stale !== undefined) {
+    if (typeof raw.stale !== "boolean") {
+      throw new MapperError(`Invalid ${field}.stale`, `${field}.stale`);
+    }
+    report.stale = raw.stale;
+  }
+  return report;
+}
+
+function parseSuggestionGeneration(raw: unknown, field: string): SuggestionGeneration {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, GENERATION_KEYS, field);
+  if (typeof raw.pipelineVersion !== "string" || !raw.pipelineVersion.trim()) {
+    throw new MapperError(`Invalid ${field}.pipelineVersion`, `${field}.pipelineVersion`);
+  }
+  if (typeof raw.promptVersion !== "string" || !raw.promptVersion.trim()) {
+    throw new MapperError(`Invalid ${field}.promptVersion`, `${field}.promptVersion`);
+  }
+  if (typeof raw.model !== "string" || !raw.model.trim()) {
+    throw new MapperError(`Invalid ${field}.model`, `${field}.model`);
+  }
+  const generation: SuggestionGeneration = {
+    pipelineVersion: raw.pipelineVersion.trim(),
+    promptVersion: raw.promptVersion.trim(),
+    model: raw.model.trim(),
+  };
+  if (raw.quantization !== undefined) {
+    if (typeof raw.quantization !== "string" || !raw.quantization.trim()) {
+      throw new MapperError(`Invalid ${field}.quantization`, `${field}.quantization`);
+    }
+    generation.quantization = raw.quantization.trim();
+  }
+  return generation;
+}
+
+export function parseResumeSuggestionRow(
+  raw: unknown,
+  field = "resume_suggestions"
+): ResumeSuggestionRecord {
+  if (!isPlainObject(raw)) {
+    throw new MapperError(`Invalid ${field}: expected object`, field);
+  }
+  assertAllowedKeys(raw, RESUME_SUGGESTION_ROW_KEYS, field);
+
+  if (typeof raw.id !== "string") {
+    throw new MapperError(`Invalid UUID: ${field}.id`, `${field}.id`);
+  }
+  if (typeof raw.user_id !== "string") {
+    throw new MapperError(`Invalid UUID: ${field}.user_id`, `${field}.user_id`);
+  }
+  if (typeof raw.session_id !== "string") {
+    throw new MapperError(`Invalid UUID: ${field}.session_id`, `${field}.session_id`);
+  }
+  if (typeof raw.resume_id !== "string") {
+    throw new MapperError(`Invalid UUID: ${field}.resume_id`, `${field}.resume_id`);
+  }
+  if (typeof raw.resume_version_id !== "string") {
+    throw new MapperError(`Invalid UUID: ${field}.resume_version_id`, `${field}.resume_version_id`);
+  }
+  const id = normalizeUuid(raw.id, `${field}.id`);
+  const userId = normalizeUuid(raw.user_id, `${field}.user_id`);
+  const sessionId = normalizeUuid(raw.session_id, `${field}.session_id`);
+  const resumeId = normalizeUuid(raw.resume_id, `${field}.resume_id`);
+  const resumeVersionId = normalizeUuid(raw.resume_version_id, `${field}.resume_version_id`);
+
+  if (typeof raw.source_block_id !== "string" || !raw.source_block_id.trim()) {
+    throw new MapperError(`Invalid ${field}.source_block_id`, `${field}.source_block_id`);
+  }
+  if (typeof raw.original_text !== "string") {
+    throw new MapperError(`Invalid ${field}.original_text`, `${field}.original_text`);
+  }
+  if (typeof raw.original_text_hash !== "string" || !raw.original_text_hash.trim()) {
+    throw new MapperError(`Invalid ${field}.original_text_hash`, `${field}.original_text_hash`);
+  }
+  assertSha256Hex(raw.original_text_hash, `${field}.original_text_hash`);
+  if (typeof raw.proposed_text !== "string" || !raw.proposed_text.trim()) {
+    throw new MapperError(`Invalid ${field}.proposed_text`, `${field}.proposed_text`);
+  }
+  if (typeof raw.reasoning !== "string") {
+    throw new MapperError(`Invalid ${field}.reasoning`, `${field}.reasoning`);
+  }
+  if (typeof raw.confidence !== "number" || !Number.isFinite(raw.confidence)) {
+    throw new MapperError(`Invalid ${field}.confidence`, `${field}.confidence`);
+  }
+  if (raw.confidence < 0 || raw.confidence > 1) {
+    throw new MapperError(`Invalid ${field}.confidence`, `${field}.confidence`);
+  }
+  if (!isSuggestionTransformationType(raw.transformation_type)) {
+    throw new MapperError(`Invalid ${field}.transformation_type`, `${field}.transformation_type`);
+  }
+  if (!isSuggestionFactualityStatus(raw.factuality_status)) {
+    throw new MapperError(`Invalid ${field}.factuality_status`, `${field}.factuality_status`);
+  }
+  if (!isSuggestionStatus(raw.status)) {
+    throw new MapperError(`Invalid ${field}.status`, `${field}.status`);
+  }
+  if (typeof raw.created_at !== "string") {
+    throw new MapperError(`Invalid ISO timestamp: ${field}.created_at`, `${field}.created_at`);
+  }
+  if (typeof raw.updated_at !== "string") {
+    throw new MapperError(`Invalid ISO timestamp: ${field}.updated_at`, `${field}.updated_at`);
+  }
+  assertIsoTimestamp(raw.created_at, `${field}.created_at`);
+  assertIsoTimestamp(raw.updated_at, `${field}.updated_at`);
+
+  return {
+    id,
+    userId,
+    sessionId,
+    resumeId,
+    resumeVersionId,
+    sourceBlockId: raw.source_block_id.trim(),
+    originalText: raw.original_text,
+    originalTextHash: raw.original_text_hash,
+    proposedText: raw.proposed_text,
+    targetRequirementIds: parseStringArray(
+      raw.target_requirement_ids,
+      `${field}.target_requirement_ids`
+    ),
+    evidenceIds: parseStringArray(raw.evidence_ids, `${field}.evidence_ids`),
+    evidenceQuotes: parseStringArray(raw.evidence_quotes, `${field}.evidence_quotes`, 32),
+    reasoning: raw.reasoning,
+    transformationType: raw.transformation_type,
+    confidence: raw.confidence,
+    factualityStatus: raw.factuality_status,
+    layoutConstraint: parseLayoutReport(raw.layout_result, `${field}.layout_result`),
+    status: raw.status,
+    generation: parseSuggestionGeneration(raw.generation, `${field}.generation`),
+    createdAtIso: raw.created_at,
+    updatedAtIso: raw.updated_at,
+  };
+}
+
+export function resumeSuggestionToRow(record: ResumeSuggestionRecord): ResumeSuggestionRow {
+  const parsed = parseResumeSuggestionRow(
+    {
+      id: record.id,
+      user_id: record.userId,
+      session_id: record.sessionId,
+      resume_id: record.resumeId,
+      resume_version_id: record.resumeVersionId,
+      source_block_id: record.sourceBlockId,
+      original_text: record.originalText,
+      original_text_hash: record.originalTextHash,
+      proposed_text: record.proposedText,
+      target_requirement_ids: record.targetRequirementIds,
+      evidence_ids: record.evidenceIds,
+      evidence_quotes: record.evidenceQuotes,
+      reasoning: record.reasoning,
+      transformation_type: record.transformationType,
+      confidence: record.confidence,
+      factuality_status: record.factualityStatus,
+      layout_result: record.layoutConstraint,
+      status: record.status,
+      generation: record.generation,
+      created_at: record.createdAtIso,
+      updated_at: record.updatedAtIso,
+    },
+    "resumeSuggestion"
+  );
+
+  return {
+    id: parsed.id,
+    user_id: parsed.userId,
+    session_id: parsed.sessionId,
+    resume_id: parsed.resumeId,
+    resume_version_id: parsed.resumeVersionId,
+    source_block_id: parsed.sourceBlockId,
+    original_text: parsed.originalText,
+    original_text_hash: parsed.originalTextHash,
+    proposed_text: parsed.proposedText,
+    target_requirement_ids: parsed.targetRequirementIds,
+    evidence_ids: parsed.evidenceIds,
+    evidence_quotes: parsed.evidenceQuotes,
+    reasoning: parsed.reasoning,
+    transformation_type: parsed.transformationType,
+    confidence: parsed.confidence,
+    factuality_status: parsed.factualityStatus,
+    layout_result: parsed.layoutConstraint,
+    status: parsed.status,
+    generation: parsed.generation,
+    created_at: parsed.createdAtIso,
+    updated_at: parsed.updatedAtIso,
+  };
+}
+
+export function assertSuggestionBelongsToSession(
+  record: ResumeSuggestionRecord,
+  sessionId: string,
+  resumeId: string,
+  userId: string
+): void {
+  const session = normalizeUuid(sessionId, "sessionId");
+  const resume = normalizeUuid(resumeId, "resumeId");
+  const owner = normalizeUuid(userId, "userId");
+  if (record.sessionId !== session) {
+    throw new MapperError(
+      "Invalid resume_suggestions.session_id: suggestion belongs to a different session",
+      "resume_suggestions.session_id"
+    );
+  }
+  if (record.resumeId !== resume) {
+    throw new MapperError(
+      "Invalid resume_suggestions.resume_id: suggestion belongs to a different resume",
+      "resume_suggestions.resume_id"
+    );
+  }
+  if (record.userId !== owner) {
+    throw new MapperError(
+      "Invalid resume_suggestions.user_id: suggestion belongs to a different user",
+      "resume_suggestions.user_id"
     );
   }
 }

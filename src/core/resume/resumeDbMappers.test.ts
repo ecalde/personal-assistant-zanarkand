@@ -5,6 +5,7 @@ import {
   RESUME_JOB_DESCRIPTION_MAX_CHARS,
   assertActiveVersionBelongsToResume,
   assertJobSessionBelongsToResume,
+  assertSuggestionBelongsToSession,
   assertResumeOwnerStoragePath,
   buildResumeOriginalStoragePath,
   buildResumeWorkingStoragePath,
@@ -14,9 +15,11 @@ import {
   parseParsedJobDescription,
   parseResumeJobSessionRow,
   parseResumeRow,
+  parseResumeSuggestionRow,
   parseResumeVersionRow,
   parseResumeWithActiveVersion,
   resumeJobSessionToRow,
+  resumeSuggestionToRow,
   resumeToRow,
   resumeVersionToRow,
 } from "./resumeDbMappers";
@@ -32,6 +35,7 @@ const APPLICATION_ID = "66666666-6666-4666-8666-666666666666";
 const SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CREATED = "2026-09-15T00:00:00.000Z";
 const BLOCK_ID = "44444444-4444-4444-8444-444444444444";
+const SUGGESTION_ID = "77777777-7777-4777-8777-777777777777";
 
 type AppPayloadHasResumeKey = "resumes" extends keyof AppPayload ? true : false;
 const _appPayloadHasNoResumeKey: AppPayloadHasResumeKey extends true ? never : true = true;
@@ -601,5 +605,74 @@ describe("parseResumeJobSessionRow", () => {
       MapperError
     );
     expect(() => assertJobSessionBelongsToResume(session, RESUME_ID, USER_ID)).not.toThrow();
+  });
+});
+
+function sampleSuggestionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: SUGGESTION_ID,
+    user_id: USER_ID,
+    session_id: SESSION_ID,
+    resume_id: RESUME_ID,
+    resume_version_id: VERSION_ID,
+    source_block_id: BLOCK_ID,
+    original_text: "Built REST APIs with Python.",
+    original_text_hash: SHA256,
+    proposed_text: "Built RESTful services with Python.",
+    target_requirement_ids: ["req-rest"],
+    evidence_ids: ["fact-1"],
+    evidence_quotes: ["Built REST APIs"],
+    reasoning: "Align terminology.",
+    transformation_type: "terminology_alignment",
+    confidence: 0.8,
+    factuality_status: "grounded",
+    layout_result: { status: "indeterminate", characterCount: 34 },
+    status: "pending",
+    generation: {
+      pipelineVersion: "resume-suggestions-1",
+      promptVersion: "resume-llm-prompt-1",
+      model: "fake-model",
+    },
+    created_at: CREATED,
+    updated_at: CREATED,
+    ...overrides,
+  };
+}
+
+describe("parseResumeSuggestionRow", () => {
+  it("accepts a grounded pending row and round-trips through resumeSuggestionToRow", () => {
+    const record = parseResumeSuggestionRow(sampleSuggestionRow());
+    expect(record.factualityStatus).toBe("grounded");
+    expect(record.status).toBe("pending");
+    expect(record.generation.model).toBe("fake-model");
+    expect(parseResumeSuggestionRow(resumeSuggestionToRow(record))).toEqual(record);
+  });
+
+  it("rejects unknown keys, invalid enums, and bad hashes", () => {
+    expect(() => parseResumeSuggestionRow(sampleSuggestionRow({ extra: true }))).toThrow(
+      MapperError
+    );
+    expect(() =>
+      parseResumeSuggestionRow(sampleSuggestionRow({ transformation_type: "rewrite_all" }))
+    ).toThrow(MapperError);
+    expect(() =>
+      parseResumeSuggestionRow(sampleSuggestionRow({ original_text_hash: "not-a-hash" }))
+    ).toThrow(MapperError);
+    expect(() =>
+      parseResumeSuggestionRow(sampleSuggestionRow({ layout_result: { status: "fits", extra: 1 } }))
+    ).toThrow(MapperError);
+  });
+
+  it("rejects a suggestion that belongs to a different session or resume", () => {
+    const record = parseResumeSuggestionRow(sampleSuggestionRow());
+    expect(() =>
+      assertSuggestionBelongsToSession(record, "88888888-8888-4888-8888-888888888888", RESUME_ID, USER_ID)
+    ).toThrow(MapperError);
+    expect(() =>
+      assertSuggestionBelongsToSession(record, SESSION_ID, OTHER_RESUME_ID, USER_ID)
+    ).toThrow(MapperError);
+    expect(() =>
+      assertSuggestionBelongsToSession(record, SESSION_ID, RESUME_ID, USER_ID)
+    ).not.toThrow();
   });
 });

@@ -12,6 +12,7 @@
 export const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 export const DEFAULT_OLLAMA_TIMEOUT_MS = 8_000;
 export const OLLAMA_TAGS_PATH = "/api/tags";
+export const OLLAMA_CHAT_PATH = "/api/chat";
 
 const LOOPBACK_ADDRESS_SPACE = "loopback" as const;
 
@@ -126,6 +127,27 @@ export function resolveOllamaBaseUrl(baseUrl = DEFAULT_OLLAMA_BASE_URL): string 
 export function ollamaTagsUrl(baseUrl = DEFAULT_OLLAMA_BASE_URL): string {
   return `${resolveOllamaBaseUrl(baseUrl)}${OLLAMA_TAGS_PATH}`;
 }
+
+export function ollamaChatUrl(baseUrl = DEFAULT_OLLAMA_BASE_URL): string {
+  return `${resolveOllamaBaseUrl(baseUrl)}${OLLAMA_CHAT_PATH}`;
+}
+
+export type OllamaChatRole = "system" | "user" | "assistant";
+
+export type OllamaChatMessage = {
+  role: OllamaChatRole;
+  content: string;
+};
+
+export type ChatCompletionOptions = {
+  baseUrl?: string;
+  model: string;
+  messages: readonly OllamaChatMessage[];
+  format?: "json";
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  RequestCtor?: typeof Request;
+};
 
 export function supportsLoopbackTargetAddressSpace(
   RequestCtor: typeof Request | undefined = globalThis.Request
@@ -315,6 +337,73 @@ async function fetchOllama(
       return await fetchImpl(url, init);
     }
     throw mapOllamaFetchFailure(error);
+  }
+}
+
+function parseChatContent(payload: unknown): string {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new OllamaUnavailable("Ollama returned an unexpected chat payload.");
+  }
+  const message = (payload as { message?: unknown }).message;
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    throw new OllamaUnavailable("Ollama returned an unexpected chat payload.");
+  }
+  const content = (message as { content?: unknown }).content;
+  if (typeof content !== "string") {
+    throw new OllamaUnavailable("Ollama returned an unexpected chat payload.");
+  }
+  return content;
+}
+
+export async function chatCompletion(options: ChatCompletionOptions): Promise<string> {
+  const url = ollamaChatUrl(options.baseUrl);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_OLLAMA_TIMEOUT_MS;
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new OllamaUnavailable("fetch is not available.");
+  }
+  if (!options.model.trim()) {
+    throw new OllamaUnavailable("Ollama model name is required.");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const body: Record<string, unknown> = {
+      model: options.model.trim(),
+      messages: options.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      stream: false,
+    };
+    if (options.format === "json") {
+      body.format = "json";
+    }
+
+    const response = await fetchOllama(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+        credentials: "omit",
+      },
+      fetchImpl,
+      options.RequestCtor
+    );
+
+    const payload = await readJsonBody(response);
+    if (!response.ok) {
+      const mapped = parseOllamaErrorBody(payload);
+      throw new OllamaUnavailable(mapped ?? `Ollama returned HTTP ${response.status}.`);
+    }
+    return parseChatContent(payload);
+  } catch (error) {
+    throw mapOllamaFetchFailure(error);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
