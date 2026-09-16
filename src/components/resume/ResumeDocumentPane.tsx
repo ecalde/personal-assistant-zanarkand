@@ -84,6 +84,9 @@ export type ResumeDocumentPaneProps = {
    * autosave, and read the live graph from refs (not a stale React snapshot).
    */
   coveragePrepareRef?: MutableRefObject<(() => Promise<ResumeStructureGraph | null>) | null>;
+  /** Suggestion card click: scroll/focus this bookmark id. */
+  focusedBlockId?: string | null;
+  focusNonce?: number;
 };
 
 export function ResumeDocumentPane({
@@ -100,6 +103,8 @@ export function ResumeDocumentPane({
   onClose,
   onWorkingGraphChange,
   coveragePrepareRef,
+  focusedBlockId = null,
+  focusNonce = 0,
 }: ResumeDocumentPaneProps) {
   const [draftBlocks, setDraftBlocks] = useState<ResumeStructureBlock[] | null>(null);
   /** Graph matching `lastGoodBytes` (last successful OOXML flush). */
@@ -147,6 +152,20 @@ export function ResumeDocumentPane({
   }, [draftBlocks, baselineBlocks, persistedBlocks, onWorkingGraphChange]);
 
   const pages = useMemo(() => paginatePreviewBlocks(blocks), [blocks]);
+
+  useEffect(() => {
+    if (!focusedBlockId) return;
+    const root = paneRootRef.current;
+    if (!root) return;
+    const escaped =
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(focusedBlockId)
+        : focusedBlockId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const host = root.querySelector(`[data-resume-block-id="${escaped}"]`);
+    if (!(host instanceof HTMLElement)) return;
+    host.scrollIntoView({ block: "center", inline: "nearest" });
+    host.focus();
+  }, [focusedBlockId, focusNonce, pages]);
   const fontFamilies = useMemo(() => documentFontFamilies(blocks), [blocks]);
   const fontPreflight = useResumeFontPreflight(fontFamilies);
 
@@ -659,6 +678,7 @@ export function ResumeDocumentPane({
               ariaLabelForBlock={ariaLabelForBlock}
               onBlockPlaintextChange={handleBlockPlaintextChange}
               editorGenerationByBlockId={editorGenerationByBlockId}
+              highlightedBlockId={focusedBlockId}
             />
           ))}
         </div>

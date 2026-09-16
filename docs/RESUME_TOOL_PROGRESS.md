@@ -14,15 +14,33 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 | Field | Value |
 | --- | --- |
 | Implementation approved by Edwin | **Yes** |
-| Last phase number | 6G |
-| Last phase name | AI QUALITY GATE |
-| Status | `COMPLETE` |
-| What was completed | Architecture §59 Cases A–G as Vitest tests against a fake model through `generateBlockSuggestion` (plus matcher coverage for A/C/G). Case B/E/G fail closed (`rejected_ungrounded`). Case F: injection JD stays in user JSON, not the system prompt, and Kubernetes is still rejected. Optional live Ollama rewrite skipped unless `RESUME_LIVE_OLLAMA=1`. No suggestion cards / Wave 7 UI. |
-| Automated verification | `npm test` pass (**1663 passed, 8 skipped**). `npx tsc -b` pass. eslint clean on `resumeSuggestions.quality.test.ts`. Live test skipped (CI default). |
-| Manual verification | None required for the fake-LLM gate. Optional live rewrite was not run: Ollama answered `/api/tags` but **no models are installed**. |
-| Important files changed | `src/core/resume/resumeSuggestions.quality.test.ts`, `docs/RESUME_TOOL_PROGRESS.md`. |
-| Blockers / notes | 6G closed. Wave 6 quality gate passed against the fake LLM. Next chat is **7A** only. After `ollama pull gemma4:12b` (or `gemma4:e4b`), optional live check: `RESUME_LIVE_OLLAMA=1 npx vitest run src/core/resume/resumeSuggestions.quality.test.ts`. Carry-forwards from 4G unchanged: **9A** named `Name-role.docx`; US Letter preview default; 8A canvas `measureText`; 8C page-count; working vs original sha256; duplicate block ids; NBSP draft vs flushed graph; `page_count_estimated` null. |
+| Last phase number | 7A |
+| Last phase name | Cards bound to block IDs |
+| Status | `AWAITING MANUAL VERIFICATION` |
+| What was completed | Suggestion cards bound to `sourceBlockId`. **Show in resume** focuses that paragraph (scroll + accent outline). Original / Suggested labels plus `del`/`ins` (not color-only). Generate Suggestions runs the 6F pipeline sequentially, persists grounded pending rows, Cancel stops the loop. No Accept / Reject / regenerate / OOXML apply. |
+| Automated verification | `npm test` pass (**1668 passed, 8 skipped**). `npx tsc -b` pass. eslint clean on 7A files (pre-existing CareerPage setState-in-effect lint unchanged). |
+| Manual verification | Still waiting: Edwin UI walkthrough below (click card → matching block focused; labels; no apply). |
+| Important files changed | `src/core/resume/resumeSuggestionCards.ts`, `src/core/resume/resumeSuggestionCards.test.ts`, `src/components/resume/SuggestionCard.tsx`, `src/components/resume/useResumeSuggestionCards.ts`, `src/components/resume/ResumeAnalysisPanel.tsx`, `src/components/resume/ResumeDocumentPane.tsx`, `src/components/resume/ResumePageSurface.tsx`, `src/components/resume/ResumeBlockEditor.tsx`, `src/components/resume/resumeEditor.css`, `src/pages/CareerPage.tsx`, `src/lib/resumeRemote.ts` (`listResumeSuggestions`), `docs/RESUME_TOOL_PROGRESS.md`. |
+| Blockers / notes | Until Edwin reports the 7A walkthrough, **next eligible stays 7A**. Do not start 7B. Generate needs a model chosen in Settings → Resume AI (6G noted zero models installed). Ungrounded LLM output is dropped, not shown as Acceptable. Carry-forwards from 4G unchanged: **9A** named `Name-role.docx`; US Letter preview default; 8A canvas `measureText`; 8C page-count; working vs original sha256; duplicate block ids; NBSP draft vs flushed graph; `page_count_estimated` null. |
 | **Next eligible phase** | **7A — Cards bound to block IDs** |
+
+### 7A manual verification (Edwin)
+
+Goal: confirm suggestion **cards map to resume block ids** and that **clicking a card focuses that paragraph**. Accept / reject / regenerate / applying wording to Word are **not** in this phase. Agent cannot run a browser, so this walkthrough is required before 7A is `COMPLETE`. Until you report pass/fail, **next eligible stays 7A**.
+
+1. Open Career → **Resume**. Upload / **Open** `fixtures/resume/public/geometry-canary.docx` (or any resume). Confirm the document is on the left and Job description + **Suggestions** are on the right.
+2. Confirm a **Suggestions** card list exists. Empty state is **No suggestions yet.** There must be **no** Accept, Reject, or Regenerate controls. Opening a card must **not** change the Word preview wording by itself.
+3. Paste a **synthetic** JD (not a real employer posting), for example: `Must have Python. Must have RESTful services. Nice to have Terraform.` Click **Analyze**. Wait until status reads **Saved.** Coverage may still list missing terms; that is Wave 5 behavior.
+4. **If Settings → Resume AI has a model** (Test connection succeeded and the dropdown has a tag): click **Generate suggestions**. Progress should read **Generating suggestion N of M**. Cancel must stop further blocks. When finished, cards that appear must show **Original** and **Suggested** as text labels (strikethrough/underline may also appear — they must not be the only cue).
+5. Click **Show in resume** on a card. The matching left-pane paragraph must **scroll into view** and take focus (accent outline). The card’s Original text should match that paragraph. Neighboring paragraphs must not become the focused editor.
+6. Click a second card for a different block. Focus must move to **that** paragraph, not stay on the first.
+7. **If no model is installed:** Generate stays disabled with copy pointing at Settings → Resume AI / Test connection. Coverage still works. Report that the empty Suggestions chrome is present and Generate is disabled — still a pass for the no-model path, but step 5 cannot run until a model exists (`ollama pull gemma4:12b` or `gemma4:e4b`, then Test connection).
+8. Optional: dark mode — cards stay readable; paper stays light; focused paragraph outline is visible on the light paper.
+9. Confirm the document is unchanged after focusing cards (reload still shows the same bullets unless you typed separately).
+10. Report pass/fail here so a new chat can mark 7A `COMPLETE` and advance to **7B — Accept / reject / edit / regenerate**. If click focuses the wrong paragraph, cards are color-only with no Original/Suggested labels, Accept applies text, or Generate writes ungrounded Kubernetes into a card, report it as a **fail** → 7A becomes `BLOCKED`.
+
+**Signed off:** _waiting for Edwin._
+
 
 ### 6A manual verification (Edwin)
 
@@ -375,6 +393,7 @@ Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
+| 7A | Cards bound to block IDs | `AWAITING MANUAL VERIFICATION` | 2026-09-16 | Cards + Show in resume focus; Generate sequential 6F; no accept/apply. Tests 1668 pass / 8 skip. Waiting on Edwin UI walkthrough. |
 | 6G | AI QUALITY GATE | `COMPLETE` | 2026-09-16 | Cases A–G via `resumeSuggestions.quality.test.ts` + fake LLM. B/E/G fail closed; F injection fenced. Live Ollama skipped (process up, zero models). No Wave 7 UI. Tests 1663 pass / 8 skip. Next chat: **7A**. |
 | 6F | Single-block generator | `COMPLETE` | 2026-09-16 | `resumeSuggestions.ts` `generateBlockSuggestion` + `insertResumeSuggestion`; Ollama `/api/chat`; fake LLM Kubernetes rejected. No UI / no 6G suite. Tests 1654 pass / 7 skip. Next chat: **6G**. |
 | 6E | Style lint + unicode on outputs | `COMPLETE` | 2026-09-16 | `resumeStyleLint.ts` `prepareSuggestionText`: em dash, leveraged, first person, adjective pile-up, hidden ATS; ZWSP stripped on generated text. No generator/UI. Tests 1644 pass / 7 skip. Next chat: **6F**. |

@@ -27,6 +27,7 @@ import "./resumeEditor.css";
 export type ResumeBlockEditorProps = {
   block: ResumeStructureBlock;
   ariaLabel: string;
+  highlighted?: boolean;
   onPlaintextChange: (text: string) => void;
 };
 
@@ -48,6 +49,7 @@ function paintResumeBlockHost(host: HTMLParagraphElement, block: ResumeStructure
 export function ResumeBlockEditor({
   block,
   ariaLabel,
+  highlighted = false,
   onPlaintextChange,
 }: ResumeBlockEditorProps) {
   const hostRef = useRef<HTMLParagraphElement | null>(null);
@@ -95,7 +97,9 @@ export function ResumeBlockEditor({
     <p
       ref={hostRef}
       data-resume-block-id={block.blockId ?? undefined}
-      className="resume-block-editor"
+      className={
+        highlighted ? "resume-block-editor resume-block-editor--card-target" : "resume-block-editor"
+      }
       style={style}
       contentEditable={true}
       suppressContentEditableWarning

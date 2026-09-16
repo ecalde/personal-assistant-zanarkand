@@ -43,9 +43,20 @@
   border-radius: 2px;
 }
 
-.resume-block-editor:focus {
+.resume-block-editor:focus,
+.resume-block-editor--card-target {
   outline: 2px solid var(--aether-accent, #46c6ff);
   outline-offset: 2px;
+}
+
+.resume-suggestion-card del.resume-suggestion-del {
+  text-decoration: line-through;
+  font-weight: 600;
+}
+
+.resume-suggestion-card ins.resume-suggestion-ins {
+  text-decoration: underline;
+  font-weight: 600;
 }
 
 /*

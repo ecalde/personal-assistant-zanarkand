@@ -135,7 +135,11 @@ export default function CareerPage({
 
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
   const [workingGraph, setWorkingGraph] = useState<ResumeStructureGraph | null>(null);
-  const coveragePrepareRef = useRef<(() => Promise<ResumeStructureGraph | null>) | null>(null);
+  const [resumeFocusBlockId, setResumeFocusBlockId] = useState<string | null>(null);
+  const [resumeFocusNonce, setResumeFocusNonce] = useState(0);
+  const coveragePrepareRef = useRef<(() => Promise<ResumeStructureGraph | null>) | null>(
+    null
+  );
   const isDesktop = useIsDesktopViewport();
 
   const {
@@ -281,6 +285,7 @@ export default function CareerPage({
               if (resumeId === selectedResumeId) {
                 setSelectedResumeId(null);
                 setWorkingGraph(null);
+                setResumeFocusBlockId(null);
               }
               void deleteResume(resumeId);
             }}
@@ -289,6 +294,8 @@ export default function CareerPage({
             }}
             onOpen={(resumeId) => {
               setWorkingGraph(null);
+              setResumeFocusBlockId(null);
+              setResumeFocusNonce(0);
               setSelectedResumeId((current) => (current === resumeId ? null : resumeId));
             }}
           />
@@ -313,8 +320,11 @@ export default function CareerPage({
                   error={previewError}
                   onWorkingGraphChange={setWorkingGraph}
                   coveragePrepareRef={coveragePrepareRef}
+                  focusedBlockId={resumeFocusBlockId}
+                  focusNonce={resumeFocusNonce}
                   onClose={() => {
                     setWorkingGraph(null);
+                    setResumeFocusBlockId(null);
                     setSelectedResumeId(null);
                   }}
                 />
@@ -331,6 +341,11 @@ export default function CareerPage({
                   prepareWorkingGraph={() =>
                     coveragePrepareRef.current?.() ?? Promise.resolve(workingGraph)
                   }
+                  focusedBlockId={resumeFocusBlockId}
+                  onFocusBlock={(blockId) => {
+                    setResumeFocusBlockId(blockId);
+                    setResumeFocusNonce((nonce) => nonce + 1);
+                  }}
                 />
               </div>
             </div>

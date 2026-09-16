@@ -892,6 +892,38 @@ export async function insertResumeSuggestion(
   }
 }
 
+export async function listResumeSuggestions(
+  userId: string,
+  sessionId: string
+): Promise<ResumeSuggestionRecord[]> {
+  const owner = assertUserId(userId);
+  if (!isUuid(sessionId)) {
+    throw new ResumeRemoteError("Invalid job session id.");
+  }
+  const session = sessionId.trim().toLowerCase();
+
+  const { data, error } = await supabase
+    .from("resume_suggestions")
+    .select("*")
+    .eq("user_id", owner)
+    .eq("session_id", session)
+    .order("created_at", { ascending: true });
+  throwOnError(error, "Could not load suggestions.");
+
+  const rows = data ?? [];
+  try {
+    return rows.map((row) => {
+      const record = parseResumeSuggestionRow(row);
+      if (record.sessionId !== session || record.userId !== owner) {
+        throw new ResumeRemoteError("Could not load suggestions.");
+      }
+      return record;
+    });
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not load suggestions.");
+  }
+}
+
 /** Soft-archive the active session (Replace / Reset). Does not touch the resume document. */
 export async function archiveResumeJobSession(
   userId: string,

@@ -34,6 +34,7 @@ export type ResumePageSurfaceProps = {
   onBlockPlaintextChange: (blockId: string, text: string) => void;
   /** Bump per block after undo/redo so a focused contentEditable remounts. */
   editorGenerationByBlockId?: Readonly<Record<string, number>>;
+  highlightedBlockId?: string | null;
 };
 
 function ReadOnlyParagraph({ block }: { block: ResumeStructureBlock }) {
@@ -67,6 +68,7 @@ export function ResumePageSurface({
   ariaLabelForBlock,
   onBlockPlaintextChange,
   editorGenerationByBlockId,
+  highlightedBlockId = null,
 }: ResumePageSurfaceProps) {
   const paperStyle: CSSProperties = {
     width: geometry.pageWidthPx,
@@ -103,6 +105,7 @@ export function ResumePageSurface({
               key={`${blockId}:${editorGenerationByBlockId?.[blockId] ?? 0}`}
               block={block}
               ariaLabel={ariaLabelForBlock(block)}
+              highlighted={highlightedBlockId === blockId}
               onPlaintextChange={(text) => onBlockPlaintextChange(blockId, text)}
             />
           );

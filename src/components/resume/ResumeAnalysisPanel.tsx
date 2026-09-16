@@ -12,7 +12,9 @@ import type { ResumeExtractedStructure, ResumeFactLedger, ResumeStructureGraph }
 import { getResumeVersionById } from "../../lib/resumeRemote";
 import { styles } from "../../ui/appStyles";
 import { ResumeCoveragePanel } from "./ResumeCoveragePanel";
+import { SuggestionCard } from "./SuggestionCard";
 import { useResumeJobSession } from "./useResumeJobSession";
+import { useResumeSuggestionCards } from "./useResumeSuggestionCards";
 import "./resumeEditor.css";
 
 export type ResumeAnalysisPanelProps = {
@@ -24,6 +26,8 @@ export type ResumeAnalysisPanelProps = {
   workingGraph?: ResumeStructureGraph | null;
   /** Flush + autosave + live editor graph at Analyze time. */
   prepareWorkingGraph?: () => Promise<ResumeStructureGraph | null>;
+  focusedBlockId?: string | null;
+  onFocusBlock?: (blockId: string) => void;
 };
 
 /**
@@ -40,6 +44,8 @@ export function ResumeAnalysisPanel({
   extractedStructure,
   workingGraph = null,
   prepareWorkingGraph,
+  focusedBlockId = null,
+  onFocusBlock,
 }: ResumeAnalysisPanelProps) {
   const {
     draft,
@@ -57,6 +63,16 @@ export function ResumeAnalysisPanel({
     userId,
     resumeId,
     resumeVersionId: resumeVersionId ?? undefined,
+    enabled: Boolean(resumeVersionId),
+  });
+
+  const suggestions = useResumeSuggestionCards({
+    userId,
+    resumeId,
+    resumeVersionId,
+    session,
+    importFactLedger,
+    workingGraph: workingGraph ?? extractedStructure?.graph ?? null,
     enabled: Boolean(resumeVersionId),
   });
 
@@ -256,6 +272,61 @@ export function ResumeAnalysisPanel({
       </section>
 
       {coverageView ? <ResumeCoveragePanel view={coverageView} /> : null}
+
+      <section aria-label="Resume suggestions" style={styles.card}>
+        <div style={styles.cardTitle}>Suggestions</div>
+        <p style={{ ...styles.helpText, margin: "0 0 10px 0" }}>
+          Each card is one paragraph. Show in resume focuses that block. Accept, reject, and
+          regenerate are not in this step — the Word file does not change when you open a card.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <button
+            type="button"
+            disabled={!suggestions.canGenerate}
+            onClick={() => void suggestions.generate()}
+          >
+            Generate suggestions
+          </button>
+          {suggestions.generating ? (
+            <button type="button" onClick={() => suggestions.cancelGenerate()}>
+              Cancel
+            </button>
+          ) : null}
+        </div>
+        {suggestions.generateDisabledReason ? (
+          <p style={{ ...styles.metaText, margin: "0 0 10px 0" }}>
+            {suggestions.generateDisabledReason}
+          </p>
+        ) : null}
+        {suggestions.generating && suggestions.generateProgress ? (
+          <p style={{ ...styles.metaText, margin: "0 0 10px 0" }} role="status">
+            Generating suggestion {suggestions.generateProgress.current} of{" "}
+            {suggestions.generateProgress.total}
+          </p>
+        ) : null}
+        {suggestions.generateError ? (
+          <div style={{ ...styles.errorInline, margin: "0 0 10px 0" }} role="alert">
+            <b>Could not generate suggestions:</b> {suggestions.generateError}
+          </div>
+        ) : null}
+        {suggestions.cards.length === 0 && !suggestions.generating ? (
+          <p style={{ ...styles.metaText, margin: 0 }}>No suggestions yet.</p>
+        ) : (
+          <ul
+            style={{ display: "grid", gap: 10, listStyle: "none", margin: 0, padding: 0 }}
+          >
+            {suggestions.cards.map((view) => (
+              <li key={view.suggestion.id}>
+                <SuggestionCard
+                  view={view}
+                  selected={focusedBlockId === view.sourceBlockId}
+                  onFocusBlock={(blockId) => onFocusBlock?.(blockId)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
