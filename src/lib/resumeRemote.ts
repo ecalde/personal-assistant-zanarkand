@@ -12,17 +12,34 @@ import {
   validateResumeName,
 } from "../core/resume/resumeLibrary";
 import {
+  RESUME_JOB_DESCRIPTION_MAX_CHARS,
   assertActiveVersionBelongsToResume,
+  assertJobSessionBelongsToResume,
   assertResumeOwnerStoragePath,
   buildResumeOriginalStoragePath,
   buildResumeWorkingStoragePath,
+  parseResumeJobSessionRow,
   parseResumeRow,
   parseResumeVersionRow,
+  resumeJobSessionToRow,
   resumeToRow,
   resumeVersionToRow,
 } from "../core/resume/resumeDbMappers";
+import {
+  assertWorkingCopyUploadPath,
+  extractedStructureAfterWorkingEdit,
+  sha256HexOfBytes,
+  workingVersionRowPatch,
+} from "../core/resume/resumeAutosave";
 import { ingestResumeOriginal } from "../core/resume/resumeIngest";
-import type { Resume, ResumeSourceKind, ResumeVersion } from "../core/resume/resumeModel";
+import type {
+  Resume,
+  ResumeExtractedStructure,
+  ResumeJobSession,
+  ResumeSourceKind,
+  ResumeStructureGraph,
+  ResumeVersion,
+} from "../core/resume/resumeModel";
 
 export const RESUME_DOCS_BUCKET = "resume-docs";
 export { RESUME_DOCX_CONTENT_TYPE };
@@ -84,15 +101,7 @@ async function toUint8Array(bytes: Uint8Array | ArrayBuffer | Blob): Promise<Uin
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", copy);
-  const hashBytes = new Uint8Array(digest);
-  let hex = "";
-  for (const byte of hashBytes) {
-    hex += byte.toString(16).padStart(2, "0");
-  }
-  return hex;
+  return sha256HexOfBytes(bytes);
 }
 
 async function removeResumeDocxPaths(paths: string[]): Promise<void> {
@@ -171,9 +180,10 @@ export async function listResumes(userId: string): Promise<Resume[]> {
  * then point `active_version_id` at that version. Fully rolls back storage +
  * rows on error. Used by both upload (`upload`) and duplicate (`duplicate`).
  *
- * `sha256` is the digest of the bytes stored at `original_storage_path`, which
- * is what the canonical path in §34 (enforced by the Phase 1D mappers) is
- * derived from. The working copy differs from it by the 3B bookmarks.
+ * `original_storage_path` uses the digest of those original bytes (§34). The
+ * version row's `sha256` starts as that same original digest and is updated in
+ * Phase 4F to the **working** bytes hash (§33). The working copy already
+ * differs from the original by the 3B bookmarks.
  */
 async function createResumeLineage(args: {
   userId: string;
@@ -395,6 +405,175 @@ export async function getResumeVersionById(
   }
 }
 
+/**
+ * Download the **working** DOCX for in-memory fail-closed patching (Phase 4D).
+ * Does not download the immutable original.
+ */
+export async function downloadResumeWorkingDocx(
+  userId: string,
+  workingStoragePath: string
+): Promise<Uint8Array> {
+  const owner = assertUserId(userId);
+  try {
+    assertWorkingCopyUploadPath(workingStoragePath, owner);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not load resume document.");
+  }
+
+  const { data: blob, error } = await supabase.storage
+    .from(RESUME_DOCS_BUCKET)
+    .download(workingStoragePath);
+  throwOnError(error, "Could not load resume document.");
+  if (!blob) {
+    throw new ResumeRemoteError("Could not load resume document.");
+  }
+  return toUint8Array(blob);
+}
+
+export type UpdateWorkingVersionInput = {
+  userId: string;
+  resumeId: string;
+  versionId: string;
+  workingStoragePath: string;
+  bytes: Uint8Array;
+  graph: ResumeStructureGraph;
+  previousStructure: ResumeExtractedStructure;
+  expectedUpdatedAtIso?: string;
+};
+
+export type UpdateWorkingVersionResult = {
+  version: ResumeVersion;
+  resumeUpdatedAtIso: string;
+  conflict: boolean;
+};
+
+/**
+ * Overwrite the current working DOCX and persist graph + working hash (Phase 4F).
+ * Never writes `original/`. Never goes through `replaceRemotePayload`.
+ */
+export async function updateWorkingVersion(
+  input: UpdateWorkingVersionInput
+): Promise<UpdateWorkingVersionResult> {
+  const owner = assertUserId(input.userId);
+  if (!isUuid(input.resumeId) || !isUuid(input.versionId)) {
+    throw new ResumeRemoteError("Invalid resume id.");
+  }
+  const resumeId = input.resumeId.trim().toLowerCase();
+  const versionId = input.versionId.trim().toLowerCase();
+
+  try {
+    assertWorkingCopyUploadPath(input.workingStoragePath, owner);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save resume.");
+  }
+
+  const expectedWorkingPath = buildResumeWorkingStoragePath(owner, resumeId, versionId);
+  if (input.workingStoragePath !== expectedWorkingPath) {
+    throw new ResumeRemoteError("Could not save resume.");
+  }
+
+  const { data: resumeRow, error: resumeError } = await supabase
+    .from("resumes")
+    .select("*")
+    .eq("id", resumeId)
+    .eq("user_id", owner)
+    .maybeSingle();
+  throwOnError(resumeError, "Could not save resume.");
+  if (!resumeRow) {
+    throw new ResumeRemoteError("Could not save resume.");
+  }
+
+  const { data: versionRow, error: versionError } = await supabase
+    .from("resume_versions")
+    .select("*")
+    .eq("id", versionId)
+    .eq("resume_id", resumeId)
+    .eq("user_id", owner)
+    .maybeSingle();
+  throwOnError(versionError, "Could not save resume.");
+  if (!versionRow) {
+    throw new ResumeRemoteError("Could not save resume.");
+  }
+
+  let resume: Resume;
+  let currentVersion: ResumeVersion;
+  try {
+    resume = parseResumeRow(resumeRow);
+    currentVersion = parseResumeVersionRow(versionRow);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save resume.");
+  }
+
+  if (resume.activeVersionId !== currentVersion.id) {
+    throw new ResumeRemoteError("Could not save resume.");
+  }
+  if (currentVersion.workingStoragePath !== expectedWorkingPath) {
+    throw new ResumeRemoteError("Could not save resume.");
+  }
+
+  const conflict = Boolean(
+    input.expectedUpdatedAtIso && resume.updatedAtIso !== input.expectedUpdatedAtIso
+  );
+
+  let extractedStructure: ResumeExtractedStructure;
+  let workingSha256: string;
+  try {
+    extractedStructure = extractedStructureAfterWorkingEdit(input.previousStructure, input.graph);
+    workingSha256 = await sha256Hex(input.bytes);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save resume.");
+  }
+
+  const rowPatch = workingVersionRowPatch({
+    workingSha256,
+    extractedStructure,
+  });
+
+  const { error: uploadError } = await supabase.storage
+    .from(RESUME_DOCS_BUCKET)
+    .upload(expectedWorkingPath, input.bytes, {
+      contentType: RESUME_DOCX_CONTENT_TYPE,
+      upsert: true,
+    });
+  throwOnError(uploadError, "Could not save resume.");
+
+  const { data: updatedVersionRow, error: updateVersionError } = await supabase
+    .from("resume_versions")
+    .update({
+      sha256: rowPatch.sha256,
+      extracted_structure: rowPatch.extracted_structure,
+    })
+    .eq("id", versionId)
+    .eq("resume_id", resumeId)
+    .eq("user_id", owner)
+    .select("*")
+    .single();
+  throwOnError(updateVersionError, "Could not save resume.");
+
+  const { data: bumpedResumeRow, error: bumpError } = await supabase
+    .from("resumes")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", resumeId)
+    .eq("user_id", owner)
+    .select("updated_at")
+    .single();
+  throwOnError(bumpError, "Could not save resume.");
+
+  try {
+    const version = parseResumeVersionRow(updatedVersionRow);
+    if (version.originalStoragePath !== currentVersion.originalStoragePath) {
+      throw new ResumeRemoteError("Could not save resume.");
+    }
+    const resumeUpdatedAtIso =
+      bumpedResumeRow && typeof bumpedResumeRow.updated_at === "string"
+        ? bumpedResumeRow.updated_at
+        : new Date().toISOString();
+    return { version, resumeUpdatedAtIso, conflict };
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save resume.");
+  }
+}
+
 export async function renameResume(
   userId: string,
   resumeId: string,
@@ -470,4 +649,210 @@ export async function deleteResume(userId: string, resumeId: string): Promise<vo
   }
 
   await removeResumeDocxPaths(storagePaths).catch(() => undefined);
+}
+
+export type InsertResumeJobSessionInput = {
+  userId: string;
+  resumeId: string;
+  resumeVersionId: string;
+  company?: string;
+  jobTitle?: string;
+  jobDescriptionText?: string;
+  parsedJob?: ResumeJobSession["parsedJob"];
+  matchResult?: ResumeJobSession["matchResult"];
+  applicationId?: string | null;
+};
+
+export type UpdateResumeJobSessionInput = {
+  company?: string;
+  jobTitle?: string;
+  jobDescriptionText?: string;
+  resumeVersionId?: string;
+  parsedJob?: ResumeJobSession["parsedJob"];
+  matchResult?: ResumeJobSession["matchResult"];
+  applicationId?: string | null;
+};
+
+function throwOnJobSessionUniqueViolation(
+  error: { code?: string; message?: string } | null,
+  fallback: string
+): void {
+  if (!error) return;
+  if (error.code === "23505") {
+    throw new ResumeRemoteError("An active job session already exists for this resume.", {
+      code: error.code,
+    });
+  }
+  throwOnError(error, fallback);
+}
+
+/** Active (non-archived) JD session for a resume. Null if none. */
+export async function getActiveResumeJobSession(
+  userId: string,
+  resumeId: string
+): Promise<ResumeJobSession | null> {
+  const owner = assertUserId(userId);
+  if (!isUuid(resumeId)) {
+    throw new ResumeRemoteError("Invalid resume id.");
+  }
+
+  const { data, error } = await supabase
+    .from("resume_job_sessions")
+    .select("*")
+    .eq("user_id", owner)
+    .eq("resume_id", resumeId)
+    .is("archived_at", null)
+    .maybeSingle();
+  throwOnError(error, "Could not load job session.");
+
+  if (!data) return null;
+  try {
+    const session = parseResumeJobSessionRow(data);
+    assertJobSessionBelongsToResume(session, resumeId, owner);
+    return session;
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not load job session.");
+  }
+}
+
+export async function insertResumeJobSession(
+  input: InsertResumeJobSessionInput
+): Promise<ResumeJobSession> {
+  const owner = assertUserId(input.userId);
+  if (!isUuid(input.resumeId)) {
+    throw new ResumeRemoteError("Invalid resume id.");
+  }
+  if (!isUuid(input.resumeVersionId)) {
+    throw new ResumeRemoteError("Invalid resume version id.");
+  }
+  const jobDescriptionText = input.jobDescriptionText ?? "";
+  if (jobDescriptionText.length > RESUME_JOB_DESCRIPTION_MAX_CHARS) {
+    throw new ResumeRemoteError("Job description is too long.");
+  }
+
+  const now = new Date().toISOString();
+  const draft: ResumeJobSession = {
+    id: crypto.randomUUID(),
+    userId: owner,
+    resumeId: input.resumeId.trim().toLowerCase(),
+    resumeVersionId: input.resumeVersionId.trim().toLowerCase(),
+    company: input.company ?? "",
+    jobTitle: input.jobTitle ?? "",
+    jobDescriptionText,
+    parsedJob: input.parsedJob ?? null,
+    matchResult: input.matchResult ?? null,
+    retention: "until_replaced",
+    applicationId: input.applicationId ?? null,
+    archivedAtIso: null,
+    createdAtIso: now,
+    updatedAtIso: now,
+  };
+
+  let row;
+  try {
+    row = resumeJobSessionToRow(draft);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save job session.");
+  }
+
+  const { data, error } = await supabase
+    .from("resume_job_sessions")
+    .insert(row)
+    .select("*")
+    .single();
+  throwOnJobSessionUniqueViolation(error, "Could not save job session.");
+
+  try {
+    const session = parseResumeJobSessionRow(data);
+    assertJobSessionBelongsToResume(session, draft.resumeId, owner);
+    return session;
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save job session.");
+  }
+}
+
+export async function updateResumeJobSession(
+  userId: string,
+  sessionId: string,
+  patch: UpdateResumeJobSessionInput
+): Promise<ResumeJobSession> {
+  const owner = assertUserId(userId);
+  if (!isUuid(sessionId)) {
+    throw new ResumeRemoteError("Invalid job session id.");
+  }
+  if (patch.jobDescriptionText !== undefined) {
+    if (typeof patch.jobDescriptionText !== "string") {
+      throw new ResumeRemoteError("Invalid job description.");
+    }
+    if (patch.jobDescriptionText.length > RESUME_JOB_DESCRIPTION_MAX_CHARS) {
+      throw new ResumeRemoteError("Job description is too long.");
+    }
+  }
+  if (patch.resumeVersionId !== undefined && !isUuid(patch.resumeVersionId)) {
+    throw new ResumeRemoteError("Invalid resume version id.");
+  }
+  if (patch.applicationId !== undefined && patch.applicationId !== null && !isUuid(patch.applicationId)) {
+    throw new ResumeRemoteError("Invalid application id.");
+  }
+
+  const update: Record<string, unknown> = {};
+  if (patch.company !== undefined) update.company = patch.company;
+  if (patch.jobTitle !== undefined) update.job_title = patch.jobTitle;
+  if (patch.jobDescriptionText !== undefined) update.job_description_text = patch.jobDescriptionText;
+  if (patch.resumeVersionId !== undefined) {
+    update.resume_version_id = patch.resumeVersionId.trim().toLowerCase();
+  }
+  if (patch.parsedJob !== undefined) update.parsed_job = patch.parsedJob;
+  if (patch.matchResult !== undefined) update.match_result = patch.matchResult;
+  if (patch.applicationId !== undefined) update.application_id = patch.applicationId;
+
+  const { data, error } = await supabase
+    .from("resume_job_sessions")
+    .update(update)
+    .eq("id", sessionId)
+    .eq("user_id", owner)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+  throwOnError(error, "Could not save job session.");
+  if (!data) {
+    throw new ResumeRemoteError("Could not save job session.");
+  }
+
+  try {
+    return parseResumeJobSessionRow(data);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save job session.");
+  }
+}
+
+/** Soft-archive the active session (Replace / Reset). Does not touch the resume document. */
+export async function archiveResumeJobSession(
+  userId: string,
+  sessionId: string
+): Promise<ResumeJobSession> {
+  const owner = assertUserId(userId);
+  if (!isUuid(sessionId)) {
+    throw new ResumeRemoteError("Invalid job session id.");
+  }
+
+  const archivedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("resume_job_sessions")
+    .update({ archived_at: archivedAt })
+    .eq("id", sessionId)
+    .eq("user_id", owner)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+  throwOnError(error, "Could not archive job session.");
+  if (!data) {
+    throw new ResumeRemoteError("Could not archive job session.");
+  }
+
+  try {
+    return parseResumeJobSessionRow(data);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not archive job session.");
+  }
 }

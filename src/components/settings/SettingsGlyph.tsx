@@ -6,6 +6,7 @@ export type SettingsGlyphName =
   | "calendar"
   | "skills"
   | "data"
+  | "resumeAi"
   | "privacy"
   | "advanced";
 
@@ -71,6 +72,16 @@ export function SettingsGlyph({
         <svg {...common}>
           <ellipse cx="12" cy="6" rx="7" ry="3" />
           <path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" />
+        </svg>
+      );
+    case "resumeAi":
+      // Local document + loopback node (Resume AI stays on-device).
+      return (
+        <svg {...common}>
+          <path d="M7 4.5h7.5L19 9v11.5H7z" />
+          <path d="M14.5 4.5V9H19" />
+          <circle cx="12" cy="14.5" r="2" />
+          <path d="M12 16.5v2" />
         </svg>
       );
     case "privacy":

@@ -7,6 +7,7 @@ export type SettingsCategoryId =
   | "calendar"
   | "skills"
   | "data"
+  | "resumeAi"
   | "privacy"
   | "advanced";
 
@@ -23,6 +24,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   { id: "calendar", label: "Calendar", glyph: "calendar", available: false },
   { id: "skills", label: "Skills", glyph: "skills", available: false },
   { id: "data", label: "Data & Backup", glyph: "data", available: true },
+  { id: "resumeAi", label: "Resume AI", glyph: "resumeAi", available: true },
   { id: "privacy", label: "Privacy", glyph: "privacy", available: false },
   { id: "advanced", label: "Advanced", glyph: "advanced", available: false },
 ] as const;

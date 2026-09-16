@@ -14,15 +14,193 @@ Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTU
 | Field | Value |
 | --- | --- |
 | Implementation approved by Edwin | **Yes** |
-| Last phase number | 4B |
-| Last phase name | Font preflight |
-| Status | `AWAITING MANUAL VERIFICATION` |
-| What was completed | Font preflight for the read-only preview (architecture §40, RES-DOC-005, RES-FID-002). New pure module **`src/core/resume/resumeFonts.ts`**: `documentFontFamilies` collects named run fonts from the persisted graph and treats inherited/`null` runs as **Calibri**; `evaluateFontPreflight` uses an injected checker (browser: `document.fonts.check('10pt "Family"')` per §40) and, if any document font is missing, sets `substitutionActive` plus an honest warning that wrapping may differ from Word and that **export keeps original font names**. Bundled **Carlito** SIL OFL files under **`public/fonts/`** (Regular/Bold/Italic/BoldItalic + `OFL.txt` from googlefonts/carlito). **`resumeEditor.css`** registers `@font-face` for those four cuts (`font-display: swap`; URLs `/fonts/Carlito-*.ttf`). Hook **`useResumeFontPreflight`** loads Carlito then evaluates; **`ResumeDocumentPane`** shows the warning as an Aether `statusWarning` banner (`role="status"`). **`ResumePageSurface`** now imports the CSS and the shared `PREVIEW_FONT_STACK` (`"Calibri", "Carlito", …`). **Did not** rewrite OOXML font names, add `@fontsource`, ship Calibri binaries, add `contentEditable` (4C), or persist a new jsonb key. No migration, no new npm dependency. |
-| Automated verification | `npm test` pass (**1438 passed, 7 skipped**; +17 tests in new `resumeFonts.test.ts`). `npx tsc -b` pass. `npx eslint` clean on the five TS files this phase touched. `npm run build` pass (pre-existing >500 kB chunk warning; lazy-load is 10F); `dist/fonts/` contains the four Carlito TTFs + OFL, and the built CSS includes the Carlito `@font-face` rules. Cases covered — families: inherited/null → Calibri, unique named fonts sorted, generics/`+theme` skipped, empty graph → no families; preflight: all available → no warning, missing Calibri → substitution + copy that names Carlito/Word/wrapping/original names and does **not** claim pixel-perfect or an ATS score; checker throw → missing; `checkBrowserFont` is false in node; bundled files are real TTF (`00 01 00 00`) and no Calibri filename is present. |
-| Manual verification | **Still waiting:** Edwin UI walkthrough on a machine/browser without Calibri (banner must show). See the 4B section below. Export font names remaining Calibri in XML is **9A**, not this phase — this phase does not rewrite OOXML. |
-| Important files changed | `src/core/resume/resumeFonts.ts` (new), `src/core/resume/resumeFonts.test.ts` (new), `src/components/resume/resumeEditor.css` (new), `src/components/resume/useResumeFontPreflight.ts` (new), `src/components/resume/ResumeDocumentPane.tsx` (banner), `src/components/resume/ResumePageSurface.tsx` (shared stack + `@font-face` import), `public/fonts/Carlito-Regular.ttf`, `public/fonts/Carlito-Bold.ttf`, `public/fonts/Carlito-Italic.ttf`, `public/fonts/Carlito-BoldItalic.ttf`, `public/fonts/OFL.txt`, `docs/RESUME_TOOL_PROGRESS.md`. **No migration, no new dependency.** |
-| Blockers / notes | Do not start 4C in this chat. Do not mark 4B `COMPLETE` until Edwin reports the walkthrough below as passed. Carry-forward for **9A**: confirm exported OOXML still names Calibri (this phase never rewrites `w:rFonts`). Carry-forward for later layout waves: US Letter + 1-inch-margin preview default (`sectPr` not in `extracted_structure`); 8A canvas `measureText`; 8C page-count warning. Earlier carry-forwards still stand: (a) `sha256` is the **original** bytes' digest, not the working copy's; (b) duplicate reuses the source's block ids by design; (c) the persisted graph keeps document text un-folded (text≡runs byte-for-byte); (d) `page_count_estimated` is still `null`; (e) `classifyMentionsAgainstLedger` is not called at import; (f) `extracted_structure` is refreshed only at lineage creation. |
-| **Next eligible phase** | **4B — Font preflight** (parked on Edwin's UI check) |
+| Last phase number | 6A |
+| Last phase name | Settings connection test (includes LNA) |
+| Status | `COMPLETE` |
+| What was completed | Settings → **Resume AI**: loopback base URL (default `http://127.0.0.1:11434`), model select from `/api/tags`, **Test connection**. Distinct copy for Ollama down, CORS/`OLLAMA_ORIGINS`, local/loopback permission denied, and mixed-content / browser-unsupported. Prefs in `localStorage` `pa.resume.ai.v1` (not AppPayload). Onboarding matches architecture §29. No Edge Function, no paid API, no Generate Suggestions, no editor disable. Coverage + editor stay usable if Test fails. |
+| Automated verification | `npm test` pass (**1581 passed, 7 skipped**). `npx tsc -b` pass. eslint clean on 6A files. |
+| Manual verification | **Edwin reported pass 2026-09-16** on the Settings → Resume AI HTTPS→loopback matrix (Vite + production HTTPS, CORS, LNA Allow/Block distinct from Ollama down, browsers, editor still works if Test fails). |
+| Important files changed | `src/core/resume/resumeAiPreferences.ts`, `src/core/resume/resumeAiPreferences.test.ts`, `src/core/resume/resumeAiConnection.ts`, `src/core/resume/resumeAiConnection.test.ts`, `src/lib/ollamaClient.ts`, `src/lib/ollamaClient.test.ts`, `src/components/settings/ResumeAiSettingsSection.tsx`, `src/components/settings/SettingsSidebar.tsx`, `src/components/settings/SettingsGlyph.tsx`, `src/components/settings/settingsStyles.ts`, `src/pages/SettingsPage.tsx`, `docs/RESUME_TOOL_PROGRESS.md`. |
+| Blockers / notes | 6A closed. Next chat is **6B** only (structured LLM JSON schema). Carry-forwards from 4G unchanged: **9A** named `Name-role.docx`; US Letter preview default; 8A canvas `measureText`; 8C page-count; working vs original sha256; duplicate block ids; NBSP draft vs flushed graph; `page_count_estimated` null. |
+| **Next eligible phase** | **6B — Structured output schema** |
+
+### 6A manual verification (Edwin)
+
+Goal: prove **Settings → Resume AI → Test connection** on the **same origins** as 0F, including production HTTPS → `http://127.0.0.1:11434`, CORS, and Local Network / loopback permission. Vite-only success is **not** enough. There is still **no** suggestion generator (**6B–6G**). Agent cannot run production HTTPS or the browser permission prompt, so this walkthrough is required before 6A is `COMPLETE`. Until you report pass/fail, **next eligible stays 6A**.
+
+Leave Ollama **up** for the Allow path (step 4). Use a **synthetic** session only — do not paste a real employer JD into chat when reporting.
+
+1. **Ollama availability:** `curl http://127.0.0.1:11434/api/tags` — up vs connection refused. Start Ollama if it is down, then continue.
+2. **Settings chrome:** Open the app → **Settings**. A **Resume AI** category must appear (not a new top-level nav item). Open it. Default base URL is `http://127.0.0.1:11434`. Model select is disabled until Test succeeds. Onboarding must mention: install Ollama, `gemma4:12b` / `gemma4:e4b`, `OLLAMA_ORIGINS` for **Vite and production HTTPS**, Allow on the permission prompt, Chrome `chrome://settings/content/localNetworkAccess`, loopback not LAN, **no** Supabase/Vercel proxy. Page origin must be shown so you can copy it into `OLLAMA_ORIGINS`.
+3. **Vite origin:** `npm run dev`, open `http://localhost:5173` → Settings → Resume AI → **Test connection**. Record: Ollama up, CORS, permission prompt, Allow vs Block. Success must list models from `/api/tags` and enable the model dropdown (prefer `gemma4:12b` if installed). This is **not** the production gate.
+4. **Production HTTPS origin (required):** open the **deployed** SPA. Settings → Resume AI → **Test connection** (same button; do not substitute a raw DevTools `fetch` as the only check). Record: Ollama up, CORS, **permission prompt**, Allow vs Block. If the browser asked for local/loopback access, choose **Allow** for this pass.
+5. **Permission denied:** Block local/loopback access (prompt **Block**, or Chrome `chrome://settings/content/localNetworkAccess`). Click **Test connection** again. The message must say the browser **denied local/loopback** access. It must **not** say Ollama is not installed, and it must **not** call this a CORS / `OLLAMA_ORIGINS` miss. Then Allow again if you want rewriting later.
+6. **Ollama down (distinct from deny):** quit Ollama (or Test while it is stopped). Message must say Ollama is **not running**. It must **not** say permission denied and **not** say CORS. Start Ollama again.
+7. **Browsers:** repeat step 4 on **Chrome** (primary), **Safari**, and **Firefox** if available. Note mixed-content or missing LNA. If a browser blocks mixed content / lacks loopback support, the copy should match **browser blocked the loopback request**, not CORS.
+8. **Editor still works:** with Test failing (Block or Ollama down), open Career → **Resume** and **Open** a resume. The document editor and JD coverage must still work. There is still no Generate Suggestions control.
+9. Confirm product plan: on any failure, coverage stays deterministic-only; **do not** proxy Ollama through Supabase or Vercel. Reload Settings: base URL / last chosen model should still be there (`pa.resume.ai.v1`).
+10. Report pass/fail here so a new chat can mark 6A `COMPLETE` and advance to **6B — Structured output schema**. If Test on production HTTPS is skipped, LNA deny is labeled as CORS or “Ollama not installed,” or the Resume editor breaks when Test fails, report it as a **fail** → 6A becomes `BLOCKED`.
+
+**Signed off 2026-09-16:** Edwin reported all 6A checks pass (Settings Test on Vite + production HTTPS; CORS; LNA Allow/Block distinct from Ollama down; browsers; Resume editor still works if Test fails).
+
+| Origin / browser | Ollama up | CORS | LNA prompt | Allow | Block / deny distinct from down | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vite `http://localhost:5173` + Settings Test | pass | pass | pass | pass | pass | Edwin 2026-09-16: all pass |
+| Production HTTPS + Chrome + Settings Test | pass | pass | pass | pass | pass | Edwin 2026-09-16: all pass |
+| Production HTTPS + Safari + Settings Test | pass | pass | pass | pass | pass | Edwin 2026-09-16: all pass |
+| Production HTTPS + Firefox + Settings Test | pass | pass | pass | pass | pass | Edwin 2026-09-16: all pass |
+
+### 5F editor regression (Edwin) — large deletion blanks the page
+
+**Signed off 2026-09-16:** Edwin reported all checks pass (one-word delete; whole-sentence delete does not blank the page; Saved + reload keeps the deletion; mixed-run Led→Ran and flatten warning; Resume pane stays usable).
+
+**What failed:** In the left document editor, a small one-word delete worked. Selecting and deleting a large amount of text at once (a whole sentence in one bullet) went **dark/blank** (not a 404). Refresh recovered. After refresh the deletion **was saved**.
+
+**Root cause (verified, not guessed):** `patchParagraphPlaintext`, local `applyBlockPlaintext`, flush, and `extractedStructureAfterWorkingEdit` all succeed for a whole-sentence delete and for emptying a paragraph. The crash is **post-edit React reconcile** of run `<span>` children inside `contentEditable`. A large native deletion removes those DOM nodes; React later calls `removeChild` (same-paragraph re-render, blur restore, or pagination remount when the shorter block pulls onto another page). An uncaught DOMException blanks the tree while the already-scheduled 1s flush + autosave can still write the working copy.
+
+**Not the cause:** mixed-run fail-closed flattening, empty-paragraph PatchError on a paragraph that already had text, stale hashes, or a failed save.
+
+1. Open Career → **Resume** and **Open** a resume (geometry-canary or the private file). Confirm the rest of Career/Resume chrome is visible.
+2. In the **left** editor, click one body bullet. Delete **one word**. The page must stay up; wait for **Saved.**
+3. Select **an entire sentence** in that bullet (or another long span in the same paragraph) and delete it in one action. The app must **not** go dark/blank. Neighboring paragraphs stay. JD pane (if open) stays usable.
+4. Wait until the left pane reads **Saved.** Reload / Dashboard → Career → Resume → **Open**. The large deletion must still be there.
+5. Mixed-run canary: **Led → Ran** still saves with bold/italic/hyperlink. A flatten attempt (e.g. Directed) still shows the formatting-safe warning and does **not** rewrite.
+6. Report pass/fail. A blank page on step 3 is still a **fail** for 5F sign-off.
+
+### 5F manual verification (Edwin)
+
+Goal: confirm **Replace** archives the job session and **drops coverage** without changing the resume document; confirm **document edits do not re-run JD parse**; confirm the **import fact ledger is not rebuilt** from working text. There is still **no** suggestion generator (**Wave 6**).
+
+1. Open Career → **Resume**. Upload / **Open** `fixtures/resume/public/geometry-canary.docx` (or any resume that does **not** mention Kubernetes).
+2. Paste a **synthetic** JD (not a real employer posting), for example: `Must have Kubernetes. Must have Python. Nice to have Terraform.` Click **Analyze**. Wait until status reads **Saved.** Confirm the **Job match coverage** card is visible (Kubernetes missing).
+3. Click **Replace**. Fields must clear. The coverage card must **disappear**. The Word preview wording must be **unchanged** (same bullets as before Replace).
+4. Reload / Dashboard → Career → Resume → **Open** the same resume. JD fields stay empty; coverage stays gone. Optional Supabase: previous `resume_job_sessions` row has `archived_at` set; the new active row (if present) has empty text and **null** `parsed_job` / `match_result`.
+5. Paste the same synthetic JD, **Analyze**, wait for **Saved.** and coverage. Change **one** work-experience bullet in the preview (do **not** click Analyze). Wait until the **left** pane reads **Saved.** Coverage may still reflect the last Analyze (on-page terms are not auto-refreshed in this phase). The JD textarea must be unchanged. Optional: `resumes.import_fact_ledger` still has **no** Kubernetes `imported_source` fact after the typed edit.
+6. Edit the JD textarea (change a word). Coverage must **hide immediately** (stale match must not stay on screen). The document preview must stay as in step 5.
+7. Click **Analyze** again after restoring a full JD. Coverage returns from a **new** parse — still no ATS score.
+8. Report pass/fail here so a new chat can mark 5F `COMPLETE` and advance to **6A — Settings connection test (includes LNA)**. If Replace leaves the old coverage card, changes the Word file, typing in a bullet re-parses the JD, or Kubernetes appears in `import_fact_ledger`, report it as a **fail** → 5F becomes `BLOCKED`.
+
+**Signed off 2026-09-16:** Edwin reported all 5F checks pass (Replace drops coverage and leaves the resume unchanged; document edit does not re-Analyze; JD field change hides stale coverage; large-deletion regression also pass). Wave 5 closed.
+
+### 5E manual verification (Edwin)
+
+Goal: confirm the coverage panel is **honest** (architecture §31): named bars, missing list, disclosure, and that typed Kubernetes is **on-page unverified**, not silent support. There is still **no** suggestion generator (**Wave 6**). Agent cannot run a browser, so this walkthrough is required before 5E is `COMPLETE`. Until you report pass/fail, **next eligible stays 5E**.
+
+1. Open Career → **Resume**. Upload / **Open** `fixtures/resume/public/geometry-canary.docx` (or any resume that does **not** mention Kubernetes). Confirm the document preview is on the left (desktop) and **Job description** is on the right.
+2. Paste a **synthetic** JD (not a real employer posting), for example: `Must have Kubernetes. Must have Python. Nice to have Terraform.` Click **Analyze**. Wait until status reads **Saved.**
+3. A **Job match coverage** card must appear under the JD form. Read the disclosure: it must say coverage/parseability checks are **from Zanarkand**, that this is **not** an employer’s ATS score, and that it does **not** predict ranking or rejection. There must be **no** “ATS Score”, no Greenhouse/Workday pass claim, and no single fake job-match number.
+4. Confirm named bars: required-term explicit coverage, preferred-term explicit coverage, responsibility alignment. Related wording is a **separate** count, not folded into “explicit.”
+5. **Missing required** must list Kubernetes (the canary has none). Python may be explicit or related depending on the file; Kubernetes must **not** be listed as supported.
+6. Optional: Dashboard → Career → Resume → **Open** the same resume. Coverage should still be there (`parsed_job` / `match_result` on the active `resume_job_sessions` row). `import_fact_ledger` on the resume must still have **no** Kubernetes fact.
+7. Type **Kubernetes** into **one** work-experience bullet in the preview. Wait until the **left document pane** status is **Saved.** (not only the right-hand JD card, which may already say Saved from step 2). Then click **Analyze** again. Kubernetes must move to **On this document (unverified)** — not “imported or verified,” not silent required coverage. Required explicit coverage for Kubernetes must stay **0**.
+8. **Reset** clears the JD **and** the coverage card; the Word preview is unchanged.
+9. Optional: dark mode — coverage card stays readable; paper stays light.
+10. Report pass/fail here so a new chat can mark 5E `COMPLETE` and advance to **5F — Invalidation**. If the UI shows “ATS Score”, treats typed Kubernetes as imported evidence, Analyze rewrites the DOCX, or coverage lives only in React (gone after Dashboard), report it as a **fail** → 5E becomes `BLOCKED`.
+
+**Failed 2026-09-15 (Edwin, first walkthrough):** After Saved, Analyze still listed Kubernetes under Missing required / “Not on this document.” Cause: Analyze used the version snapshot from Open, not the live working graph or a post-autosave refetch. First fix: `structureForCoverageAnalyze` + editor `workingGraph` + `getResumeVersionById` on Analyze. Provenance unchanged (unverified ≠ imported).
+
+**Failed 2026-09-15 (Edwin, second walkthrough):** Same provenance check failed again after that first fix (Kubernetes stayed Missing / “Not on this document”; unverified list empty). Cause: Analyze **preferred** a parent `workingGraph` that was still the Open snapshot, which **shadowed** the refetched saved graph that had the typed sentence. Fix: `selectGraphForCoverageAnalyze` (stale Open-equal editor graph must not beat a newer saved snapshot); Analyze **flush + working-copy save** via `coveragePrepareRef` before match; still never write Kubernetes into the import ledger.
+
+**Retry 2026-09-15:** After two Saved-Kubernetes misses, Analyze now (1) reads live `contentEditable` plaintext (`data-resume-block-id`) before flush, (2) indexes **draft** blocks rather than flushed baseline when they differ, (3) merges mention indexes from live editor + saved version row.
+
+**Signed off 2026-09-16:** Edwin reported all 5E checks pass (honest disclosure; named bars; Kubernetes missing then **On this document (unverified)** after left-pane Saved + Analyze; Reset; no ATS score).
+
+### 5B manual verification (Edwin)
+
+Goal: confirm a pasted job description is stored in **`resume_job_sessions`**, survives leaving Career, and that **Reset** clears the JD without changing the resume document. There is still **no** requirement parser (**5C**), matcher (**5D**), or coverage panel (**5E**). **Analyze** only saves (or you can wait ~0.5s for autosave). Use a **synthetic** JD, not a real employer’s confidential posting. Agent cannot run a browser or open the Supabase dashboard, so this walkthrough is required before 5B is `COMPLETE`.
+
+1. Open Career → **Resume**. Upload / **Open** `fixtures/resume/public/geometry-canary.docx` (or any existing resume). Confirm the document preview is still on the left (desktop) and a **Job description** card is on the right. On a narrow window the JD card should stack below the preview.
+2. Fill **Company** (e.g. Acme), **Job title** (e.g. Engineer), and paste a short synthetic JD into the textarea (e.g. “Must have Kubernetes. Nice to have Terraform.”). Wait until the pane status reads **Saved.** (about **500 ms** after you stop typing), or click **Analyze** to flush immediately. Status must **not** claim AppShell payload save. The resume preview wording must be **unchanged**.
+3. Go to **Dashboard**, then back to Career → **Resume**. Click **Open** on the same resume. Company, title, and the JD textarea must still show what you pasted.
+4. Optional: hard-reload the browser, then Open the same resume again — JD still there.
+5. In the Supabase dashboard → `resume_job_sessions`: one **active** row (`archived_at` is null) for that `resume_id`, with your company / title / `job_description_text`. `parsed_job` and `match_result` should still be **null**. `retention` is `until_replaced`.
+6. Click **Reset**. The company / title / JD fields clear. The **document preview is unchanged** (same bullets as before). Reload / Open again: JD stays **empty**. The previous session row should now have `archived_at` set; there should be **no** new active row until you paste again.
+7. Paste a JD again, wait for **Saved.** Click **Replace**. Fields clear; the document is still unchanged. A new **active** session row exists (empty text); the previous one is archived. Paste a second synthetic JD; after **Saved.**, only the new active row has that text.
+8. Optional: toggle **dark mode** — the JD card stays readable; paper stays light. Typing a JD must not create a Download / document cloud-save of the Word file by itself.
+9. Report pass/fail here so a new chat can mark 5B `COMPLETE` and advance to **5C — Deterministic JD parser**. If the JD is gone after Dashboard navigation, lives only in React state, Reset rewrites the DOCX, or Analyze invents coverage/ATS numbers, report it as a **fail** → 5B becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 5B checks pass (paste → Saved.; Dashboard → Resume restores JD; Reset clears JD only; document unchanged; Replace archives and starts empty session).
+
+### 4G manual verification (Edwin)
+
+Goal: confirm the **in-app** upload → edit → **Download Word** path uses the same 0D fail-closed patcher. This is a product-path **regression**, not a new patcher. Compare in **Microsoft Word** (not Preview.app alone). Agent cannot run a browser or Word, so this walkthrough is required before 4G is `COMPLETE`. Until you report pass/fail, **next eligible stays 4G**.
+
+1. Open Career → **Resume**. Upload `fixtures/resume/private/current-resume.docx` (fresh upload so the working copy has `pa_` bookmarks). Click **Open**.
+2. Confirm the CSS preview shows **about two** page surfaces (the private resume is 2 pages). `page_count_estimated` on the version row may still be `null` — that stored field is a later layout wave.
+3. Wait until **Download Word** is enabled (working DOCX finished loading). **Do not change anything.** Click **Download Word**. Open the downloaded file in **Microsoft Word**. Confirm **no** repair dialog. Compare to the original: margins, fonts, bullet indentation, hyperlinks; bookmarks must stay invisible. Page count must still be **2**. An extra page from this identity download is a **fail**.
+4. In the preview, edit **one** work-experience bullet (small wording change; do not restyle). You can click **Download Word** immediately (it flushes first); you do not have to wait for **Saved.** Open that download in Word. Confirm **only** that wording changed; neighboring mixed formatting stays intact; page count still **2**, **or** record a page-count change as a **regression failure** if the new wording was too short to wrap.
+5. In Supabase Storage, confirm `original/<64-hex>.docx` is **unchanged**. The download must be the **working** copy (bookmarks + your edit), not a rewrite of the original object.
+6. Upload / open **`fixtures/resume/public/mixed-runs-canary.docx`**. Change only the leading unformatted word (**Led → Ran**). **Download Word**. In Word, confirm **bold**, *italic*, and the hyperlink survive. Then try a flatten (e.g. one unformatted **Directed**): the formatting-safe **warning** must appear, the paragraph must **not** flatten, and a subsequent download must still be the last **successful** wording (Ran), not Directed.
+7. Optional: toggle **dark mode** — paper stays light; Download Word stays usable. Filename should be the resume library name plus `.docx` (role-based `Name-role.docx` is **9A**, not this phase).
+8. Report pass/fail here so a new chat can mark 4G `COMPLETE` and advance to **5A — Session schema wiring**. If Word repairs the file, the rest of the document is restyled, bullets/hyperlinks are lost, the original Storage object changed, identity download added a page, or a flatten-on-save path appeared, report it as a **fail** → 4G becomes `BLOCKED`. If the **patcher** itself is what broke Word, treat as **0D regression** (fallback architectures), not a second in-app patcher.
+
+**Signed off 2026-09-15:** Edwin reported all 4G checks pass (private identity + one-bullet Download Word in Microsoft Word; mixed-runs; original unchanged; flatten does not rewrite).
+
+### 4F manual verification (Edwin)
+
+Goal: confirm a bullet edit is uploaded to the **working** copy after a short pause, survives a full reload, and does **not** change the immutable original. There is still **no** Download button (that is **4G**). Agent cannot run a browser or open the Supabase dashboard, so this walkthrough is required before 4F is `COMPLETE`.
+
+1. Open Career → **Resume**. Upload a **fresh** `fixtures/resume/public/geometry-canary.docx` (so you can compare original vs working in Storage). Click **Open**.
+2. In the Supabase dashboard, note this resume's `resume_versions` row: copy `original_storage_path` (ends with `original/<64-hex>.docx`) and `working_storage_path` (`versions/<uuid>.docx`). Note the current `sha256` value (at this point it still matches the original-path digest).
+3. Click one body bullet (for example REST APIs). Change the wording (add or replace a word). Neighboring paragraphs must stay unchanged.
+4. Wait until the pane status reads **Saved.** (about **2 seconds** after you stop typing: 1 s in-memory patch + 0.8 s upload debounce, then the upload). You should briefly see **Applying edits…** then **Saving to cloud…**. Status must **not** claim AppShell payload save. There is still **no** Download control.
+5. **Full browser reload.** Open the same resume. The edited wording must **still be there**.
+6. Storage → `resume-docs` → `{uid}/{resumeId}/`:
+   - `original/<64-hex>.docx` object name is **unchanged** (same hash as step 2). Download it if you want: it must still be the untouched upload.
+   - `versions/<versionId>.docx` was **updated** (newer updated-at than the original).
+7. Same `resume_versions` row: `original_storage_path` is **unchanged**. `sha256` should now be the **working** file's digest (it may differ from the original-path hash). `extracted_structure.graph` should show the new bullet wording. `import_fact_ledger` on the `resumes` row is unchanged.
+8. Mixed-run sanity: upload / open **`mixed-runs-canary.docx`**. Change only **Led → Ran**. Wait for **Saved.** Reload: **Ran** is still there, with bold / italic / hyperlink visible. Then try a flatten (e.g. turn the mixed span into one unformatted **Directed**). Confirm the formatting-safe **warning**, the paragraph does **not** flatten, and after reload the paragraph is still the last **successfully** saved wording (Ran), not Directed.
+9. Optional: toggle **dark mode** — paper stays light; Saving/Saved status stays readable. Close preview waits for an in-flight save; a failed save shows **Cloud save failed** + **Retry cloud save** and should **not** close until it succeeds or you leave it.
+10. Report pass/fail here so a new chat can mark 4F `COMPLETE` and advance to **4G — Product-path fidelity regression**. If the edit is gone after reload, the original Storage object changed, `replaceRemotePayload` / AppShell "Last saved" is what persisted the DOCX, or a flatten uploaded, report it as a **fail** → 4F becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 4F checks pass (edit → Saved.; reload keeps wording; original object hash unchanged; flatten does not upload).
+
+### 4E manual verification (Edwin)
+
+Goal: confirm block-text undo and redo in the in-tab editor. Suggestion undo is **not** in this phase. There is still **no** cloud autosave (**4F**) and **no** Download (**4G**) — reload/close must discard edits. Agent cannot run a browser, so this UI walkthrough is required before 4E is `COMPLETE`.
+
+1. Open Career → **Resume**. Upload `fixtures/resume/public/geometry-canary.docx` if needed, then **Open**.
+2. Confirm **Undo** and **Redo** are present and **disabled** before any edit.
+3. Click one body bullet (for example REST APIs). Change the wording (type several characters). Confirm **Undo** becomes enabled and **Redo** stays disabled.
+4. Click **Undo** (or Cmd/Ctrl+Z). Confirm that paragraph returns to the **pre-edit** wording and neighboring paragraphs are unchanged. **Redo** should now be enabled.
+5. Click **Redo** (or Cmd/Ctrl+Shift+Z, or Ctrl+Y). Confirm the edited wording returns.
+6. Undo again, then type a **different** change in the same paragraph. Confirm Redo is **cleared** (disabled) and the new text is what you typed.
+7. Upload / open **`mixed-runs-canary.docx`**. Change only the leading unformatted word (**Led → Ran**). Undo: **Led** returns and **bold / italic / hyperlink** still show. Redo: **Ran** returns with the same styling.
+8. Confirm there is still **no** Download / cloud-save that would persist the edit. **Reload** (or Close and Open): wording and undo stack are **gone**.
+9. Report pass/fail here so a new chat can mark 4E `COMPLETE` and advance to **4F — Autosave working copy**. If undo changes other paragraphs, native contentEditable undo desyncs the preview, or edits survive reload, report it as a **fail** → 4E becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 4E checks pass (undo/redo buttons and shortcuts; mixed-runs styling; reload/close discards).
+
+### 4D manual verification (Edwin)
+
+Goal: confirm typing flushes through the fail-closed OOXML patcher in memory, and that a flatten attempt shows the safe error and does **not** rewrite the paragraph. There is still **no** Download button (that is **4G**) and **no** cloud autosave (**4F**) — closing/reloading must discard edits. Agent cannot run a browser, so this UI walkthrough is required before 4D is `COMPLETE`.
+
+1. Open Career → **Resume**. Upload `fixtures/resume/public/mixed-runs-canary.docx` (fresh upload so the working copy has `pa_` bookmarks).
+2. Click **Open**. Wait until the preview is ready (working DOCX loads in the background).
+3. Click the mixed paragraph. Change only the leading unformatted word (**Led → Ran**). Wait about **1 second**. Confirm status becomes something like **Unsaved local edits (patched in this tab only)…** (or briefly “Applying edits to the in-memory Word document…”). Neighboring paragraphs stay unchanged; bold / italic / hyperlink styling should still show on screen.
+4. Still on that paragraph (or after blur), replace a mixed span in a way that would flatten (e.g. turn “Led TeamAlpha” / “Ran TeamAlpha” into one unformatted **Directed**). Confirm a **warning/alert** appears (formatting cannot be updated safely) and the paragraph does **not** flatten to a single plain style after you click away.
+5. Confirm there is **no** Download / Save-to-cloud control that would persist the edit. Status must **not** claim the file was uploaded.
+6. **Reload** the browser (or Close preview and Open again). The Ran / other wording changes must be **gone**.
+7. Optional sanity: upload `geometry-canary.docx`, change the REST APIs bullet wording, wait ~1s for the in-memory flush status — still discarded on reload.
+8. Report pass/fail here so a new chat can mark 4D `COMPLETE` and advance to **4E — Undo / redo**. If a flatten succeeds on screen, the UI invents a second save path, or edits survive reload without 4F, report it as a **fail** → 4D becomes `BLOCKED`. Word-open confirmation of the patched bytes is deferred to **4G**.
+
+**Signed off 2026-09-15:** Edwin reported all 4D checks pass (in-memory flush status; fail-closed does not flatten; no cloud save; reload/close discards).
+
+### 4C manual verification (Edwin)
+
+Goal: confirm you can click one paragraph, type, see that paragraph update, and that every other paragraph stays the same. Changes must **not** survive a full reload (this phase is local state only). Agent cannot run a browser, so this UI walkthrough is required before 4C is `COMPLETE`.
+
+1. Open Career → **Resume**. If the library is empty, upload `fixtures/resume/public/geometry-canary.docx`.
+2. Click **Open**. Confirm the paper preview still renders (4A/4B behavior: light paper, font warning if Calibri is missing).
+3. Click a **single** body bullet (for example the geometry canary’s REST APIs bullet). Type a small wording change (add or replace a word). Confirm **that** paragraph updates as you type.
+4. Confirm **every other** paragraph is unchanged (name, headings, neighboring bullets). There must not be one giant document-wide text box — only the clicked paragraph should be the editing surface.
+5. Confirm a status line appears: **Unsaved local edits. Closing the preview discards them.**
+6. **Reload the browser** (or Close preview and Open again). The wording change must be **gone**. There is still no Download / cloud save of the edit (4D–4G).
+7. Upload / open **`mixed-runs-canary.docx`**. Confirm the mixed paragraph still shows **bold**, *italic*, and the hyperlink run. Change only the leading unformatted word (e.g. Led → Ran) if you can; bold/italic/hyperlink should remain. If you replace a mixed-format span in a way that would flatten (e.g. turn “Led TeamAlpha” into one unformatted “Directed”), a warning must appear and that paragraph must **not** flatten on screen after you click away.
+8. Toggle **dark mode**. Paper stays light; you can still type; focus ring on the active paragraph is visible.
+9. Report pass/fail here so a new chat can mark 4C `COMPLETE` and advance to **4D — Wire fail-closed OOXML patch into the editor**. If typing edits every paragraph, a single contentEditable wraps the page, or edits persist after reload, report it as a **fail** → 4C becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 4C checks pass (type one bullet; others unchanged; unsaved local status; reload/close discards; mixed-runs; dark mode).
 
 ### 4B manual verification (Edwin)
 
@@ -40,6 +218,8 @@ Goal: confirm the preview warns when Calibri (or another document font) is missi
 7. Toggle **dark mode**. The warning banner (if shown) stays readable via Aether warning tokens; the paper stays **light**.
 8. Close / switch resume still works as in 4A. There is no export control in this phase — do **not** expect a download. OOXML font names are unchanged by 4B (verified later in **9A**).
 9. Report pass/fail here so a new chat can mark 4B `COMPLETE` and advance to **4C — Per-block editing (local state)**. If the banner is missing when Calibri is unavailable, claims pixel-perfect Word, or the preview is unreadable, report it as a **fail** → 4B becomes `BLOCKED`.
+
+**Signed off 2026-09-15:** Edwin reported all 4B checks pass (font preflight / Carlito load / banner behavior; dark mode; Close/switch).
 
 ### 4A manual verification (Edwin)
 
@@ -195,7 +375,19 @@ Newest first after work begins.
 
 | Phase | Name | Status | Chat/date | Notes |
 | --- | --- | --- | --- | --- |
-| 4B | Font preflight | `AWAITING MANUAL VERIFICATION` | 2026-09-15 | Carlito OFL bundled under `public/fonts/` + `@font-face`; `resumeFonts.ts` preflight (`document.fonts.check`) + warning banner in `ResumeDocumentPane`. No OOXML rewrite, no Calibri binaries, no 4C editing. Tests 1438 pass / 7 skip; tsc/eslint/build green. Waiting on Edwin: missing-Calibri banner + Carlito network load. |
+| 6A | Settings connection test (includes LNA) | `COMPLETE` | 2026-09-16 | Edwin Settings HTTPS→loopback matrix pass (Vite + production HTTPS, CORS, LNA allow/deny distinct from down, editor still works). Loopback Test connection + `pa.resume.ai.v1`. No Edge Function / no Generate Suggestions. Tests 1581 pass / 7 skip. Next chat: **6B**. |
+| 5F | Invalidation | `COMPLETE` | 2026-09-16 | Edwin walkthrough pass: Replace drops coverage without rewriting the resume; document edit does not re-Analyze; JD change hides stale coverage. Large-deletion regression also pass (imperative contentEditable host paint). Wave 5 closed. Tests 1556 pass / 7 skip. Next chat: **6A**. |
+| 5E | Coverage panel (honest copy) | `COMPLETE` | 2026-09-16 | Edwin walkthrough pass after live-plaintext Analyze retry (disclosure; named bars; Kubernetes missing then on-page unverified; Reset; no ATS score). Two earlier 2026-09-15 fails on Saved Kubernetes. Provenance unverified ≠ imported. Wave 5 coverage UI closed. |
+| 5D | Matcher + lexicon aliases | `COMPLETE` | 2026-09-15 | `resumeMatch.ts`: explicit / semantic_supported / on_page_unverified / absent (REST vs RESTful; Kubernetes absent vs typed unverified). Coverage math, no ATS score. Strict `match_result` mapper. No LLM/coverage UI/persist. Tests 1522 pass / 7 skip; tsc/eslint/build green. |
+| 5C | Deterministic JD parser | `COMPLETE` | 2026-09-15 | `resumeJobParse.ts`: required vs preferred, lexicon skills, years, degrees, salience. No LLM/matcher/coverage/UI persist. Tests 1511 pass / 7 skip; tsc/eslint/build green. |
+| 5B | JD paste UI + persistence | `COMPLETE` | 2026-09-15 | Edwin browser + navigation pass (Dashboard restore; Reset; Replace). Right pane + 500 ms `resume_job_sessions` persist. No parser/coverage. Tests 1496 pass / 7 skip; tsc/eslint/build green. |
+| 5A | Session schema wiring | `COMPLETE` | 2026-09-15 | Mapper + isolated remote CRUD for `resume_job_sessions`. No JD UI. Tests 1486 pass / 7 skip; tsc/eslint/build green. |
+| 4G | Product-path fidelity regression | `COMPLETE` | 2026-09-15 | Edwin Word + Download walkthrough pass (private identity + one-bullet; mixed-runs; original unchanged; flatten does not rewrite). Download Word = flush via 0D `patchParagraphPlaintext` then save working bytes. Wave 4 closed. Tests 1481 pass / 7 skip; tsc/eslint/build green. |
+| 4F | Autosave working copy | `COMPLETE` | 2026-09-15 | Edwin browser + Storage walkthrough pass (edit → Saved.; reload keeps wording; original hash unchanged; flatten does not upload). Debounced working-copy upsert + working sha256 + graph/mention persist. Original object never written. No Download. Tests 1472 pass / 7 skip; tsc/eslint/build green. |
+| 4E | Undo / redo | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (undo/redo; mixed-runs; reload discards). In-memory block-text stack + coalescing; Undo/Redo buttons; Cmd/Ctrl+Z / Shift+Z / Y; remount contentEditable; 4D flush after restore. No autosave/download/suggestion undo. Tests 1464 pass / 7 skip; tsc/eslint/build green. |
+| 4D | Wire fail-closed OOXML patch into the editor | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (in-memory flush; fail-closed; no cloud save; reload discards). Bookmark locator on 0D `patchParagraphPlaintext`; `flushBlockPlaintextByBookmark` + debounced in-memory flush; `downloadResumeWorkingDocx`. No autosave/download/undo. Tests 1459 pass / 7 skip; tsc/eslint/build green. |
+| 4C | Per-block editing (local state) | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (type one bullet; others unchanged; unsaved local; reload discards; mixed-runs; dark mode). Per-block contentEditable + local graph draft (`resumeBlockEdit.ts` fail-closed mixed-run apply). No OOXML patch, no autosave, no undo, no TipTap. Tests 1452 pass / 7 skip; tsc/eslint/build green. |
+| 4B | Font preflight | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (font checks / Carlito load / banner; dark mode; Close/switch). Carlito OFL under `public/fonts/` + `@font-face`; `resumeFonts.ts` preflight + banner in `ResumeDocumentPane`. No OOXML rewrite, no Calibri binaries. Tests 1438 pass / 7 skip; tsc/eslint/build green. |
 | 4A | Paginated CSS preview (read-only) | `COMPLETE` | 2026-09-15 | Edwin UI walkthrough pass (open preview; mixed-run formatting; ~2 pages; dark-mode paper; Close/switch/delete). New `resumePreviewGeometry.ts` (twip/pt→px, US Letter 816×1056, soft-estimate pagination) + `ResumePageSurface`/`ResumeDocumentPane` (escaped text, light paper in dark mode, no `dangerouslySetInnerHTML`) + `getResumeVersionById`/`useResumeVersion` + Open toggle in `ResumeSection`/`CareerPage`. Carlito binary + font preflight deferred to 4B; US Letter default (no persisted `sectPr`). Tests 1421 pass / 7 skip; tsc/eslint/build green. |
 | 3F | Persist `extracted_structure` on version | `COMPLETE` | 2026-09-15 | Edwin dashboard + Storage + duplicate pass. New `resumeIngest.ts` runs the §23 pipeline once at lineage creation; `createResumeLineage` stores bookmarked working bytes + `extracted_structure = { mentionIndex, graph, blockMap, atsWarnings }` + frozen import ledger. Strict mapper rejects DOCX base64 / ATS scores. Wave 3 closed. |
 | 3E | Unicode + plaintext extraction policy | `COMPLETE` | 2026-09-15 | New `resumeUnicode.ts`: asymmetric policy — `sanitizeGeneratedText` (NFC, strip all `Cf` invisibles, fold NBSP/exotic spaces/tabs/line breaks, collapse, trim) for text **we** author; faithful reading-order extraction (`documentPlaintextFromParagraphs` / `readResumeDocumentPlaintext`, NFC only) that keeps the document's NBSP, tabs and ordinary hyphens; `normalizeDocumentTextForComparison` folds for matching only. Em dash preserved on purpose (style is 6E). No manual verification required. Private: 44 lines, 0 NBSP/tab/invisible, nothing emptied by sanitation. Tests 1395 pass / 6 skip; tsc/eslint/build green. |

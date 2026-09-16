@@ -732,6 +732,14 @@ export function allowedEvidenceForBlock(
 }
 
 /**
+ * Document-wide allowed evidence for matching (Phase 5D). Same provenance
+ * rules as `allowedEvidenceForBlock`, without role/section scoping.
+ */
+export function allowedEvidenceForDocument(ledger: ResumeFactLedger): ResumeFact[] {
+  return allowedEvidenceForBlock(ledger, "");
+}
+
+/**
  * Unverified claims already written in this block. Safe to display or preserve
  * in place; never evidence for another block.
  */

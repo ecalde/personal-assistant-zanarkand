@@ -165,6 +165,7 @@ export type ResumeVersion = {
   sourceKind: ResumeSourceKind;
   originalStoragePath: string;
   workingStoragePath: string;
+  /** SHA-256 of the **working** bytes (architecture §33). The original object's digest lives in `originalStoragePath`. */
   sha256: string;
   extractedStructure: ResumeExtractedStructure;
   pageCountEstimated: number | null;
@@ -216,6 +217,56 @@ export type ParsedJobDescription = {
   parserVersion: string;
 };
 
+export const REQUIREMENT_MATCH_STATUSES = [
+  "explicit",
+  "semantic_supported",
+  "on_page_unverified",
+  "uncertain",
+  "absent",
+  "contradicted",
+] as const;
+
+export type RequirementMatchStatus = (typeof REQUIREMENT_MATCH_STATUSES)[number];
+
+/** One JD requirement vs the resume (architecture §24). */
+export type RequirementMatch = {
+  requirementId: string;
+  status: RequirementMatchStatus;
+  /** Allowed-evidence fact ids. Empty for absent / on-page-unverified. */
+  evidenceFactIds: string[];
+  /** Working-document blocks where the term appears, including unverified. */
+  mentionBlockIds: string[];
+  /** JD or resume surface that produced the match, when any. */
+  matchedTerm: string | null;
+};
+
+/**
+ * Honest coverage math (architecture §31). Ratios are 0–1, not an ATS score.
+ * There is deliberately no single overall "job match" number here.
+ */
+export type MatchCoverageSummary = {
+  requiredTotal: number;
+  requiredExplicitCount: number;
+  requiredExplicitCoverage: number;
+  preferredTotal: number;
+  preferredExplicitCount: number;
+  preferredExplicitCoverage: number;
+  semanticSupportedCount: number;
+  missingRequiredIds: string[];
+  uncertainIds: string[];
+  onPageUnverifiedIds: string[];
+  contradictedIds: string[];
+  responsibilityTotal: number;
+  responsibilityAlignedCount: number;
+  responsibilityAlignment: number;
+};
+
+export type MatchResult = {
+  matcherVersion: string;
+  requirements: RequirementMatch[];
+  coverage: MatchCoverageSummary;
+};
+
 export type ResumeJobSession = {
   id: string;
   userId: string;
@@ -225,7 +276,7 @@ export type ResumeJobSession = {
   jobTitle: string;
   jobDescriptionText: string;
   parsedJob: ParsedJobDescription | null;
-  matchResult: unknown | null;
+  matchResult: MatchResult | null;
   retention: JobSessionRetention;
   /** Soft link to Career JobApplication.id; do not import model.ts. */
   applicationId: string | null;
@@ -337,6 +388,10 @@ export function isRequirementPriority(value: unknown): value is RequirementPrior
 
 export function isRequirementCategory(value: unknown): value is RequirementCategory {
   return isAllowlisted(value, REQUIREMENT_CATEGORIES);
+}
+
+export function isRequirementMatchStatus(value: unknown): value is RequirementMatchStatus {
+  return isAllowlisted(value, REQUIREMENT_MATCH_STATUSES);
 }
 
 export function isSuggestionTransformationType(

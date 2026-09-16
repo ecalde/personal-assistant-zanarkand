@@ -52,7 +52,28 @@ export class OllamaLocalNetworkDenied extends Error {
   }
 }
 
-export type OllamaClientError = OllamaUnavailable | OllamaCors | OllamaLocalNetworkDenied;
+export class OllamaBrowserUnsupported extends Error {
+  readonly code = "browser_unsupported" as const;
+
+  constructor(
+    message = "This browser blocked the loopback request (mixed content or missing local-network support)."
+  ) {
+    super(message);
+    this.name = "OllamaBrowserUnsupported";
+  }
+}
+
+export type OllamaFailureKind =
+  | "unavailable"
+  | "cors"
+  | "local_network_denied"
+  | "browser_unsupported";
+
+export type OllamaClientError =
+  | OllamaUnavailable
+  | OllamaCors
+  | OllamaLocalNetworkDenied
+  | OllamaBrowserUnsupported;
 
 export type OllamaModel = {
   name: string;
@@ -69,7 +90,8 @@ export function isOllamaClientError(error: unknown): error is OllamaClientError 
   return (
     error instanceof OllamaUnavailable ||
     error instanceof OllamaCors ||
-    error instanceof OllamaLocalNetworkDenied
+    error instanceof OllamaLocalNetworkDenied ||
+    error instanceof OllamaBrowserUnsupported
   );
 }
 
@@ -179,12 +201,11 @@ function isUnknownTargetAddressSpaceFailure(error: unknown): boolean {
   );
 }
 
-export function classifyOllamaFetchFailure(
-  error: unknown
-): "local_network_denied" | "cors" | "unavailable" {
+export function classifyOllamaFetchFailure(error: unknown): OllamaFailureKind {
   if (isOllamaClientError(error)) {
     if (error instanceof OllamaLocalNetworkDenied) return "local_network_denied";
     if (error instanceof OllamaCors) return "cors";
+    if (error instanceof OllamaBrowserUnsupported) return "browser_unsupported";
     return "unavailable";
   }
 
@@ -200,6 +221,16 @@ export function classifyOllamaFetchFailure(
     (name === "SecurityError" && (text.includes("local network") || text.includes("loopback")))
   ) {
     return "local_network_denied";
+  }
+
+  if (
+    text.includes("mixed content") ||
+    text.includes("mixedcontent") ||
+    text.includes("blocked:mixed-content") ||
+    text.includes("insecure resource") ||
+    text.includes("insecure xmlhttprequest")
+  ) {
+    return "browser_unsupported";
   }
 
   if (
@@ -221,6 +252,9 @@ export function mapOllamaFetchFailure(error: unknown): OllamaClientError {
   }
   if (kind === "cors") {
     return new OllamaCors();
+  }
+  if (kind === "browser_unsupported") {
+    return new OllamaBrowserUnsupported();
   }
   if (isAbortFailure(error)) {
     return new OllamaUnavailable("Ollama did not respond before the timeout.");

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyQuickStatusTransition,
   filterAndSortApplications,
@@ -45,10 +45,14 @@ import {
 } from "../components/career/applicationFormState";
 import { ResumeSection } from "../components/resume/ResumeSection";
 import { ResumeDocumentPane } from "../components/resume/ResumeDocumentPane";
+import { ResumeAnalysisPanel } from "../components/resume/ResumeAnalysisPanel";
 import { useResumes } from "../components/resume/useResumes";
 import { useResumeVersion } from "../components/resume/useResumeVersion";
+import type { ResumeStructureGraph } from "../core/resume/resumeModel";
+import { useIsDesktopViewport } from "../ui/useMediaQuery";
 import { SchoolSection } from "../components/school/SchoolSection";
 import { styles } from "../ui/appStyles";
+import "../components/resume/resumeEditor.css";
 
 export type CareerPageProps = {
   userId: string;
@@ -130,6 +134,9 @@ export default function CareerPage({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [workingGraph, setWorkingGraph] = useState<ResumeStructureGraph | null>(null);
+  const coveragePrepareRef = useRef<(() => Promise<ResumeStructureGraph | null>) | null>(null);
+  const isDesktop = useIsDesktopViewport();
 
   const {
     resumes,
@@ -271,24 +278,62 @@ export default function CareerPage({
               void setDefaultResume(resumeId);
             }}
             onDelete={(resumeId) => {
-              if (resumeId === selectedResumeId) setSelectedResumeId(null);
+              if (resumeId === selectedResumeId) {
+                setSelectedResumeId(null);
+                setWorkingGraph(null);
+              }
               void deleteResume(resumeId);
             }}
             onDuplicate={(resumeId) => {
               void duplicateResume(resumeId);
             }}
             onOpen={(resumeId) => {
+              setWorkingGraph(null);
               setSelectedResumeId((current) => (current === resumeId ? null : resumeId));
             }}
           />
           {selectedResume && (
-            <ResumeDocumentPane
-              resumeName={selectedResume.name}
-              graph={selectedVersion?.extractedStructure.graph}
-              loading={previewLoading}
-              error={previewError}
-              onClose={() => setSelectedResumeId(null)}
-            />
+            <div
+              className={
+                isDesktop ? "resume-workspace resume-workspace--desktop" : "resume-workspace"
+              }
+            >
+              <div className="resume-workspace-document">
+                <ResumeDocumentPane
+                  key={selectedResume.id}
+                  resumeName={selectedResume.name}
+                  userId={userId}
+                  resumeId={selectedResume.id}
+                  versionId={selectedVersion?.id}
+                  resumeUpdatedAtIso={selectedResume.updatedAtIso}
+                  workingStoragePath={selectedVersion?.workingStoragePath}
+                  extractedStructure={selectedVersion?.extractedStructure}
+                  graph={selectedVersion?.extractedStructure.graph}
+                  loading={previewLoading}
+                  error={previewError}
+                  onWorkingGraphChange={setWorkingGraph}
+                  coveragePrepareRef={coveragePrepareRef}
+                  onClose={() => {
+                    setWorkingGraph(null);
+                    setSelectedResumeId(null);
+                  }}
+                />
+              </div>
+              <div className="resume-workspace-analysis">
+                <ResumeAnalysisPanel
+                  key={selectedResume.id}
+                  userId={userId}
+                  resumeId={selectedResume.id}
+                  resumeVersionId={selectedResume.activeVersionId}
+                  importFactLedger={selectedResume.importFactLedger}
+                  extractedStructure={selectedVersion?.extractedStructure ?? null}
+                  workingGraph={workingGraph}
+                  prepareWorkingGraph={() =>
+                    coveragePrepareRef.current?.() ?? Promise.resolve(workingGraph)
+                  }
+                />
+              </div>
+            </div>
           )}
         </>
       ) : section === "school" ? (

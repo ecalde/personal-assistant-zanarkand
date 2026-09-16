@@ -33,3 +33,83 @@
   font-style: italic;
   font-display: swap;
 }
+
+/*
+ * Per-block editor (Phase 4C). Focus ring uses the Aether accent token so it
+ * stays visible on the light paper surface in both appearance modes.
+ */
+.resume-block-editor {
+  outline: none;
+  border-radius: 2px;
+}
+
+.resume-block-editor:focus {
+  outline: 2px solid var(--aether-accent, #46c6ff);
+  outline-offset: 2px;
+}
+
+/*
+ * Desktop workspace (Phase 5B): document left, JD pane right.
+ * Stacked below the 1024px desktop breakpoint (10D owns further mobile polish).
+ */
+.resume-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.resume-workspace--desktop {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.resume-workspace-document {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.resume-workspace--desktop .resume-workspace-document {
+  flex: 1 1 58%;
+}
+
+.resume-workspace-analysis {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.resume-workspace--desktop .resume-workspace-analysis {
+  flex: 0 1 420px;
+  max-width: 420px;
+}
+
+.resume-analysis-panel {
+  min-width: 0;
+}
+
+.resume-coverage-panel {
+  min-width: 0;
+}
+
+.resume-coverage-list {
+  margin: 6px 0 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--aether-text, inherit);
+}
+
+.resume-coverage-list li {
+  display: grid;
+  gap: 2px;
+}
+
+.resume-coverage-status,
+.resume-coverage-unverified {
+  font-size: 12px;
+  color: var(--aether-text-muted, var(--aether-text-secondary, #6b7280));
+}
+
+.resume-coverage-unverified {
+  color: var(--aether-warning-text, var(--aether-text-muted, #92400e));
+}

@@ -4,6 +4,7 @@ import {
   FACT_PROVENANCES,
   FACT_TYPES,
   LAYOUT_STATUSES,
+  REQUIREMENT_MATCH_STATUSES,
   RESUME_SOURCE_KINDS,
   SUGGESTION_FACTUALITY_STATUSES,
   SUGGESTION_STATUSES,
@@ -13,6 +14,7 @@ import {
   isJobSessionRetention,
   isLayoutStatus,
   isRequirementCategory,
+  isRequirementMatchStatus,
   isRequirementPriority,
   isResumeSourceKind,
   isSuggestionFactualityStatus,
@@ -77,6 +79,9 @@ describe("resume domain allowlists", () => {
     expect(isRequirementPriority("optional")).toBe(false);
     expect(isRequirementCategory("skill")).toBe(true);
     expect(isRequirementCategory("kubernetes")).toBe(false);
+    assertAcceptsAll(isRequirementMatchStatus, REQUIREMENT_MATCH_STATUSES);
+    expect(isRequirementMatchStatus("supported")).toBe(false);
+    expect(isRequirementMatchStatus("ats_pass")).toBe(false);
   });
 });
 

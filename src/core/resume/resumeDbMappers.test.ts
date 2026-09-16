@@ -2,15 +2,21 @@ import { describe, expect, it } from "vitest";
 import type { AppPayload } from "../model";
 import { MapperError } from "../dbMappers";
 import {
+  RESUME_JOB_DESCRIPTION_MAX_CHARS,
   assertActiveVersionBelongsToResume,
+  assertJobSessionBelongsToResume,
   assertResumeOwnerStoragePath,
   buildResumeOriginalStoragePath,
   buildResumeWorkingStoragePath,
   parseExtractedStructure,
   parseImportFactLedger,
+  parseMatchResult,
+  parseParsedJobDescription,
+  parseResumeJobSessionRow,
   parseResumeRow,
   parseResumeVersionRow,
   parseResumeWithActiveVersion,
+  resumeJobSessionToRow,
   resumeToRow,
   resumeVersionToRow,
 } from "./resumeDbMappers";
@@ -21,6 +27,8 @@ const OTHER_USER_ID = "21111111-1111-4111-8111-111111111111";
 const RESUME_ID = "22222222-2222-4222-8222-222222222222";
 const OTHER_RESUME_ID = "32222222-2222-4222-8222-222222222222";
 const VERSION_ID = "33333333-3333-4333-8333-333333333333";
+const SESSION_ID = "55555555-5555-4555-8555-555555555555";
+const APPLICATION_ID = "66666666-6666-4666-8666-666666666666";
 const SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CREATED = "2026-09-15T00:00:00.000Z";
 const BLOCK_ID = "44444444-4444-4444-8444-444444444444";
@@ -376,6 +384,18 @@ describe("parseImportFactLedger", () => {
 });
 
 describe("parseResumeVersionRow", () => {
+  it("allows working sha256 to differ from the original object digest", () => {
+    const workingSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const version = parseResumeVersionRow(sampleVersionRow({ sha256: workingSha }));
+    expect(version.sha256).toBe(workingSha);
+    expect(version.originalStoragePath).toBe(
+      `${USER_ID}/${RESUME_ID}/original/${SHA256}.docx`
+    );
+    expect(version.workingStoragePath).toBe(
+      `${USER_ID}/${RESUME_ID}/versions/${VERSION_ID}.docx`
+    );
+  });
+
   it("accepts a canonical version row and rejects a non-owner path", () => {
     const version = parseResumeVersionRow(sampleVersionRow());
     expect(version.originalStoragePath.startsWith(`${USER_ID}/`)).toBe(true);
@@ -432,5 +452,154 @@ describe("active version membership", () => {
     const parsed = parseResumeWithActiveVersion(sampleResumeRow(), sampleVersionRow());
     expect(parsed.resume.activeVersionId).toBe(parsed.activeVersion.id);
     expect(parsed.activeVersion.resumeId).toBe(parsed.resume.id);
+  });
+});
+
+const SAMPLE_PARSED_JOB = {
+  jobTitle: "Engineer",
+  company: "Acme",
+  location: "Remote",
+  seniority: { value: "mid", basis: "explicit" as const },
+  domainTags: [{ value: "platform", basis: "inferred" as const }],
+  requirements: [
+    {
+      id: "req-1",
+      text: "Must have Kubernetes",
+      category: "skill" as const,
+      priority: "required" as const,
+      normalizedTerms: ["kubernetes"],
+      aliases: ["k8s"],
+      salience: 0.9,
+    },
+  ],
+  rawText: "Must have Kubernetes",
+  parserVersion: "unparsed",
+};
+
+const SAMPLE_MATCH_RESULT = {
+  matcherVersion: "jd-match-1",
+  requirements: [
+    {
+      requirementId: "req-1",
+      status: "absent" as const,
+      evidenceFactIds: [],
+      mentionBlockIds: [],
+      matchedTerm: null,
+    },
+  ],
+  coverage: {
+    requiredTotal: 1,
+    requiredExplicitCount: 0,
+    requiredExplicitCoverage: 0,
+    preferredTotal: 0,
+    preferredExplicitCount: 0,
+    preferredExplicitCoverage: 0,
+    semanticSupportedCount: 0,
+    missingRequiredIds: ["req-1"],
+    uncertainIds: [],
+    onPageUnverifiedIds: [],
+    contradictedIds: [],
+    responsibilityTotal: 0,
+    responsibilityAlignedCount: 0,
+    responsibilityAlignment: 0,
+  },
+};
+
+function sampleJobSessionRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: SESSION_ID,
+    user_id: USER_ID,
+    resume_id: RESUME_ID,
+    resume_version_id: VERSION_ID,
+    company: "Acme",
+    job_title: "Engineer",
+    job_description_text: "Build APIs",
+    parsed_job: null,
+    match_result: null,
+    retention: "until_replaced",
+    application_id: null,
+    archived_at: null,
+    created_at: CREATED,
+    updated_at: CREATED,
+    ...overrides,
+  };
+}
+
+describe("parseResumeJobSessionRow", () => {
+  it("accepts an active session and round-trips through resumeJobSessionToRow", () => {
+    const session = parseResumeJobSessionRow(sampleJobSessionRow());
+    expect(session.jobDescriptionText).toBe("Build APIs");
+    expect(session.retention).toBe("until_replaced");
+    expect(session.archivedAtIso).toBeNull();
+    expect(session.applicationId).toBeNull();
+    expect(parseResumeJobSessionRow(resumeJobSessionToRow(session))).toEqual(session);
+  });
+
+  it("round-trips parsed_job and a jsonb match_result object", () => {
+    const session = parseResumeJobSessionRow(
+      sampleJobSessionRow({
+        parsed_job: SAMPLE_PARSED_JOB,
+        match_result: SAMPLE_MATCH_RESULT,
+        application_id: APPLICATION_ID,
+        archived_at: CREATED,
+      })
+    );
+    expect(session.parsedJob).toEqual(SAMPLE_PARSED_JOB);
+    expect(session.matchResult).toEqual(SAMPLE_MATCH_RESULT);
+    expect(session.applicationId).toBe(APPLICATION_ID);
+    expect(session.archivedAtIso).toBe(CREATED);
+    expect(parseResumeJobSessionRow(resumeJobSessionToRow(session))).toEqual(session);
+  });
+
+  it("rejects unknown row keys, invalid retention, oversize JD, and non-object jsonb", () => {
+    expect(() => parseResumeJobSessionRow(sampleJobSessionRow({ extra: true }))).toThrow(MapperError);
+    expect(() => parseResumeJobSessionRow(sampleJobSessionRow({ retention: "forever" }))).toThrow(
+      MapperError
+    );
+    expect(() =>
+      parseResumeJobSessionRow(
+        sampleJobSessionRow({
+          job_description_text: "x".repeat(RESUME_JOB_DESCRIPTION_MAX_CHARS + 1),
+        })
+      )
+    ).toThrow(MapperError);
+    expect(() => parseResumeJobSessionRow(sampleJobSessionRow({ parsed_job: [] }))).toThrow(
+      MapperError
+    );
+    expect(() => parseResumeJobSessionRow(sampleJobSessionRow({ match_result: [] }))).toThrow(
+      MapperError
+    );
+    expect(() => parseResumeJobSessionRow(sampleJobSessionRow({ id: "bad" }))).toThrow(MapperError);
+  });
+
+  it("rejects parsed_job / match_result with unknown fields or invalid allowlists", () => {
+    expect(() => parseParsedJobDescription({ ...SAMPLE_PARSED_JOB, atsScore: 99 })).toThrow(
+      MapperError
+    );
+    expect(() =>
+      parseParsedJobDescription({
+        ...SAMPLE_PARSED_JOB,
+        requirements: [{ ...SAMPLE_PARSED_JOB.requirements[0], priority: "must" }],
+      })
+    ).toThrow(MapperError);
+    expect(() => parseMatchResult({ ...SAMPLE_MATCH_RESULT, atsScore: 99 })).toThrow(MapperError);
+    expect(() => parseMatchResult({ coverage: 0 })).toThrow(MapperError);
+    expect(() =>
+      parseMatchResult({
+        ...SAMPLE_MATCH_RESULT,
+        requirements: [{ ...SAMPLE_MATCH_RESULT.requirements[0], status: "supported" }],
+      })
+    ).toThrow(MapperError);
+  });
+
+  it("rejects a session that belongs to a different resume or user", () => {
+    const session = parseResumeJobSessionRow(sampleJobSessionRow());
+    expect(() => assertJobSessionBelongsToResume(session, OTHER_RESUME_ID, USER_ID)).toThrow(
+      MapperError
+    );
+    expect(() => assertJobSessionBelongsToResume(session, RESUME_ID, OTHER_USER_ID)).toThrow(
+      MapperError
+    );
+    expect(() => assertJobSessionBelongsToResume(session, RESUME_ID, USER_ID)).not.toThrow();
   });
 });

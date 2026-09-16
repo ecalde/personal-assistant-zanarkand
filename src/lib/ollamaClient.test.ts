@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_OLLAMA_BASE_URL,
+  OllamaBrowserUnsupported,
   OllamaCors,
   OllamaLocalNetworkDenied,
   OllamaUnavailable,
@@ -89,6 +90,16 @@ describe("classifyOllamaFetchFailure", () => {
     expect(classifyOllamaFetchFailure(error)).toBe("unavailable");
     expect(mapOllamaFetchFailure(error)).toBeInstanceOf(OllamaUnavailable);
   });
+
+  it("maps mixed-content failures to browser unsupported, not CORS or LNA", () => {
+    const error = new TypeError(
+      "Mixed Content: The page at 'https://example.com/' was loaded over HTTPS, but requested an insecure resource 'http://127.0.0.1:11434/api/tags'."
+    );
+    expect(classifyOllamaFetchFailure(error)).toBe("browser_unsupported");
+    expect(mapOllamaFetchFailure(error)).toBeInstanceOf(OllamaBrowserUnsupported);
+    expect(mapOllamaFetchFailure(error)).not.toBeInstanceOf(OllamaCors);
+    expect(mapOllamaFetchFailure(error)).not.toBeInstanceOf(OllamaLocalNetworkDenied);
+  });
 });
 
 describe("listModels", () => {
@@ -133,6 +144,15 @@ describe("listModels", () => {
       throw new DOMException("The user denied local network access.", "NotAllowedError");
     });
     await expect(listModels({ fetchImpl })).rejects.toBeInstanceOf(OllamaLocalNetworkDenied);
+  });
+
+  it("maps mixed-content failures to OllamaBrowserUnsupported", async () => {
+    const fetchImpl = asFetch(async () => {
+      throw new TypeError(
+        "Mixed Content: The page at 'https://example.com/' was loaded over HTTPS, but requested an insecure resource."
+      );
+    });
+    await expect(listModels({ fetchImpl })).rejects.toBeInstanceOf(OllamaBrowserUnsupported);
   });
 
   it("does not treat LNA deny as CORS", async () => {

@@ -16,6 +16,7 @@ import { EffectPerformanceControl } from "../components/settings/EffectPerforman
 import { ReducedMotionControl } from "../components/settings/ReducedMotionControl";
 import { FutureSystemsSection } from "../components/settings/FutureSystemsSection";
 import { DataBackupSection } from "../components/settings/DataBackupSection";
+import { ResumeAiSettingsSection } from "../components/settings/ResumeAiSettingsSection";
 import { ANIMATED_BORDER_CLASS } from "../components/effects/effectsConfig";
 import {
   DEFAULT_EFFECT_PERFORMANCE,
@@ -72,7 +73,9 @@ export default function SettingsPage({
           <p style={s.subtitle}>
             {activeCategory === "data"
               ? "Back up your data and manage your session."
-              : "Customize your personal assistant experience."}
+              : activeCategory === "resumeAi"
+                ? "Connect local Ollama for resume rewriting. Coverage still works if this test fails."
+                : "Customize your personal assistant experience."}
           </p>
         </header>
 
@@ -92,6 +95,8 @@ export default function SettingsPage({
                 onImportFile={onImportFile}
                 onSignOut={onSignOut}
               />
+            ) : activeCategory === "resumeAi" ? (
+              <ResumeAiSettingsSection />
             ) : (
               <>
             <section style={s.panel} aria-labelledby="mode-heading">

@@ -15,6 +15,7 @@ import {
   PatchError,
   patchParagraphPlaintext,
 } from "./resumeOoxmlPatch";
+import { injectResumeBookmarks } from "./resumeOoxmlWrite";
 
 const repoRoot = join(fileURLToPath(new URL(".", import.meta.url)), "../../..");
 const geometryCanaryPath = join(repoRoot, "fixtures/resume/public/geometry-canary.docx");
@@ -215,6 +216,39 @@ describe("patchParagraphPlaintext", () => {
     writeFileSync(join(publicOutDir, "geometry-canary.patched.docx"), patched);
   });
 
+  it("deletes a whole sentence inside the geometry canary bullet", async () => {
+    const original = new Uint8Array(readFileSync(geometryCanaryPath));
+    const next = "TARGET_GEOMETRY_BULLET: ";
+    const patched = await patchParagraphPlaintext(
+      original,
+      { exactPlaintext: GEOMETRY_PLAIN },
+      next
+    );
+    const plains = await listParagraphPlaintexts(patched);
+    expect(plains).toContain(next);
+    expect(plains).not.toContain(GEOMETRY_PLAIN);
+    const origParts = listParagraphXml(decodePart(await loadDocxBuffer(original), DOCUMENT_XML_PATH));
+    const nextParts = listParagraphXml(decodePart(await loadDocxBuffer(patched), DOCUMENT_XML_PATH));
+    let changed = 0;
+    for (let i = 0; i < origParts.length; i += 1) {
+      if (origParts[i] === nextParts[i]) continue;
+      changed += 1;
+    }
+    expect(changed).toBe(1);
+  });
+
+  it("empties a paragraph that already has text leaves without inventing a flatten path", async () => {
+    const original = new Uint8Array(readFileSync(geometryCanaryPath));
+    const patched = await patchParagraphPlaintext(
+      original,
+      { exactPlaintext: GEOMETRY_PLAIN },
+      ""
+    );
+    const plains = await listParagraphPlaintexts(patched);
+    expect(plains).toContain("");
+    expect(plains).not.toContain(GEOMETRY_PLAIN);
+  });
+
   it("patches identical-rPr multi-w:t by rewriting the changed middle without inventing rPr", async () => {
     const inner =
       '<w:p><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">Hello </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>World</w:t></w:r></w:p>';
@@ -266,6 +300,52 @@ describe("patchParagraphPlaintext", () => {
       expect(readFileSync(privatePatchedPath).length).toBeGreaterThan(0);
     }
   );
+});
+
+describe("patchParagraphPlaintext bookmark locator", () => {
+  it("locates by pa_ bookmark and patches the same way as exact plaintext", async () => {
+    const original = new Uint8Array(readFileSync(mixedCanaryPath));
+    const injected = await injectResumeBookmarks(original);
+    const plains = await listParagraphPlaintexts(injected.bytes);
+    const index = plains.indexOf(MIXED_PLAIN);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const bookmarkName = injected.blockMap[index]?.bookmarkName;
+    expect(bookmarkName).toMatch(/^pa_/);
+
+    const patched = await patchParagraphPlaintext(
+      injected.bytes,
+      { bookmarkName: bookmarkName! },
+      MIXED_LED_TO_RAN
+    );
+    expect(await listParagraphPlaintexts(patched)).toContain(MIXED_LED_TO_RAN);
+
+    const xml = decodePart(await loadDocxBuffer(patched), DOCUMENT_XML_PATH);
+    const mixedXml = listParagraphXml(xml).find((para) => para.includes("Ran ")) ?? "";
+    expect(mixedXml).toMatch(/<w:b\/>[\s\S]*<w:t>TeamAlpha<\/w:t>/);
+    expect(mixedXml).toContain("<w:i/>");
+    expect(mixedXml).toContain('r:id="rId5"');
+  });
+
+  it("returns PatchError on ambiguous mixed rPr when located by bookmark", async () => {
+    const original = new Uint8Array(readFileSync(mixedCanaryPath));
+    const injected = await injectResumeBookmarks(original);
+    const plains = await listParagraphPlaintexts(injected.bytes);
+    const index = plains.indexOf(MIXED_PLAIN);
+    const bookmarkName = injected.blockMap[index]?.bookmarkName;
+    expect(bookmarkName).toBeDefined();
+
+    await expect(
+      patchParagraphPlaintext(injected.bytes, { bookmarkName: bookmarkName! }, MIXED_MERGE_FAIL)
+    ).rejects.toMatchObject({ name: "PatchError", code: "mixed_rpr" });
+  });
+
+  it("rejects an unknown bookmark name", async () => {
+    const original = new Uint8Array(readFileSync(geometryCanaryPath));
+    const injected = await injectResumeBookmarks(original);
+    await expect(
+      patchParagraphPlaintext(injected.bytes, { bookmarkName: "pa_missing-bookmark" }, "x")
+    ).rejects.toMatchObject({ name: "PatchError", code: "not_found" });
+  });
 });
 
 describe("PatchError", () => {

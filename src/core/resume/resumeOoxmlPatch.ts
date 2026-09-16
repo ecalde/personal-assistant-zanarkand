@@ -24,12 +24,17 @@ import {
   wtText,
   type FxpNode,
 } from "./resumeOoxmlRead";
+import { readParagraphBookmarkNames } from "./resumeOoxmlWrite";
 
 export { listParagraphPlaintexts, listParagraphXml } from "./resumeOoxmlRead";
 
-export type ParagraphLocator = {
-  exactPlaintext: string;
-};
+/**
+ * Locate a target `w:p`. Wave 0 used exact plaintext; the product editor uses
+ * the Phase 3B `pa_` bookmark (architecture §18.4 / §19). Provide exactly one.
+ */
+export type ParagraphLocator =
+  | { exactPlaintext: string; bookmarkName?: never }
+  | { bookmarkName: string; exactPlaintext?: never };
 
 export type PatchErrorCode =
   | "not_found"
@@ -491,10 +496,41 @@ function replaceDocumentXml(loaded: LoadedDocx, documentXml: string): LoadedDocx
   };
 }
 
+function locateParagraphIndexes(
+  documentXml: string,
+  ranges: ReturnType<typeof paragraphRanges>,
+  locator: ParagraphLocator
+): number[] {
+  const matches: number[] = [];
+
+  if ("bookmarkName" in locator && locator.bookmarkName !== undefined) {
+    const bookmarkName = locator.bookmarkName;
+    if (bookmarkName.length === 0) return matches;
+    const names = readParagraphBookmarkNames(documentXml);
+    for (let i = 0; i < ranges.length; i += 1) {
+      if (names[i] === bookmarkName) matches.push(i);
+    }
+    return matches;
+  }
+
+  const exactPlaintext = locator.exactPlaintext;
+  for (let i = 0; i < ranges.length; i += 1) {
+    const range = ranges[i];
+    if (!range) continue;
+    const xml = documentXml.slice(range.start, range.end);
+    if (paragraphPlaintextFromXml(xml) === exactPlaintext) {
+      matches.push(i);
+    }
+  }
+  return matches;
+}
+
 /**
  * Replace one paragraph’s concatenated `w:t` plaintext. Locator is exact
- * plaintext (Wave 0). Throws `PatchError` without writing a zip when the
- * change cannot preserve mixed-run formatting.
+ * plaintext (Wave 0) or a `pa_` bookmark name (product editor, Phase 4D).
+ * Throws `PatchError` without writing a zip when the change cannot preserve
+ * mixed-run formatting. This is the only text-patch algorithm — do not add a
+ * second flatten-on-save path.
  */
 export async function patchParagraphPlaintext(
   docxBytes: Uint8Array | ArrayBuffer,
@@ -504,16 +540,7 @@ export async function patchParagraphPlaintext(
   const loaded = await loadDocxBuffer(docxBytes);
   const documentXml = new TextDecoder().decode(getDocxPart(loaded, DOCUMENT_XML_PATH));
   const ranges = paragraphRanges(documentXml);
-
-  const matches: number[] = [];
-  for (let i = 0; i < ranges.length; i += 1) {
-    const range = ranges[i];
-    if (!range) continue;
-    const xml = documentXml.slice(range.start, range.end);
-    if (paragraphPlaintextFromXml(xml) === locator.exactPlaintext) {
-      matches.push(i);
-    }
-  }
+  const matches = locateParagraphIndexes(documentXml, ranges, locator);
 
   if (matches.length === 0) {
     throw new PatchError("Target paragraph not found", "not_found");
@@ -529,7 +556,8 @@ export async function patchParagraphPlaintext(
   }
 
   const originalParaXml = documentXml.slice(range.start, range.end);
-  if (newPlaintext === locator.exactPlaintext) {
+  const currentPlain = paragraphPlaintextFromXml(originalParaXml);
+  if (newPlaintext === currentPlain) {
     return writeDocxBuffer(loaded);
   }
 
