@@ -6,7 +6,7 @@
  * localStorage. Reset archives the session and clears the pane; Replace
  * archives then creates a new empty session. Neither mutates the resume
  * document. Deterministic parse / matching is 5C–5D — this phase stores
- * company, title, and raw text only (`parsed_job` stays null).
+ * company, title, raw text, and optional applicationId (`parsed_job` stays null).
  */
 
 import { RESUME_JOB_DESCRIPTION_MAX_CHARS } from "./resumeDbMappers";
@@ -19,12 +19,15 @@ export type JobSessionDraft = {
   company: string;
   jobTitle: string;
   jobDescriptionText: string;
+  /** Soft FK to Career JobApplication.id. Null = not linked. */
+  applicationId: string | null;
 };
 
 export const EMPTY_JOB_SESSION_DRAFT: JobSessionDraft = {
   company: "",
   jobTitle: "",
   jobDescriptionText: "",
+  applicationId: null,
 };
 
 export type JobSessionPersistPlan =
@@ -46,6 +49,7 @@ export function draftFromJobSession(session: ResumeJobSession): JobSessionDraft 
     company: session.company,
     jobTitle: session.jobTitle,
     jobDescriptionText: session.jobDescriptionText,
+    applicationId: session.applicationId,
   };
 }
 
@@ -53,7 +57,8 @@ export function draftsEqual(a: JobSessionDraft, b: JobSessionDraft): boolean {
   return (
     a.company === b.company &&
     a.jobTitle === b.jobTitle &&
-    a.jobDescriptionText === b.jobDescriptionText
+    a.jobDescriptionText === b.jobDescriptionText &&
+    a.applicationId === b.applicationId
   );
 }
 
@@ -61,7 +66,8 @@ export function isJobSessionDraftEmpty(draft: JobSessionDraft): boolean {
   return (
     draft.company.trim() === "" &&
     draft.jobTitle.trim() === "" &&
-    draft.jobDescriptionText.trim() === ""
+    draft.jobDescriptionText.trim() === "" &&
+    draft.applicationId === null
   );
 }
 
@@ -71,6 +77,7 @@ export function jobSessionWriteFields(draft: JobSessionDraft): JobSessionDraft {
     company: draft.company,
     jobTitle: draft.jobTitle,
     jobDescriptionText: draft.jobDescriptionText,
+    applicationId: draft.applicationId,
   };
 }
 

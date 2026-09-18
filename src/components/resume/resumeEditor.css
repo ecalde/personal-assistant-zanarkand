@@ -49,19 +49,27 @@
   outline-offset: 2px;
 }
 
-.resume-suggestion-card del.resume-suggestion-del {
+.resume-suggestion-card:focus-visible,
+#resume-suggestions-heading:focus-visible {
+  outline: 2px solid var(--aether-accent, #46c6ff);
+  outline-offset: 2px;
+}
+
+.resume-suggestion-card del.resume-suggestion-del,
+.resume-change-card del.resume-suggestion-del {
   text-decoration: line-through;
   font-weight: 600;
 }
 
-.resume-suggestion-card ins.resume-suggestion-ins {
+.resume-suggestion-card ins.resume-suggestion-ins,
+.resume-change-card ins.resume-suggestion-ins {
   text-decoration: underline;
   font-weight: 600;
 }
 
 /*
  * Desktop workspace (Phase 5B): document left, JD pane right.
- * Stacked below the 1024px desktop breakpoint (10D owns further mobile polish).
+ * Below 1024px (Phase 10D): stacked, no US Letter paper, analysis collapsible.
  */
 .resume-workspace {
   display: flex;
@@ -94,8 +102,41 @@
   max-width: 420px;
 }
 
+.resume-analysis-collapsible {
+  min-width: 0;
+  color: var(--aether-text, inherit);
+  background: var(--aether-surface, transparent);
+  border: 1px solid var(--aether-border, #d1d5db);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.resume-analysis-collapsible > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--aether-text, inherit);
+  margin-bottom: 8px;
+}
+
+.resume-analysis-collapsible[open] > summary {
+  margin-bottom: 12px;
+}
+
+.resume-review-surface {
+  max-width: 100%;
+}
+
 .resume-analysis-panel {
   min-width: 0;
+}
+
+.resume-application-link-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--aether-text, inherit);
+  background: var(--aether-surface, inherit);
+  border: 1px solid var(--aether-border, #d1d5db);
 }
 
 .resume-coverage-panel {
@@ -123,4 +164,46 @@
 
 .resume-coverage-unverified {
   color: var(--aether-warning-text, var(--aether-text-muted, #92400e));
+}
+
+/*
+ * Phase 9E: browser print of the CSS preview only. Not html2pdf / jsPDF.
+ * Hide app chrome; show paper pages + the honesty disclaimer.
+ */
+.resume-print-only {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .resume-print-pages,
+  .resume-print-pages * {
+    visibility: visible;
+  }
+
+  .resume-print-pages {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #ffffff;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .resume-print-only {
+    display: block;
+    color: #1a1a1a;
+    font-size: 11pt;
+    margin: 0 0 12pt 0;
+  }
+
+  .resume-page-paper,
+  .resume-review-surface {
+    box-shadow: none !important;
+    break-after: page;
+  }
 }

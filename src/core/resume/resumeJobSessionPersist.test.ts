@@ -39,13 +39,19 @@ describe("RESUME_JD_AUTOSAVE_DEBOUNCE_MS", () => {
 });
 
 describe("jobSessionWriteFields", () => {
-  it("emits only company, title, and raw text — never parsedJob or matchResult", () => {
+  it("emits company, title, raw text, and optional applicationId — never parsedJob or matchResult", () => {
     const fields = jobSessionWriteFields({
       company: "Acme",
       jobTitle: "Engineer",
       jobDescriptionText: "Must have Kubernetes.",
+      applicationId: null,
     });
-    expect(Object.keys(fields).sort()).toEqual(["company", "jobDescriptionText", "jobTitle"]);
+    expect(Object.keys(fields).sort()).toEqual([
+      "applicationId",
+      "company",
+      "jobDescriptionText",
+      "jobTitle",
+    ]);
     expect(fields).not.toHaveProperty("parsedJob");
     expect(fields).not.toHaveProperty("matchResult");
   });
@@ -57,21 +63,45 @@ describe("draftFromJobSession / draftsEqual / isJobSessionDraftEmpty", () => {
       company: "Acme",
       jobTitle: "Engineer",
       jobDescriptionText: "Must have Kubernetes.",
+      applicationId: null,
     });
     expect(draftsEqual(EMPTY_JOB_SESSION_DRAFT, EMPTY_JOB_SESSION_DRAFT)).toBe(true);
     expect(isJobSessionDraftEmpty(EMPTY_JOB_SESSION_DRAFT)).toBe(true);
-    expect(isJobSessionDraftEmpty({ company: "  ", jobTitle: "\n", jobDescriptionText: "" })).toBe(
-      true
-    );
     expect(
-      isJobSessionDraftEmpty({ company: "", jobTitle: "", jobDescriptionText: "Hello" })
+      isJobSessionDraftEmpty({
+        company: "  ",
+        jobTitle: "\n",
+        jobDescriptionText: "",
+        applicationId: null,
+      })
+    ).toBe(true);
+    expect(
+      isJobSessionDraftEmpty({
+        company: "",
+        jobTitle: "",
+        jobDescriptionText: "Hello",
+        applicationId: null,
+      })
+    ).toBe(false);
+    expect(
+      isJobSessionDraftEmpty({
+        company: "",
+        jobTitle: "",
+        jobDescriptionText: "",
+        applicationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      })
     ).toBe(false);
   });
 });
 
 describe("planJobSessionPersist", () => {
   it("inserts a non-empty draft when there is no active session", () => {
-    const draft = { company: "Acme", jobTitle: "", jobDescriptionText: "Paste me" };
+    const draft = {
+      company: "Acme",
+      jobTitle: "",
+      jobDescriptionText: "Paste me",
+      applicationId: null,
+    };
     expect(
       planJobSessionPersist({ draft, lastPersisted: null, activeSessionId: null })
     ).toEqual({ action: "insert", draft });
@@ -91,7 +121,12 @@ describe("planJobSessionPersist", () => {
     expect(
       planJobSessionPersist({
         draft: EMPTY_JOB_SESSION_DRAFT,
-        lastPersisted: { company: "Acme", jobTitle: "Eng", jobDescriptionText: "Old" },
+        lastPersisted: {
+          company: "Acme",
+          jobTitle: "Eng",
+          jobDescriptionText: "Old",
+          applicationId: null,
+        },
         activeSessionId: SESSION_ID,
       })
     ).toEqual({
@@ -99,6 +134,18 @@ describe("planJobSessionPersist", () => {
       sessionId: SESSION_ID,
       draft: EMPTY_JOB_SESSION_DRAFT,
     });
+  });
+
+  it("inserts when only an application link is set", () => {
+    const draft = {
+      company: "",
+      jobTitle: "",
+      jobDescriptionText: "",
+      applicationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+    expect(
+      planJobSessionPersist({ draft, lastPersisted: null, activeSessionId: null })
+    ).toEqual({ action: "insert", draft });
   });
 
   it("skips when the draft already matches the last persisted snapshot", () => {
@@ -117,6 +164,7 @@ describe("planJobSessionPersist", () => {
       company: "",
       jobTitle: "",
       jobDescriptionText: "x".repeat(RESUME_JOB_DESCRIPTION_MAX_CHARS + 1),
+      applicationId: null,
     };
     expect(
       planJobSessionPersist({ draft, lastPersisted: null, activeSessionId: null })

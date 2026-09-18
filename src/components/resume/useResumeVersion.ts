@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Resume, ResumeVersion } from "../../core/resume/resumeModel";
-import { getResumeVersionById, ResumeRemoteError } from "../../lib/resumeRemote";
+import { resumeSafeMessage } from "../../core/resume/resumeErrors";
+import { getResumeVersionById } from "../../lib/resumeRemote";
 
 export type UseResumeVersionResult = {
   version: ResumeVersion | null;
@@ -62,7 +63,6 @@ export function useResumeVersion(
   return { version, loading, error };
 }
 
-/** Remote errors are already generic; never surface resume text or Supabase internals. */
 function safeMessage(err: unknown, fallback: string): string {
-  return err instanceof ResumeRemoteError ? err.message : fallback;
+  return resumeSafeMessage(err, fallback);
 }

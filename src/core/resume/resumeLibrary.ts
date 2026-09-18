@@ -55,18 +55,53 @@ export function renameResumeInList(resumes: Resume[], resumeId: string, name: st
 /** Suffix appended to a duplicated resume's name. */
 export const RESUME_COPY_SUFFIX = " (copy)";
 
+/** Suffix when Save as new has no job title (Phase 9B). Never invents a role. */
+export const RESUME_TAILORED_SUFFIX = " (tailored)";
+
+function appendResumeNameSuffix(sourceName: string, suffix: string): string {
+  const base = normalizeResumeName(sourceName);
+  const withSuffix = `${base}${suffix}`;
+  if (withSuffix.length <= RESUME_NAME_MAX_LENGTH) {
+    return withSuffix;
+  }
+  const room = RESUME_NAME_MAX_LENGTH - suffix.length;
+  const truncatedBase = base.slice(0, Math.max(0, room)).trimEnd();
+  return `${truncatedBase}${suffix}`;
+}
+
 /**
  * Derive the name for a duplicated resume (Phase 2D): normalize the source name
  * and append `RESUME_COPY_SUFFIX`, truncating the base so the result never
  * exceeds `RESUME_NAME_MAX_LENGTH`. Always returns a non-empty, valid name.
  */
 export function duplicateResumeName(sourceName: string): string {
-  const base = normalizeResumeName(sourceName);
-  const withSuffix = `${base}${RESUME_COPY_SUFFIX}`;
-  if (withSuffix.length <= RESUME_NAME_MAX_LENGTH) {
-    return withSuffix;
+  return appendResumeNameSuffix(sourceName, RESUME_COPY_SUFFIX);
+}
+
+/**
+ * Library name for Save as new resume (Phase 9B). Uses the job title when the
+ * user typed one; otherwise `(tailored)`. Does not invent a role.
+ */
+export function saveAsNewResumeName(sourceName: string, jobTitle?: string): string {
+  const role = normalizeResumeName(jobTitle ?? "");
+  if (role.length === 0) {
+    return appendResumeNameSuffix(sourceName, RESUME_TAILORED_SUFFIX);
   }
-  const room = RESUME_NAME_MAX_LENGTH - RESUME_COPY_SUFFIX.length;
-  const truncatedBase = base.slice(0, Math.max(0, room)).trimEnd();
-  return `${truncatedBase}${RESUME_COPY_SUFFIX}`;
+  const suffix = ` (${role})`;
+  if (suffix.length >= RESUME_NAME_MAX_LENGTH) {
+    return appendResumeNameSuffix(sourceName, RESUME_TAILORED_SUFFIX);
+  }
+  return appendResumeNameSuffix(sourceName, suffix);
+}
+
+/**
+ * Status line for the open working version (architecture §35 version pointer).
+ * Does not imply Word page count or an ATS score.
+ */
+export function formatResumeVersionPointer(versionN: number, label: string | null): string {
+  if (!Number.isInteger(versionN) || versionN < 1) {
+    return "Version";
+  }
+  const trimmed = typeof label === "string" ? label.trim() : "";
+  return trimmed.length > 0 ? `Version ${versionN} · ${trimmed}` : `Version ${versionN}`;
 }

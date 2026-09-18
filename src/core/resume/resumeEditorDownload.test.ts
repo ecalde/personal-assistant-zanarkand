@@ -79,22 +79,34 @@ function pickPrivateWorkBullet(
 }
 
 describe("resumeWorkingDownloadFilename", () => {
-  it("uses the resume name with a .docx suffix and does not append a role", () => {
-    expect(resumeWorkingDownloadFilename("Geometry canary")).toBe("Geometry canary.docx");
+  it("uses Name-role.docx from the library name and job title", () => {
+    expect(resumeWorkingDownloadFilename("Geometry canary", "Backend Engineer")).toBe(
+      "Geometry canary-Backend Engineer.docx"
+    );
   });
 
-  it("does not double the .docx suffix", () => {
+  it("omits the role segment when the job title is empty", () => {
+    expect(resumeWorkingDownloadFilename("Geometry canary")).toBe("Geometry canary.docx");
+    expect(resumeWorkingDownloadFilename("Geometry canary", "   ")).toBe("Geometry canary.docx");
+  });
+
+  it("does not double the .docx suffix on name or role", () => {
     expect(resumeWorkingDownloadFilename("current-resume.docx")).toBe("current-resume.docx");
+    expect(resumeWorkingDownloadFilename("current-resume.docx", "Engineer.docx")).toBe(
+      "current-resume-Engineer.docx"
+    );
   });
 
   it("strips path separators and illegal filename characters", () => {
     expect(resumeWorkingDownloadFilename("../../secret:name")).toBe("secret-name.docx");
     expect(resumeWorkingDownloadFilename("folder/resume")).toBe("folder-resume.docx");
+    expect(resumeWorkingDownloadFilename("Resume", "../../role:title")).toBe("Resume-role-title.docx");
   });
 
   it("falls back to resume.docx when the name is empty after sanitizing", () => {
     expect(resumeWorkingDownloadFilename("   ")).toBe("resume.docx");
     expect(resumeWorkingDownloadFilename("...")).toBe("resume.docx");
+    expect(resumeWorkingDownloadFilename("   ", "Engineer")).toBe("resume-Engineer.docx");
   });
 });
 

@@ -5,6 +5,7 @@ import {
   buildSuggestionCardViews,
   eligibleBlocksForSuggestionCards,
   suggestionCardFocusTarget,
+  suggestionCardIsStale,
   suggestionCardTitle,
   suggestionPlaintextDiff,
   suggestionsVisibleOnCards,
@@ -52,14 +53,17 @@ function suggestion(overrides: Partial<ResumeSuggestion> = {}): ResumeSuggestion
 }
 
 describe("suggestionsVisibleOnCards", () => {
-  it("keeps grounded pending suggestions and drops other statuses", () => {
+  it("keeps grounded pending and blocked_formatting suggestions", () => {
     const visible = suggestionsVisibleOnCards([
       suggestion(),
       suggestion({ id: "sug-2", status: "rejected" }),
       suggestion({ id: "sug-3", factualityStatus: "rejected_ungrounded" }),
       suggestion({ id: "sug-4", status: "accepted" }),
+      suggestion({ id: "sug-5", status: "applied" }),
+      suggestion({ id: "sug-6", status: "blocked_formatting" }),
+      suggestion({ id: "sug-7", status: "stale" }),
     ]);
-    expect(visible.map((row) => row.id)).toEqual(["sug-1"]);
+    expect(visible.map((row) => row.id)).toEqual(["sug-1", "sug-6", "sug-7"]);
   });
 });
 
@@ -81,9 +85,31 @@ describe("buildSuggestionCardViews", () => {
     expect(views[0]?.suggestedLabel).toBe("Suggested");
     expect(views[0]?.ariaLabel.toLowerCase()).toContain("suggestion 1 of 2");
     expect(views[0]?.ariaLabel.toLowerCase()).toContain("original");
+    expect(views[0]?.stale).toBe(false);
     expect(suggestionCardFocusTarget(views[0]!.suggestion)).toBe(ROLE_A_BULLET);
     expect(views[1]?.sourceBlockId).toBe(ROLE_B_BULLET);
     expect(views[1]?.title).toBe("Suggestion 2 of 2");
+  });
+
+  it("marks a card stale when live paragraph text no longer matches original", () => {
+    const views = buildSuggestionCardViews([suggestion()], {
+      currentTextByBlockId: {
+        [ROLE_A_BULLET]: "Built REST APIs with Python and Docker for nightly inventory sync.",
+      },
+    });
+    expect(views).toHaveLength(1);
+    expect(views[0]?.stale).toBe(true);
+    expect(suggestionCardIsStale(suggestion({ status: "stale" }))).toBe(true);
+    expect(
+      suggestionCardIsStale(suggestion({ status: "stale" }), {
+        [ROLE_A_BULLET]: suggestion().originalText,
+      })
+    ).toBe(false);
+    expect(
+      suggestionCardIsStale(suggestion(), {
+        [ROLE_A_BULLET]: suggestion().originalText,
+      })
+    ).toBe(false);
   });
 });
 

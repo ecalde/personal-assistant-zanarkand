@@ -108,7 +108,10 @@ export function ResumeSection({
       {loading && resumes.length === 0 ? (
         <p style={{ ...styles.helpText, margin: 0 }}>Loading resumes…</p>
       ) : resumes.length === 0 ? (
-        <p style={{ ...styles.helpText, margin: 0 }}>No resumes yet.</p>
+        <p style={{ ...styles.helpText, margin: 0 }}>
+          No resumes yet. Upload a Word .docx to start a library item. High-fidelity editing is
+          best on a computer. Original files stay unchanged in your private cloud storage.
+        </p>
       ) : (
         <ul style={{ display: "grid", gap: 10, listStyle: "none", margin: 0, padding: 0 }}>
           {resumes.map((resume) => {

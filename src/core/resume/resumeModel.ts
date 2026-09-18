@@ -331,6 +331,8 @@ export type LayoutReport = {
   estimatedPageCount?: number;
   characterCount?: number;
   stale?: boolean;
+  /** Geometry + font fingerprint at generate/measure time (Phase 8D). */
+  fingerprint?: string;
 };
 
 export type SuggestionGeneration = {

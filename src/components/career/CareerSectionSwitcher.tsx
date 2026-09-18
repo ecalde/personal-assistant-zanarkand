@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
+import { neighborCareerSection } from "../../core/careerSectionPreferences";
 import { AETHER_TEXT, SURFACE } from "../../ui/appStyles";
 
 export type CareerSection = "career" | "school" | "resume";
@@ -38,8 +39,24 @@ export type CareerSectionSwitcherProps = {
 };
 
 export function CareerSectionSwitcher({ value, onChange }: CareerSectionSwitcherProps) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const next = neighborCareerSection(value, event.key);
+    if (!next) return;
+    event.preventDefault();
+    onChange(next);
+    const button = event.currentTarget.querySelector<HTMLButtonElement>(
+      `[data-career-section="${next}"]`
+    );
+    button?.focus();
+  }
+
   return (
-    <div style={switcher} role="radiogroup" aria-label="Career section">
+    <div
+      style={switcher}
+      role="radiogroup"
+      aria-label="Career section"
+      onKeyDown={handleKeyDown}
+    >
       {OPTIONS.map((option) => {
         const isActive = option.id === value;
         return (
@@ -47,7 +64,9 @@ export function CareerSectionSwitcher({ value, onChange }: CareerSectionSwitcher
             key={option.id}
             type="button"
             role="radio"
+            data-career-section={option.id}
             aria-checked={isActive}
+            aria-label={option.label}
             onClick={() => onChange(option.id)}
             style={{ ...btn, ...(isActive ? btnActive : {}) }}
           >

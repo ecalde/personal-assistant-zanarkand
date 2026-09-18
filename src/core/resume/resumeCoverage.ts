@@ -8,8 +8,9 @@
  * Architecture §24 / RES-MATCH-003: on-page unverified terms are labeled.
  * They are coverage of the working document, not imported evidence.
  *
- * Analyze runs the 5C parser and 5D matcher. Working-copy mentions are
- * classified in memory only — the frozen import ledger is not written back.
+ * Analyze runs the 5C parser and 5D matcher. Accept (7E) rematches the stored
+ * parse against current plaintext only. Working-copy mentions are classified
+ * in memory only — the frozen import ledger is not written back.
  */
 
 import {
@@ -249,6 +250,45 @@ export function structureForCoverageAnalyze(input: {
     };
   }
   return base;
+}
+
+export type RefreshCoverageAfterAcceptInput = {
+  /** Stored Analyze parse. Must be reused — 7E does not re-run the JD parser. */
+  parsedJob: ParsedJobDescription;
+  importLedger: ResumeFactLedger;
+  workingBlocks: readonly ResumeStructureBlock[];
+  firstSeenVersionId: string;
+};
+
+export type RefreshCoverageAfterAcceptResult = {
+  matchResult: MatchResult;
+  /** In-memory classify only. Never write this back to `import_fact_ledger`. */
+  classifiedLedger: ResumeFactLedger;
+};
+
+/**
+ * Rematch coverage after a successful Accept (Phase 7E).
+ *
+ * Reuses the stored `parsedJob`. Rebuilds the mention index from current
+ * working plaintext, classifies unverified mentions in memory, and runs the
+ * 5D matcher. Does not call Ollama, does not parse the JD, and does not
+ * promote `user_added_unverified` into allowed evidence.
+ */
+export function refreshCoverageAfterAccept(
+  input: RefreshCoverageAfterAcceptInput
+): RefreshCoverageAfterAcceptResult {
+  const mentionIndex = mentionIndexFromWorkingBlocks(input.workingBlocks);
+  const classifiedLedger = classifyMentionsAgainstLedger(
+    input.importLedger,
+    mentionIndex,
+    { firstSeenVersionId: input.firstSeenVersionId }
+  );
+  const matchResult = matchJobDescription({
+    parsedJob: input.parsedJob,
+    ledger: classifiedLedger,
+    mentionIndex,
+  });
+  return { matchResult, classifiedLedger };
 }
 
 /**

@@ -1,16 +1,21 @@
 /**
- * Suggestion cards bound to stable block ids (Phase 7A).
+ * Suggestion cards bound to stable block ids (Phase 7A) with stale display (7D).
  *
- * Cards display grounded pending proposals. Clicking a card focuses that
- * bookmark id in the editor. Accept / reject / regenerate belong to 7B.
- * Applying OOXML patches belongs to 7C. Do not log resume or JD text.
+ * Cards display grounded pending, blocked_formatting, and stale proposals.
+ * Clicking a card focuses that bookmark id in the editor. Accept (7C) patches
+ * OOXML via bookmark only when the original-text hash still matches. Stale
+ * cards stay visible so the user can regenerate. Do not log resume or JD text.
  */
 
 import { truncateForAriaLabel } from "./resumeBlockEdit";
 import { detectResumeSections, type FactSourceBlock } from "./resumeFacts";
 import type { ResumeSuggestion, SuggestionStatus } from "./resumeModel";
 
-export const SUGGESTION_CARD_VISIBLE_STATUSES: readonly SuggestionStatus[] = ["pending"];
+export const SUGGESTION_CARD_VISIBLE_STATUSES: readonly SuggestionStatus[] = [
+  "pending",
+  "blocked_formatting",
+  "stale",
+];
 
 const ELIGIBLE_SECTION_KINDS = new Set(["experience", "skills", "projects", "profile"]);
 
@@ -32,14 +37,34 @@ export type SuggestionCardView = {
   originalTokens: SuggestionDiffToken[];
   suggestedTokens: SuggestionDiffToken[];
   ariaLabel: string;
+  stale: boolean;
 };
+
+export type BuildSuggestionCardViewsOptions = {
+  currentTextByBlockId?: Readonly<Record<string, string>>;
+};
+
+/**
+ * Live paragraph text no longer matches the suggestion's original wording, or
+ * the row is already stored as stale. Display-only; apply still hashes.
+ */
+export function suggestionCardIsStale(
+  suggestion: Pick<ResumeSuggestion, "status" | "originalText" | "sourceBlockId">,
+  currentTextByBlockId?: Readonly<Record<string, string>>
+): boolean {
+  if (currentTextByBlockId && suggestion.sourceBlockId in currentTextByBlockId) {
+    return currentTextByBlockId[suggestion.sourceBlockId] !== suggestion.originalText;
+  }
+  return suggestion.status === "stale";
+}
 
 export function suggestionsVisibleOnCards(
   suggestions: readonly ResumeSuggestion[]
 ): ResumeSuggestion[] {
   return suggestions.filter(
     (suggestion) =>
-      suggestion.status === "pending" && suggestion.factualityStatus === "grounded"
+      SUGGESTION_CARD_VISIBLE_STATUSES.includes(suggestion.status) &&
+      suggestion.factualityStatus === "grounded"
   );
 }
 
@@ -54,7 +79,8 @@ export function suggestionCardTitle(index: number, total: number): string {
 }
 
 export function buildSuggestionCardViews(
-  suggestions: readonly ResumeSuggestion[]
+  suggestions: readonly ResumeSuggestion[],
+  options?: BuildSuggestionCardViewsOptions
 ): SuggestionCardView[] {
   const visible = suggestionsVisibleOnCards(suggestions);
   const total = visible.length;
@@ -81,6 +107,7 @@ export function buildSuggestionCardViews(
       ariaLabel: `${suggestionCardTitle(index, total)}. Original: ${truncateForAriaLabel(
         suggestion.originalText
       )}`,
+      stale: suggestionCardIsStale(suggestion, options?.currentTextByBlockId),
     };
   });
 }

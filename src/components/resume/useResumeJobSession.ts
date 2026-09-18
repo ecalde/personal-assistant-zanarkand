@@ -16,6 +16,7 @@ import {
   planJobSessionReset,
   type JobSessionDraft,
 } from "../../core/resume/resumeJobSessionPersist";
+import { resumeSafeMessage } from "../../core/resume/resumeErrors";
 import {
   archiveResumeJobSession,
   getActiveResumeJobSession,
@@ -382,5 +383,5 @@ export function useResumeJobSession(args: UseResumeJobSessionArgs): UseResumeJob
 }
 
 function safeMessage(err: unknown, fallback: string): string {
-  return err instanceof ResumeRemoteError ? err.message : fallback;
+  return resumeSafeMessage(err, fallback);
 }

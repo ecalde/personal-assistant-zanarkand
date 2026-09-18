@@ -5,15 +5,21 @@
 
 import { supabase } from "./supabaseClient";
 import { MapperError, isUuid } from "../core/dbMappers";
-import { RESUME_DOCX_CONTENT_TYPE } from "../core/resume/resumeFileValidation";
+import {
+  RESUME_DOCX_CONTENT_TYPE,
+  validateResumeDocxBytes,
+} from "../core/resume/resumeFileValidation";
+import { resumeUploadTooLargeMessage } from "../core/resume/resumeLimits";
 import {
   duplicateResumeName,
   normalizeResumeName,
+  saveAsNewResumeName,
   validateResumeName,
 } from "../core/resume/resumeLibrary";
 import {
   RESUME_JOB_DESCRIPTION_MAX_CHARS,
   assertActiveVersionBelongsToResume,
+  assertCanonicalOriginalStoragePath,
   assertJobSessionBelongsToResume,
   assertResumeOwnerStoragePath,
   buildResumeOriginalStoragePath,
@@ -82,7 +88,7 @@ function assertUserId(userId: string): string {
 function toResumeRemoteError(err: unknown, fallback: string): ResumeRemoteError {
   if (err instanceof ResumeRemoteError) return err;
   if (err instanceof MapperError) {
-    return new ResumeRemoteError(err.message);
+    return new ResumeRemoteError(fallback);
   }
   if (err && typeof err === "object" && "code" in err) {
     const supaErr = err as { code?: string };
@@ -154,6 +160,10 @@ export async function uploadResumeDocx(args: {
   } catch (err) {
     throw toResumeRemoteError(err, "Could not upload resume file.");
   }
+  const tooLarge = resumeUploadTooLargeMessage(args.bytes.byteLength);
+  if (tooLarge) {
+    throw new ResumeRemoteError(tooLarge);
+  }
 
   const { error } = await supabase.storage.from(RESUME_DOCS_BUCKET).upload(args.path, args.bytes, {
     contentType: RESUME_DOCX_CONTENT_TYPE,
@@ -183,7 +193,8 @@ export async function listResumes(userId: string): Promise<Resume[]> {
  * original bytes, store the bookmarked **working** copy, insert the resume row
  * (with its frozen import ledger) + version 1 (with `extracted_structure`),
  * then point `active_version_id` at that version. Fully rolls back storage +
- * rows on error. Used by both upload (`upload`) and duplicate (`duplicate`).
+ * rows on error. Used by upload (`upload`), duplicate (`duplicate`), and
+ * Save as new (`tailor`).
  *
  * `original_storage_path` uses the digest of those original bytes (§34). The
  * version row's `sha256` starts as that same original digest and is updated in
@@ -198,6 +209,10 @@ async function createResumeLineage(args: {
   bytes: Uint8Array;
 }): Promise<InsertResumeWithOriginalResult> {
   const { userId, name, sourceFilename, sourceKind, bytes } = args;
+  const tooLarge = resumeUploadTooLargeMessage(bytes.byteLength);
+  if (tooLarge) {
+    throw new ResumeRemoteError(tooLarge);
+  }
   const resumeId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -219,6 +234,10 @@ async function createResumeLineage(args: {
     ingest = await ingestResumeOriginal(bytes, { versionId });
   } catch {
     throw new ResumeRemoteError("Could not read this resume's structure.");
+  }
+  const workingTooLarge = resumeUploadTooLargeMessage(ingest.workingBytes.byteLength);
+  if (workingTooLarge) {
+    throw new ResumeRemoteError(workingTooLarge);
   }
 
   const uploadedPaths: string[] = [];
@@ -297,6 +316,10 @@ export async function insertResumeWithOriginal(
 ): Promise<InsertResumeWithOriginalResult> {
   const userId = assertUserId(input.userId);
   const bytes = await toUint8Array(input.bytes);
+  const packageError = await validateResumeDocxBytes(bytes);
+  if (packageError) {
+    throw new ResumeRemoteError(packageError);
+  }
 
   const result = await createResumeLineage({
     userId,
@@ -378,6 +401,59 @@ export async function duplicateResume(
   });
 }
 
+export type SaveResumeAsNewInput = {
+  userId: string;
+  sourceResumeId: string;
+  /** Flushed working OOXML (0D patcher). Becomes the new lineage's original. */
+  bytes: Uint8Array;
+  jobTitle?: string;
+};
+
+/**
+ * Save as new resume (Phase 9B). New `resume_id`; new original = current
+ * working bytes. The source row, original object, working object, and
+ * `active_version_id` are not written. Never the default. `source_kind` is
+ * `tailor`. Caller should keep the source resume open (keep editing current).
+ */
+export async function saveResumeAsNew(
+  input: SaveResumeAsNewInput
+): Promise<InsertResumeWithOriginalResult> {
+  const owner = assertUserId(input.userId);
+  if (!isUuid(input.sourceResumeId)) {
+    throw new ResumeRemoteError("Could not save as a new resume.");
+  }
+  const sourceResumeId = input.sourceResumeId.trim().toLowerCase();
+  if (input.bytes.byteLength === 0) {
+    throw new ResumeRemoteError("Could not save as a new resume.");
+  }
+
+  const { data: sourceRow, error: sourceError } = await supabase
+    .from("resumes")
+    .select("*")
+    .eq("id", sourceResumeId)
+    .eq("user_id", owner)
+    .maybeSingle();
+  throwOnError(sourceError, "Could not save as a new resume.");
+  if (!sourceRow) {
+    throw new ResumeRemoteError("Could not save as a new resume.");
+  }
+
+  let source: Resume;
+  try {
+    source = parseResumeRow(sourceRow);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save as a new resume.");
+  }
+
+  return createResumeLineage({
+    userId: owner,
+    name: saveAsNewResumeName(source.name, input.jobTitle),
+    sourceFilename: source.sourceFilename,
+    sourceKind: "tailor",
+    bytes: input.bytes,
+  });
+}
+
 /**
  * Load a single version row (with its `extracted_structure`) for the read-only
  * preview (Phase 4A). Scoped to the owner + resume; returns null when the
@@ -408,6 +484,38 @@ export async function getResumeVersionById(
   } catch (err) {
     throw toResumeRemoteError(err, "Could not load resume preview.");
   }
+}
+
+/**
+ * Download the **immutable original** DOCX for version-1 plaintext (Phase 9C).
+ * Never the working `versions/` object.
+ */
+export async function downloadResumeOriginalDocx(
+  userId: string,
+  resumeId: string,
+  originalStoragePath: string
+): Promise<Uint8Array> {
+  const owner = assertUserId(userId);
+  if (!isUuid(resumeId)) {
+    throw new ResumeRemoteError("Could not load resume document.");
+  }
+  let path: string;
+  try {
+    path = assertCanonicalOriginalStoragePath(
+      originalStoragePath,
+      owner,
+      resumeId.trim().toLowerCase()
+    );
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not load resume document.");
+  }
+
+  const { data: blob, error } = await supabase.storage.from(RESUME_DOCS_BUCKET).download(path);
+  throwOnError(error, "Could not load resume document.");
+  if (!blob) {
+    throw new ResumeRemoteError("Could not load resume document.");
+  }
+  return toUint8Array(blob);
 }
 
 /**
@@ -514,6 +622,11 @@ export async function updateWorkingVersion(
   }
   if (currentVersion.workingStoragePath !== expectedWorkingPath) {
     throw new ResumeRemoteError("Could not save resume.");
+  }
+
+  const tooLarge = resumeUploadTooLargeMessage(input.bytes.byteLength);
+  if (tooLarge) {
+    throw new ResumeRemoteError(tooLarge);
   }
 
   const conflict = Boolean(
@@ -887,6 +1000,47 @@ export async function insertResumeSuggestion(
     const record = parseResumeSuggestionRow(data);
     assertSuggestionBelongsToSession(record, sessionId, resumeId, owner);
     return record;
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save suggestion.");
+  }
+}
+
+export async function updateResumeSuggestion(
+  userId: string,
+  record: ResumeSuggestionRecord
+): Promise<ResumeSuggestionRecord> {
+  const owner = assertUserId(userId);
+  if (record.userId !== owner) {
+    throw new ResumeRemoteError("Could not save suggestion.");
+  }
+  if (!isUuid(record.id)) {
+    throw new ResumeRemoteError("Invalid suggestion id.");
+  }
+
+  let row;
+  try {
+    row = resumeSuggestionToRow(record);
+    assertSuggestionBelongsToSession(record, record.sessionId, record.resumeId, owner);
+  } catch (err) {
+    throw toResumeRemoteError(err, "Could not save suggestion.");
+  }
+
+  const { created_at: _createdAt, id, user_id, ...update } = row;
+  void _createdAt;
+
+  const { data, error } = await supabase
+    .from("resume_suggestions")
+    .update(update)
+    .eq("id", id)
+    .eq("user_id", user_id)
+    .select("*")
+    .single();
+  throwOnError(error, "Could not save suggestion.");
+
+  try {
+    const saved = parseResumeSuggestionRow(data);
+    assertSuggestionBelongsToSession(saved, record.sessionId, record.resumeId, owner);
+    return saved;
   } catch (err) {
     throw toResumeRemoteError(err, "Could not save suggestion.");
   }

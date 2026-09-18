@@ -4,7 +4,8 @@ import {
   decideWorkingCopyUpload,
 } from "../../core/resume/resumeAutosave";
 import type { ResumeExtractedStructure, ResumeStructureGraph } from "../../core/resume/resumeModel";
-import { ResumeRemoteError, updateWorkingVersion } from "../../lib/resumeRemote";
+import { resumeSafeMessage } from "../../core/resume/resumeErrors";
+import { updateWorkingVersion } from "../../lib/resumeRemote";
 
 export type ResumeAutosaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -145,7 +146,7 @@ export function useResumeAutosave(args: UseResumeAutosaveArgs): UseResumeAutosav
       } catch (err) {
         if (updateUi) {
           setStatus("error");
-          setError(err instanceof ResumeRemoteError ? err.message : "Could not save resume.");
+          setError(resumeSafeMessage(err, "Could not save resume."));
         }
         return false;
       }

@@ -2,8 +2,9 @@
  * Single-block suggestion generator (Phase 6F).
  *
  * One block at a time: prompt → schema → grounding → unicode/style lint →
- * optional persist. Layout estimate (Wave 8) and suggestion UI (Wave 7) belong
- * to later phases. Do not log resume or JD text.
+ * optional line/page layout report (8B–8D, warn-only). Do not log resume or JD
+ * text. Stored reports include a layout fingerprint; 8D marks them stale when
+ * fonts/geometry change and recomputes live.
  */
 
 import { chatCompletion } from "../../lib/ollamaClient";
@@ -20,6 +21,7 @@ import {
   buildRewriteBlockPrompt,
   type ResumeLlmPromptBundle,
 } from "./resumeLlmPrompts";
+import type { ResumeRegenerationOptions } from "./resumeSuggestionState";
 import {
   parseLlmJsonValue,
   parseRewriteBlockLlmJson,
@@ -34,6 +36,14 @@ import type {
   ResumeSuggestion,
   SuggestionGeneration,
 } from "./resumeModel";
+import {
+  compareSuggestionLineLayout,
+  type LayoutDocumentBlock,
+  type LayoutFontStyle,
+  type MeasureTextFn,
+  type ParagraphIndentTwips,
+} from "./resumeLayout";
+import type { ResumeSectionGeometry } from "./resumeOoxmlRead";
 import { prepareSuggestionText, type ResumeStyleLintResult } from "./resumeStyleLint";
 
 export const RESUME_SUGGESTIONS_PIPELINE_VERSION = "resume-suggestions-1";
@@ -46,7 +56,18 @@ export type GenerateBlockSuggestionFailureCode =
   | "llm_error"
   | "schema_invalid"
   | "rejected_ungrounded"
-  | "style_rejected";
+  | "style_rejected"
+  | "invalid_constraint";
+
+export type GenerateBlockSuggestionLayoutInput = {
+  measure: MeasureTextFn | null;
+  substitutionActive: boolean;
+  section?: ResumeSectionGeometry;
+  indent?: ParagraphIndentTwips;
+  style?: LayoutFontStyle;
+  documentBlocks?: readonly LayoutDocumentBlock[];
+  targetBlockId?: string;
+};
 
 export type GenerateBlockSuggestionInput = {
   blockId: string;
@@ -60,6 +81,10 @@ export type GenerateBlockSuggestionInput = {
   createId?: () => string;
   /** Recorded on the suggestion row (RES-VER-001). */
   quantization?: string;
+  /** Phase 7B regenerate: shorter / closer to original / emphasize a JD requirement. */
+  regeneration?: ResumeRegenerationOptions;
+  /** Phase 8B–8D line/page report + fingerprint. Omitted → indeterminate. */
+  layout?: GenerateBlockSuggestionLayoutInput;
 };
 
 export type GenerateBlockSuggestionSuccess = {
@@ -122,6 +147,25 @@ function defaultLayoutReport(characterCount: number): LayoutReport {
   };
 }
 
+function layoutReportForSuggestion(
+  originalText: string,
+  proposedText: string,
+  layout: GenerateBlockSuggestionLayoutInput | undefined
+): LayoutReport {
+  if (!layout) return defaultLayoutReport(proposedText.length);
+  return compareSuggestionLineLayout({
+    originalText,
+    candidateText: proposedText,
+    measure: layout.measure,
+    substitutionActive: layout.substitutionActive,
+    section: layout.section,
+    indent: layout.indent,
+    style: layout.style,
+    documentBlocks: layout.documentBlocks,
+    targetBlockId: layout.targetBlockId,
+  }).report;
+}
+
 function buildGeneration(model: string, quantization?: string): SuggestionGeneration {
   return {
     pipelineVersion: RESUME_SUGGESTIONS_PIPELINE_VERSION,
@@ -151,7 +195,7 @@ function buildSuggestion(
     transformationType: llmOutput.transformationType,
     confidence: llmOutput.confidence,
     factualityStatus: "grounded",
-    layoutConstraint: defaultLayoutReport(proposedText.length),
+    layoutConstraint: layoutReportForSuggestion(input.originalText, proposedText, input.layout),
     status: "pending",
     generation: buildGeneration(input.model, input.quantization),
   };
@@ -167,6 +211,13 @@ export async function generateBlockSuggestion(
   const scope = input.scope ?? detectResumeSections(input.blocks);
   const evidence = allowedEvidenceForBlock(input.ledger, input.blockId, { scope });
   const requirements = requirementsForSession(input.session);
+
+  if (input.regeneration?.emphasizeRequirementId?.trim()) {
+    const emphasize = input.regeneration.emphasizeRequirementId.trim();
+    if (!requirements.some((requirement) => requirement.id === emphasize)) {
+      return { ok: false, code: "invalid_constraint" };
+    }
+  }
 
   const prompt = buildRewriteBlockPrompt({
     evidence: evidence.map((fact) => ({
@@ -189,6 +240,17 @@ export async function generateBlockSuggestion(
       id: input.blockId,
       originalText: input.originalText,
     },
+    constraints: input.regeneration
+      ? {
+          regeneration: {
+            ...(input.regeneration.shorter ? { shorter: true } : {}),
+            ...(input.regeneration.closerToOriginal ? { closerToOriginal: true } : {}),
+            ...(input.regeneration.emphasizeRequirementId?.trim()
+              ? { emphasizeRequirementId: input.regeneration.emphasizeRequirementId.trim() }
+              : {}),
+          },
+        }
+      : undefined,
   });
 
   let rawLlm: unknown;

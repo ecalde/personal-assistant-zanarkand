@@ -4,7 +4,8 @@
  * Architecture §20.3 / §37: a new job description archives the previous
  * session and drops coverage. Document edits refresh the working mention
  * index only — they do not re-parse the JD and they never rebuild the frozen
- * import ledger from working text.
+ * import ledger from working text. Accepting a suggestion (Phase 7E) rematches
+ * current plaintext against the stored parse; it is not a new Analyze/LLM pass.
  */
 
 import type { JobSessionDraft } from "./resumeJobSessionPersist";
@@ -17,7 +18,8 @@ export type ResumeInvalidationEvent =
   | "jd_field_change"
   | "jd_replace"
   | "jd_reset"
-  | "jd_analyze";
+  | "jd_analyze"
+  | "suggestion_accept";
 
 export type ResumeInvalidationDecision = {
   rerunJobParse: boolean;
@@ -93,6 +95,15 @@ const DECISIONS: Record<ResumeInvalidationEvent, ResumeInvalidationDecision> = {
     discardPendingSuggestions: false,
     documentBytes: "unchanged",
   },
+  suggestion_accept: {
+    rerunJobParse: false,
+    rebuildImportLedger: false,
+    refreshMentions: true,
+    dropCoverage: false,
+    archiveJobSession: false,
+    discardPendingSuggestions: false,
+    documentBytes: "patched_working",
+  },
 };
 
 export function decideResumeInvalidation(
@@ -149,6 +160,7 @@ export function emptyReplacedJobSessionFields(): JobSessionDraft & {
     company: "",
     jobTitle: "",
     jobDescriptionText: "",
+    applicationId: null,
     parsedJob: null,
     matchResult: null,
   };

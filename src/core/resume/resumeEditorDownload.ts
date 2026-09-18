@@ -1,11 +1,11 @@
 /**
- * Product-path DOCX download (Phase 4G).
+ * Product-path DOCX download (Phase 4G flush + Phase 9A named file).
  *
  * Architecture §38 / §58.3: export is the **working** OOXML bytes after a
  * flush of pending patches through the same `patchParagraphPlaintext` as 0D
  * (via `flushBlockPlaintextByBookmark`). Never HTML-to-docx, never the
- * immutable original, never a flatten-on-save rewrite. Named `Name-role.docx`
- * is Phase 9A.
+ * immutable original, never a flatten-on-save rewrite. Filename is
+ * `Name-role.docx` (library name + job-session title when present).
  */
 
 import { RESUME_DOCX_CONTENT_TYPE } from "./resumeFileValidation";
@@ -24,17 +24,15 @@ export type WorkingCopyDownloadResult = {
 
 const DOCX_EXTENSION = ".docx";
 const FILENAME_MAX_BASE = 120;
+const FILENAME_MAX_NAME_WITH_ROLE = 80;
+const FILENAME_MAX_ROLE = 39;
 
-/**
- * Safe `.docx` filename from the library resume name. Strips path separators
- * and Windows-illegal characters. Does **not** append a job role (9A).
- */
-export function resumeWorkingDownloadFilename(resumeName: string): string {
-  const collapsed = resumeName.replace(/\s+/g, " ").trim();
+function sanitizeDownloadFilenameSegment(raw: string): string {
+  const collapsed = raw.replace(/\s+/g, " ").trim();
   const withoutExt = collapsed.toLowerCase().endsWith(DOCX_EXTENSION)
     ? collapsed.slice(0, -DOCX_EXTENSION.length).trim()
     : collapsed;
-  const sanitized = withoutExt
+  return withoutExt
     .replace(/\.\./g, "")
     .replace(/[\\/:*?"<>|]/g, "-")
     .replace(/-+/g, "-")
@@ -42,9 +40,29 @@ export function resumeWorkingDownloadFilename(resumeName: string): string {
     .replace(/\.+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
-  const base =
-    sanitized.length > 0 ? sanitized.slice(0, FILENAME_MAX_BASE).trim() : "resume";
-  return `${base}${DOCX_EXTENSION}`;
+}
+
+/**
+ * Safe `.docx` filename: `{resume name}.docx`, or `{resume name}-{role}.docx`
+ * when a job-session title is present. Strips path separators and
+ * Windows-illegal characters. Does not invent a role when the title is empty.
+ */
+export function resumeWorkingDownloadFilename(
+  resumeName: string,
+  jobRole?: string
+): string {
+  const nameRaw = sanitizeDownloadFilenameSegment(resumeName);
+  const roleRaw = sanitizeDownloadFilenameSegment(jobRole ?? "");
+  const nameBudget = roleRaw.length > 0 ? FILENAME_MAX_NAME_WITH_ROLE : FILENAME_MAX_BASE;
+  const namePart = (nameRaw.length > 0 ? nameRaw : "resume").slice(0, nameBudget).trim();
+  if (roleRaw.length === 0) {
+    return `${namePart}${DOCX_EXTENSION}`;
+  }
+  const rolePart = roleRaw.slice(0, FILENAME_MAX_ROLE).trim();
+  if (rolePart.length === 0) {
+    return `${namePart}${DOCX_EXTENSION}`;
+  }
+  return `${namePart}-${rolePart}${DOCX_EXTENSION}`;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CAREER_SECTION_PREFERENCES_KEY,
+  neighborCareerSection,
   persistCareerSection,
   readCareerSection,
 } from "./careerSectionPreferences";
@@ -55,5 +56,14 @@ describe("career section preference", () => {
     mockLocalStorage(vi.fn(() => null), setItem);
     persistCareerSection("resume");
     expect(setItem).toHaveBeenCalledWith(CAREER_SECTION_PREFERENCES_KEY, "resume");
+  });
+
+  it("moves Career | School | Resume with arrow keys and wraps", () => {
+    expect(neighborCareerSection("career", "ArrowRight")).toBe("school");
+    expect(neighborCareerSection("school", "ArrowRight")).toBe("resume");
+    expect(neighborCareerSection("resume", "ArrowRight")).toBe("career");
+    expect(neighborCareerSection("career", "ArrowLeft")).toBe("resume");
+    expect(neighborCareerSection("resume", "ArrowDown")).toBe("career");
+    expect(neighborCareerSection("career", "Enter")).toBeNull();
   });
 });

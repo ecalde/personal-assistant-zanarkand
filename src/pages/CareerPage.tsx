@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   applyQuickStatusTransition,
   filterAndSortApplications,
@@ -43,16 +43,10 @@ import {
   validateApplicationForm,
   type ApplicationFormState,
 } from "../components/career/applicationFormState";
-import { ResumeSection } from "../components/resume/ResumeSection";
-import { ResumeDocumentPane } from "../components/resume/ResumeDocumentPane";
-import { ResumeAnalysisPanel } from "../components/resume/ResumeAnalysisPanel";
-import { useResumes } from "../components/resume/useResumes";
-import { useResumeVersion } from "../components/resume/useResumeVersion";
-import type { ResumeStructureGraph } from "../core/resume/resumeModel";
-import { useIsDesktopViewport } from "../ui/useMediaQuery";
 import { SchoolSection } from "../components/school/SchoolSection";
 import { styles } from "../ui/appStyles";
-import "../components/resume/resumeEditor.css";
+
+const ResumeWorkspace = lazy(() => import("../components/resume/ResumeWorkspace"));
 
 export type CareerPageProps = {
   userId: string;
@@ -89,6 +83,7 @@ export type CareerPageProps = {
   onSaveTimelineLayout: (layout: SchoolTimelineLayout | undefined) => void;
   onSetReminderCompleted: (reminderId: string, completed: boolean) => void;
   onSetGradedItemCompleted: (itemId: string, completed: boolean) => void;
+  onOpenSkills?: () => void;
 };
 
 export default function CareerPage({
@@ -120,6 +115,7 @@ export default function CareerPage({
   onSaveTimelineLayout,
   onSetReminderCompleted,
   onSetGradedItemCompleted,
+  onOpenSkills,
 }: CareerPageProps) {
   const [section, setSection] = useState<CareerSection>(() =>
     careerFocus?.kind === "school" ? "school" : readCareerSection("career")
@@ -132,37 +128,6 @@ export default function CareerPage({
   const [sortMode, setSortMode] = useState<ApplicationsSortMode>("recent");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
-  const [workingGraph, setWorkingGraph] = useState<ResumeStructureGraph | null>(null);
-  const [resumeFocusBlockId, setResumeFocusBlockId] = useState<string | null>(null);
-  const [resumeFocusNonce, setResumeFocusNonce] = useState(0);
-  const coveragePrepareRef = useRef<(() => Promise<ResumeStructureGraph | null>) | null>(
-    null
-  );
-  const isDesktop = useIsDesktopViewport();
-
-  const {
-    resumes,
-    loading: resumesLoading,
-    uploading: resumeUploading,
-    mutatingId: resumeMutatingId,
-    error: resumeError,
-    uploadResume,
-    renameResume,
-    setDefaultResume,
-    deleteResume,
-    duplicateResume,
-  } = useResumes(userId, { enabled: section === "resume" });
-
-  const selectedResume = resumes.find((resume) => resume.id === selectedResumeId) ?? null;
-  const {
-    version: selectedVersion,
-    loading: previewLoading,
-    error: previewError,
-  } = useResumeVersion(userId, selectedResume, {
-    enabled: section === "resume" && selectedResume !== null,
-  });
 
   const todayKey = formatLocalDateKey(new Date());
 
@@ -259,98 +224,24 @@ export default function CareerPage({
             ? "Track job applications, salaries, and skills needed for your dream role."
             : section === "school"
               ? "Track courses, reminders, staff, and grades. Paste a syllabus or Canvas table to review suggestions."
-              : "Upload and tailor DOCX resumes for job applications."}
+              : "Upload a Word resume, paste a job description, and review grounded wording one paragraph at a time. Files stay in your cloud account; rewriting uses Ollama on this computer when connected."}
         </div>
       </div>
 
       {section === "resume" ? (
-        <>
-          <ResumeSection
-            resumes={resumes}
-            loading={resumesLoading}
-            uploading={resumeUploading}
-            mutatingId={resumeMutatingId}
-            selectedResumeId={selectedResumeId}
-            error={resumeError}
-            onUpload={(file) => {
-              void uploadResume(file);
-            }}
-            onRename={(resumeId, name) => {
-              void renameResume(resumeId, name);
-            }}
-            onSetDefault={(resumeId) => {
-              void setDefaultResume(resumeId);
-            }}
-            onDelete={(resumeId) => {
-              if (resumeId === selectedResumeId) {
-                setSelectedResumeId(null);
-                setWorkingGraph(null);
-                setResumeFocusBlockId(null);
-              }
-              void deleteResume(resumeId);
-            }}
-            onDuplicate={(resumeId) => {
-              void duplicateResume(resumeId);
-            }}
-            onOpen={(resumeId) => {
-              setWorkingGraph(null);
-              setResumeFocusBlockId(null);
-              setResumeFocusNonce(0);
-              setSelectedResumeId((current) => (current === resumeId ? null : resumeId));
-            }}
+        <Suspense
+          fallback={
+            <p style={{ ...styles.helpText, margin: 0 }} role="status">
+              Loading resume workspace…
+            </p>
+          }
+        >
+          <ResumeWorkspace
+            userId={userId}
+            jobApplications={jobApplications}
+            onOpenSkills={onOpenSkills}
           />
-          {selectedResume && (
-            <div
-              className={
-                isDesktop ? "resume-workspace resume-workspace--desktop" : "resume-workspace"
-              }
-            >
-              <div className="resume-workspace-document">
-                <ResumeDocumentPane
-                  key={selectedResume.id}
-                  resumeName={selectedResume.name}
-                  userId={userId}
-                  resumeId={selectedResume.id}
-                  versionId={selectedVersion?.id}
-                  resumeUpdatedAtIso={selectedResume.updatedAtIso}
-                  workingStoragePath={selectedVersion?.workingStoragePath}
-                  extractedStructure={selectedVersion?.extractedStructure}
-                  graph={selectedVersion?.extractedStructure.graph}
-                  loading={previewLoading}
-                  error={previewError}
-                  onWorkingGraphChange={setWorkingGraph}
-                  coveragePrepareRef={coveragePrepareRef}
-                  focusedBlockId={resumeFocusBlockId}
-                  focusNonce={resumeFocusNonce}
-                  onClose={() => {
-                    setWorkingGraph(null);
-                    setResumeFocusBlockId(null);
-                    setSelectedResumeId(null);
-                  }}
-                />
-              </div>
-              <div className="resume-workspace-analysis">
-                <ResumeAnalysisPanel
-                  key={selectedResume.id}
-                  userId={userId}
-                  resumeId={selectedResume.id}
-                  resumeVersionId={selectedResume.activeVersionId}
-                  importFactLedger={selectedResume.importFactLedger}
-                  extractedStructure={selectedVersion?.extractedStructure ?? null}
-                  workingGraph={workingGraph}
-                  prepareWorkingGraph={() =>
-                    coveragePrepareRef.current?.() ?? Promise.resolve(workingGraph)
-                  }
-                  focusedBlockId={resumeFocusBlockId}
-                  onFocusBlock={(blockId) => {
-                    setResumeFocusBlockId(blockId);
-                    setResumeFocusNonce((nonce) => nonce + 1);
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </>
+        </Suspense>
       ) : section === "school" ? (
         <SchoolSection
           courses={schoolCourses}

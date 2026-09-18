@@ -7,7 +7,7 @@ Personal Assistant is a client-side React app with optional cloud sync:
 - **Vite + React + TypeScript** — SPA build and dev server
 - **Vercel** — production hosting (static build output)
 - **Supabase Auth** — email/password sign-in; session gate before the app shell
-- **Supabase Postgres** — per-user rows for skills, sessions, overrides, events, people, job applications, career targets, workout plans, workout sessions, supplement protocols, supplement intake logs, school courses/reminders/graded items, and focus feedback (RLS-scoped)
+- **Supabase Postgres** — per-user rows for skills, sessions, overrides, events, people, job applications, career targets, workout plans, workout sessions, supplement protocols, supplement intake logs, school courses/reminders/graded items, focus feedback, and **resume metadata** (RLS-scoped). Resume **DOCX bytes** live in a private Storage bucket, not `AppPayload`.
 - **localStorage** — user-scoped cache (`pa.appData.v1.<userId>`) plus legacy key migration
 - **Cloud sync** — `initialSync` on load; debounced `replaceRemotePayload` on mutations when remote sync is enabled
 
@@ -38,6 +38,7 @@ src/
     career.ts           # Job applications pipeline, skill-gap helpers, search/sort
     school.ts           # School courses, reminders, graded items, timezone/link helpers
     schoolParse.ts      # Deterministic syllabus/Canvas paste ingest (suggestions only)
+    resume/             # Resume Tool (OOXML, facts, JD match, grounding, layout; not AppPayload)
     fitness.ts          # Workout plans/sessions helpers, search/sort, summaries
     supplements.ts      # Supplement protocols/intake helpers, phase resolution, adherence
     focus.ts            # Daily Focus Engine — ranked cross-domain recommendations
@@ -75,15 +76,16 @@ src/
     ReviewPage.tsx      # Full weekly review breakdown (read-only)
     EventsPage.tsx      # Life events CRUD
     PeoplePage.tsx      # Friends/contacts CRUD
-    CareerPage.tsx      # Job applications + dream job target + School section CRUD
+    CareerPage.tsx      # Job applications + dream job target + School + lazy Resume workspace
     FitnessPage.tsx     # Workout plans, live logger, session history, weight-progression chart, supplement tracker
   components/
     layout/             # AppShell, NavButton
     calendar/           # Calendar views (month/week), toolbar, sidebar, pills/blocks, detail modal
     dashboard/          # Dashboard sections and shared widgets
     people/             # People page cards, toolbar, form
-    career/             # Career page forms, cards, skill picker, Career | School switcher
+    career/             # Career page forms, cards, skill picker, Career | School | Resume switcher
     school/             # School course/reminder/grade forms and course blocks
+    resume/             # Resume library, paginated preview, analysis panel (lazy-loaded from Career)
     fitness/            # Fitness page forms, cards, live logger, progression chart, supplement tracker
     skills/             # SkillEditor, GoalInput
     settings/           # Settings UI — sidebar, Aether profile cards, preview, intensity, effects, styles
@@ -101,8 +103,9 @@ src/
 | `src/components/layout` | App chrome (header, nav, banners) |
 | `src/components/dashboard` | Presentational dashboard sections (`TodayHero`, timeline, progress, weekly preview, career pipeline) |
 | `src/components/people` | People-specific UI building blocks |
-| `src/components/career` | Career-specific UI building blocks, including the Career | School switcher |
+| `src/components/career` | Career-specific UI building blocks, including the Career | School | Resume switcher |
 | `src/components/school` | School course, reminder, and grade CRUD UI |
+| `src/components/resume` | Resume library and editor; loaded with `React.lazy` from CareerPage |
 | `src/components/fitness` | Fitness-specific UI building blocks |
 | `src/components/skills` | Skills-specific UI building blocks |
 | `src/components/settings` | Settings / Aether theme UI (theme-aware) |
@@ -119,7 +122,7 @@ src/
 
 ### App (`src/App.tsx`)
 
-- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `calendar` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `review` \| `settings`)
+- Owns `AppData` state, loading/error/sync UI flags, and internal `page` state (`dashboard` \| `calendar` \| `skills` \| `events` \| `people` \| `career` \| `fitness` \| `cooking` \| `review` \| `settings`)
 - Calls [`useAppearanceTheme`](../src/ui/useAppearanceTheme.ts) once to apply global `--aether-*` CSS variables (Phase 37B accent adoption; Phase 37C mode-aware surfaces + `prefers-color-scheme`)
 - Runs `initialSync` on mount; guards mutations with `syncReadyRef`
 - All writes go through `commit` → `saveAppData(userId)` → debounced remote persist
@@ -277,13 +280,26 @@ Shared widgets in the same folder: `ProgressBar`, `QuickLogControls`, `SkillProg
 - Skill-gap display uses pure helpers in [`career.ts`](../src/core/career.ts): linked skills resolve to tracker names; free-text requirements show as “not yet in tracker”; `buildSkillGapPriorityList` orders focus items for the Career page.
 - Follow-up awareness uses `appliedDate` and `updatedAtIso` (no extra fields): `buildApplicationsNeedingAttention` flags saved bookmarks, stale applied roles (≥14 days), and stuck interview stages (≥21 days); quick status transitions call existing `onUpdateApplication`.
 - Deleting a skill strips its id from application and target `requiredSkillIds` in the same `commit` (mirrors person unlink on events).
-- Future AI extension points (not implemented): `CareerContext` bundle, job-posting parse, cover-letter draft, learning-plan nudges — see header comment in `career.ts`.
+- Resume files are **not** Career `JobApplication` rows. Optional `resume_job_sessions.application_id` is a soft link only.
+- Future AI extension points (not implemented on applications themselves): `CareerContext` bundle, cover-letter draft, learning-plan nudges — see header comment in `career.ts`. Resume rewriting is local Ollama (Resume domain), not `ocr-extract`.
+
+### Resume domain
+
+Resume Tailoring is a **Career inner pane** (Career | School | Resume), not an 11th nav item. Canonical architecture: [`RESUME_TOOL_ARCHITECTURE.md`](./RESUME_TOOL_ARCHITECTURE.md). MVP is complete through Phase **10F**.
+
+- **Canonical document:** immutable original `.docx` bytes + patched working OOXML in private Storage bucket `resume-docs`. Paths are `{user_id}/{resume_id}/…`. Not in `AppPayload` / JSON backup.
+- **Postgres (RLS):** `resumes`, `resume_versions`, `resume_job_sessions`, `resume_suggestions`, `resume_analysis_runs`. Isolated [`resumeRemote.ts`](../src/lib/resumeRemote.ts); not `replaceRemotePayload`.
+- **Editor:** React block preview + fail-closed `patchParagraphPlaintext` (mixed-run flatten forbidden). CSS pages are an approximation; Microsoft Word remains pagination authority.
+- **Facts:** frozen `import_fact_ledger` from the original; working mentions may be `user_added_unverified` and are not allowed evidence for other blocks until verified.
+- **AI:** browser → local Ollama on `http://127.0.0.1:11434` (CORS + Local Network Access). No `ocr-extract` / OpenAI. Coverage and matching work when Ollama is down.
+- **Bundle:** [`CareerPage`](../src/pages/CareerPage.tsx) `React.lazy`s [`ResumeWorkspace`](../src/components/resume/ResumeWorkspace.tsx) so JSZip / OOXML stay off the main chunk until the Resume pane opens.
+- **Honesty:** no employer “ATS Score”; coverage is labeled a Zanarkand heuristic. Print is labeled approximate; Download Word is the export path.
 
 ### School domain
 
 School is a **separate domain** under the Career nav tab. It is **not** a `LifeEvent` type.
 
-- **Nav:** AppShell still shows **Career**. [`CareerPage`](../src/pages/CareerPage.tsx) hosts a Fitness-style **Career | School** switcher ([`CareerSectionSwitcher`](../src/components/career/CareerSectionSwitcher.tsx)). Job-application UI is unchanged on the Career pane.
+- **Nav:** AppShell still shows **Career**. [`CareerPage`](../src/pages/CareerPage.tsx) hosts a Fitness-style **Career | School | Resume** switcher ([`CareerSectionSwitcher`](../src/components/career/CareerSectionSwitcher.tsx)). Job-application UI is unchanged on the Career pane.
 - **`CareerFocus`** (`kind: "career" | "school"`, optional `courseId`) is normalized in [`school.ts`](../src/core/school.ts) like `FitnessFocus`. `App.tsx` `openCareer(focus?)` opens the Career tab and, for school, the School pane (and scrolls to a course when `courseId` is set).
 - **Manual CRUD:** [`SchoolSection`](../src/components/school/SchoolSection.tsx) creates/edits/deletes courses, reminders, grade categories, and graded items. Deleting a course asks for confirmation (reminders and grades for that class are removed too). Each course block shows a policy glance (staff, emails, late days, office hours, extra credit) even when empty. Staff roles use distinct text colors (Professor / TA / Staff) on the glance and in the edit form, where staff cards wrap into multiple columns when width allows. Reminder forms show a source-zone + local due caption.
 - **Paste ingest (Phase 57):** per-course textarea (optional `.txt`) in [`SchoolIngestPanel`](../src/components/school/SchoolIngestPanel.tsx). Pure [`schoolParse.ts`](../src/core/schoolParse.ts) auto-detects Canvas weight tables, Canvas assignment lists, or syllabus/announcement prose and returns suggestions only. The user edits title/kind/date/links, then **Approve selected** or **Skip**. Duplicates (fingerprint or high title-token overlap on the same date) stay visible with “this may already exist — create anyway?” and are unchecked until opted in. `App.tsx` `applySchoolIngest` is the only write path.
@@ -446,17 +462,15 @@ Never commit real values. Use `.env.local` locally and Vercel project settings i
 
 ## Bundle and modularization notes
 
-The production build currently emits a single main JS chunk (~590 KB minified; Vite warns when chunks exceed 500 KB). **This warning is non-blocking** — the app builds and runs correctly today.
+The production build splits a **resume workspace** chunk (JSZip + OOXML + editor) via `React.lazy` on [`ResumeWorkspace`](../src/components/resume/ResumeWorkspace.tsx). Opening Career applications or School does not load that chunk. Other domain pages remain in the main bundle unless split later.
 
-Likely future code-split points (not implemented yet):
+Likely future code-split points:
 
-- [`CareerPage`](../src/pages/CareerPage.tsx) — Career | School switcher, job forms/cards, school course CRUD
 - [`FitnessPage`](../src/pages/FitnessPage.tsx) — workout editor, session history, weight-progression chart, and supplement tracker
 - [`PeoplePage`](../src/pages/PeoplePage.tsx) — contact cards and follow-up tooling
 - [`EventsPage`](../src/pages/EventsPage.tsx) — life events CRUD
-- Dashboard heavy derived widgets — focus/briefing engines are pure and cheap; page-level lazy loading of domain screens is the higher-yield split
 
-No Vite config or `React.lazy` changes in the current phase; revisit when adding routes or new large dependencies.
+Dashboard heavy derived widgets — focus/briefing engines are pure and cheap; page-level lazy loading of remaining domain screens is still the higher-yield split.
 
 ## Deployment
 

@@ -3,11 +3,14 @@ import type { Resume } from "./resumeModel";
 import {
   applyDefaultResumeSelection,
   duplicateResumeName,
+  formatResumeVersionPointer,
   normalizeResumeName,
   removeResumeById,
   renameResumeInList,
   RESUME_COPY_SUFFIX,
   RESUME_NAME_MAX_LENGTH,
+  RESUME_TAILORED_SUFFIX,
+  saveAsNewResumeName,
   validateResumeName,
 } from "./resumeLibrary";
 
@@ -131,5 +134,38 @@ describe("duplicateResumeName", () => {
   it("always returns a name that passes validation", () => {
     const source = "b".repeat(RESUME_NAME_MAX_LENGTH + 50);
     expect(validateResumeName(duplicateResumeName(source))).toBeNull();
+  });
+});
+
+describe("saveAsNewResumeName", () => {
+  it("appends (tailored) when the job title is empty", () => {
+    expect(saveAsNewResumeName("Backend Resume")).toBe(
+      `Backend Resume${RESUME_TAILORED_SUFFIX}`
+    );
+    expect(saveAsNewResumeName("Backend Resume", "   ")).toBe(
+      `Backend Resume${RESUME_TAILORED_SUFFIX}`
+    );
+  });
+
+  it("uses the job title when present and does not invent a role", () => {
+    expect(saveAsNewResumeName("Geometry canary", "Backend Engineer")).toBe(
+      "Geometry canary (Backend Engineer)"
+    );
+  });
+
+  it("truncates so the result stays within the length cap", () => {
+    const source = "a".repeat(RESUME_NAME_MAX_LENGTH);
+    const result = saveAsNewResumeName(source, "Backend Engineer");
+    expect(result.length).toBeLessThanOrEqual(RESUME_NAME_MAX_LENGTH);
+    expect(result.endsWith("(Backend Engineer)")).toBe(true);
+    expect(validateResumeName(result)).toBeNull();
+  });
+});
+
+describe("formatResumeVersionPointer", () => {
+  it("shows version n and an optional label", () => {
+    expect(formatResumeVersionPointer(1, "Base")).toBe("Version 1 · Base");
+    expect(formatResumeVersionPointer(2, null)).toBe("Version 2");
+    expect(formatResumeVersionPointer(2, "  ")).toBe("Version 2");
   });
 });

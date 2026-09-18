@@ -11,6 +11,7 @@ import {
   mentionIndexFromWorkingBlocks,
   mentionsForCoverageAnalysis,
   mergeMentionIndexesForCoverage,
+  refreshCoverageAfterAccept,
   selectGraphForCoverageAnalyze,
   structureForCoverageAnalyze,
 } from "./resumeCoverage";
@@ -395,5 +396,98 @@ describe("parseJobDescription still extracts the canary JD terms", () => {
     const parsed = parseJobDescription("Must have Kubernetes. Nice to have Terraform.");
     expect(requirementMentioning(parsed, "Kubernetes")?.priority).toBe("required");
     expect(requirementMentioning(parsed, "Terraform")?.priority).toBe("preferred");
+  });
+});
+
+describe("refreshCoverageAfterAccept", () => {
+  const ACCEPT_JD = `
+Must have Kubernetes.
+Must have Terraform.
+Must have Python.
+`.trim();
+
+  it("rematches stored parse without re-parsing the JD or promoting unverified Terraform", () => {
+    const ledger = importedLedger();
+    const parsedJob = parseJobDescription(ACCEPT_JD);
+    const terraform = requirementMentioning(parsedJob, "Terraform");
+    const kubernetes = requirementMentioning(parsedJob, "Kubernetes");
+    const python = requirementMentioning(parsedJob, "Python");
+    expect(terraform).toBeTruthy();
+    expect(kubernetes).toBeTruthy();
+    expect(python).toBeTruthy();
+
+    const before = refreshCoverageAfterAccept({
+      parsedJob,
+      importLedger: ledger,
+      workingBlocks: workingBlocks(),
+      firstSeenVersionId: VERSION_ID,
+    });
+    expect(before.matchResult.coverage.missingRequiredIds).toEqual(
+      expect.arrayContaining([terraform!.id, kubernetes!.id])
+    );
+    expect(before.matchResult.coverage.missingRequiredIds).not.toContain(python!.id);
+
+    const accepted = blocksWithLivePlaintext(workingBlocks(), {
+      [ROLE_A_BULLET]:
+        "Built REST APIs with Python, Docker, and Terraform for inventory sync.",
+    });
+    const after = refreshCoverageAfterAccept({
+      parsedJob,
+      importLedger: ledger,
+      workingBlocks: accepted,
+      firstSeenVersionId: VERSION_ID,
+    });
+    expect(after.matchResult.requirements.map((item) => item.requirementId)).toEqual(
+      parsedJob.requirements.map((item) => item.id)
+    );
+
+    expect(after.matchResult.coverage.missingRequiredIds).toContain(kubernetes!.id);
+    expect(after.matchResult.coverage.missingRequiredIds).not.toContain(terraform!.id);
+    expect(after.matchResult.coverage.missingRequiredIds.length).toBeLessThan(
+      before.matchResult.coverage.missingRequiredIds.length
+    );
+    expect(after.matchResult.coverage.onPageUnverifiedIds).toContain(terraform!.id);
+    expect(after.matchResult.coverage.requiredExplicitCoverage).toBe(
+      before.matchResult.coverage.requiredExplicitCoverage
+    );
+
+    expect(
+      after.classifiedLedger.facts.some(
+        (fact) => fact.normalized === "terraform" && fact.provenance === "user_added_unverified"
+      )
+    ).toBe(true);
+    expect(
+      after.classifiedLedger.facts.some(
+        (fact) => fact.normalized === "terraform" && fact.provenance === "imported_source"
+      )
+    ).toBe(false);
+    expect(ledger.facts.some((fact) => fact.normalized === "terraform")).toBe(false);
+    expect(ledger.facts.every((fact) => fact.provenance === "imported_source")).toBe(true);
+  });
+
+  it("does not treat working-copy Kubernetes as imported evidence for coverage", () => {
+    const ledger = importedLedger();
+    const parsedJob = parseJobDescription("Must have Kubernetes. Must have Python.");
+    const kubernetes = requirementMentioning(parsedJob, "Kubernetes");
+    const accepted = blocksWithLivePlaintext(workingBlocks(), {
+      [ROLE_A_BULLET]:
+        "Built REST APIs with Python, Docker, and Kubernetes for inventory sync.",
+    });
+    const { matchResult, classifiedLedger } = refreshCoverageAfterAccept({
+      parsedJob,
+      importLedger: ledger,
+      workingBlocks: accepted,
+      firstSeenVersionId: VERSION_ID,
+    });
+
+    expect(matchResult.coverage.onPageUnverifiedIds).toEqual([kubernetes!.id]);
+    expect(matchResult.coverage.missingRequiredIds).not.toContain(kubernetes!.id);
+    expect(matchResult.coverage.requiredExplicitCount).toBeGreaterThan(0);
+    expect(
+      classifiedLedger.facts.some(
+        (fact) => fact.normalized === "kubernetes" && fact.provenance === "user_added_unverified"
+      )
+    ).toBe(true);
+    expect(ledger.facts.some((fact) => fact.normalized === "kubernetes")).toBe(false);
   });
 });

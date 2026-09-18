@@ -29,10 +29,21 @@ import {
   resumeWorkingDownloadFilename,
   triggerResumeWorkingDocxDownload,
 } from "../../core/resume/resumeEditorDownload";
+import { formatResumeVersionPointer } from "../../core/resume/resumeLibrary";
 import {
   RESUME_OOXML_FLUSH_DEBOUNCE_MS,
   flushBlockPlaintextByBookmark,
 } from "../../core/resume/resumeEditorFlush";
+import {
+  applyAcceptedSuggestionToOoxml,
+  bookmarkNameForSuggestionBlock,
+  currentPlaintextForSuggestionBlock,
+  originalTextHashMatchesCurrent,
+  RESUME_APPLY_NOT_READY_MESSAGE,
+  RESUME_SUGGESTION_STALE_MESSAGE,
+  type ApplyAcceptedSuggestionToDocumentInput,
+  type ApplyAcceptedSuggestionToDocumentResult,
+} from "../../core/resume/resumeSuggestionApply";
 import {
   canRedoResumeEditor,
   canUndoResumeEditor,
@@ -47,7 +58,17 @@ import {
 import { detectResumeSections } from "../../core/resume/resumeFacts";
 import { documentFontFamilies } from "../../core/resume/resumeFonts";
 import { paginatePreviewBlocks } from "../../core/resume/resumePreviewGeometry";
-import { downloadResumeWorkingDocx, ResumeRemoteError } from "../../lib/resumeRemote";
+import {
+  RESUME_MOBILE_EDITOR_HELP,
+  shouldHidePaginatedResumePaper,
+} from "../../core/resume/resumeMobileLayout";
+import {
+  RESUME_PRINT_PREVIEW_BUTTON_LABEL,
+  RESUME_PRINT_PREVIEW_DISCLAIMER,
+  printResumePreviewApproximation,
+} from "../../core/resume/resumePrintPreview";
+import { resumeSafeMessage } from "../../core/resume/resumeErrors";
+import { downloadResumeWorkingDocx } from "../../lib/resumeRemote";
 import { styles } from "../../ui/appStyles";
 import { ResumePageSurface } from "./ResumePageSurface";
 import {
@@ -63,13 +84,22 @@ import { useResumeFontPreflight } from "./useResumeFontPreflight";
  * in-memory block stack (not suggestion undo). Successful last-good bytes
  * autosave to the working copy (not the original). Download Word emits those
  * flushed working bytes — never the immutable original, never HTML-to-docx.
+ * Accept (7C) patches through the same bookmark flush, then saves immediately.
+ * Save as new resume (9B) copies flushed working bytes into a new lineage and
+ * leaves this resume open so you keep editing the current copy. Print preview
+ * (9E) is window.print of the CSS pages, labeled as an approximation — not a
+ * Word PDF and not html2pdf.
  */
 
 export type ResumeDocumentPaneProps = {
   resumeName: string;
+  /** Live job-session title for `Name-role.docx` (read at download time). */
+  jobRoleRef?: MutableRefObject<string>;
   userId?: string;
   resumeId?: string;
   versionId?: string;
+  versionN?: number | null;
+  versionLabel?: string | null;
   resumeUpdatedAtIso?: string;
   workingStoragePath?: string | null;
   extractedStructure?: ResumeExtractedStructure;
@@ -84,16 +114,37 @@ export type ResumeDocumentPaneProps = {
    * autosave, and read the live graph from refs (not a stale React snapshot).
    */
   coveragePrepareRef?: MutableRefObject<(() => Promise<ResumeStructureGraph | null>) | null>;
+  /**
+   * Accept calls this to flush pending edits, patch one bookmarked paragraph
+   * through the 0D patcher, update the preview, and save the working copy now.
+   */
+  suggestionApplyRef?: MutableRefObject<
+    | ((
+        input: ApplyAcceptedSuggestionToDocumentInput
+      ) => Promise<ApplyAcceptedSuggestionToDocumentResult>)
+    | null
+  >;
   /** Suggestion card click: scroll/focus this bookmark id. */
   focusedBlockId?: string | null;
   focusNonce?: number;
+  /**
+   * Save as new resume: persist flushed working bytes as a new library item.
+   * The open resume must stay selected (keep editing current).
+   */
+  onSaveAsNew?: (bytes: Uint8Array) => Promise<boolean>;
+  savingAsNew?: boolean;
+  /** Desktop = paginated paper. Narrow = linear block review (Phase 10D). */
+  isDesktopViewport?: boolean;
 };
 
 export function ResumeDocumentPane({
   resumeName,
+  jobRoleRef,
   userId,
   resumeId,
   versionId,
+  versionN = null,
+  versionLabel = null,
   resumeUpdatedAtIso,
   workingStoragePath = null,
   extractedStructure,
@@ -103,8 +154,12 @@ export function ResumeDocumentPane({
   onClose,
   onWorkingGraphChange,
   coveragePrepareRef,
+  suggestionApplyRef,
   focusedBlockId = null,
   focusNonce = 0,
+  onSaveAsNew,
+  savingAsNew = false,
+  isDesktopViewport = true,
 }: ResumeDocumentPaneProps) {
   const [draftBlocks, setDraftBlocks] = useState<ResumeStructureBlock[] | null>(null);
   /** Graph matching `lastGoodBytes` (last successful OOXML flush). */
@@ -119,6 +174,8 @@ export function ResumeDocumentPane({
   >({});
   const [autosavePayload, setAutosavePayload] = useState<ResumeAutosavePayload | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [savingAsNewLocal, setSavingAsNewLocal] = useState(false);
+  const [saveAsNewNotice, setSaveAsNewNotice] = useState<string | null>(null);
 
   const lastGoodBytesRef = useRef<Uint8Array | null>(null);
   const pendingFlushIdsRef = useRef<Set<string>>(new Set());
@@ -152,6 +209,7 @@ export function ResumeDocumentPane({
   }, [draftBlocks, baselineBlocks, persistedBlocks, onWorkingGraphChange]);
 
   const pages = useMemo(() => paginatePreviewBlocks(blocks), [blocks]);
+  const hidePaginatedPaper = shouldHidePaginatedResumePaper(isDesktopViewport);
 
   useEffect(() => {
     if (!focusedBlockId) return;
@@ -165,7 +223,7 @@ export function ResumeDocumentPane({
     if (!(host instanceof HTMLElement)) return;
     host.scrollIntoView({ block: "center", inline: "nearest" });
     host.focus();
-  }, [focusedBlockId, focusNonce, pages]);
+  }, [focusedBlockId, focusNonce, pages, hidePaginatedPaper]);
   const fontFamilies = useMemo(() => documentFontFamilies(blocks), [blocks]);
   const fontPreflight = useResumeFontPreflight(fontFamilies);
 
@@ -353,6 +411,104 @@ export function ResumeDocumentPane({
     };
   }, [coveragePrepareRef]);
 
+  useEffect(() => {
+    if (!suggestionApplyRef) return;
+    suggestionApplyRef.current = async (input) => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      const flushed = await flushPendingBlocksRef.current();
+      const bytes = flushed?.bytes ?? lastGoodBytesRef.current;
+      if (!bytes) {
+        setEditNotice(bytesErrorRef.current ?? RESUME_APPLY_NOT_READY_MESSAGE);
+        return {
+          ok: false,
+          code: "not_ready",
+          message: bytesErrorRef.current ?? RESUME_APPLY_NOT_READY_MESSAGE,
+        };
+      }
+
+      const currentBlocks =
+        flushed?.graph.blocks ??
+        editorBlocksForCoverageAnalyze({
+          draftBlocks: draftBlocksRef.current,
+          baselineBlocks: baselineBlocksRef.current,
+          persistedBlocks: persistedBlocksRef.current,
+        });
+      const currentPlaintext = currentPlaintextForSuggestionBlock(
+        currentBlocks,
+        input.sourceBlockId
+      );
+      if (
+        currentPlaintext === null ||
+        !(await originalTextHashMatchesCurrent({
+          originalTextHash: input.originalTextHash,
+          currentPlaintext,
+        }))
+      ) {
+        setEditNotice(RESUME_SUGGESTION_STALE_MESSAGE);
+        return { ok: false, code: "stale", message: RESUME_SUGGESTION_STALE_MESSAGE };
+      }
+
+      const bookmarkName = bookmarkNameForSuggestionBlock(currentBlocks, input.sourceBlockId);
+      if (!bookmarkName) {
+        setEditNotice(MIXED_RUN_FAIL_MESSAGE);
+        return { ok: false, code: "blocked_formatting", message: MIXED_RUN_FAIL_MESSAGE };
+      }
+
+      const patched = await applyAcceptedSuggestionToOoxml({
+        docxBytes: bytes,
+        bookmarkName,
+        proposedText: input.proposedText,
+        originalTextHash: input.originalTextHash,
+        currentPlaintext,
+      });
+      if (!patched.ok) {
+        if (patched.code === "stale") {
+          setEditNotice(patched.message);
+          return { ok: false, code: "stale", message: patched.message };
+        }
+        setEditNotice(patched.message);
+        return { ok: false, code: "blocked_formatting", message: patched.message };
+      }
+
+      const preview = applyGraphBlockPlaintext(
+        currentBlocks,
+        input.sourceBlockId,
+        input.proposedText
+      );
+      const nextBlocks = preview.ok
+        ? preview.blocks
+        : currentBlocks.map((block) =>
+            block.blockId === input.sourceBlockId
+              ? { ...block, text: input.proposedText }
+              : block
+          );
+
+      lastGoodBytesRef.current = patched.bytes;
+      pendingFlushIdsRef.current.delete(input.sourceBlockId);
+      setBaselineBlocks(nextBlocks);
+      setDraftBlocks(nextBlocks);
+      bumpEditorGeneration(input.sourceBlockId);
+      setEditNotice(null);
+      const payload = { bytes: patched.bytes, graph: { blocks: nextBlocks } };
+      setAutosavePayload(payload);
+      const saved = await saveNowRef.current(payload);
+      if (!saved) {
+        return {
+          ok: false,
+          code: "not_ready",
+          message: "Could not save the Word document. Use Retry cloud save, then Accept again.",
+        };
+      }
+      return { ok: true };
+    };
+    return () => {
+      suggestionApplyRef.current = null;
+    };
+  }, [suggestionApplyRef]);
+
   function scheduleFlush() {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
@@ -404,9 +560,7 @@ export function ResumeDocumentPane({
         lastGoodBytesRef.current = null;
         setBytesReady(false);
         setBytesError(
-          err instanceof ResumeRemoteError
-            ? err.message
-            : "Could not load the Word document for editing."
+          resumeSafeMessage(err, "Could not load the Word document for editing.")
         );
       }
     })();
@@ -518,14 +672,51 @@ export function ResumeDocumentPane({
         );
         return;
       }
-      triggerResumeWorkingDocxDownload(bytes, resumeWorkingDownloadFilename(resumeName));
+      triggerResumeWorkingDocxDownload(
+        bytes,
+        resumeWorkingDownloadFilename(resumeName, jobRoleRef?.current)
+      );
     } finally {
       setDownloading(false);
     }
   }
 
+  async function handleSaveAsNew() {
+    if (!onSaveAsNew || savingAsNew || savingAsNewLocal || downloading) return;
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    setSavingAsNewLocal(true);
+    try {
+      const flushed = await flushPendingBlocks();
+      const bytes = flushed?.bytes ?? lastGoodBytesRef.current;
+      if (!bytes) {
+        setEditNotice(
+          bytesErrorRef.current ??
+            "The Word document is still loading. Try again in a moment, or reopen the preview."
+        );
+        return;
+      }
+      const saved = await onSaveAsNew(bytes);
+      if (saved) {
+        setSaveAsNewNotice(
+          "Saved as a new resume. Keep editing this copy — the original library item is unchanged."
+        );
+      }
+    } finally {
+      setSavingAsNewLocal(false);
+    }
+  }
+
+  const versionPointer =
+    versionN != null ? formatResumeVersionPointer(versionN, versionLabel) : null;
+  const saveAsBusy = savingAsNew || savingAsNewLocal;
+
   const saveStatusText = downloading
     ? "Preparing Word file…"
+    : saveAsBusy
+      ? "Saving as a new resume…"
     : flushing
     ? "Applying edits to the in-memory Word document…"
     : dirty
@@ -559,10 +750,17 @@ export function ResumeDocumentPane({
           marginBottom: 8,
         }}
       >
-        <div style={styles.cardTitle}>{resumeName}</div>
+        <div>
+          <div style={styles.cardTitle}>{resumeName}</div>
+          {versionPointer ? (
+            <div style={{ ...styles.metaText, marginTop: 4 }}>{versionPointer}</div>
+          ) : null}
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             type="button"
+            aria-label="Undo paragraph edit"
+            aria-keyshortcuts="Control+Z Meta+Z"
             onClick={() => applyHistoryDirection("undo")}
             disabled={!undoEnabled}
           >
@@ -570,6 +768,8 @@ export function ResumeDocumentPane({
           </button>
           <button
             type="button"
+            aria-label="Redo paragraph edit"
+            aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y"
             onClick={() => applyHistoryDirection("redo")}
             disabled={!redoEnabled}
           >
@@ -579,12 +779,31 @@ export function ResumeDocumentPane({
             type="button"
             aria-label="Download Word"
             onClick={() => void handleDownloadWord()}
-            disabled={!bytesReady || downloading}
+            disabled={!bytesReady || downloading || saveAsBusy}
           >
             Download Word
           </button>
+          <button
+            type="button"
+            aria-label={RESUME_PRINT_PREVIEW_BUTTON_LABEL}
+            title={RESUME_PRINT_PREVIEW_DISCLAIMER}
+            onClick={() => printResumePreviewApproximation()}
+            disabled={!hasContent}
+          >
+            {RESUME_PRINT_PREVIEW_BUTTON_LABEL}
+          </button>
+          {onSaveAsNew && (
+            <button
+              type="button"
+              aria-label="Save as new resume"
+              onClick={() => void handleSaveAsNew()}
+              disabled={!bytesReady || downloading || saveAsBusy}
+            >
+              Save as new resume
+            </button>
+          )}
           {onClose && (
-            <button type="button" onClick={() => void handleClose()}>
+            <button type="button" aria-label="Close resume preview" onClick={() => void handleClose()}>
               Close preview
             </button>
           )}
@@ -592,16 +811,20 @@ export function ResumeDocumentPane({
       </div>
 
       <p style={{ ...styles.metaText, margin: "0 0 12px 0" }}>
-        Approximate on-screen preview. Click a paragraph to edit. Undo and Redo
-        apply to block text in this tab. Edits patch the Word document after a
-        short pause and save the working copy to the cloud. Download Word saves
-        the flushed working copy (not the original upload). Microsoft Word is
-        the source of truth for exact fonts, wrapping, and page count.
+        {hidePaginatedPaper
+          ? RESUME_MOBILE_EDITOR_HELP
+          : "Approximate on-screen preview. Click a paragraph to edit. Tab moves between paragraphs. Undo and Redo apply to block text in this tab (also Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z). Edits patch the Word document after a short pause and save the working copy to the cloud. Download Word saves the flushed working copy (not the original upload) as a named Name-role.docx file when a job title is set. Save as new resume copies those flushed bytes into a new library item and leaves this version open so you can keep editing it. Print preview (approximate) uses the browser print dialog for these on-screen pages only — it is not a Microsoft Word PDF. The original upload is unchanged. Microsoft Word is the source of truth for exact fonts, wrapping, and page count."}
       </p>
 
       {saveStatusText ? (
         <p style={{ ...styles.metaText, margin: "0 0 12px 0" }} role="status">
           {saveStatusText}
+        </p>
+      ) : null}
+
+      {saveAsNewNotice && !saveAsBusy ? (
+        <p style={{ ...styles.metaText, margin: "0 0 12px 0" }} role="status">
+          {saveAsNewNotice}
         </p>
       ) : null}
 
@@ -654,33 +877,48 @@ export function ResumeDocumentPane({
         </p>
       ) : (
         <div
+          className="resume-print-pages"
           style={{
             display: "grid",
-            gap: 20,
-            justifyItems: "center",
+            gap: hidePaginatedPaper ? 10 : 20,
+            justifyItems: hidePaginatedPaper ? "stretch" : "center",
             padding: "12px 4px",
             overflowX: "auto",
             background: "var(--aether-surface-sunken, #fafafa)",
             borderRadius: 12,
           }}
         >
+          <p className="resume-print-only">{RESUME_PRINT_PREVIEW_DISCLAIMER}</p>
           {combinedError ? (
             <div style={{ ...styles.errorInline, width: "100%", maxWidth: 640 }}>
               {combinedError}
             </div>
           ) : null}
-          {pages.map((page, index) => (
+          {hidePaginatedPaper ? (
             <ResumePageSurface
-              key={index}
-              page={page}
-              pageNumber={index + 1}
-              pageCount={pages.length}
+              page={{ blocks }}
+              pageNumber={1}
+              pageCount={1}
+              compact
               ariaLabelForBlock={ariaLabelForBlock}
               onBlockPlaintextChange={handleBlockPlaintextChange}
               editorGenerationByBlockId={editorGenerationByBlockId}
               highlightedBlockId={focusedBlockId}
             />
-          ))}
+          ) : (
+            pages.map((page, index) => (
+              <ResumePageSurface
+                key={index}
+                page={page}
+                pageNumber={index + 1}
+                pageCount={pages.length}
+                ariaLabelForBlock={ariaLabelForBlock}
+                onBlockPlaintextChange={handleBlockPlaintextChange}
+                editorGenerationByBlockId={editorGenerationByBlockId}
+                highlightedBlockId={focusedBlockId}
+              />
+            ))
+          )}
         </div>
       )}
     </section>

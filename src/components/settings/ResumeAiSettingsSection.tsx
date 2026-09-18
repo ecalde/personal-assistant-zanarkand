@@ -6,6 +6,7 @@ import {
   testResumeAiConnection,
   type ResumeAiConnectionResult,
 } from "../../core/resume/resumeAiConnection";
+import { resumeOllamaUserMessage } from "../../core/resume/resumeErrors";
 import {
   DEFAULT_RESUME_AI_PREFERENCES,
   isLoopbackOllamaBaseUrl,
@@ -159,7 +160,11 @@ export function ResumeAiSettingsSection() {
             style={statusStyle}
             role={result.kind === "ok" ? "status" : "alert"}
           >
-            <p style={s.statusTitle}>{result.headline}</p>
+            <p style={s.statusTitle}>
+              {result.kind === "ok"
+                ? result.headline
+                : resumeOllamaUserMessage(result.headline)}
+            </p>
             <p style={s.statusBody}>{result.detail}</p>
             {result.kind === "ok" && result.models.length > 0 ? (
               <p style={s.statusBody}>

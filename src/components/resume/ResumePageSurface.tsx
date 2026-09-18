@@ -35,6 +35,8 @@ export type ResumePageSurfaceProps = {
   /** Bump per block after undo/redo so a focused contentEditable remounts. */
   editorGenerationByBlockId?: Readonly<Record<string, number>>;
   highlightedBlockId?: string | null;
+  /** Phase 10D: linear review, no US Letter paper chrome. */
+  compact?: boolean;
 };
 
 function ReadOnlyParagraph({ block }: { block: ResumeStructureBlock }) {
@@ -69,31 +71,52 @@ export function ResumePageSurface({
   onBlockPlaintextChange,
   editorGenerationByBlockId,
   highlightedBlockId = null,
+  compact = false,
 }: ResumePageSurfaceProps) {
-  const paperStyle: CSSProperties = {
-    width: geometry.pageWidthPx,
-    minHeight: geometry.pageHeightPx,
-    boxSizing: "border-box",
-    paddingTop: geometry.marginTopPx,
-    paddingRight: geometry.marginRightPx,
-    paddingBottom: geometry.marginBottomPx,
-    paddingLeft: geometry.marginLeftPx,
-    background: PAPER_BG,
-    color: PAPER_INK,
-    fontFamily: PREVIEW_FONT_STACK,
-    boxShadow: "0 2px 14px rgba(4, 16, 31, 0.35)",
-    borderRadius: 2,
-    display: "grid",
-    gap: 2,
-    alignContent: "start",
-  };
+  const paperStyle: CSSProperties = compact
+    ? {
+        width: "100%",
+        maxWidth: "100%",
+        minHeight: 0,
+        boxSizing: "border-box",
+        padding: 12,
+        background: PAPER_BG,
+        color: PAPER_INK,
+        fontFamily: PREVIEW_FONT_STACK,
+        borderRadius: 8,
+        display: "grid",
+        gap: 8,
+        alignContent: "start",
+      }
+    : {
+        width: geometry.pageWidthPx,
+        minHeight: geometry.pageHeightPx,
+        boxSizing: "border-box",
+        paddingTop: geometry.marginTopPx,
+        paddingRight: geometry.marginRightPx,
+        paddingBottom: geometry.marginBottomPx,
+        paddingLeft: geometry.marginLeftPx,
+        background: PAPER_BG,
+        color: PAPER_INK,
+        fontFamily: PREVIEW_FONT_STACK,
+        boxShadow: "0 2px 14px rgba(4, 16, 31, 0.35)",
+        borderRadius: 2,
+        display: "grid",
+        gap: 2,
+        alignContent: "start",
+      };
 
   return (
-    <div style={{ display: "grid", gap: 6, justifyItems: "center" }}>
+    <div style={{ display: "grid", gap: 6, justifyItems: compact ? "stretch" : "center" }}>
       <div
+        className={compact ? "resume-review-surface" : "resume-page-paper"}
         style={paperStyle}
         role="group"
-        aria-label={`Resume page ${pageNumber} of ${pageCount}`}
+        aria-label={
+          compact
+            ? "Resume paragraphs (review layout, not a Word page)"
+            : `Resume page ${pageNumber} of ${pageCount}`
+        }
       >
         {page.blocks.map((block) => {
           const blockId = block.blockId;

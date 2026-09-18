@@ -7,6 +7,7 @@
  * no coverage UI (5E). Skills that are not written in the JD cannot appear.
  *
  * The JD is untrusted data (RES-SEC-002). Nothing in this module logs it.
+ * Oversized pastes fail closed at the 100k cap (Phase 10A) before extract.
  */
 
 import type {
@@ -21,6 +22,7 @@ import {
   normalizeLexiconTerm,
   type LexiconMatch,
 } from "./resumeSkillLexicon";
+import { assertResumeJobDescriptionWithinCap } from "./resumeLimits";
 import { normalizeDocumentTextForComparison } from "./resumeUnicode";
 
 /** Bump when the deterministic extract shape or rules change. */
@@ -345,6 +347,7 @@ export function parseJobDescription(
   text: string,
   options: ParseJobDescriptionOptions = {}
 ): ParsedJobDescription {
+  assertResumeJobDescriptionWithinCap(text);
   const rawText = text;
   const normalized = normalizeDocumentTextForComparison(text);
   const { candidates, labeled } = collectCandidates(normalized);

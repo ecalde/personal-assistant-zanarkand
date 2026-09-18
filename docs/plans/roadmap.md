@@ -28,7 +28,7 @@ Core domains and experiences:
 | **Skills** | Weekly schedule blocks, goals, logged minutes, XP/streaks, optional schedule-series bounds |
 | **Events** | Life events (timed, all-day, recurring) with optional people links |
 | **People** | Contacts, birthdays, follow-up cadence, preferences |
-| **Career** | Job applications pipeline, dream-job target, skill-gap awareness; School domain model lives under this nav tab (Phase 54+) |
+| **Career** | Job applications pipeline, dream-job target, skill-gap awareness; School and Resume Tool live under this nav tab |
 | **Fitness** | Workout plans (templates), live/in-progress and completed sessions, dashboard quick-complete, weight-progression chart, muscle anatomy coverage |
 | **Daily Focus** | Ranked cross-domain recommendations (not persisted; actionable CTAs) |
 | **Daily Briefing** | Deterministic narrative summary of the day (not persisted) |
@@ -100,8 +100,9 @@ Short summaries of shipped work. Phase numbers match historical plan names where
 | 58 | **What-if grades** | [`schoolGrades.ts`](../../src/core/schoolGrades.ts) weighted current / min / max + GT letters, need-for-A average on remaining work, and per-item safe floors. Course grades panel groups scores by category. Extra credit can exceed 100%; ungraded and 0% extra-credit rows do not consume required weight. |
 | 59 | **School Daily Focus** | `SchoolReminder` dues within 3 days as Daily Focus items (`open_career` + `CareerFocus` school). Briefing/review one-liners only. No XP. |
 | 60 | **School course calendar color** | Optional per-course palette color on the course form (same swatches as Calendar settings). Reminders keep kind colors (exam/quiz/…) and overlay the course color as a small right-to-left gradient (`accentColorKey`). |
+| Resume Tool | **Career Resume pane (MVP)** | Hybrid document-canonical workspace: private Storage + RLS tables (not `AppPayload`); fail-closed OOXML patch; frozen import facts; JD coverage without a fake ATS score; local Ollama rewriting when connected; lazy-loaded editor chunk. Plan: [`RESUME_TOOL_IMPLEMENTATION_PLAN.md`](../RESUME_TOOL_IMPLEMENTATION_PLAN.md). Status: [`RESUME_TOOL_PROGRESS.md`](../RESUME_TOOL_PROGRESS.md). |
 
-**Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI layers (Phases 40–41).
+**Not yet shipped** (called out in architecture): appearance cloud sync (Phase 37E), exception list editor on Events form, recurring-occurrence drag with scope picker (Phase 36.1), week click-drag create-selection, skill/workout schedule drag (Phase 36.2), notifications (Phase 38), analytics (Phase 39), AI insight/agent layers (Phases 40–41). Resume Tool MVP (10F) is shipped; authoritative PDF and ONLYOFFICE remain out of scope.
 
 ---
 

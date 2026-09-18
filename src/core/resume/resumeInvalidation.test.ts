@@ -118,6 +118,17 @@ describe("decideResumeInvalidation", () => {
     expect(decision.documentBytes).toBe("unchanged");
     expect(decision.archiveJobSession).toBe(false);
   });
+
+  it("rematches mentions after Accept without re-parsing the JD or rebuilding import facts", () => {
+    const decision = decideResumeInvalidation("suggestion_accept");
+    expect(decision.rerunJobParse).toBe(false);
+    expect(decision.rebuildImportLedger).toBe(false);
+    expect(decision.refreshMentions).toBe(true);
+    expect(decision.dropCoverage).toBe(false);
+    expect(decision.archiveJobSession).toBe(false);
+    expect(decision.discardPendingSuggestions).toBe(false);
+    expect(decision.documentBytes).toBe("patched_working");
+  });
 });
 
 describe("storedJobAnalysisIsStaleForDraft", () => {
@@ -128,6 +139,7 @@ describe("storedJobAnalysisIsStaleForDraft", () => {
         company: "Acme",
         jobTitle: "Engineer",
         jobDescriptionText: "Must have Kubernetes.",
+        applicationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       })
     ).toBe(false);
     expect(shouldDropStoredJobAnalysis(ANALYZED, EMPTY_JOB_SESSION_DRAFT)).toBe(true);
@@ -139,6 +151,7 @@ describe("storedJobAnalysisIsStaleForDraft", () => {
         company: "Acme",
         jobTitle: "Engineer",
         jobDescriptionText: "Must have Python.",
+        applicationId: null,
       })
     ).toBe(true);
     expect(
@@ -146,6 +159,7 @@ describe("storedJobAnalysisIsStaleForDraft", () => {
         company: "Globex",
         jobTitle: "Engineer",
         jobDescriptionText: "Must have Kubernetes.",
+        applicationId: null,
       })
     ).toBe(true);
     expect(storedJobAnalysisIsStaleForDraft(null, EMPTY_JOB_SESSION_DRAFT)).toBe(false);
@@ -164,6 +178,7 @@ describe("replace insert fields", () => {
       company: "",
       jobTitle: "",
       jobDescriptionText: "",
+      applicationId: null,
       parsedJob: null,
       matchResult: null,
     });

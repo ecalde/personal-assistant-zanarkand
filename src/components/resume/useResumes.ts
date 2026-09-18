@@ -11,6 +11,7 @@ import {
   normalizeResumeName,
   validateResumeName,
 } from "../../core/resume/resumeLibrary";
+import { resumeSafeMessage, resumeZipUserMessage } from "../../core/resume/resumeErrors";
 import type { Resume } from "../../core/resume/resumeModel";
 import {
   deleteResume,
@@ -18,7 +19,7 @@ import {
   insertResumeWithOriginal,
   listResumes,
   renameResume,
-  ResumeRemoteError,
+  saveResumeAsNew,
   setDefaultResume,
 } from "../../lib/resumeRemote";
 
@@ -34,6 +35,11 @@ export type UseResumesResult = {
   setDefaultResume: (resumeId: string) => Promise<void>;
   deleteResume: (resumeId: string) => Promise<void>;
   duplicateResume: (resumeId: string) => Promise<void>;
+  saveAsNewResume: (
+    sourceResumeId: string,
+    bytes: Uint8Array,
+    jobTitle?: string
+  ) => Promise<boolean>;
   refresh: () => void;
 };
 
@@ -85,7 +91,7 @@ export function useResumes(userId: string, options: { enabled: boolean }): UseRe
         type: file.type,
       });
       if (metadataError) {
-        setError(metadataError);
+        setError(resumeZipUserMessage(metadataError));
         return;
       }
 
@@ -94,7 +100,7 @@ export function useResumes(userId: string, options: { enabled: boolean }): UseRe
         const bytes = new Uint8Array(await file.arrayBuffer());
         const packageError = await validateResumeDocxBytes(bytes);
         if (packageError) {
-          setError(packageError);
+          setError(resumeZipUserMessage(packageError));
           return;
         }
 
@@ -190,6 +196,30 @@ export function useResumes(userId: string, options: { enabled: boolean }): UseRe
     [userId]
   );
 
+  const saveAsNewResumeById = useCallback(
+    async (sourceResumeId: string, bytes: Uint8Array, jobTitle?: string) => {
+      setMutatingId(sourceResumeId);
+      try {
+        await saveResumeAsNew({
+          userId,
+          sourceResumeId,
+          bytes,
+          jobTitle,
+        });
+        setError(null);
+        setReloadToken((token) => token + 1);
+        return true;
+      } catch (err) {
+        setError(safeMessage(err, "Could not save as a new resume."));
+        setReloadToken((token) => token + 1);
+        return false;
+      } finally {
+        setMutatingId(null);
+      }
+    },
+    [userId]
+  );
+
   return {
     resumes,
     loading,
@@ -201,11 +231,12 @@ export function useResumes(userId: string, options: { enabled: boolean }): UseRe
     setDefaultResume: setDefaultResumeById,
     deleteResume: deleteResumeById,
     duplicateResume: duplicateResumeById,
+    saveAsNewResume: saveAsNewResumeById,
     refresh,
   };
 }
 
-/** Remote errors are already generic; never surface resume text or Supabase internals. */
+/** Never surface resume/JD text or mapper/Supabase payloads. */
 function safeMessage(err: unknown, fallback: string): string {
-  return err instanceof ResumeRemoteError ? err.message : fallback;
+  return resumeSafeMessage(err, fallback);
 }

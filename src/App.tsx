@@ -2309,6 +2309,7 @@ export default function App({ userId, onSignOut }: AppProps) {
           onSaveTimelineLayout={setSchoolTimelineLayout}
           onSetReminderCompleted={setSchoolReminderComplete}
           onSetGradedItemCompleted={setSchoolGradedItemComplete}
+          onOpenSkills={() => setPage("skills")}
         />
       )}
 

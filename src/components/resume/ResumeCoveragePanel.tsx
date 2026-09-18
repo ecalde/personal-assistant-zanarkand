@@ -8,13 +8,15 @@ import { styles } from "../../ui/appStyles";
 
 export type ResumeCoveragePanelProps = {
   view: ResumeCoverageView;
+  /** Opens Skills. Does not add missing terms to the tracker. */
+  onOpenSkills?: () => void;
 };
 
 /**
  * Honest coverage + parseability (Phase 5E). Architecture §31 / ADR-014:
  * named bars, missing list, unverified label. Never an "ATS Score".
  */
-export function ResumeCoveragePanel({ view }: ResumeCoveragePanelProps) {
+export function ResumeCoveragePanel({ view, onOpenSkills }: ResumeCoveragePanelProps) {
   assertHonestCoverageCopy(coverageCopyBlob(view));
 
   return (
@@ -58,6 +60,15 @@ export function ResumeCoveragePanel({ view }: ResumeCoveragePanelProps) {
         empty="No missing required terms."
         items={view.missingRequired}
       />
+      {onOpenSkills ? (
+        <p style={{ ...styles.helpText, margin: "0 0 12px 0" }}>
+          Review missing terms in the Skills tracker if you want to log them there. Opening Skills
+          does not add requirements automatically.{" "}
+          <button type="button" style={styles.smallBtn} onClick={onOpenSkills}>
+            Open Skills tracker
+          </button>
+        </p>
+      ) : null}
       <CoverageList title="Uncertain" empty="No uncertain matches." items={view.uncertain} />
       <CoverageList
         title="On this document (unverified)"

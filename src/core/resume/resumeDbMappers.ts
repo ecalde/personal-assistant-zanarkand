@@ -1382,6 +1382,7 @@ const LAYOUT_REPORT_KEYS = [
   "estimatedPageCount",
   "characterCount",
   "stale",
+  "fingerprint",
 ] as const;
 
 function parseStringArray(raw: unknown, field: string, maxItems = 128): string[] {
@@ -1438,6 +1439,12 @@ function parseLayoutReport(raw: unknown, field: string): LayoutReport {
       throw new MapperError(`Invalid ${field}.stale`, `${field}.stale`);
     }
     report.stale = raw.stale;
+  }
+  if (raw.fingerprint !== undefined) {
+    if (typeof raw.fingerprint !== "string" || !raw.fingerprint.trim() || raw.fingerprint.length > 2048) {
+      throw new MapperError(`Invalid ${field}.fingerprint`, `${field}.fingerprint`);
+    }
+    report.fingerprint = raw.fingerprint.trim();
   }
   return report;
 }

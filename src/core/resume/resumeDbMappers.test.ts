@@ -4,6 +4,7 @@ import { MapperError } from "../dbMappers";
 import {
   RESUME_JOB_DESCRIPTION_MAX_CHARS,
   assertActiveVersionBelongsToResume,
+  assertCanonicalOriginalStoragePath,
   assertJobSessionBelongsToResume,
   assertSuggestionBelongsToSession,
   assertResumeOwnerStoragePath,
@@ -89,6 +90,23 @@ describe("resume storage path builder", () => {
     expect(original.includes("\\")).toBe(false);
   });
 
+  it("gives Save-as-new a distinct original and working path from the source resume", () => {
+    const sourceResumeId = RESUME_ID;
+    const newResumeId = "55555555-5555-4555-8555-555555555555";
+    const newVersionId = "66666666-6666-4666-8666-666666666666";
+    const sourceOriginal = buildResumeOriginalStoragePath(USER_ID, sourceResumeId, SHA256);
+    const sourceWorking = buildResumeWorkingStoragePath(USER_ID, sourceResumeId, VERSION_ID);
+    const copyOriginal = buildResumeOriginalStoragePath(USER_ID, newResumeId, SHA256);
+    const copyWorking = buildResumeWorkingStoragePath(USER_ID, newResumeId, newVersionId);
+
+    expect(copyOriginal).not.toBe(sourceOriginal);
+    expect(copyWorking).not.toBe(sourceWorking);
+    expect(copyOriginal.startsWith(`${USER_ID}/${newResumeId}/original/`)).toBe(true);
+    expect(copyWorking.startsWith(`${USER_ID}/${newResumeId}/versions/`)).toBe(true);
+    expect(copyOriginal.includes("..")).toBe(false);
+    expect(copyWorking.includes("..")).toBe(false);
+  });
+
   it("rejects traversal and non-owner inputs before joining", () => {
     const traversalAttempts: Array<Parameters<typeof buildResumeOriginalStoragePath>> = [
       [`../${USER_ID}`, RESUME_ID, SHA256],
@@ -118,6 +136,18 @@ describe("resume storage path builder", () => {
     ).toThrow(MapperError);
     expect(() =>
       assertResumeOwnerStoragePath(`${USER_ID}/../${RESUME_ID}/original/${SHA256}.docx`, USER_ID)
+    ).toThrow(MapperError);
+  });
+
+  it("accepts canonical original paths and rejects working-copy paths", () => {
+    const original = buildResumeOriginalStoragePath(USER_ID, RESUME_ID, SHA256);
+    const working = buildResumeWorkingStoragePath(USER_ID, RESUME_ID, VERSION_ID);
+    expect(assertCanonicalOriginalStoragePath(original, USER_ID, RESUME_ID)).toBe(original);
+    expect(() => assertCanonicalOriginalStoragePath(working, USER_ID, RESUME_ID)).toThrow(
+      MapperError
+    );
+    expect(() =>
+      assertCanonicalOriginalStoragePath(`${original}/../${SHA256}.docx`, USER_ID, RESUME_ID)
     ).toThrow(MapperError);
   });
 });
@@ -646,6 +676,26 @@ describe("parseResumeSuggestionRow", () => {
     expect(record.status).toBe("pending");
     expect(record.generation.model).toBe("fake-model");
     expect(parseResumeSuggestionRow(resumeSuggestionToRow(record))).toEqual(record);
+  });
+
+  it("round-trips a layout fingerprint and rejects empty fingerprint strings", () => {
+    const record = parseResumeSuggestionRow(
+      sampleSuggestionRow({
+        layout_result: {
+          status: "wraps",
+          estimatedLineCount: 3,
+          characterCount: 80,
+          stale: true,
+          fingerprint: "v1|pw:12240|sub:1|fonts:Carlito@10",
+        },
+      })
+    );
+    expect(record.layoutConstraint.fingerprint).toBe("v1|pw:12240|sub:1|fonts:Carlito@10");
+    expect(record.layoutConstraint.stale).toBe(true);
+    expect(parseResumeSuggestionRow(resumeSuggestionToRow(record))).toEqual(record);
+    expect(() =>
+      parseResumeSuggestionRow(sampleSuggestionRow({ layout_result: { status: "fits", fingerprint: "  " } }))
+    ).toThrow(MapperError);
   });
 
   it("rejects unknown keys, invalid enums, and bad hashes", () => {
